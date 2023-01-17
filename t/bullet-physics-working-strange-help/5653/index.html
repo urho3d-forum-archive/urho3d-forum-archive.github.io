@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Bullet Physics working strange (help)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Bullet Physics working strange (help)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>I created box and move it with physics. Problem is, when physic object is moving, the box (drawable) have “lags”. If physics is under debug mode, collision box moving perfectly smooth, but box as drawable object is not smooth.</p>
+<p>here is video how it looks like<br/>
+</p><div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="aFkeZUhDWpA" data-youtube-title="Urho3D strange physics"></div>
+<p>I dont know where can be problem.<br/>
+Here is code which can be related. Btw I fogrot create PhysicsWorld component (and it works), but after create it, it didnt help.</p>
+<pre><code>void MyGApp::Start()
+{
+	scene_ = new Scene(context_);
+	scene_-&gt;CreateComponent&lt;Octree&gt;(); 
+	scene_-&gt;CreateComponent&lt;DebugRenderer&gt;();
+	PhysicsWorld * pw = scene_-&gt;CreateComponent&lt;PhysicsWorld&gt;();
+
+	// ...
+}
+</code></pre>
+<hr/>
+<pre><code>void Urho3D::PlayerShip::mf_Start(Scene * scene)
+{
+	// ...
+
+	m_node = scene-&gt;CreateChild("Spaceship");
+	m_node-&gt;SetPosition(Vector3(0, -2.0, -10.0f));
+	//m_node-&gt;SetRotation(Quaternion(0, 0, 0));
+	m_node-&gt;SetScale(Vector3(1.0f, 1.0f, 1.0f));
+	
+	// Static model
+	m_node_spaceship = m_node-&gt;CreateChild("Spaceship_model");
+	m_spaceship = m_node_spaceship-&gt;CreateComponent&lt;StaticModel&gt;();
+	m_spaceship-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl")); // Spaceship1
+	m_spaceship-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Stone.xml"));
+	m_spaceship-&gt;SetCastShadows(true);
+
+	// Physics
+	m_spaceship_rb = m_node_spaceship-&gt;CreateComponent&lt;RigidBody&gt;();
+	m_spaceship_rb-&gt;SetMass(5.0f);
+	m_spaceship_rb-&gt;SetFriction(0.5f);
+	m_spaceship_rb-&gt;SetUseGravity(false);
+	m_spaceship_rb-&gt;SetCollisionEventMode(COLLISION_ALWAYS);
+	m_spaceship_rb-&gt;SetCcdRadius(0.1f);
+	m_spaceship_rb-&gt;SetCcdMotionThreshold(0.1f);
+
+
+	CollisionShape * collision_shape = m_node_spaceship-&gt;CreateComponent&lt;CollisionShape&gt;();
+	collision_shape-&gt;SetBox(Vector3(1.0f , 1.0f, 1.0f));
+	// ---------------------------------------------------------------------------
+	// ...
+}
+</code></pre>
+<hr/>
+<pre><code>void Urho3D::PlayerShip::mf_Update(StringHash eventType, VariantMap &amp; eventData)
+{
+	float timeStep = eventData[Update::P_TIMESTEP].GetFloat();
+	m_node_camera-&gt;LookAt(m_spaceship_rb-&gt;GetPosition());
+	if (m_under_control)
+	{
+		MoveDirection = Vector3::ZERO;
+		float MS = m_speed; // m_speed = 2.0f;
+
+		if (input-&gt;GetKeyDown(KEY_SHIFT))
+		{
+			MS *= 10;
+		}
+		if (input-&gt;GetKeyDown(KEY_UP))
+		{
+			MoveDirection += (Vector3(0, 0, 1.0f) * MS);
+		}
+		if (input-&gt;GetKeyDown(KEY_DOWN))
+		{
+			MoveDirection += (Vector3(0, 0, -1.0f) * MS);
+		}
+
+		if (input-&gt;GetKeyDown(KEY_LEFT))
+		{
+			MoveDirection += (Vector3(-1.0f, 0, 0) * MS);
+		}
+
+		if (input-&gt;GetKeyDown(KEY_RIGHT))
+		{
+			MoveDirection += (Vector3(1.0f, 0, 0) * MS);
+		}
+
+
+	}
+
+	const Quaternion&amp; rot = m_node_spaceship-&gt;GetRotation();
+	m_spaceship_rb-&gt;ApplyImpulse(MoveDirection);
+
+	m_node_spaceship-&gt;SetRotation(m_node-&gt;GetRotation());
+	const Vector3&amp; velocity = m_spaceship_rb-&gt;GetLinearVelocity();
+	Vector3 brakeForce = (-velocity * 0.2f);
+	m_spaceship_rb-&gt;ApplyImpulse(brakeForce);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>I partially solve it, but this is not solution.<br/>
+I created model in separate node and update SetTransform from RigidBody. It is moving smooth then.</p>
+<p>Problem looks like node position to physic RigidBody position is strangely calculated. Like when it want to be in exact position as RigidBody and another time want to be late and it is switching between two states.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Forces should be applied during <code>FixedUpdate</code> to prevent what you call lags.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>You mean E_PHYSICSPRESTEP?</p>
+<p>Btw I found what cause this problem.</p>
+<pre><code>m_node_camera-&gt;LookAt(m_spaceship_rb-&gt;GetPosition()); // this make this unwanted effect
+
+m_node_camera-&gt;LookAt(m_node_spaceship_model-&gt;GetWorldPosition()); // change to this, it solve problem</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="5653" data-username="Elendil">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5bdc420841620ed3f92151be712315ad.png" width="20"/> Elendil:</div>
+<blockquote>
+<p>You mean E_PHYSICSPRESTEP?</p>
+</blockquote>
+</aside>
+<p>Ah yes, that’s the name of the actual event. <code>LogicComponent</code>s have a virtual function called <code>FixedUpdate</code> that can be overridden which is called by its <code>HandlePhysicsPreStep</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Thanks. Unfortunately it not solve problem. Problem cause camera looking at rigidbody. Even if I put code in to <code>FixedUpdate</code> or split it in to <code>E_UPDATE</code> and <code>E_PHYSICSPRESTEP</code>. Solution is look at node or model instead rigid body, which is strange for me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><code>Node</code> transforms are interpolated based on its <code>RigidBody</code> component when the <code>Scene</code> is updated.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>But strange thing is what cause the “lag” for model (<code>Drawable</code> or <code>StaticModel</code>) if I look at rigid body. That is the question.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>The physics simulation runs at a fixed interval, node transform updates and rendering do not.</p>
+<p>I lost track of your exact setup.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Update camera in PostUpdate (because you own Update can be called before physics processing)</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

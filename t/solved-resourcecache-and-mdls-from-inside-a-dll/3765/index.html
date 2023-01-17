@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] ResourceCache and MDLs from inside a DLL</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] ResourceCache and MDLs from inside a DLL</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>So, I am having trouble with the ResourceCache when it is access from inside a DLL. My setup is this:</p>
+<p>I have an app, MyApp.exe, which links to Urho3D.dll (on Win64). I also have MyLib.dll, which is dynamically loaded at runtime. MyLib.dll is linked to Urho3D and contains various utility functions/components.</p>
+<p>When I try code like:</p>
+<p><code>Texture* tex = rc-&gt;GetResource&lt;Texture&gt;("Textures/TestHeightField.png");</code></p>
+<p>I will always get a null reference, or a message saying that the resource could not be loaded (yes I have check all the paths).<br/>
+Also, when I write stuff like:</p>
+<p><code>Model* mdl = new Model(context);</code><br/>
+<code>mdl-&gt;LoadFile("path/to/Box.mdl");</code></p>
+<p>My app crashes completely. <a href="https://discourse.urho3d.io/t/solved-resourcecache-dont-working-in-dll/2043">In this post</a>, the suggestion was to make sure the lib options are the same. I have verified that. Is there a specific reference in the code to where those defines make a difference? Is it simply a case of inserting <code>#define URHO3D_OPENGL</code> and <code>#define URH3D_SSE</code> (or whatever the right options are) somewhere in MyApp?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>What you’ve described seems very familiar to something I’ve tried, but with no luck. My current setup uses a statically linked Urho3D lib with my game dll file.</p>
+<p>Urho3D.lib<br/>
+Game.dll (links urho3d lib)<br/>
+GameLauncher.exe (links game.dll)</p>
+<p>You just have to make sure to create the Context/Application object within the Game.dll, otherwise (at least from my experience), you run into issues like the one you’ve described. I’ve seen where the Context, if created from the .exe (in my case), would be null or corrupt when passed and used throughout the dll.</p>
+<p>Not sure if this relates to your issues, but I thought I’d share this experience so that perhaps it can give you some clues on solving your issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>Thanks for the tip. Unfortunately, I’m still getting null resources…Strangely, this code will return the correct file:</p>
+<p><code>SharedPtr&lt;File&gt; f = rc-&gt;GetFile("Models/Box.mdl");</code></p>
+<p>but</p>
+<p><code>Model* mdl = rc-&gt;GetResource&lt;Model&gt;("Models/Box.mdl");</code></p>
+<p>returns null…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Could you debug it? <code>ResourceCache::GetResource</code> doesn’t look very complicated.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>OK, so debugging dlls at runtime is not fun. BUT, it looks like the problem is here:</p>
+<pre><code>if (!Thread::IsMainThread())
+{
+    URHO3D_LOGERROR("Attempted to get resource " + name + " from outside the main thread");
+    return 0;
+}
+</code></pre>
+<p>That is, when calling the ResourceCache from inside the DLL, this check fails. Is this a bug? Or do DLLs get their own thread?</p>
+<p>This explains a lot, actually!</p>
+<p>Not sure how to fix it, though… any suggestions?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>For now I’ve just commented out that check. Living on the edge…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="5" data-topic="3765">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2efea4cc4907b35da6d1f2e9845f7a2f.png" width="20"/> godan:</div>
+<blockquote>
+<p>Not sure how to fix it, though… any suggestions?</p>
+</blockquote>
+</aside>
+<p>Main Thread in Urho is just a thread that the Context has born. Could you ensure in debugger that you create Contex is the same thread as use cache?</p>
+<p>UPD: You could probably <em>override</em> main thread via <code>Thread::SetMainThread</code> if you want to “move” Context into another thread.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>Arg, you beat me too it (you’re too fast Eugene heh)</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

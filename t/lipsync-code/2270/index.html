@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>LipSync Code</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">LipSync Code</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I have written a lip sync logic component for my 3d character, though it is messy, it is useful for me.</p>
+<p>First, make some blend shapes for your 3d character, here are the shapes: <a data-bbcode="true" href="https://github.com/meshonline/rhubarb-lip-sync" rel="nofollow noopener">https://github.com/meshonline/rhubarb-lip-sync</a>, if you like Papagayo’s shapes, refer to ‘Readme.txt’ in the ‘src-patch’ subdirectory.</p>
+<p>Make a ‘blink’ blend shape to control eyes blink.</p>
+<p>Then, use the above rhubarb-lip-sync utility to generated a text file for your voice.<br/>
+For example:<br/>
+./rhubarb voice.wav &gt; voice.txt</p>
+<p>Here is the LipSync Class:</p>
+<p>LipSync.h</p>
+<p>[code]<span class="hashtag">#pragma</span> once</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/Urho3DAll.h&gt;</p>
+<p>/// Custom logic component for moving the animated model and rotating at area edges.<br/>
+class LipSync : public LogicComponent<br/>
+{<br/>
+URHO3D_OBJECT(LipSync, LogicComponent);</p>
+<p>public:<br/>
+/// Construct.<br/>
+LipSync(Context* context) :<br/>
+LogicComponent(context)<br/>
+{<br/>
+EaseWeights[0] = 0.0f;<br/>
+EaseWeights[1] = 0.1925f;<br/>
+EaseWeights[2] = 0.605f;<br/>
+EaseWeights[3] = 0.8f;<br/>
+EaseWeights[4] = 0.605f;<br/>
+EaseWeights[5] = 0.1925f;<br/>
+EaseWeights[6] = 0.0f;</p>
+<pre><code>    blinking = false;
+    currentStep = 0;
+    accuTime = 0.0f;
+    blinkEyes = StringHash("blink");
+    
+    lipSyncing = false;
+    currentStep2 = 0;
+    prior_lipIndex = -1;
+    current_lipIndex = -1;
+    
+    priorSyncTime_ = FLT_MAX;
+    
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    SharedPtr&lt;File&gt; file = cache-&gt;GetFile("Sounds/voice.txt");
+    while (!file-&gt;IsEof()) {
+        String line = file-&gt;ReadLine();
+        if (line.Length()) {
+            Vector&lt;String&gt; items = line.Split('\t');
+            if (items.Size() == 2) {
+                MY_MORPH_KEY one_key;
+                one_key.time = atof(items[0].CString());
+                one_key.key = StringHash(items[1]);
+                morphKeys_.Push(one_key);
+            }
+        }
+    }
+    
+    // Only the scene update event is needed: unsubscribe from the rest for optimization
+    SetUpdateEventMask(USE_UPDATE);
+}
+
+/// Handle scene update. Called by LogicComponent base class.
+virtual void Update(float timeStep)
+{
+    // Get the model's first (only) animation state and advance its time. Note the convenience accessor to other components
+    // in the same scene node
+    AnimatedModel* model = GetComponent&lt;AnimatedModel&gt;();
+    if (model-&gt;GetNumAnimationStates())
+    {
+        AnimationState* state = model-&gt;GetAnimationStates()[0];
+        state-&gt;AddTime(timeStep);
+        
+        // blink eyes every two seconds
+        accuTime += timeStep;
+        if (accuTime &gt;= 2.0f) {
+            accuTime = 0.0f;
+            blinking = true;
+        }
+        // deal with blink
+        if (blinking) {
+            model-&gt;SetMorphWeight(blinkEyes, EaseWeights[currentStep]);
+            currentStep++;
+            if (currentStep == 7) {
+                currentStep = 0;
+                blinking = false;
+            }
+        }
+        
+        // search next lip sync point
+        if (!lipSyncing) {
+            float syncTime = state-&gt;GetTime();
+            // Animation loop back
+            if (syncTime &lt; priorSyncTime_) {
+                // Rewind voice
+                SoundSource* voicecSource = node_-&gt;GetChild("Voice")-&gt;GetComponent&lt;SoundSource&gt;();
+                voiceSource-&gt;SetPositionAttr(0);
+            }
+            priorSyncTime_ = syncTime;
+            // search from back to front
+            for (int i=morphKeys_.Size()-1; i&gt;=0; i--) {
+                // find a lip sync point
+                if (morphKeys_[i].time &lt;= syncTime) {
+                    // trigger lip sync when new sync point appeared
+                    if (i != current_lipIndex) {
+                        prior_lipIndex = current_lipIndex;
+                        current_lipIndex = i;
+                        lipSyncing = true;
+                    }
+                    break;
+                }
+            }
+        }
+        // deal with lip sync
+        if (lipSyncing) {
+            // Ease out
+            if (prior_lipIndex != -1) {
+                model-&gt;SetMorphWeight(morphKeys_[prior_lipIndex].key, EaseWeights[currentStep2 + 3]);
+            }
+            // Ease in
+            if (current_lipIndex != -1) {
+                model-&gt;SetMorphWeight(morphKeys_[current_lipIndex].key, EaseWeights[currentStep2]);
+            }
+            currentStep2++;
+            if (currentStep2 == 4) {
+                currentStep2 = 0;
+                lipSyncing = false;
+            }
+        }
+    }
+}
+</code></pre>
+<p>private:<br/>
+float EaseWeights[7];<br/>
+bool blinking;<br/>
+int currentStep;<br/>
+float accuTime;<br/>
+StringHash blinkEyes;</p>
+<pre><code>bool lipSyncing;
+int currentStep2;
+int prior_lipIndex;
+int current_lipIndex;
+float priorSyncTime_;
+
+struct MY_MORPH_KEY {
+    float time;
+    StringHash key;
+};
+
+Vector&lt;MY_MORPH_KEY&gt; morphKeys_;
+</code></pre>
+<p>};<br/>
+[/code]</p>
+<p>Here is the demo: <a data-bbcode="true" href="https://youtu.be/zIpupeSpXl4" rel="nofollow noopener">https://youtu.be/zIpupeSpXl4</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Nice!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

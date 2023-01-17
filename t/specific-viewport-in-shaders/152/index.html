@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Specific viewport in shaders</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Specific viewport in shaders</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>So I have a fullscreen effect I want to happen on two separate viewports. I’ve noticed the viewport I’ve passed in is the entire backbuffer, not the individual viewport itself. How do I get an individual viewport to sample from? Also, how do I change the texture clamp settings on a buffer I’m sampling from if it’s the buffer the scene was rendered on?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Currently there’s no way for either (without modifying the rendering + shader code, of course). The original reason why it works like that is to avoid allocating separate G-buffer textures for multiple viewports, and to have the quad shaders and viewport sampling work similarly in both deferred rendering and post processing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Okay, so if I’m rendering in two viewports how can I do a fullscreen effect on the entire screen?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You can’t do that either with unmodified rendering code.</p>
+<p>What you can do is apply the effect to each of the viewports in turn, after rendering, by referencing the effect in both of the viewports’ renderpaths. See the existing shaders, such as EdgeFilter or GreyScale for the simplest examples, how they get the UV coordinates for sampling the viewport texture.</p>
+<p>Note that I’ve written an issue for changing this mechanism, as it should improve GPU efficiency to not be blitting the whole screen unnecessarily, but just the viewport part.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Yeah, that’s what I’m doing. I think I can fix it if I only sample from 0-0.5 on the left viewport and 0.5-1 on the right.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Code like this should get you the proper UV’s automatically: (this is the GreyScale example shader)</p>
+<pre><code class="lang-auto">void VS(float4 iPos : POSITION,
+    out float4 oPos : POSITION,
+    out float2 oScreenPos : TEXCOORD0)
+{
+    float4x3 modelMatrix = iModelMatrix;
+    float3 worldPos = GetWorldPos(modelMatrix);
+    oPos = GetClipPos(worldPos);
+    oScreenPos = GetScreenPosPreDiv(oPos);
+}
+
+void PS(float2 iScreenPos : TEXCOORD0,
+    out float4 oColor : COLOR0)
+{
+    float3 rgb = tex2D(sDiffMap, iScreenPos).rgb;
+    float intensity = GetIntensity(rgb);
+    oColor = float4(intensity, intensity, intensity, 1.0);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>I’ll give it a try. To be honest I’m trying to get the shaders for the Oculus Rift working, and it depends heavily on viewports and post-processing effects.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

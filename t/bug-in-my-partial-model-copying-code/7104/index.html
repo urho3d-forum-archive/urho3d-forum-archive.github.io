@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Bug in my partial-model copying code</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Bug in my partial-model copying code</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Anyone want to help me find the bug in this code that is leaving triangles connecting the two hands such that it looks like the character is playing cat’s cradle?<br/>
+<img alt="image" data-base62-sha1="bTQd1d4QxeUesLAXMtVMneUzuf5" height="242" src="../../../images2/d9600d1058577d3f54653295795d62ac.png" width="358"/></p>
+<pre><code class="lang-auto">SharedPtr&lt;Model&gt; CloneModelForBones(Model* base, const Vector&lt;String&gt;&amp; bones, float threshold, bool writeWeightToVertexColor)
+{
+    if (!base)
+        return nullptr;
+
+    if (base-&gt;GetSkeleton().GetNumBones() == 0)
+        return nullptr;
+
+    using Blendices = std::array&lt;unsigned char, 4&gt;;
+    const auto context = base-&gt;GetContext();
+
+    Model* out = new Model(context);
+    out-&gt;SetSkeleton(base-&gt;GetSkeleton());
+    out-&gt;SetNumGeometries(base-&gt;GetNumGeometries());
+    out-&gt;SetBoundingBox(base-&gt;GetBoundingBox());
+
+    BoundingBox outputBBox;
+
+    PODVector&lt;unsigned&gt; boneIndices;
+    for (auto&amp; b : bones)
+    {
+        unsigned bone = out-&gt;GetSkeleton().GetBoneIndex(b);
+        if (bone != M_MAX_UNSIGNED)
+        {
+            boneIndices.Push(bone);
+        }
+        else
+        {
+            URHO3D_LOGWARNING("Could not find bone " + b + " in Model " + base-&gt;GetName());
+        }
+    }
+
+    const auto&amp; boneMappings = base-&gt;GetGeometryBoneMappings();
+    bool needBoneMappigns = false;
+    for (auto&amp; m : boneMappings)
+        if (!m.Empty())
+        {
+            needBoneMappigns = true;
+            break;
+        }
+
+    std::function&lt;float(const Vector4&amp; weight, const Blendices&amp; indices, unsigned geoIdx)&gt; matchingWeight;
+    if (!needBoneMappigns)
+        matchingWeight = [&amp;](const Vector4&amp; weights, const Blendices&amp; indices, unsigned) {
+            float weight = 0.f;
+            for (unsigned i = 0; i &lt; 4; ++i)
+            {
+                auto w = weights.Data()[i];
+                unsigned b = indices[i];
+                if (boneIndices.Contains(b))
+                    weight += w;
+            }
+            return weight;
+        };
+    else
+        matchingWeight = [&amp;](const Vector4&amp; weights, const Blendices&amp; indices, unsigned geoIdx) {
+            float weight = 0.f;
+            for (unsigned i = 0; i &lt; 4; ++i)
+            {
+                auto w = weights.Data()[i];
+                auto&amp; bm = boneMappings[geoIdx];
+
+                unsigned b = bm.Size() ? bm[indices[i]] : indices[i];
+                if (boneIndices.Contains(b))
+                    weight += w;
+            }
+            return weight;
+        };
+
+    unsigned geoIdx = 0;
+    for (auto&amp; geometryLODs : base-&gt;GetGeometries())
+    {
+        out-&gt;SetNumGeometryLodLevels(geoIdx,geometryLODs.Size());
+        unsigned lodIdx = 0;
+        for (auto&amp; geometry : geometryLODs)
+        {
+            BoundingBox bbox;
+            auto ib = geometry-&gt;GetIndexBuffer();
+            auto idata = ib-&gt;GetShadowData();
+            assert(idata);
+            if (!idata)
+                return nullptr;
+
+
+            assert(geometry-&gt;GetVertexBuffers().Size() == 1);
+            auto vb = geometry-&gt;GetVertexBuffer(0);
+            auto vdata = vb-&gt;GetShadowData();
+            assert(vdata);
+            if (!vdata)
+                return nullptr;
+
+            PODVector&lt;unsigned char&gt; outputVData;
+            HashMap&lt;unsigned, unsigned&gt; oldIndexToNew;
+            PODVector&lt;unsigned short&gt; outputIdcs;
+
+            auto outputVElements = vb-&gt;GetElements();
+
+            assert(vb-&gt;HasElement(SEM_BLENDINDICES));
+            assert(vb-&gt;HasElement(SEM_BLENDWEIGHTS));
+
+            auto bi = vb-&gt;GetElement(SEM_BLENDINDICES);
+            auto bw = vb-&gt;GetElement(SEM_BLENDWEIGHTS);
+            auto pos = vb-&gt;GetElement(SEM_POSITION);
+
+            assert(bi-&gt;type_ == TYPE_UBYTE4);
+            assert(bw-&gt;type_ == TYPE_VECTOR4);
+            if (pos)
+                assert(pos-&gt;type_ == TYPE_VECTOR3);
+
+            auto vsize = vb-&gt;GetVertexSize();
+
+            auto getBlendIndices = [&amp;](unsigned idx){
+                return *reinterpret_cast&lt;Blendices*&gt;(vdata + vsize*idx + bi-&gt;offset_);
+            };
+            auto getBlendWeight = [&amp;](unsigned idx){
+                return *reinterpret_cast&lt;Vector4*&gt;(vdata + vsize*idx + bw-&gt;offset_);
+            };
+            auto getPosition = [&amp;](unsigned idx){
+                return *reinterpret_cast&lt;Vector3*&gt;(vdata + vsize*idx + pos-&gt;offset_);
+            };
+            auto addVertex = [&amp;](unsigned oldIdx){
+                if (oldIndexToNew.Contains(oldIdx))
+                    return oldIndexToNew[oldIdx];
+
+                for (unsigned char* d = vdata + vsize*oldIdx; d &lt; vdata + vsize*(oldIdx+1); ++d)
+                    outputVData.Push(*d);
+
+                if (pos)
+                    bbox.Merge(getPosition(oldIdx));
+
+                auto newIdx = oldIndexToNew.Size();
+                oldIndexToNew[oldIdx] = newIdx;
+                return newIdx;
+            };
+
+            auto size = ib-&gt;GetIndexSize();
+
+            for (unsigned i = 0; i+2 &lt; ib-&gt;GetIndexCount(); ++i)
+            {
+                unsigned idx1 = (size == 2) ?
+                    unsigned(reinterpret_cast&lt;unsigned short*&gt;(idata)[i]) :
+                    reinterpret_cast&lt;unsigned*&gt;(idata)[i];
+                unsigned idx2 = (size == 2) ?
+                    unsigned(reinterpret_cast&lt;unsigned short*&gt;(idata)[i+1]) :
+                    reinterpret_cast&lt;unsigned*&gt;(idata)[i+1];
+                unsigned idx3 = (size == 2) ?
+                    unsigned(reinterpret_cast&lt;unsigned short*&gt;(idata)[i+2]) :
+                    reinterpret_cast&lt;unsigned*&gt;(idata)[i+2];
+
+                float w1 = matchingWeight(getBlendWeight(idx1),getBlendIndices(idx1),geoIdx);
+                float w2 = matchingWeight(getBlendWeight(idx2),getBlendIndices(idx2),geoIdx);
+                float w3 = matchingWeight(getBlendWeight(idx3),getBlendIndices(idx3),geoIdx);
+
+                if (w1 &gt; threshold &amp;&amp; w2 &gt; threshold &amp;&amp; w3 &gt; threshold)
+                {
+                    // Add new triangle
+                    outputIdcs.Push(addVertex(idx1));
+                    outputIdcs.Push(addVertex(idx2));
+                    outputIdcs.Push(addVertex(idx3));
+                }
+            }
+
+            // Add new data to the output model
+            {
+                Geometry* geoOut = new Geometry(context);
+                VertexBuffer* vbOut = new VertexBuffer(context);
+                IndexBuffer* ibOut = new IndexBuffer(context);
+
+                geoOut-&gt;SetLodDistance(geometry-&gt;GetLodDistance());
+                geoOut-&gt;SetNumVertexBuffers(geometry-&gt;GetNumVertexBuffers());
+                assert(geoOut-&gt;GetNumVertexBuffers() == 1);
+
+                auto vcount = oldIndexToNew.Size();
+                vbOut-&gt;SetShadowed(true);
+                vbOut-&gt;SetSize(vcount,outputVElements,false);
+//                if (auto dest = vbOut-&gt;Lock(0,vcount))
+//                {
+//                    memcpy(dest,outputVData.Buffer(),outputVData.Size());
+//                    vbOut-&gt;Unlock();
+//                }
+//                else
+//                {
+                    assert(vbOut-&gt;SetData(outputVData.Buffer()));
+//                }
+
+                ibOut-&gt;SetShadowed(true);
+                ibOut-&gt;SetSize(outputIdcs.Size(),false,false);
+                assert(ibOut-&gt;SetData(outputIdcs.Buffer()));
+
+                geoOut-&gt;SetIndexBuffer(ibOut);
+                geoOut-&gt;SetVertexBuffer(0,vbOut);
+                geoOut-&gt;SetDrawRange(PrimitiveType::TRIANGLE_LIST,0,outputIdcs.Size());
+
+                out-&gt;SetGeometry(geoIdx,lodIdx,geoOut);
+                out-&gt;SetGeometryCenter(geoIdx,base-&gt;GetGeometryCenter(geoIdx));
+                out-&gt;SetGeometryBoneMappings(base-&gt;GetGeometryBoneMappings());
+
+                outputBBox.Merge(bbox);
+            }
+
+            lodIdx += 1;
+        }
+
+        //TODO: I'm not sure if this should be in the inner loop or in the outer LOD grouped loop.
+        geoIdx += 1;
+    }
+
+    out-&gt;SetBoundingBox(outputBBox);
+    return SharedPtr&lt;Model&gt;{out};
+}
+
+// It's not in this function, but if you want to test it it's easier to just specify the hand and have the code find the fingers for you.
+Vector&lt;String&gt; ListBonesAndChildren(const Skeleton&amp; skeleton, const Vector&lt;String&gt;&amp; requestedBones)
+{
+    Vector&lt;String&gt; out;
+
+    auto add = [&amp;](const String&amp; name) {
+        if (out.Contains(name))
+            return;
+        out.Push(name);
+    };
+
+    StringVector children;
+    std::function&lt;void(const Bone&amp; b)&gt; check = [&amp;](const Bone&amp; b)
+    {
+
+        if (requestedBones.Contains(b.name_))
+        {
+            add(b.name_);
+            for (auto&amp; c : children)
+                add(c);
+            children.Clear();
+        }
+        else
+        {
+            auto parentIdx = b.parentIndex_;
+            if (parentIdx != M_MAX_UNSIGNED)
+            {
+                auto&amp; parent = skeleton.GetBones()[b.parentIndex_];
+                if (parent.nameHash_ != b.nameHash_)
+                {
+                    children.Push(b.name_);
+                    check(parent);
+                }
+                else
+                    children.Clear();
+            }
+            else
+                children.Clear();
+        }
+    };
+
+    for (auto&amp; b : skeleton.GetBones())
+        check(b);
+
+    return out;
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Found it:</p>
+<pre><code class="lang-auto">            for (unsigned i = 0; i+2 &lt; ib-&gt;GetIndexCount(); ++i)
+</code></pre>
+<p>should have been</p>
+<pre><code class="lang-auto">            for (unsigned i = 0; i+2 &lt; ib-&gt;GetIndexCount(); i+=3)
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

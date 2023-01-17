@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Node Script Object Issue</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Node Script Object Issue</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<p>I have an application written entirely in script, in it you’ld have to shoot down some drone like objects. The Node for the Drone has a ScriptObject implementation named DroneObject created into it while that of the bullet has BulletObject created into it.<br/>
+Below is the node collision handling routines of the BulletObject script object</p>
+<pre><code class="lang-auto">	void HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+	{
+		Node@ otherNode = eventData["OtherNode"].GetPtr();
+		DroneObject@ droneObj = cast&lt;DroneObject&gt;(otherNode.scriptObject);		
+		
+		if(droneObj !is null)
+		{
+			droneObj.OnHit();
+		}
+		
+		Destroy();
+	}</code></pre>
+<p>Everything works well. But when I try to implement this same application in c++ I notice a strange issues.<br/>
+Now just like the fully scripted application, the drone and the bullet nodes have their respective ScriptObject created into them. But the line below in the BulletObjects HandleNodeCollision</p>
+<pre><code class="lang-auto"></code></pre>
+<p>always returns a null pointer whether the node DroneObject script object or not. Even when I use another method to retrieve the script object, like</p>
+<pre><code class="lang-auto">ScriptInstance@ sInst = cast&lt;ScriptInstance&gt;(otherNode.GetComponent("ScriptInstance"));
+DroneObject@ droneObj = cast&lt;DroneObject&gt;(sInst.scriptObject);</code></pre>
+<p>i still get a null pointer. Every other thing works, but in the part were I have to retrieve a scriptObject from a  node null is returned, no error is thrown and the application log shows no error either. What am I doing wrong or is it a bug coz its still the same ScriptObject files I use for both the fully scripted app and the C++ app</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>Is the HandleNodeCollesion function defined or included in the same ScriptFile as the DroneObject class?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="Azalrion">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8de72b55bef11c23598deba7062c5e8d.png" width="20"/> Azalrion:</div>
+<blockquote>
+<p>Is the HandleNodeCollesion function defined or included in the same ScriptFile as the DroneObject class?</p>
+</blockquote>
+</aside>
+<p>No its not, It is defined in its own ScriptFile but includes the script file for the DroneObject class. Below is the file</p>
+<pre><code class="lang-auto">#include "Scripts/DroneObject.as"
+
+///Bullet Object Class
+class BulletObject : ScriptObject
+{
+	float termTime;
+	float termTimeCounter;
+	
+	
+	BulletObject()
+	{
+		termTime = 1;
+		termTimeCounter = 0;
+	}
+	
+	
+	void Start()
+	{
+		SubscribeToEvent(node, "NodeCollision", "HandleNodeCollision");
+	}
+	
+	
+	void FixedUpdate(float timestep)
+	{
+		termTimeCounter += timestep;
+		
+		if(termTimeCounter &gt;= termTime)
+		{
+			Destroy();
+		}
+	}
+	
+
+	void HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+	{
+		Node@ otherNode = eventData["OtherNode"].GetPtr();
+		DroneObject@ droneObj = cast&lt;DroneObject&gt;(otherNode.scriptObject);
+		
+		if(droneObj !is null)
+		{
+			droneObj.OnHit();
+		}
+		
+		Destroy();
+	}
+	
+	void Destroy()
+	{
+		node.Remove();
+	}
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<p>Now I get it, The ScriptObjects that will inter-relate have to be from the same scriptfile. I made the correction and now its working. Thanks Azalrion</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>Yep basically, because they were declared in what urho saw as two different script files and bound then into angelscript under different modules so couldn’t cast, either you have a master script file like NinjaSnowWars does importing everything into a single module or you can declare them shared: <a href="http://www.angelcode.com/angelscript/sdk/docs/manual/doc_script_shared.html" rel="nofollow noopener">angelcode.com/angelscript/sd … hared.html</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

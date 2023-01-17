@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] how to: simple graphing?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] how to: simple graphing?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GGibson</div>
+          <div class="post_content">
+<p>Hi everyone,</p>
+<p>I’m trying to make a simple graph. Did I miss an example or post somewhere? My first attempts are using DebugRenderer.AddLine(). It works in the normal scene, but I would like to display this in a UI window (through a renderTexture or directly on the UI). Because the UI is rendered to the backbuffer then I’m using a View3D control to display content rendered to a texture. I have the basic rotating gold coin icon scene rendered okay to this texture (also the rotating cubes example works), but still can’t seem to draw lines on it, probably because of the render/access order. I’m drawing the line to my offscreen scene in the HandleUpdate fn. Is this the way to go about it? Is there a GL_LINE_STRIP and glLineWidth() equivalent? Thanks for the help!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Have you tried to use CustomGeometry class? You can create a 2D or 3D graph this way. I think this is as close as the “immediate mode” you can get.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GGibson</div>
+          <div class="post_content">
+<p>Thanks weitjong, that’s just what I needed. Here’s my simple example for posterity. It handles graph repositioning based on window resizing, and data addition.</p>
+<p><img alt="" height="" src="../../../images2/5156b1b2827a9f3a09fc2f029a246095.png" width=""/></p>
+<p>There’s a Figure.as containing a Figure class, and I use that to create and update one complete figure.</p>
+<p>snippet from main .as file</p>
+<p><span class="spoiler"><code>
+// global
+Figure@ fig1;
+// in setup
+fig1 = Figure(IntVector2(400,300), "Figure1");
+ui.root.AddChild(fig1.window); // use a window to manage drag and size of view3D
+// in an updating function such as handleUpdate
+fig1.Push(Sin(scene_.elapsedTime*200)*3); // record new value to figure
+</code></span></p>
+<p>Figure.as</p>
+<p>[spoiler][code]<br/>
+/*</p>
+<ul>
+<li>Figure.as<br/>
+/*</li>
+</ul>
+<p>class Figure<br/>
+{<br/>
+Window@ window;<br/>
+View3D@ view3d;<br/>
+Scene@ scene_;<br/>
+Camera@ camera_;<br/>
+bool isopen;<br/>
+Array@ data = Array();<br/>
+int xtick=0;<br/>
+CustomGeometry@ graph;<br/>
+Node@ graphNode;<br/>
+Button@ buttonClose_;</p>
+<pre><code>void Toggle()
+{
+	if (isopen) {
+		isopen = false;
+		window.visible = false;
+		view3d.visible = false;
+	} else {
+		isopen = true;
+		window.visible = true;
+		view3d.visible = true;
+	}
+}
+
+void Redraw()
+{
+	graph.BeginGeometry(0, LINE_STRIP);
+	for (int i=0; i&lt;data.length; i++)
+	{
+		graph.DefineVertex(Vector3(0.01f*i, data[i], -1.0f));
+	}
+	graph.Commit();
+	xtick=data.length+1;
+	
+}
+
+void Push(float value) /// Updates graph for each push
+{
+	graph.DefineVertex(Vector3(0.01f*xtick++, value, -1.0f));
+	graph.Commit();
+	Vector2 pos = graphNode.position2D;
+	float dist = camera_.GetDistance(Vector3(0.0f, 0.0f, 0.0f));
+	graphNode.SetPosition2D(((dist*0.33333f)*camera_.aspectRatio)-0.01f*xtick, pos.y); // 0.333 assumes fov=45
+}
+
+void UseHandler(String handler)
+{
+	SubscribeToEvent(buttonClose_, "Released", handler);
+}
+
+Figure(IntVector2 dimensions = IntVector2(400,300), String title = "Figure")
+{
+	// Set the loaded style as default style
+	isopen = true;
+	XMLFile@ style = cache.GetResource("XMLFile", "UI/DefaultStyle.xml");
+	// Set the loaded style as default style
+
+	window = Window();
+	window.defaultStyle = style;
+	window.visible = false;
+
+	window.resizable = true;
+	window.movable = true;
+
+	// Set Window size and layout settings
+	window.SetSize(dimensions.x, dimensions.y);
+	window.SetLayout(LM_VERTICAL, 4, IntRect(2, 2, 2, 2));
+	window.SetPosition(graphics.width / 2 - 400 / 2, graphics.height / 2 - 300 / 2);
+
+	// Create Window 'titlebar' container
+	titleBar = UIElement();
+	titleBar.SetMinSize(0, 24);
+	titleBar.SetMaxSize(9999, 24);
+	titleBar.SetLayout(LM_HORIZONTAL, 6, IntRect(6, 6, 6, 6));
+
+	// Create the Window title Text
+	Text@ windowTitle = Text();
+	windowTitle.text = title;
+
+	// Create the Window's close button
+	Button@ buttonClose_ = Button();
+
+	// Add the controls to the title bar
+	titleBar.AddChild(windowTitle);
+	titleBar.AddChild(buttonClose_);
+
+	// Add the title bar to the Window
+	window.AddChild(titleBar);
+
+	// Apply styles
+	window.SetStyleAuto();
+	windowTitle.SetStyleAuto();
+	buttonClose_.style = "CloseButton";
+
+	SetupScene(); // creates scene and camera
+
+	view3d = View3D();
+	view3d.verticalAlignment = VA_TOP;
+	view3d.SetView(scene_, camera_);
+	window.AddChild(view3d);
+	SubscribeToEvent(buttonClose_, "Released", "HandleClosePressed");
+}
+
+void HandleClosePressed(StringHash eventType, VariantMap&amp; eventData)
+{
+	UIElement@ element = eventData["Element"].GetPtr();
+	element.parent.parent.visible = false; // close button pressed (element), set window visibility
+}
+
+private void SetupScene()
+{
+	// Create the scene which will be rendered to a texture
+	scene_ = Scene();
+
+	// Create octree, use default volume (-1000, -1000, -1000) to (1000, 1000, 1000)
+	scene_.CreateComponent("Octree");
+
+	// Create a camera for the render-to-texture scene. Simply leave it at the world origin and let it observe the scene
+	rttCameraNode = scene_.CreateChild("Camera");
+	rttCameraNode.position = Vector3(0.0f, 0.0f, -10.0f);
+	camera_ = rttCameraNode.CreateComponent("Camera");
+	camera_.farClip = 100.0f;
+	camera_.orthographic = true;
+	camera_.orthoSize = graphics.height * PIXEL_SIZE;
+
+	// graph
+	graphNode = scene_.CreateChild("CustomGeometry");
+	graph = graphNode.CreateComponent("CustomGeometry");
+	Material@ renderMaterial = cache.GetResource("Material", "Materials/WhiteUnlit.xml");
+	graph.material = renderMaterial;
+	graph.dynamic = true;
+	Redraw();
+}
+</code></pre>
+<p>}<br/>
+[/code][/spoiler]</p>
+<p>I had to make a new material to do what I wanted (suggestions how to do this better?)<br/>
+White.png is a 1 pixel white texture.</p>
+<p><span class="spoiler"><code>
+&lt;material&gt;
+    &lt;technique name="Techniques/DiffUnlit.xml" /&gt;
+    &lt;texture unit="0" name="Textures/White.png" /&gt;
+&lt;/material&gt;
+</code></span></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>[quote=“GGibson”]I had to make a new material to do what I wanted (suggestions how to do this better?)<br/>
+White.png is a 1 pixel white texture.[/quote]</p>
+<p>You can use material with one of the no-texture technique to save your shader from doing a texture sampling.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

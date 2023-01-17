@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Derived classes of Scene</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Derived classes of Scene</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>C++ still hard for me, and I can not solve the following problem</p>
+<p>I want to complicate the class Scene:</p>
+<pre><code class="lang-auto">class Level : public Scene
+{
+    URHO3D_OBJECT(Level, Scene);
+
+public:
+    Level(Context* context);
+    Camera* camera_ = nullptr;
+    void Show();
+    void HandleUpdate(StringHash eventType, VariantMap&amp; eventData);
+};
+
+Level::Level(Context* context) : Scene(context)
+{
+    SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(Level, HandleUpdate));
+}
+
+void Level::Show()
+{
+    if (!camera_)
+        camera_ = GetChild("Camera")-&gt;GetComponent&lt;Camera&gt;();
+
+    Renderer* renderer = GetSubsystem&lt;Renderer&gt;();
+    Viewport* viewport = renderer-&gt;GetViewport(0);
+    viewport-&gt;SetScene(this);
+    viewport-&gt;SetCamera(camera_);
+}
+
+void Level::HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    // some actions
+}</code></pre>
+<p>And using it in game:</p>
+<pre><code class="lang-auto">    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    Level* level1 = new Level(context_);
+    scene-&gt;LoadXML(*cache-&gt;GetFile("Scenes/1.xml"));</code></pre>
+<p>The level is loaded from a file, but the physics does not work. As far as I understand, the reason for this is the overriding handler of update.</p>
+<p>In XNA handlers were determined as protected, and users can call functions of base class, but in Urho3D all private. Any ideas?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I found a workaround. Just manually call Update function:</p>
+<pre><code class="lang-auto">void Level::HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace Update;
+    Update(eventData[P_TIMESTEP].GetFloat());
+
+    // some actions
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Thats not the best way. You have to call Scene’s HandleUpdate inside Your Level class</p>
+<p>[code]void Level::HandleUpdate(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+Scene::HandleUpdate(eventType , eventData);</p>
+<pre><code>// some actions
+</code></pre>
+<p>}<br/>
+[/code]<br/>
+Also if you planning to use networking and the serialization the code may lead to problems .<br/>
+As we already discussed this here :</p>
+<p><a href="http://discourse.urho3d.io/t/whats-the-proper-way-to-register-a-custom-node-method/1436/1">topic1487.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>HandleUpdate is private</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Ahh i see in that case thats the only solution ! Still this is a pretty bad workaround because “private” means that the member function is only used by the class.If the developers add some other things inside Scene::HandleUpdate()  you’re doomed. Also HandleUpdate isn’t virtual so thats another sign why you shouldn’t declare your own version of it.</p>
+<p>private non virtual functions and members are a “don’t touch this ever” kinda signs.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

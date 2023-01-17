@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>No input with ExternalWindow</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">No input with ExternalWindow</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I’m having an odd issue with ExternalWindow. I’m working with wxWidgets + Urho3D using a custom wxPanel to provide a HWND that I sent to Urho3D. It renders perfectly, but I seem to get no input. In fact, only SDL_WINDOWEVENT gets fired.</p>
+<p>Thinking that this was some input handling issue, I attempted to manually process events as so:</p>
+<pre><code class="lang-auto">void wxUrho3D::OnKeyUp(wxKeyEvent&amp; event)
+	{
+		SDL_Event sdlEvent;
+		sdlEvent.type = SDL_KEYUP;
+		sdlEvent.key.keysym.sym = event.GetKeyCode();
+		sdlEvent.key.keysym.mod = event.GetModifiers();
+		SDL_PushEvent(&amp;sdlEvent);
+	}
+
+	void wxUrho3D::OnKeyDown(wxKeyEvent&amp; event)
+	{
+		SDL_Event sdlEvent;
+		sdlEvent.type = SDL_KEYDOWN;
+		sdlEvent.key.keysym.sym = event.GetKeyCode();
+		sdlEvent.key.keysym.mod = event.GetModifiers();
+		SDL_PushEvent(&amp;sdlEvent);
+	}
+
+	void wxUrho3D::OnMouseUp(wxMouseEvent&amp; event)
+	{
+		SDL_Event sdlEvent;
+		sdlEvent.type = SDL_MOUSEBUTTONUP;
+		sdlEvent.button.state = SDL_RELEASED;
+		sdlEvent.button.button = SDL_BUTTON_LEFT;
+
+		auto position = event.GetPosition();
+		sdlEvent.button.x = position.x;
+		sdlEvent.button.y = position.y;
+
+		SDL_PushEvent(&amp;sdlEvent);
+	}
+
+	void wxUrho3D::OnMouseDown(wxMouseEvent&amp; event)
+	{
+		SDL_Event sdlEvent;
+		sdlEvent.type = SDL_MOUSEBUTTONDOWN;
+		sdlEvent.button.state = SDL_PRESSED;
+		sdlEvent.button.button = SDL_BUTTON_LEFT;
+
+		auto position = event.GetPosition();
+		sdlEvent.button.x = position.x;
+		sdlEvent.button.y = position.y;
+
+		SDL_PushEvent(&amp;sdlEvent);
+	}</code></pre>
+<p>These functions <em>are</em> firing correctly, however Urho3D doesn’t seem to be processing the SDL events. Any ideas on what’s going on?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Thanks for the bit on ‘inputFocus_’, that led me to what I was looking for!</p>
+<p>So I changed the following in Input.cpp:</p>
+<pre><code class="lang-auto">if (inputFocus_ &amp;&amp; (flags &amp; SDL_WINDOW_INPUT_FOCUS) == 0 &amp;&amp; inputFocus_ &amp;&amp; (flags &amp; SDL_WINDOW_MOUSE_FOCUS) == 0)
+            LoseFocus();</code></pre>
+<p>However I don’t know if there’s any downside to this approach. It seems that using a wxWidgets panel as an external window, the window doesn’t have SDL_WINDOW_INPUT_FOCUS but <em>does</em> have SDL_WINDOW_MOUSE_FOCUS.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>There was still the issue of “gaining” focus. That is, the first event causing focus (tab, mouse click) will give the window focus but not register as input. I’m playing around with a forceFocus_ flag, which Input automatically sets when there’s an external handle. So far, it seems to work find for all cases I’ve tested. However right now my Linux install is jacked and I don’t have a Mac, so who knows if it will work properly across all platforms.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

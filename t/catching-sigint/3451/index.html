@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Catching SIGINT?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Catching SIGINT?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Is there an API to react to signals? It looks like Urho3D already catches SIGINT and ignores it. I’d like to change it so it calls <code>engine_-&gt;Exit()</code> instead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I have tried listening to E_EXITREQUESTED but it doesn’t get triggered when I CTRL-C</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>engine_exit soesn’t work this way - it doesn’t guarabtee exit.<br/>
+So on Ctrl-C I’d use some different logic.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>That doesn’t answer question at all.</p>
+<p>Ctrl-C does nothing when I start my game in headless mode, it just gets ignored.</p>
+<p>What I assume should happen is the SDL_QUIT event should be generated when SIGINT is received, which in turn is handled by Urho3D in Input.cpp and propagated with the E_EXITREQUESTED event. But it doesn’t.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>On Windows / VS2013, I see SDL to not compile in its signal handling code at all, due to HAVE_SIGNAL_H being false. Though that may be just an oddity due to the specific machine &amp; compiler I’m currently testing on.</p>
+<p>Urho itself shouldn’t have signal handlers.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I think on windows you should use native code.<br/>
+For Linux one can just trap SIGINT and do SDL_Quit from there. Actually Ctr^C on Linux works only when<br/>
+frame handling code is running. If you run something huge from Start() you have to kill -15 to interrupt.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I ended up writing wrappers to abstract signal handling, and then wrote a component that sends the E_EXITREQUESTED event on top of that.</p>
+<p>I’m not sure whether it’s a bug or not that Urho3D doesn’t allow you to CTRL-C to quit (on linux). Is this something that needs reporting <span class="mention">@cadavar</span>?</p>
+<p>Here’s my code in case someone comes along in the future:</p>
+<p><strong>signals.h</strong> (platform independent header):</p>
+<pre><code>#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void signals_register(void);
+int signals_exit_requested(void);
+
+#ifdef __cplusplus
+}
+#endif
+</code></pre>
+<p><strong>signals_linux.c</strong> (platform dependent implementation, I wrote one for each platform):</p>
+<pre><code>#include "signals.h"
+#include &lt;signal.h&gt;
+
+static volatile int g_exit_requested = 0;
+
+// ----------------------------------------------------------------------------
+static void sig_handler(int signum)
+{
+    if (signum == SIGINT)
+    {
+        g_exit_requested = 1;
+    }
+}
+
+// ----------------------------------------------------------------------------
+void signals_register(void)
+{
+    signal(SIGINT, sig_handler);
+}
+
+// ----------------------------------------------------------------------------
+int signals_exit_requested(void)
+{
+    return g_exit_requested;
+}
+</code></pre>
+<p><strong>SignalHandler.h/cpp</strong> (Register this as a subsystem during Setup() to have E_EXITREQUESTED sent in response to a CTRL-C)</p>
+<pre><code>class SignalHandler : public Urho3D::Object
+{
+    URHO3D_OBJECT(SignalHandler, Urho3D::Object);
+
+public:
+    SignalHandler(Urho3D::Context* context);
+
+private:
+    void HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+};
+
+// ----------------------------------------------------------------------------
+SignalHandler::SignalHandler(Context* context) :
+    Object(context)
+{
+    signals_register();
+    SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(SignalHandler, HandleUpdate));
+}
+
+// ----------------------------------------------------------------------------
+void SignalHandler::HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+{
+    if (signals_exit_requested())
+    {
+        URHO3D_LOGINFO("Signal caught, sending exit request");
+        SendEvent(E_EXITREQUESTED);
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In a headless application like NinjaSnowWar server, it may be due to the console input reading happening differently. On Windows I get Ctrl-C. Platform-different behavior like that could be considered a bug so feel free to make an issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Have you tried to compile a vanilla SDL app on Linux and see how it behaves?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The reason I asked because I just got time to test below using Urho3D app. As you may already know SDL detects sigaction availability during CMake configuration as it prefers sigaction over signal. In the debug build config, I could see the sigaction handler being initialized correctly, which should capture the SIGINT and SIGTERM. In the handler it inserts an SDL_QUIT event into its internal event queue. However, setting a breakpoint in the signal handler itself showed that it was not triggered upon CTRL-C being pressed. So something is definitely fishy on the SDL side and hence the question.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>btw, is there some terminal group detachment code somewhere? this detaches from signals generated by<br/>
+tty.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I have retested this again. Running NinjaSnowWar (with unaltered Urho engine) I could see the “Urho3DPlayer” process in my <code>ps</code> command output. Although pressing CTRL-C on the NSW itself did not killed it, sending the kill signal to the process using <code>skill Urho3DPlayer</code> or <code>kill</code> <em>process-id</em> did the trick. Pressing CTRL-C only works on the launching console window (if any).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, the issue is that i doesn’t work on running console in some circumstances (no frame code like Update/Fixed update running, doing something heavy in Start) which is a bit not nice (manageable but ability to ^C improves workflow).<br/>
+Redeclaring own signal handler fixes the problem.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

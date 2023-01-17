@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Correct way to run fullscreen on lower resolution?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Correct way to run fullscreen on lower resolution?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gunnar.kriik</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I’m attempting to run my application full-screen while forcing a lower resolution then the current screen resolution (force a video mode change). I cannot seem to make this work properly. I can see from Source/Engine/Graphics/OpenGL/OGLGraphics.cpp that SDL_CreateWindow() is invoked with the SDL_WINDOW_FULLSCREEN flags, which should force a video mode change according to the docs, but I seem to get some weird behaviour regarding the resolution used. On Linux the app runs full screen, but the video mode is not changed - always runs at 1920x1080, which is the default desktop resolution. That might be an issue with my xorg config, but on windows the video mode is changed, but the resolution I specify does not seem to be respected - this is how the engine parameters are specified.</p>
+<pre><code class="lang-auto">engineParameters_["FullScreen"]   = true;
+engineParameters_["Headless"]     = false;
+engineParameters_["WindowWidth"] = 1600;
+engineParameters_["WindowHeight"]  = 900;</code></pre>
+<p>The following results in vertical letterboxing, similar to the example in the middle here:<br/>
+<img alt="" height="" src="../../../images2/76176547c0870bf657de28da89bc3bc2.png" width=""/></p>
+<p>It seems that when on full screen, then the incorrect resolution is used (looks to be 4:3 instead of 16:9 as specified). The correct resolution is however used when in windowed mode (fullscreen=false).</p>
+<p>Has anybody else experienced this issue, and / or have any advice before I debug the code further?</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There are many ways this can work not as expected.</p>
+<p>To my knowledge the current Linux SDL code does not switch resolutions in fullscreen; it always uses the desktop resolution.</p>
+<p>Urho queries SDL (which in turn queries the operating system) for the available fullscreen resolutions, and it will pick the closest match if the exact resolution is not supported. On Windows, if you pick a resolution which you know that the GPU &amp; monitor will support, it should switch resolution correctly.</p>
+<p>Furthermore, in GPU driver options you can usually choose whether it will actually switch resolution or perform stretching (to something that’s suboptimal for the monitor), or perform letterboxing. Urho cannot influence this.</p>
+<p>However: I think there’s a bug in scanning for available fullscreen resolutions, as it’s not giving those resolutions that don’t fit the aspect ratio exactly. I’ll look into this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There was an error in the “resolution error metric” calculation which would cause eg. resolution 1366x768 to be used, though 1024x768 was requested. If you check the latest master branch revision, that part should work better now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gunnar.kriik</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>There was an error in the “resolution error metric” calculation which would cause eg. resolution 1366x768 to be used, though 1024x768 was requested. If you check the latest master branch revision, that part should work better now.</p>
+</blockquote>
+</aside>
+<p>Thanks Lasse - on Windows the behaviour is now as expected (fullscreen and video mode change working), however on Linux the app runs fullscreen, but SDL never changes the video mode. I tested a simple GLFW based app aswell, and I’m having the same problem here, so I suspect that it’s an issue with my xorg configuration. I’ll figure it out. Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

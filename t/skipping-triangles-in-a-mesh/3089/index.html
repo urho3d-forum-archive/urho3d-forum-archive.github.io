@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Skipping triangles in a mesh</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Skipping triangles in a mesh</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I am drawing a mesh using a TRIANGLE_LIST. To draw the mesh I am looping over points.<br/>
+To draw the TRIANGLE_LIST I have index and vertex buffers.<br/>
+For example in the code below if I want to skip the triangles in point 5 and If I try with continue to skip this iteration in the loop in both vertex and index buffers I am getting a lot of graphics artefacts. What is the proper way of doing this?</p>
+<pre><code>batches_[0].geometry_-&gt;SetDrawRange(TRIANGLE_LIST, 0, (points_.Size() - 1), false);
+float* dest = (float*)vertexBuffer_-&gt;Lock(0, (points_.Size() - 1), true);
+
+// For each point draw triangles
+for (unsigned i = 0; i &lt; points_.Size(); ++i)
+{
+
+	if(i==5)
+	{
+		// Skip this point
+		// This apporach has graphics artefacts
+		continue;
+	}
+
+	// Draw triangles
+	// Update dest
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Nah, your approach is too naiive.</p>
+<p>You need to build-up triangles in index buffer, and vertex buffer and skip through whole triangle (3 index positions).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I already have index and vertex buffer but I can’t update them properly during the loop. My question is how to do it properly?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Take look at my Material Effects repo and see how VCol change happens. You could probably change a bit of that code for your needs.</p>
+<p>Edit: hmm, that won’t do. Take a look at Geom-Replication repo for reference instead. What you should do is retain the original copy of your idxbuffer and make changes to that to skip triangle draws.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>I haven’t tested the performance to heavily on this piece of code, but here’s how I handle updating the Vertex/Index buffers. Essentially, I rebuild the vertex list… but again, not sure how much that will effect performance in the long run as it’s quick and dirty. I’ve only used it for low-poly objects. A method can easily be added to remove a face which will rebuild the vertexList when calling the Commit() method.</p>
+<aside class="onebox githubgist">
+<header class="source">
+<a href="https://gist.github.com/victorholt/955ae2f76173d1a5d3b9f65fefcbb47e#file-custommesh-cpp-L330-L375" rel="nofollow noopener" target="_blank">gist.github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://gist.github.com/victorholt/955ae2f76173d1a5d3b9f65fefcbb47e#file-custommesh-cpp-L330-L375" rel="nofollow noopener" target="_blank">https://gist.github.com/victorholt/955ae2f76173d1a5d3b9f65fefcbb47e#file-custommesh-cpp-L330-L375</a></h4>
+<h5>CustomMesh.cpp</h5>
+<pre><code class="C++">//
+// Created by Victor Holt on 3/18/2017.
+//
+#include &lt;gs-graphics/CustomMesh.h&gt;
+using namespace Urho3D;
+using namespace Sencha;
+
+//! Constructor.
+//! \param context
+//! \param isDynamic</code></pre>
+This file has been truncated. <a href="https://gist.github.com/victorholt/955ae2f76173d1a5d3b9f65fefcbb47e#file-custommesh-cpp-L330-L375" rel="nofollow noopener" target="_blank">show original</a>
+<p>
+</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>Oh, also, just a note when updating the StaticMesh component. I’ve had to do the following</p>
+<pre><code>StaticModel* model = GetStaticModelComponent();
+model-&gt;SetModel(null); // Clear out the previous model so this can get updated.
+model-&gt;SetModel(YourUpdatedModel());
+</code></pre>
+<p>This is due to this line here (I’d like to know if this is correct however, as it doesn’t feel right)…:<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/1b725367fc95552230fd414eadaccfa57faf14b8/Source/Urho3D/Graphics/StaticModel.cpp#L234</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="224" style="counter-reset: li-counter 223 ;">
+<li>    // Draw and check for running out of triangles
+</li>
+<li>    if (!buffer-&gt;AddTriangles(node_-&gt;GetWorldTransform(), vertexData, vertexSize, indexData, indexSize, indexStart, indexCount))
+</li>
+<li>        return false;
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>return true;
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>void StaticModel::SetModel(Model* model)
+</li>
+<li>{
+</li>
+<li class="selected">if (model == model_)
+</li>
+<li>    return;
+</li>
+<li>
+</li>
+<li>if (!node_)
+</li>
+<li>{
+</li>
+<li>    URHO3D_LOGERROR("Can not set model while model component is not attached to a scene node");
+</li>
+<li>    return;
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>// Unsubscribe from the reload event of previous model (if any), then subscribe to the new
+</li>
+<li>if (model_)
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

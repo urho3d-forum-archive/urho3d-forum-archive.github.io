@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Android Touch/Mouse Input Broken</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Android Touch/Mouse Input Broken</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Edit: Big mistake on my part with the debugging grabbing the wrong thing to print (note the state.delta.y that should be state.delta.x). So my initial concerns about the += being wrong were unfounded, but there is still a problem with the samples starting spinning horizontally very quickly because of the mouse move being incorrect (possibly just in the virtual device, I haven’t tried a real device yet).</p>
+<p>The log printing the mouse move over the first few frames of sample 07_Billboards.as</p>
+<pre><code class="lang-auto">I/Urho3D: Yaw pre mouse move: 0
+        mouse move: 2921.7
+    Yaw post mouse move: 2921.7
+I/Urho3D: Yaw pre mouse move: 2921.7
+        mouse move: 1.13416e+08
+    Yaw post mouse move: 1.13419e+08
+</code></pre>
+<p><strong>–My Original Post–</strong></p>
+<p>At least when running on an x86_64 virtual device, there seem to be some problems with AngelScript on Android. When running the angelscript samples, the camera tends to swing wildly, which may be a symptom of the same problem (I’m not certain). You can see the problem in the log here, the += does not result in correct values:</p>
+<p>LOG:</p>
+<pre><code class="lang-auto">I/Urho3D: Current Yaw Pre Add 183997
+    Expected: 183995
+         Shifted Camera Yaw -1.25
+    Current Yaw 183993
+         Yaw after shifting pitch 183993
+    Yaw after forming Quaternion 183993
+    ----
+</code></pre>
+<p>Code (added the Print statements to Scripts/Utilities/Samples.as)</p>
+<pre><code class="lang-auto">// Within HandleSceneUpdate()
+Camera@ camera = cameraNode.GetComponent("Camera");
+if (camera is null)
+    return;
+Print("Current Yaw Pre Add " + String(yaw));
+Print("Expected: " + String(yaw + TOUCH_SENSITIVITY * camera.fov / graphics.height * state.delta.y));
+yaw += TOUCH_SENSITIVITY * camera.fov / graphics.height * state.delta.x;
+Print("     Shifted Camera Yaw " + String(TOUCH_SENSITIVITY * camera.fov / graphics.height * state.delta.y));
+Print("Current Yaw " + String(yaw));
+pitch += TOUCH_SENSITIVITY * camera.fov / graphics.height * state.delta.y;
+Print("     Yaw after shifting pitch " + String(yaw));
+
+
+// Construct new orientation for the camera scene node from yaw and pitch; roll is fixed to zero
+cameraNode.rotation = Quaternion(pitch, yaw, 0.0f);
+Print("Yaw after forming Quaternion " + String(yaw));
+Print("----");
+</code></pre>
+<p>Edit: Further digging seems to indicate that the wild camera swinging was probably due to <code>input.mouseMove</code> being non-zero when I start the sample. Not sure what’s causing that, possibly something to do with the touch screen input…? In any case, once I move the camera, it seems to stop, so it’s probably okay. Either way, though, it does seem that the yaw changes about twice the amount it should when it had the touch delta added.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I think it may indeed simply be the result of the virtual device booting and grabbing the mouse.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

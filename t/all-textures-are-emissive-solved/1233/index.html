@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>All Textures are Emissive [Solved]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">All Textures are Emissive [Solved]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Hello, in blender, the model has diffuse, normal, specular, emission and ambient occlusion maps.  The urho exporter didn’t export the ambient occlusion map.  It also set the technique to use to be DiffNormalEmissive, is it possible to have DiffNormalEmissiveSpecularAmbientOcclusion?  I don’t see an Ambient Occlusion texture slot, is that what the Environment slot is for?</p>
+<p>Regardless of all of the above, some techniques make the model all white and the DiffNormalEmissive makes all of the diffuse emit.  Thanks for any help.</p>
+<p><img alt="" height="" src="../../../images2/f3e735ab0964f7d63211760a18c0cc20.png" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>I don’t see an Ambient Occlusion texture slot<br/>
+AO it’s per-frame calculated post-effect based on angles between various objects in scene from depth texture</p>
+</blockquote>
+<p>The light mapping it’s baked static light from many objects on scene into one common big texture, these objects must have a second uv-layer for using light mapping.</p>
+<aside class="quote">
+<blockquote>
+<p>…put diffuse texture normally to diffuse slot, and the shared lightmap texture to emissive slot…</p>
+</blockquote>
+</aside>
+<p><a data-bbcode="true" href="http://discourse.urho3d.io/t/solved-how-to-use-one-lightmap-for-many-objects/553/2">http://discourse.urho3d.io/t/solved-how-to-use-one-lightmap-for-many-objects/553/2</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Post-effect is named SSAO <a href="https://github.com/reattiva/r/tree/master/r_AO">github.com/reattiva/r/tree/master/r_AO</a><br/>
+In this case, I think, other. In CoreData\Techniques\ many techniques with AO slot, but I never did not use them, and can not give any advice</p>
+<p>EDIT: <a >github.com/urho3d/Urho3D/commit … 71ceaf61da</a><br/>
+Added ambient occlusion LitSolid permutations. These read the emissive texture and use the second texcoord, like lightmapped permutations.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>I tried all of the techniques and some make the model white, others make it invisible, none give the correct results.  Here is the blend file if anyone is interested in attempting to get the emission map to work correctly:  <a href="https://www.dropbox.com/s/p48rmylvsmiidwa/terry.tar.gz?dl=0" rel="nofollow noopener">dropbox.com/s/p48rmylvsmiid … ar.gz?dl=0</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>You need joint terryD.png and terryD_a.png into one texture. Use terryD_a.png as overlay on terryD.png and you got one texture diffTexture with AO affects on it.<br/>
+<a data-bbcode="true" href="http://savepic.net/7104904.htm"><img alt="" height="" src="../../../images2/649b3f45c86a9d23c43c9e619c61f730.png" width=""/></a></p>
+<p>I guessing that the thing is, that in the shader AO and Emissive (also LIGHTMAP) use the same TextureUnit and that’s why they working are exclusive or you use AO or you use Emissive not in same time.</p>
+<p><code>
+        #ifdef AO
+            // If using AO, the vertex light ambient is black, calculate occluded ambient here
+            finalColor += Sample2D(EmissiveMap, iTexCoord2).rgb * cAmbientColor * diffColor.rgb;
+        #endif</code></p>
+<pre><code class="lang-auto">        #ifdef LIGHTMAP
+            finalColor += Sample2D(EmissiveMap, iTexCoord2).rgb * diffColor.rgb;
+        #endif
+        #ifdef EMISSIVEMAP
+            finalColor += cMatEmissiveColor * Sample2D(EmissiveMap, iTexCoord.xy).rgb;
+        #else
+            finalColor += cMatEmissiveColor;
+        #endif</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>I added the AO into the diffuse as an overlay in gimp and changed the technique to DiffuseNormalSpecularEmissive but the entire model still emits.  Are you using the latest blender-urho exporter?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>The thing is that PSShader use RGB channels of EmissiveMap and you put to it RGBA. A - alpha is ignored in this case by Shader, it grab RGB values from texture and work with it, but you see that image fine and you see only emission regions in texture. But actually there are still white color that discarded by alpha in gimp or ps. You better for this use only RGB or BW images and make non-emission part of texture with full black color.</p>
+<p><a data-bbcode="true" href="http://savepic.net/7128530.htm"><img alt="" height="" src="../../../images2/2d82021c432c6ddb6c7b1a351ca11e3b.png" width=""/></a></p>
+<p>EmissiveMap<br/>
+<a data-bbcode="true" href="http://savepic.net/7119314.htm"><img alt="" height="" src="../../../images2/4aee286768948c760c21b04aae909583.png" width=""/></a></p>
+<blockquote>
+<p>Are you using the latest blender-urho exporter?<br/>
+Yes, actually I have a fork of this exporter with my additional functionality. But there still need to do material setup in Urho3D editor.</p>
+</blockquote>
+<p>ps. Actually this maybe need to be fixed in master to allow users use EmissiveMap with alpha or clip Emissive pixels by alpha value from EmissiveMap</p>
+<p>changes for LitSolid.hlsl if you want clip EmissiveMap by alpha value</p>
+<pre><code class="lang-auto">        #ifdef EMISSIVEMAP
+			float4 emissiveColor = Sample2D(EmissiveMap, iTexCoord.xy);
+			float a = lerp(1, 0, step(emissiveColor.a, 0.1));
+			finalColor += cMatEmissiveColor * emissiveColor.rgb * a;
+        #else
+            finalColor += cMatEmissiveColor;
+        #endif</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Thanks!  Changing the alpha to black did the trick:<br/>
+<img alt="" height="" src="../../../images2/4516d7a0b9d51916661c3640cb09bccb.png" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

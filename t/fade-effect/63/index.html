@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Fade Effect</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Fade Effect</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">globus</div>
+          <div class="post_content">
+<p>My adaptation of Ogre3D <span class="bbcode-b">FadeEffectOverlay</span> sample code for Urho3D.<br/>
+(<a data-bbcode="true" href="http://www.ogre3d.org/tikiwiki/tiki-index.php?page=FadeEffectOverlay" rel="nofollow noopener">http://www.ogre3d.org/tikiwiki/tiki-index.php?page=FadeEffectOverlay</a>)</p>
+<p>It easy for add this object in any place of code.<br/>
+And, easy for modify it for add support “change sprite texture” or “Pulse fade effect”</p>
+<p>It can be used for example:<br/>
+change level or sinematic effects<br/>
+blood effects when hero damage</p>
+<p>This realized in C++.<br/>
+For use:</p>
+<p><code>#include "Fader.h"
+.......
+Fader* fdr = new Fader(context_);// give context from you Object to Fader.
+.......
+fdr-&gt;FadeOut(1.0f); // 1.0f - fade time in seconds</code></p>
+<p><span class="bbcode-b">Fader.h</span></p>
+<p>[spoiler][code]<span class="hashtag">#pragma</span> once</p>
+<p><span class="hashtag">#include</span> “Object.h”</p>
+<p>namespace Urho3D<br/>
+{<br/>
+class Sprite;<br/>
+}</p>
+<p>using namespace Urho3D;</p>
+<p>class Fader : public Object<br/>
+{<br/>
+OBJECT(Fader);</p>
+<p>protected:<br/>
+enum fadeState_{<br/>
+FADE_NONE,<br/>
+FADE_IN,<br/>
+FADE_OUT,<br/>
+}fadeState_;</p>
+<pre><code>// Fader sprite.
+SharedPtr&lt;Sprite&gt; faderSprite_;
+
+float currentAlpha_;
+float currentDuration_;
+float totalDuration_;
+bool faderDone_;
+bool faderNowCalled_;
+</code></pre>
+<p>public:</p>
+<pre><code>Fader(Context* context);
+~Fader(void);
+
+void BlackScreen();
+void FadeIn(float duration = 1.0f);
+void FadeOut(float duration = 1.0f);
+void fadeNowIn(float duration = 1.0f);	// Can only be called once
+void fadeNowOut(float duration = 1.0f);	// Can only be called once
+void fade(float timeSinceLastFrame);
+bool isFaderCalled(void){return faderNowCalled_;};	
+bool isFaderDone(void){ return faderDone_; };
+</code></pre>
+<p>private:<br/>
+// Subscribe to necessary events.<br/>
+void SubscribeToEvents();<br/>
+// Handle application update. Fader need for Time step.<br/>
+void HandleUpdate(StringHash eventType, VariantMap&amp; eventData);<br/>
+};[/code][/spoiler]</p>
+<p><span class="bbcode-b">Fader.cpp</span></p>
+<p>[spoiler][code]<span class="hashtag">#include</span> “CoreEvents.h”<br/>
+<span class="hashtag">#include</span> “ResourceCache.h”<br/>
+<span class="hashtag">#include</span> “Sprite.h”<br/>
+<span class="hashtag">#include</span> “Texture2D.h”<br/>
+<span class="hashtag">#include</span> “UI.h”<br/>
+<span class="hashtag">#include</span> “Graphics.h”</p>
+<p><span class="hashtag">#include</span> “Fader.h”</p>
+<p>// All Urho3D classes reside in namespace Urho3D<br/>
+using namespace Urho3D;</p>
+<p>Fader::Fader(Context* context) :<br/>
+Object(context)<br/>
+{<br/>
+// ======== Create default Sprite ===============<br/>
+Graphics* gfx = GetSubsystem();</p>
+<pre><code>// Get Fader texture
+ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+Texture2D* faderTexture = cache-&gt;GetResource&lt;Texture2D&gt;("Textures/2x2_black.png");
+if (!faderTexture)
+    return;
+
+// Create fader sprite and add to the UI layout
+UI* ui = GetSubsystem&lt;UI&gt;();
+faderSprite_ = ui-&gt;GetRoot()-&gt;CreateChild&lt;Sprite&gt;();
+
+// Set fader sprite texture
+faderSprite_-&gt;SetTexture(faderTexture);
+
+// Set fader sprite size
+faderSprite_-&gt;SetSize(gfx-&gt;GetWidth(), gfx-&gt;GetHeight());
+
+// Set fader sprite alignment
+faderSprite_-&gt;SetAlignment(HA_LEFT, VA_TOP);
+
+// Hide by default
+faderSprite_-&gt;SetVisible(false);
+
+// Z order for fader so that other UI elements can be drawn on bottom
+faderSprite_-&gt;SetPriority(400);
+// ======== End Create default Sprite ===========
+
+// Reset all to default state.
+fadeState_ = FADE_NONE;
+currentAlpha_ = 0.0f;
+faderDone_ = true;
+faderNowCalled_ = false;
+
+SubscribeToEvents();
+</code></pre>
+<p>}</p>
+<p>Fader::~Fader(void)<br/>
+{<br/>
+}</p>
+<pre><code>/// Subscribe to necessary events.
+</code></pre>
+<p>void Fader::SubscribeToEvents()<br/>
+{<br/>
+// get Time step for Fader in E_RENDERUPDATE Core step<br/>
+SubscribeToEvent(E_RENDERUPDATE, HANDLER(Fader, HandleUpdate));<br/>
+}</p>
+<p>void Fader::HandleUpdate(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+if (faderNowCalled_)<br/>
+{<br/>
+using namespace Update;</p>
+<pre><code>	float timeStep = eventData[P_TIMESTEP].GetFloat();
+
+    if(!faderDone_)
+		fade(timeStep);
+}
+</code></pre>
+<p>}</p>
+<p>void Fader::BlackScreen()<br/>
+{<br/>
+if(faderDone_)<br/>
+{<br/>
+faderSprite_-&gt;SetOpacity(1.0f);<br/>
+faderSprite_-&gt;SetVisible(true);<br/>
+}<br/>
+}</p>
+<p>void Fader::FadeIn(float duration)<br/>
+{<br/>
+if( duration &lt; 0 )<br/>
+duration = 1.0f;//-duration;<br/>
+//    if( duration &lt; 0.000001 )<br/>
+//        duration = 1.0;<br/>
+currentAlpha_ = 1.0f;<br/>
+totalDuration_ = duration;<br/>
+currentDuration_ = duration;<br/>
+fadeState_ = FADE_IN;<br/>
+faderSprite_-&gt;SetVisible(true);</p>
+<pre><code>faderDone_ = false;
+faderNowCalled_ = true;
+</code></pre>
+<p>}</p>
+<p>void Fader::FadeOut(float duration)<br/>
+{<br/>
+if( duration &lt; 0 )<br/>
+duration = 1.0f;//-duration;<br/>
+//	if( duration &lt; 0.000001 )<br/>
+//		duration = 1.0;</p>
+<pre><code>currentAlpha_ = 0.0f;
+totalDuration_ = duration;
+currentDuration_ = 0.0f;
+fadeState_ = FADE_OUT;
+faderSprite_-&gt;SetVisible(true);
+
+faderDone_ = false;
+faderNowCalled_ = true;
+</code></pre>
+<p>}</p>
+<p>void Fader::fadeNowIn(float duration)<br/>
+{<br/>
+if( faderNowCalled_ == false )<br/>
+{<br/>
+FadeIn(duration);<br/>
+faderNowCalled_ = true;<br/>
+}<br/>
+}</p>
+<p>void Fader::fadeNowOut(float duration)<br/>
+{<br/>
+if( faderNowCalled_ == false )<br/>
+{<br/>
+FadeOut(duration);<br/>
+faderNowCalled_ = true;<br/>
+}<br/>
+}</p>
+<p>void Fader::fade(float timeStep)<br/>
+{<br/>
+if( fadeState_ != FADE_NONE &amp;&amp; faderSprite_)<br/>
+{<br/>
+// Set the currentAlpha_ value of the <em>overlay<br/>
+faderSprite</em>-&gt;SetOpacity(currentAlpha_);</p>
+<pre><code>	// If fading in, decrease the currentAlpha_ until it reaches 0.0
+	if( fadeState_ == FADE_IN )
+	{
+		currentDuration_ -= timeStep;
+		currentAlpha_ = currentDuration_ / totalDuration_;
+		if( currentAlpha_ &lt; 0.0f )
+		{
+            faderSprite_-&gt;SetVisible(false);
+			fadeState_ = FADE_NONE;
+			faderDone_ = true;
+			faderNowCalled_ = false;
+		}
+	}
+
+	// If fading out, increase the currentAlpha_ until it reaches 1.0
+	else if( fadeState_ == FADE_OUT )
+	{
+		currentDuration_ += timeStep;
+		currentAlpha_ = currentDuration_ / totalDuration_;
+		if( currentAlpha_ &gt; 1.0 )
+		{
+            faderSprite_-&gt;SetVisible(false);
+			fadeState_ = FADE_NONE;
+			faderDone_ = true;
+			faderNowCalled_ = false;
+		}
+	}
+}
+</code></pre>
+<p>}[/code][/spoiler]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

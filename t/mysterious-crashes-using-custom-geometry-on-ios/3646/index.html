@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Mysterious crashes using custom geometry on iOS</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Mysterious crashes using custom geometry on iOS</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Dear developers,</p>
+<p>Currently we are working on an app that visualizes IFC Models on iOS / iPad. We are using Xamarin and Visual Studio 2015 to do this.</p>
+<p>Implementation specifics:</p>
+<ol>
+<li>
+<p>We are using the class Urho.iOS.UrhoSurface to display our scene creator implementation. (This UrhoSurface is instantiated only once.)</p>
+</li>
+<li>
+<p>We are using a custom scene creator class which extends Urho.Application. The implementation of the Application class pretty much follows the standard examples for Urho3D that we’ve found.</p>
+</li>
+<li>
+<p>We use an implementation of the Geometry class to create and add geometry objects to the scene. We fill these geometry objects with VertexBuffers and IndexBuffers we create on the basis of geometry data we import from IFC models.</p>
+</li>
+</ol>
+<p>This all seems to work ok in the sense that we can load complete IFC models and display them without problem. When we load subsequent models we clear the geometry objects from the viewport and add the new geometry as desired.</p>
+<p>We however run into one problem that we cannot seem to fix in any way:</p>
+<p>Regardless of whether we load various different models or just one model which we leave completely untouched in the viewport, the app just terminates after about 5 minutes. We have set the iPad to not lock the device upon idle, nor does this really seem related to the app going idle in any way. (If we load other models meanwhile, the crash also occurs after about the same amount of time.)</p>
+<p>I don’t think this is related to memory use or memory management, crashes seem untirely unrelated to the kind of model we load or the amount of memory consumed for it.</p>
+<p>We’re also not getting any kind of feedback from either Xamarin or Visual Studio. The only message we are getting is a mysterious:</p>
+<p>“The app has been terminated.”</p>
+<p>No other diagnostics info of any kind.</p>
+<p>Do you have any ideas or pointers to what might be causing this behaviour?</p>
+<p>Thanks in advance,</p>
+<p>Best regards,</p>
+<p>Molurus</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<blockquote>
+<p>We use an implementation of the Geometry</p>
+</blockquote>
+<p>Do you subclass <code>Geometry</code> in C#?<br/>
+<s>I’m unsure whether such things are supported by UrhoSharp.<br/>
+Well, I doubt that it’s possible even in C++ core…</s><br/>
+I think you don’t. Could you share some code?</p>
+<p>PS. Note that UrhoSharp is not supported here.I suggest you to somehow check whether the problem is caused by Urho3D core.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>No, We do not subclass Geometry at all.</p>
+<p>We do use UrhoSharp.Forms. If this is not the place for questions related to UrhoSharp, is there any place you can recommend asking our question?</p>
+<p>The function creating our geometry objects is listed below. It’s now marked as ‘unsafe’ because we’ve tried moving it to the iOS layer to have it insert the vertices with a fixed() statement, but that doesn’t appear to make any kind of difference. Behaviour remains the same.</p>
+<p>PS: I have no clue on how to check if this is caused by the Urho3D core. Any suggestions?</p>
+<p>Here’s the code converting our vertices and indices to a geometry object:</p>
+<pre><code>    public unsafe Node Mesh2UrhoModel(Context Context, Scene scene, Node PlotNode, Material material, float[] verticesArray, Int32[] indicesArray, string globalID, string IFC_Type, string ObjectType)
+    {
+        // called very often
+        // DebugMessage("private void Mesh2UrhoModel(float[] verticesArray, long[] indicesArray, string globalID, string IFC_Type, string ObjectType)");
+
+        VertexBuffer vertexBuffer = new VertexBuffer(Context, false); // false
+        IndexBuffer indicesBuffer = new IndexBuffer(Context, false); // false
+        uint numberOfVertices = (uint)verticesArray.Length;
+        uint numberOfIndices = (uint)indicesArray.Length;
+
+        // Shadowed buffer needed for raycasts to work, and so that data can be automatically restored on device loss
+        vertexBuffer.Shadowed = true;
+        vertexBuffer.SetSize(numberOfVertices / 6, ElementMask.Position | ElementMask.Normal, false);
+
+        try
+        {
+            fixed (float* p = &amp;verticesArray[0])
+                vertexBuffer.SetData(p);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine("Thrown: " + e.Message);
+        }
+
+        indicesBuffer.Shadowed = true;
+        indicesBuffer.SetSize(numberOfIndices, false, false); // indicesBuffer.SetSize(numberOfIndices, false, false);
+
+        //Reversing the indices array
+        //Polygon direction is dependant on the direction in which you reference the vertices
+        //So instead of making a polygon between vertices 0-1-2, it should be made between 2-1-0
+        //This prevents backfacing; geometry displaying inside out
+
+        // this seems to undo an already executed inversion! see SwapIndices in IFCgeometry.cs
+
+        var indices = new short[numberOfIndices];
+        for (var i = numberOfIndices; i &gt; 0; i--)
+        {
+            var index = numberOfIndices - i;
+            indices[index] = (short)indicesArray[i - 1];
+        }
+
+        //var indices = new short[numberOfIndices];
+        //for (var i = numberOfIndices; i &lt; numberOfIndices; i++)
+        //    indices[i] = (short)indicesArray[i];
+
+        // indicesBuffer.SetData(indices); // cannot convert int[] to void *. ask Peter.
+
+        try
+        {
+            fixed (short* p = &amp;indices[0])
+                indicesBuffer.SetData(p);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine("Thrown: " + e.Message);
+        }
+
+        var geometry = new Geometry();
+        geometry.SetNumVertexBuffers(1); // added Sander
+        geometry.SetVertexBuffer(0, vertexBuffer);
+
+        geometry.IndexBuffer = indicesBuffer;
+        // geometry.SetDrawRange(PrimitiveType.TriangleList, 0, numberOfIndices, true);
+        geometry.SetDrawRange(PrimitiveType.TriangleList, 0, numberOfIndices, 0, numberOfVertices / 6, true);
+
+        var model = new Urho.Model();
+        model.NumGeometries = 1;
+        model.SetGeometry(0, 0, geometry);
+
+        Vector3 minVector = new Vector3(1000000, 1000000, 1000000);
+        Vector3 maxVector = new Vector3(-1000000, -1000000, -1000000);
+
+        for (int i = 0; i &lt; verticesArray.Length; i += 3)
+        {
+            float x = verticesArray[i];
+            float y = verticesArray[i + 1];
+            float z = verticesArray[i + 2];
+
+            if (x &lt; minVector.X) minVector.X = x;
+            if (y &lt; minVector.Y) minVector.Y = y;
+            if (z &lt; minVector.Z) minVector.Z = z;
+
+            if (x &gt; maxVector.X) maxVector.X = x;
+            if (y &gt; maxVector.Y) maxVector.Y = y;
+            if (z &gt; maxVector.Z) maxVector.Z = z;
+        }
+
+        model.BoundingBox = new BoundingBox(minVector, maxVector);
+        
+        //model.BoundingBox = new BoundingBox(new Vector3(-100f, -100f, -100f), new Vector3(100f, 100f, 100f));
+
+        var node = PlotNode.CreateChild(globalID); // scene.CreateChild(); // 
+        node.Position = new Vector3(0.0f, 0.0f, 0.0f);
+        node.SetScale(1.0f);
+
+        var nodeObject = node.CreateComponent&lt;StaticModel&gt;();
+        nodeObject.Model = model;
+
+        nodeObject.SetMaterial(material);
+
+        return (node);
+    }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>PS: I’m sorry if this code looks a bit messy. I’ve obviously been trying a lot of different things.</p>
+<p>The code as it is now does work in the sense that it’s capable of creating Geometry objects for our IFC objects that are displayed correctly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="3646" data-username="Molurus">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bd80f026f5285a7823ed29d316bd931d.png" width="20"/> Molurus:</div>
+<blockquote>
+<p>We do use UrhoSharp.Forms. If this is not the place for questions related to UrhoSharp, is there any place you can recommend asking our question?</p>
+</blockquote>
+</aside>
+<p>Try UrhoSharp forums or their GitHub. This forum is about original C++ Urho3D.</p>
+<blockquote>
+<p>I have no clue on how to check if this is caused by the Urho3D core. Any suggestions?</p>
+</blockquote>
+<p>Could you reproduce the problem with UrhoSharp samples?</p>
+<p>I’ll check your code more thoughtfully later, but I am unsure that I’ll find anything.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>This line looks suspicious: edit- disregard the divide by 6. I’m going to assume that the <span class="bbcode-b">float[] verticesArray</span> is correctly packed with 3-floats for position and 3-floats for normal.</p>
+<p>And you should check if <span class="bbcode-b">numberOfIndices </span> is &gt;= 64k boundary and set largetIndeces flag appropriately when calling</p>
+<pre><code class="lang-auto">    bool SetSize(unsigned indexCount, bool largeIndices, bool dynamic = false);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="6" data-topic="3646" data-username="Lumak">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/> Lumak:</div>
+<blockquote>
+<p>because of divide by 6, index probably exceeds the boundary.</p>
+</blockquote>
+</aside>
+<p>I think <code>numberOfVertices</code> is just mis-name, because input is not vertices but floats.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Yeah, I realized that when I reviewed the argument list, and edited my comment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Could it be caused by C# GC? Something like objects that are still being used but accidentally got GC-ed? Or the other way around, GC took too long and iOS decided to terminate the unresponsive app?</p>
+<p>The error message "The app has been terminated.” string does not come from our Urho code base. Did a git grep and found nothing. Did a google search on that string, however, showed the Xamarin.form are all over the result page. It looks like a common pitfall for Xamarin and I would suspect it has has nothing to do with custom geometry specifically. Since I also do not use Xamarin/UrhoSharp, please take this with a pinch of salt.</p>
+<p>Slightly off-topic, but what say you if we create another forum subcategory here for UrhoSharp? Not that we will have a dedicated support for them, but simply just to separate their issues/questions from ours. UrhoSharp users may also be able to help each other if they could find common topics for them easily.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p><span class="mention">@Molurus</span><br/>
+What about the ios device logs? Do they report anything on killing your app?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Everyone, first of all thanks for all the responses!</p>
+<p>Some remarks from my side:</p>
+<p>Indeed, the variable numberOfVertices is mis-named. The parameter float[] does contain correct sets of coordinates and normals. (Sets of 6 floats.)</p>
+<p>At this point I have no reason to believe that the numberOfIndices ever exceeds 64k. But I will check again to make sure.</p>
+<p>Yes, the idea that Garbage Collection plays a role here did occur to me. I’ve tried to determine if it does, but to no avail. Things I’ve tried:</p>
+<ul>
+<li>running the garbage collector during OnUpdate() cycle. (Once every 100 cycles.)</li>
+<li>monitoring memory use changes. (No strange things there.)</li>
+<li>using GC.AddMemoryPressure in the hope that natively allocated memory isn’t released unpredictably. (This didn’t influence the crash behaviour.)</li>
+</ul>
+<p>The device logs (thanks for that pointer, hadn’t seen those before) contain rather extensive entries, and I’m a bit unsure how to interpret them. There are a few lines that draw my attention:</p>
+<p>Edit: log lines removed. I may have been looking at the wrong entry due to confusing order of events in the logs.</p>
+<p>I will get back on my analysis of the log entries.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Short remark on the basis of the device logs: the log entry I see seems to indicate the app was terminated because it had an average CPU usage over 80% for more than 3 minutes. (84% to be precise.)</p>
+<p>This 3 minute period seems consistent with the problems I’m seeing. If I’m interpreting the device logs correctly, the app is killed by iOS on the basis of high CPU usage.</p>
+<p>I’m going to google the specific entries to see if this is a known show stopper for apps.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="12" data-topic="3646" data-username="Molurus">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bd80f026f5285a7823ed29d316bd931d.png" width="20"/> Molurus:</div>
+<blockquote>
+<p>This 3 minute period seems consistent with the problems I’m seeing. If I’m interpreting the device logs correctly, the app is killed by iOS on the basis of high CPU usage.</p>
+</blockquote>
+</aside>
+<p>I’m glad to hear that you’ve got a clue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Me too. Now it’s a matter of trying to figure out if it is possible to create a workaround for this. At this point I’m not at all sure if this problem can be fixed in our code, or if it should be fixed in UrhoSharp.</p>
+<p>But at least I now have some indication of what’s going on!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>Yes, CPU Monitor. Since IOS 8.<br/>
+Time to fire up Instruments and find who’s guilty.<img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p><a class="onebox" href="https://developer.apple.com/library/content/documentation/Performance/Conceptual/EnergyGuide-iOS/WorkLessInTheBackground.html" rel="nofollow noopener" target="_blank">https://developer.apple.com/library/content/documentation/Performance/Conceptual/EnergyGuide-iOS/WorkLessInTheBackground.html</a></p>
+<blockquote>
+<p>Resolving Runaway Background App Crashes</p>
+<p>iOS employs a CPU Monitor that watches background apps for excessive CPU usage and terminates them if they fall outside of certain limits. Most apps performing normal background activity should never encounter this situation. However, if your app reaches the limits and is terminated, the crash log indicates the reason for the termination. An exception type of EXC_RESOURCE and subtype of CPU_FATAL is specified, along with a message indicating that limits were exceeded. See Listing 3-6.<br/>
+Listing 3-6Example of an Excess CPU Usage Crash Log Entry</p>
+<pre><code>Exception Type: EXC_RESOURCE
+Exception Subtype: CPU_FATAL
+Exception Message: (Limit 80%) Observed 89% over 60 seconds
+</code></pre>
+<p>The log also includes a stack trace, which lets you determine what your app was doing right before it was terminated. By analyzing the stack trace, you can identify the location of the runaway code and resolve it.</p>
+<p>Note</p>
+<p>CPU Monitor is available in iOS 8 and later.</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>There are continuous rendering cycles going on. I’m trying to pause the engine, by calling UrhoSurface.Pause(), but this doesn’t appear to stop OnUpdate() being called, nor does it seem to influence the problem in any way.</p>
+<p>I’m not surprised that CPU use is high during rendering, but I seem to be unable to stop the UrhoSharp.Forms from rendering.</p>
+<p>Searching further, will keep you updated.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>Just a shot in the dark as a test…, what if you did something like:</p>
+<p>void PostUpdate( … ) {<br/>
+Urho3D::Time::Sleep(10);<br/>
+}</p>
+<p>Do you think that would work for you? Or, get you closer to a solution?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>@ Victor:</p>
+<p>This would probably require me calling Time.Sleep(10) from the OnUpdate() function? Otherwise it will just sleep 10 ms and then display the same behaviour again.</p>
+<p>I could try calling Time.Sleep(10) from the OnUpdate() when I feel that it shouldn’t be rendering at all, but it feels a bit iffy. I will try this anyway tomorrow.</p>
+<p>In general, I must say I’m extremely confused by the available functions in UrhoSurface and Urho.Application.</p>
+<p>Urho.Application has Start() and Stop() functions, but these don’t seem to stop OnUpdate() being called.</p>
+<p>UrhoSurface has Pause() and Resume() functions, which don’t stop OnUpdate() being called either. (This is really strange imho. If these functions don’t stop and resume rendering, do they do anything at all?)</p>
+<p>UrhoSurface has a Stop() function, but doesn’t appear to have a Start() function. This seems to be intended for application exit, not for a temporary Pause of rendering. So this one isn’t useful either it seems.</p>
+<p>UrhoSurface has a StopRendering(Urho.Application) function, which <em>does</em> stop rendering, but there doesn’t appear to be any StartRendering() function that would allow me to resume, which makes it completely useless.</p>
+<p>There must be some simple way of temporarily pausing rendering so I can bring down the CPU usage while the user isn’t interacting with the model (and start it again when the user wants to interact with the model), but sofar I haven’t found it.</p>
+<p>Btw, I cannot stress enough how much I appreciate you people trying to help me here. This really is a frustrating problem. I feel like I am really close to a workable solution, yet… I am not quite there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Ok, I have tried Victor’s suggestion, having a Time.Sleep(20) call in the OnUpdate() function to reduce the CPU used. (I’m for now not making any attempts to pause rendering and/or load other models and/or handle user interaction. Just displaying a model.)</p>
+<p>The good news is that I no longer seem to get crashes related to high CPU use in the sense that I’m simply not getting any entries about it in the iPad device log anymore. (Or entries of any kind.)</p>
+<p>De bad news is: the app is still terminating after a few minutes of being idle while displaying a model. (The app does not crash if I don’t load any model and just display an empty viewport.)</p>
+<p>So yeah… I’m not sure if I really made any kind of progress here. The only improvement seems that I now don’t have any diagnostics information that I could check anymore.</p>
+<p>If anyone has other ideas on what I could check further I would be very much interested.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Have you tried to run standard UrhoSharp samples?<br/>
+If they crash too, you could also try our native samples.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Ok, I seem to have another lead here. The stability seems related to model complexity.</p>
+<p>The models I was trying to load had (roughly) 250,000 triangles. Those tended to crash after a few minutes.</p>
+<p>If I limit the loading of these models to 30,000 triangles max, the stability seems to be improving! I’ve displayed the same model for over 10 minutes without a crash. (Checking if this is ad infinite now.)</p>
+<p>Now I’m not exactly sure what a reasonable number of triangles is for a mobile device. The models we’re trying to load wouldn’t be shocking for a desktop application.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>Ah, nice to hear you’ve made progress! I must have read the issue incorrectly. This has been an issue for me as well when I was creating a CustomMesh class. For me, it had something to do with the Vertex Buffer, so I did the following in my code:</p>
+<aside class="onebox githubgist">
+<header class="source">
+<a href="https://gist.github.com/victorholt/926bdb48f40bb8a27cd613ed8e94fc99#file-custommesh-h-L1-L2" rel="nofollow noopener" target="_blank">gist.github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://gist.github.com/victorholt/926bdb48f40bb8a27cd613ed8e94fc99#file-custommesh-h-L1-L2" rel="nofollow noopener" target="_blank">https://gist.github.com/victorholt/926bdb48f40bb8a27cd613ed8e94fc99#file-custommesh-h-L1-L2</a></h4>
+<h5>CustomMesh.h</h5>
+<pre><code class="C++">//
+// Created by Victor Holt on 3/18/2017.
+// Reference: (rbnpontes) http://discourse.urho3d.io/t/a-mesh-generator/2361
+//
+#pragma once
+#include &lt;GameSencha/Common/GameSenchaBasePCH.h&gt;
+gs_nsstart
+
+#define CM_MAX_FACES_PER_GEOM_SM 500
+#define CM_MAX_FACES_PER_GEOM_LG 25000</code></pre>
+This file has been truncated. <a href="https://gist.github.com/victorholt/926bdb48f40bb8a27cd613ed8e94fc99#file-custommesh-h-L1-L2" rel="nofollow noopener" target="_blank">show original</a>
+<p>
+</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Interesting for large meshes we came up with around the same “max” number of triangles.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>@ Eugene:</p>
+<p>The samples I’ve seen don’t load very large / complex models and tend to be stable. The problems seem to arise when models get larger. (And the time it takes for them to crash seems to have a relation with model complexity.)</p>
+<p>I’m currently still looking at the same model for about 20 minutes. Still no crash. (With the number of triangles capped at 30,000.)</p>
+<p>Of course this is no real solution yet, we need to be able to display complete models. But at least this is a new lead. Maybe this will trigger someone’s intuition as to what might be causing this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>In my solution above, what I do is just split the larger models, that have reached the max triangles, into their own Vertex/Index buffer. I think that should work for you. Perhaps, the Urho3D exporter could be modified a bit too with dealing with the issue in a similar way, around here:</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/reattiva/Urho3D-Blender/blob/master/export_urho.py#L858-L862" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/reattiva/Urho3D-Blender/blob/master/export_urho.py#L858-L862" rel="nofollow noopener" target="_blank">reattiva/Urho3D-Blender/blob/master/export_urho.py#L858-L862</a></h4>
+<pre class="onebox"><code class="lang-py"><ol class="start lines" start="858" style="counter-reset: li-counter 857 ;">
+<li># If one big buffer needs a 32 bits index but each geometry needs only a 16 bits</li>
+<li># index then try to use a different buffer for each geometry</li>
+<li>useOneBuffer = True</li>
+<li>if uExportOptions.splitSubMeshes or (totalVertices &gt; 65535 and maxLodVertices &lt;= 65535):</li>
+<li>    useOneBuffer = False</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>When I originally looked into this issue, I couldn’t find that Urho was doing anything special with OpenGL vertex buffers, so I didn’t necessarily think it was an issue with Urho… I could be wrong however.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>@ Victor:</p>
+<p>For clarity, our models are not contained in a single object. The 250,000 triangles I’m referring to are for the complete model.</p>
+<p>In other words: the objects within the model each have their own VertexBuffer and are already substantially smaller than 30,000 each.</p>
+<p>What I could do is put them in seperate Node objects over a certain threshhold, but I see no reason to believe that would make a difference here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="23" data-topic="3646" data-username="Molurus">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bd80f026f5285a7823ed29d316bd931d.png" width="20"/> Molurus:</div>
+<blockquote>
+<p>The samples I’ve seen don’t load very large / complex models and tend to be stable. The problems seem to arise when models get larger. (And the time it takes for them to crash seems to have a relation with model complexity.)</p>
+</blockquote>
+</aside>
+<p>I still think that first guess about watchdogs is still valid.<br/>
+Mb your application it just is too heavy for the device and get killed by OS. You feed one watchfog with sleep but there may be others…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p><span class="mention">@Molurus</span><br/>
+Smells like a limit on opengl model structure, like you were using open gles 2. But since IOS7 it is open gles 3, if I’m not mistaken… which open gl es version urho sharp is using?<br/>
+Anyway I don’t believe to be that…<br/>
+Did you check all the background threads? Any of them doing some infinite UI rendering?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>@ Eugene:</p>
+<p>Well, by now I’ve pretty much stripped everything from the app, so there’s very little left that might be taking up too much resources. (At least from our app itself.)</p>
+<p>I really don’t know what other kind of monitoring I could be doing here.</p>
+<p>I’ll sleep on this a bit. I am (again) pretty much lost. Reducing the model size / complexity just increases the time it takes for crashes to occur. I’m not at all sure anymore that even simple models are stable. (It might take hours in extreme cases, but that doesn’t mean there’s no problem.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p><span class="mention">@johnnycable</span>:</p>
+<p>To be honest, I have no idea what version of open gl UrhoSharp.Forms is using.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>Does urho sharp prevent <a href="https://developer.apple.com/library/content/documentation/DeveloperTools/Conceptual/InstrumentsUserGuide/index.html" rel="nofollow noopener">Apple Instruments</a> from working?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>It’s been a while since I’ve last researched this problem. I’m currently trying to figure out Apple Instruments and how to use it.</p>
+<p>After a few hours of struggling, I finally got my Apple Instruments to attach to my process. Progress, of a kind. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>Now I’m trying to find my way through the templates and trying to figure out which ones may be relevant to my problem. Memory use seems ok, nothing shocking. 500 mb memory use for my app at the moment of crash.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Well, some update remarks.</p>
+<ol>
+<li>
+<p>I’ve been looking Apple Instruments… but I’m really unsure what to look at. I see no memory leaks, CPU usage remains high as we might expect from a rendering engine. It’s a bit unclear if this is the actual cause of the sudden crashes.</p>
+</li>
+<li>
+<p>I’ve tried running our App on IphoneSimulator. Not only does the app work on this simulator, it’s completely stable. It doesn’t crash at all. (Simulator used is iPad 5th generation, iOS 11.)</p>
+</li>
+<li>
+<p>When I run the app on an iPad mini 2 the crashes occur quite quickly. No stack trace, no exceptions, nothing whatsoever.</p>
+</li>
+<li>
+<p>There still is a suspicion that the iPad itself decides to terminate the app based on the CPU load. With that in mind I would like to stop rendering. Yet, I’ve found absolutely no way of stopping the rendering process. No matter what I try, OnUpdate(float timeStep) keeps getting called continuously.</p>
+</li>
+</ol>
+<p>If anyone has any further ideas… especially regarding point 4), that would be much appreciated. It seems I’m running out of things to try. <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<ol>
+<li>Any background thread that may cause Ios monitor to trigger.</li>
+<li>Forget it. You’re running on Os X not Ios. It’s a simulator, not an emulator. Simply no point. This is renowned.</li>
+<li>see 1 and 2. Consider your first friend is always XCode. Set breakpoints and check memory usage. Check the ipad logs on device tabs.</li>
+<li>Don’t know, but I’d look for some process spawning too.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Hi johnnycable.</p>
+<ol>
+<li>
+<p>The app itself is completely stable when I load the entire thing and just don’t load any model. (And do load an UrhoSurface object.) There is nothing that runs in the background that is triggered by the loading of the model. Even if there was I wouldn’t know how to look for it using Apple Instruments, but it would have to be something that’s part of our app regardless if we load a model. At this point, I’m 99% certain the ios monitor is triggered by Urho’s rendering engine, nothing else. (Although there doesn’t appear to be much I can do to further investigate this.)</p>
+</li>
+<li>
+<p>Ok.</p>
+</li>
+<li>
+<p>Are you aware we’re not using XCode at all? We’re developing in Xamarin / Visual Studio for Windows. Most of our code is in PCL classes we use for other applications. (Which don’t do any threading stuff in the iOS environment, we can pretty much exclude that part.) I do set breakpoints, have the code display current memory use, etc. Absolutely no clues there. Nothing that could explain the crashes, other than iOS killing Urho.</p>
+</li>
+<li>
+<p>How? It appears there simply is nothing left to look at. I could live with temporarily stopping the engine from rendering and restarting it when required, but that seems impossible as well.</p>
+</li>
+</ol>
+<p>At this point I’m beginning to wonder if anyone ever managed to use UrhoSharp on iOS with large models without it crashing. To be honest… I doubt it. And I’m completely unsure if this could be done with different rendering engines without running into similar problems, so I’m not thrilled about trying to re-implement this in other ways either.</p>
+<p>But if we don’t get <em>something</em> working, my company has a huge problem. So we’re really quite desperate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Did you tried to build sketch Unity build with the same models, for example?<br/>
+It shouldn’t take a lot of time but could give us a clue.</p>
+<div class="spoiler">
+<p>Or you just drop Urho and switch to Unity if it works</p>
+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>At this point we’re so desperate that we might even consider re-implementing something that uses Unity.</p>
+<p>But as I understand it, Unity doesn’t work with Xamarin. So even if I could get this to work, what good would it do?</p>
+<p>The only path I can think of that might stand a chance of solving our problem is one of two options:</p>
+<ol>
+<li>somehow reducing the frame rate and thus reduce the CPU load.</li>
+<li>stopping rendering altogether when it’s not required.</li>
+</ol>
+<p>If there is any way of doing this with UrhoSharp, I’d love to know about it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>Oh, oh… I didn’t got that.</p>
+<p>Now googlin I see what’s your real problem…</p>
+<aside class="onebox stackexchange" data-onebox-src="https://stackoverflow.com/questions/41930969/export-xcode-project-from-xamarin-project">
+<header class="source">
+<a href="https://stackoverflow.com/questions/41930969/export-xcode-project-from-xamarin-project" rel="noopener nofollow ugc" target="_blank">stackoverflow.com</a>
+</header>
+<article class="onebox-body">
+<a href="https://stackoverflow.com/users/3702117/fabio-schmitz" rel="noopener nofollow ugc" target="_blank">
+<img alt="Fabio Schmitz" class="thumbnail onebox-avatar" height="256" src="https://www.gravatar.com/avatar/37d158edd74568c4de3cbdd4343452bf?s=256&amp;d=identicon&amp;r=PG" width="256"/>
+</a>
+<h4>
+<a href="https://stackoverflow.com/questions/41930969/export-xcode-project-from-xamarin-project" rel="noopener nofollow ugc" target="_blank">Export Xcode Project from Xamarin Project</a>
+</h4>
+<div class="tags">
+<strong>ios, xcode, xamarin, xamarin.ios</strong>
+</div>
+<div class="date">
+  asked by
+  
+  <a href="https://stackoverflow.com/users/3702117/fabio-schmitz" rel="noopener nofollow ugc" target="_blank">
+    Fabio Schmitz
+  </a>
+  on <a href="https://stackoverflow.com/questions/41930969/export-xcode-project-from-xamarin-project" rel="noopener nofollow ugc" target="_blank">07:41AM - 30 Jan 17 UTC</a>
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>you can’t even export a project, cannot open anything with xcode. <img alt=":crazy_face:" class="emoji" src="../../../images2/62b0cba8452553abbdb69a7f2bb4467f.png" title=":crazy_face:"/><img alt=":crazy_face:" class="emoji" src="../../../images2/62b0cba8452553abbdb69a7f2bb4467f.png" title=":crazy_face:"/><img alt=":crazy_face:" class="emoji" src="../../../images2/62b0cba8452553abbdb69a7f2bb4467f.png" title=":crazy_face:"/><br/>
+you’re completely bound into Microsoft cage… <img alt=":tired_face:" class="emoji" src="../../../images2/05bbda6fddc77d09848aacfedd70cab0.png" title=":tired_face:"/><img alt=":tired_face:" class="emoji" src="../../../images2/05bbda6fddc77d09848aacfedd70cab0.png" title=":tired_face:"/><img alt=":tired_face:" class="emoji" src="../../../images2/05bbda6fddc77d09848aacfedd70cab0.png" title=":tired_face:"/><br/>
+The reason why we guys here use much more setup-complicated open source effort-prone urho3d for c++; because we can solve error ourselves, without recurring to Microsoft support (they won’t answer us anyway, unless we are fortune 500 <img alt=":stuck_out_tongue_closed_eyes:" class="emoji" src="../../../images2/fb4cfd054da5ea02fd08a11bc138301c.png" title=":stuck_out_tongue_closed_eyes:"/>)</p>
+<p>(did you used Instruments with the device, not emulator, didn’t you? just for the luck of it)</p>
+<p>So, to recap, you have a threefold problem:</p>
+<ol>
+<li>At the lowest level, it’s possible urho3d renderer doesn’t work.</li>
+<li>At the intermediate level, xamarin bindings for urho 3d don’t work.</li>
+<li>At the highest level, xamarin.ios doesn’t work.</li>
+</ol>
+<p>Without using Instruments or Xcode we are clueless. But, I don’t know why, I would bet on 2…<img alt=":wink:" class="emoji" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title=":wink:"/></p>
+<p>Consider those frameworks are beefed up for 2d business presentations… xamarin first worry is to let their customers build beautiful 2d UIs for selling shoes… they don’t care a fuck about videogaming, which is 5% of their user base… they wanted urho sharp in just because Unity didn’t want to sell to them… <img alt=":wink:" class="emoji" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title=":wink:"/><br/>
+So to reply about</p>
+<aside class="quote no-group" data-post="34" data-topic="3646" data-username="Molurus">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bd80f026f5285a7823ed29d316bd931d.png" width="20"/> Molurus:</div>
+<blockquote>
+<p>At this point I’m beginning to wonder if anyone ever managed to use Urho Sharp on iOS with large models without it crashing. To be honest… I doubt it.</p>
+</blockquote>
+</aside>
+<p>I doubt anyone ever used it… UrhoSharp is dead. So is Atomic. No need to tell you your error was getting on the toughest platform last. You always need to test continuously on mobile, as features deployment go on…</p>
+<p>If your codebase is C#, maybe you could port to Godot. Now it has a C# bindings (paid by Microsoft, just to let you know) <a class="inline-onebox" href="https://godotengine.org/article/introducing-csharp-godot" rel="noopener nofollow ugc">Godot Engine - Introducing C# in Godot</a>. Of course, it’s a move of last resort.</p>
+<p>But what about xamarin builtin debugger? <a class="inline-onebox" href="https://developer.xamarin.com/guides/ios/deployment,_testing,_and_metrics/debugging_in_xamarin_ios/" rel="noopener nofollow ugc">Debugging Xamarin.iOS Apps - Xamarin | Microsoft Docs</a><br/>
+That’s what you should use for first…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Another small update. We’ve re-implemented the viewport in a separate app to exclude any kind of external influences from other code. The effect remains the same.</p>
+<p>What is interesting: I’ve managed to reduce the frame rate to 10 FPS, but this doesn’t appear to affect the problem at all. It crashes just as quickly. (Default MaxFPS = 60. With our model it produces 30 FPS. But when I reduce the frame rate to 10 FPS it still crashes. That’s… odd.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>If you post the model,  I can try give it a run on my ipad on ios 10. I have a couple of fast project scaffolding scripts, so it doesn’t take me much to set it up on Os X and Ios.<br/>
+I can run it by simply inserting the model into a new scene in Urho.<br/>
+And post your ios crash log, too.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>Ok… this is very interesting. I’m sure the developers of Urho3D will agree…</p>
+<p>We just succeeded in loading our entire model and have it completely stable!</p>
+<p>IFC models have geometry objects of various different (pre-defined) types. There are 11 different types we’re displaying in our Viewport.</p>
+<p>The IFC model we’re trying to display contains 1864 objects in total.</p>
+<p>Now what we did before was create separate Urho.Model objects for each of the objects in the IFC model, which seems the logical thing to do.</p>
+<p>In an effort to solve our problem, we tried grouping these objects based on IFC type. So what we did was create an Urho.Model object for each of the IFC types, so that’s only 11 Urho.Model objects.</p>
+<p>And what do you know? This helps!!</p>
+<p>The one thing we have to solve now is being able to select elements in the model we truly want to be able to select. Selectable objects are probably going to require having a separate Urho.Model object. But this is something we may be able to fix in a generic way, we’re currently investigating this.</p>
+<p>So the conclusion: the problem isn’t related to model complexity per se. It’s related to the number of Urho.Model objects.</p>
+<p>@ Johnnycable: thanks for the offer, it seems your help is no longer required. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="40" data-topic="3646" data-username="Molurus">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bd80f026f5285a7823ed29d316bd931d.png" width="20"/> Molurus:</div>
+<blockquote>
+<p>It’s related to the number of Urho.Model objects.</p>
+</blockquote>
+</aside>
+<p>So strange. Processing 2k objects shan’t be very CPU-consuming.<br/>
+Do you have any changes in resource metrics? Profiling, smth else…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>@ Eugene:</p>
+<p>There are absolutely no changes in resource metrics as far as I can tell, no. I haven’t really profiled it again with Apple Instruments though.</p>
+<p>There is another remarkable difference: the model seems to load quite a bit faster than it did before. I’m not quite sure if the frame rate is better too, I will check this tomorrow.</p>
+<p>No other changes to our software either. It’s completely the same code, except the changes required to group the geometry into fewer Model objects.</p>
+<p>Right now I’m thinking this isn’t a resource thing. Which was also indicated by the fact that lowering the frame rate doesn’t affect the problem at all. This is very suspicious, imho.</p>
+<p>I’d say it’s a bug in the Urho3D engine that doesn’t respond well to a large number of Model objects running on iPad in a Xamarin.Forms application. That’s as specific as I can make it right now.</p>
+<p>Specific enough for what we want to do with it. But this may be worth looking into for the developers of Urho3D.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/887_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">esakylli</div>
+          <div class="post_content">
+<p>It would be interesting to know if the problem lies in core Urho3D or in UrhoSharp (Xamarin).<br/>
+Maybe you can post this thread to the xamarin forums (UrhoSharp) also, and ping EgorBo to take a look at it (but I think he would need a reproducable sample)?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Molurus</div>
+          <div class="post_content">
+<p>I cross posted this solution to the UrhoSharp forum and tagged EgorBo, but I’m getting no response there at all.</p>
+<p>Meanwhile we’ve managed to do selection on sub-geometries of Model objects. So it seems our problem is now completely solved!!!</p>
+<p>This has taken us a lot of time. But I’m happy to say: we finally did it! We have a complete working solution. It still feels like a workaround, but we can do everything we want to do with this.</p>
+<p>Thanks for everyone who has brought input here. Much appreciated!</p>
+<p>Best regards,</p>
+<p>Molurus</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Good luck with your project, <span class="mention">@Molurus</span></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

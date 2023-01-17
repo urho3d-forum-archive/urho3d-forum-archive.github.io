@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Render to texture with explicit call to Update and Render problem</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Render to texture with explicit call to Update and Render problem</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ganibc</div>
+          <div class="post_content">
+<p>Hi all,</p>
+<p>I’m trying to generate images for thumbnails and minimaps.<br/>
+I have 2 different questions:</p>
+<ol>
+<li>Can we render a scene to texture and save to image file using headless mode? From what I found, it seems it’s not possible.</li>
+<li>I rendered my scene using the sample code (in sample.inl)</li>
+</ol>
+<blockquote>
+<pre><code>    // Take screenshot
+    else if (key == '9')
+    {
+        Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+        Image screenshot(context_);
+        graphics-&gt;TakeScreenShot(screenshot);
+        // Here we save in the Data folder with date and time appended
+        screenshot.SavePNG(GetSubsystem&lt;FileSystem&gt;()-&gt;GetProgramDir() + "Data/Screenshot_" +
+            Time::GetTimeStamp().Replaced(':', '_').Replaced('.', '_').Replaced(' ', '_') + ".png");
+    }
+</code></pre>
+</blockquote>
+<p>This code is working just fine. But I have to wait until the scene is rendered and I don’t know when the scene will be rendered. I have to wait for few update loops before it actually drawing the scene.<br/>
+So I tried calling Renderer’s Update and Render function and then take the screenshot.<br/>
+This is working but it gives me weird result.<br/>
+<img height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/5e3a537f2c5d120c036d8b98195efc34778c1227.png" width="666"/></p>
+<p>(I’ll post the expected image later because I cannot post 2 images)</p>
+<p>It seems to me the there’s a problem with the depth test.<br/>
+Any idea what’s wrong?<br/>
+This is my code:</p>
+<blockquote>
+<pre><code>SharedPtr&lt;Viewport&gt; viewport(new Viewport(context_, scene_, cameraNode_-&gt;GetComponent&lt;Camera&gt;()));
+m_textureOut = new Texture2D(context_);
+m_textureOut-&gt;SetSize(width, height, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+m_textureOut-&gt;SetFilterMode(FILTER_BILINEAR);
+RenderSurface* renderSurface = m_textureOut-&gt;GetRenderSurface();
+</code></pre>
+</blockquote>
+<blockquote>
+<pre><code>renderSurface-&gt;SetViewport(0, viewport);
+renderSurface-&gt;SetUpdateMode(SURFACE_UPDATEALWAYS);
+GetSubsystem&lt;Renderer&gt;()-&gt;Update(1.0f);
+GetSubsystem&lt;Renderer&gt;()-&gt;Render();
+</code></pre>
+</blockquote>
+<blockquote>
+<pre><code>unsigned char* _ImageData = new unsigned char[m_textureOut-&gt;GetDataSize(width, height)];
+m_textureOut-&gt;GetData(0, _ImageData);
+Image* pImage = new Image(context_);
+pImage-&gt;SetSize(width, height, 3);
+pImage-&gt;SetData(_ImageData);
+pImage-&gt;SavePNG("./test.png");
+</code></pre>
+</blockquote>
+<blockquote>
+<pre><code>engine_-&gt;Exit();</code></pre>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ganibc</div>
+          <div class="post_content">
+<p>This is the expected result:<br/>
+<img height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/2d2b23697848247023b146ff68a7e15368f47a89.png" width="666"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Could it be that you are culling the wrong faces? You could try adding <code>&lt;cull value="none" /&gt;</code> to the material and see if that changes it (unless you are certain that it is not the cause – I’ve never experimented with Headless mode so I have nothing to offer if it is something specific to that).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ganibc</div>
+          <div class="post_content">
+<p>Thanks for the reply.<br/>
+I tried changing the cullmode, it’s still give the same result.<br/>
+But I found the problem.</p>
+<p>I just need to replace these:</p>
+<blockquote>
+<p>GetSubsystem&lt; Renderer&gt;()-&gt;Update(1.0f);<br/>
+GetSubsystem&lt; Renderer&gt;()-&gt;Render();</p>
+</blockquote>
+<p>to</p>
+<blockquote>
+<p>engine_-&gt;Update();<br/>
+engine_-&gt;Render();</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>As far as I’m aware that’s still sane.</p>
+<p>This is the code I use for rendering from a lumel for lightmapping:</p>
+<pre><code>renderNode_-&gt;SetWorldPosition(worldPosition);
+Quaternion rotation;
+rotation.FromLookRotation(normal);
+renderNode_-&gt;SetWorldRotation(rotation);
+
+Graphics* graphics = scene-&gt;GetSubsystem&lt;Graphics&gt;();
+Renderer* renderer = scene-&gt;GetSubsystem&lt;Renderer&gt;();
+
+surface_-&gt;GetRenderSurface()-&gt;QueueUpdate();
+graphics-&gt;Clear(-1, Color(0, 0, 0));
+surface_-&gt;GetRenderSurface()-&gt;SetViewport(0, viewport_.Get());
+renderer-&gt;Update();
+graphics-&gt;SetRenderTarget(0, surface_);
+renderer-&gt;Render();</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

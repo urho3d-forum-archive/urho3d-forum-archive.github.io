@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to change a object&rsquo;s material color at runtime?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to change a object&rsquo;s material color at runtime?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">devrich</div>
+          <div class="post_content">
+<p>** I am using the “PhysicsStressTest.lua” script to test how things work **</p>
+<p>Let’s say I have multiple instances of a <span class="bbcode-i">Box.mdl</span> model and I have set them all to use the <span class="bbcode-i">stoneSmall.xml</span> material…</p>
+<p>“Multiple as in anywhere from a couple hundred on up through as much as 5,000 individual models ( Boxes in this case )”</p>
+<p>I figured out that I can use:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>to change the XML parameters of a object’s material.  But this applies to <span class="bbcode-u"><span class="bbcode-i">ALL</span></span> instances of that particular material accross <span class="bbcode-i"><span class="bbcode-u">ALL</span></span> objects in the scene.</p>
+<p>Now let’s say that I want to change their colors to be a different color on every box… How to do that?</p>
+<p>Also… if i end up having to use a different material XML file for every color then what would the performance hit be to having say 5,000 materials versus only 1 shared material ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Just a thought. How about changing the color in a custom shader instead? Just use the shader parameter to “seed” the randomness.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>You can Clone() a material:<br/>
+<a href="http://urho3d.github.io/documentation/1.32/class_urho3_d_1_1_material.html#af4a270694b5e998e19ff6e017bc5e274" rel="nofollow noopener">urho3d.github.io/documentation/1 … 017bc5e274</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">devrich</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>Just a thought. How about changing the color in a custom shader instead? Just use the shader parameter to “seed” the randomness.</p>
+</blockquote>
+</aside>
+<p>I saw a extremely simular idea to what you are saying with the <span class="bbcode-i">31_AnimatedMaterials.lua</span> Lua script example ( that was also where I found out about how to go about setting the shader parameter )</p>
+<p>The problem was that when I changed that same shader parameter at runtime for each instance of the small box that I created; the entire cached material .XML was changed and thus changed all instances of that material in use.  If I had 50 small boxes then changed the color of the 51st box’s material then all 50 existing small boxes would also change to that color.</p>
+<p>Is there a setting somewhere for using a unique instance of geometry’s material? ( or do i “have” to specify a “different” material .XML file for each object instance? )</p>
+<p><span class="mention">@hd_</span> Thanks! I didn’t notice the <span class="bbcode-i"><span class="bbcode-u">Clone( )</span></span> function before; I tried using it but I don’t think I know how to use it right as nothing I tried did anything… is there an example ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Here’s an example snippet from something I’m working on:</p>
+<p><code>    Material@ mat = cache.GetResource("Material", "Materials/Mr0.xml");
+    //for (int y = 0; y &lt; 1; y++)
+    int y = 0;
+    {
+        for (int z = 0; z &lt; 11; z++)
+        {
+            for (int x = 0; x &lt; 11; x++)
+            {
+                Node@ tp = Node();
+                tp.scale = Vector3(0.5f, 0.5f, 0.5f);
+                scene_.AddChild(tp);
+                tp.position = Vector3(x, 1, z);
+                StaticModel@ model = tp.CreateComponent("StaticModel");
+                model.castShadows = true;
+                model.model = cache.GetResource("Model", "Models/Sphere2.mdl");
+                Material@ m = mat.Clone();
+                model.material = m;
+                float diff = z / 10.0f;
+                float gloss = x / 10.0f;// 1.0f;
+                float spec = 1;// z / 10.0f;// 1.0f;
+                m.shaderParameters["MatDiffColor"] = Variant(Vector4(diff, diff, diff, 1.0f));
+                m.shaderParameters["MatSpecColor"] = Variant(Vector4(spec, spec, spec, gloss));
+            }
+        }
+    }</code></p>
+<p>Loads a ‘template’ material, clones material for each StaticModel and varies some shader parameters for each.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">devrich</div>
+          <div class="post_content">
+<p>[quote=“hd_”]Here’s an example snippet from something I’m working on:</p>
+<p><code>...
+...
+    Material@ mat = cache.GetResource("Material", "Materials/Mr0.xml");
+    Material@ m = mat.Clone();
+    model.material = m;
+...
+...
+</code></p>
+<p>Loads a ‘template’ material, clones material for each StaticModel and varies some shader parameters for each.[/quote]</p>
+<p>Awesome! I think we got it  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>Those 3 lines of your code made complete sence to me but in Lua I don’t know how ( or if we can, can we? ) to create a “local” variable of a specific class ( C++ you do <span class="bbcode-b"><span class="bbcode-u">ClassName variableName</span></span> )</p>
+<p>I tinkered around for a while with the Lua script and I ended up with:</p>
+<p>[code]-- NOTE: This first line is required in order to “load in” the material – otherwise you get a Nil reference error on the following lines<br/>
+boxObject:SetMaterial(0,cache:GetResource(“Material”, “Materials/myMat.xml”))</p>
+<pre><code>-- NOTE: If you remove thes following indented 2 lines then "ALL" of the objects with "Materials/myMat.xml" set to them will change their SetShaderParameter settings
+local mat = boxObject:GetMaterial(0):Clone(cache:GetResource("Material", "Materials/myMat.xml"))
+boxObject:SetMaterial(0,mat)
+</code></pre>
+<p>boxObject:GetMaterial(0):SetShaderParameter(“MatDiffColor”, Variant(Vector4((math.random(100)<em>.01),(math.random(100)</em>.01),(math.random(100)*.01),1)))[/code]</p>
+<p>Many Thanks for your help there!!!  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

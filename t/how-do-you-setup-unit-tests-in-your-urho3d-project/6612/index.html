@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How do you setup unit tests in your Urho3D project?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How do you setup unit tests in your Urho3D project?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>I have some complicated game logic components. I have been keeping refactoring them for a while and I found it’s really hard to iterate without some unit test coverage.<br/>
+I do have unit test coverage for my some standalone classes that do not include any Urho3D class. But this one has some dependency on Urho3D (given input of a character’s state, test current animation, blending, etc). And simply use something like</p>
+<pre><code class="lang-auto">add_executable(MyCustomTest my_unittest.cc ${urho3d_src_cc} ${urho3d_src_h})
+target_link_libraries(MyCustomTest gtest gtest_main)
+</code></pre>
+<p>does not work since Urho3D CMake has specific macro like <code>define_source_files</code> and <code>setup_main_executable</code> to add all the dependencies.</p>
+<p>I was wondering if anyone is using any unit test and could provide a sample CMakeList?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>You might find <a >this PR</a> or <a >this PR</a> helpful. I have not written any tests myself, but plan to at some point once I learn how to use CMake properly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Thanks.<br/>
+I managed to setup my separate test target using <a href="https://discourse.urho3d.io/t/have-multiple-executable-targets-in-cmake-setting/6611/4">this</a>. It works only for simple test cases but not for Urho3D node/components stuff. For example, if I have</p>
+<pre><code class="lang-auto">auto *cache = GetSubsystem&lt;ResourceCache&gt;();
+</code></pre>
+<p>in some functions I test, the cache will always be <code>null</code>. I suspect it’s due to Urho3D specific mechanism to initialize everything when create components (e.g. like when we create component, the <code>node_</code> in that component is not set yet).</p>
+<p>Other things simple as creating component will fail too.</p>
+<pre><code class="lang-auto">TEST(GoogleTestOne, MyTest) {
+  Urho3D::SharedPtr&lt;Urho3D::Context&gt; context(new Urho3D::Context());
+  Urho3D::SharedPtr&lt;Node&gt; animation_node(new Node(context));
+  ASSERT_NE(animation_node, nullptr);
+  auto* model = animation_node-&gt;CreateComponent&lt;AnimatedModel&gt;();
+  ASSERT_NE(model, nullptr);   // Fail here, model will be nullptr.
+}
+</code></pre>
+<p>I could not see an easy way to mock those things out. I think it needs Urho3D official support for those thing like your PRs. I am not expert on that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Yes afiact Urho3D was not designed with unit testing in mind…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>A lot of the initialization is handled by the Application and Engine. I’m not surprised that you were unable to create the model successfully, it’s very possible that the AnimatedModel had not been added as a factory to the Context because of that missing initialization. You might want to create a separate application class for each of your test runs, and/or just copy all of the initialization code from it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Yes, you are right.<br/>
+I did registered factory for my custom component, but did not do it for native urho3d ones. I had the false impression that they are done automatically. So when I manually registered all the components I use in the test, everything works fine.<br/>
+So at least it looks like to work for most of unit test settings. The only thing is just to do correct initialization and set context.<br/>
+Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Yes, I read some of the posts earlier by cadaver and I agree unit test is not necessary/flexible for most part of engine code. I think it makes more sense for developer to do their own unit test since game logic is defined by developer. Unit test is not very popular in general game industry afaik. I am doing this only because I benefit from some large projects I did for work.<br/>
+Now I’ve had the successful setup, I can try something here.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

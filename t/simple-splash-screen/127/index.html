@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Simple Splash screen</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Simple Splash screen</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Enable a simple splash screen displayed during loading time.</p>
+<details>
+<summary>
+LUA</summary>
+<p>In LuaScripts/Utilities/Sample.lua:</p>
+<p>Add this line at the beginning of SampleStart() function:</p>
+<pre><code class="lang-auto">    SplashScreen() -- Display splash screen</code></pre>
+<p>Then create new functions:</p>
+<pre><code class="lang-auto">function SplashScreen()
+    local splashUI = ui.root:CreateChild("BorderImage", "Splash")
+    local texture = cache:GetResource("Texture2D", "Textures/LogoLarge.png") -- Get texture
+    splashUI.texture = texture -- Set texture
+    splashUI:SetSize(texture.width, texture.height)
+    splashUI:SetAlignment(HA_CENTER, VA_CENTER)
+    engine:RunFrame() -- Render Splash immediately
+    SubscribeToEvent("EndRendering", "HandleSplash") -- Keep visible until rendering of the scene
+end
+
+function HandleSplash(eventType, eventData)
+    -- Remove splash screen when the scene gets rendered
+    if ui.root:GetChild("Splash") ~= nil then ui.root:GetChild("Splash"):Remove() end
+    UnsubscribeFromEvent("EndRendering")
+end</code></pre>
+</details>
+<details>
+<summary>
+ANGEL SCRIPT</summary>
+<p>In Scripts/Utilities/Sample.as:</p>
+<p>Add this line at the beginning of SampleStart() function:</p>
+<pre><code class="lang-auto">SplashScreen();</code></pre>
+<p>Then create new functions:</p>
+<pre><code class="lang-auto">void SplashScreen()
+{
+    BorderImage@ splashUI = ui.root.CreateChild("BorderImage", "Splash");
+    Texture2D@ texture = cache.GetResource("Texture2D", "Textures/LogoLarge.png"); // Get texture
+    splashUI.texture = texture; // Set texture
+    splashUI.SetSize(texture.width, texture.height);
+    splashUI.SetAlignment(HA_CENTER, VA_CENTER);
+    engine.RunFrame(); // Render Splash immediately
+    SubscribeToEvent("EndRendering", "HandleSplash"); // Keep visible until rendering of the scene
+}
+
+void HandleSplash(StringHash eventType, VariantMap&amp; eventData)
+{
+    // Remove splash screen when the scene gets rendered
+    if (ui.root.GetChild("Splash") !is null)
+        ui.root.GetChild("Splash").Remove();
+    UnsubscribeFromEvent("EndRendering");
+}</code></pre>
+</details>
+<details>
+<summary>
+C++</summary>
+<p>In Source/Samples/Sample.h</p>
+<p>In namespace Urho3D, add:</p>
+<pre><code class="lang-auto">class BorderImage;</code></pre>
+<p>Add to private:</p>
+<pre><code class="lang-auto">    void SplashScreen();
+    void HandleSplash(StringHash eventType, VariantMap&amp; eventData);</code></pre>
+<p>In  Source/Samples/Sample.inl:<br/>
+Includes:</p>
+<pre><code class="lang-auto">#include "BorderImage.h"
+#include "GraphicsEvents.h"</code></pre>
+<p>Add this line at the beginning of void Sample::Start()</p>
+<pre><code class="lang-auto">SplashScreen();</code></pre>
+<p>Then create new functions:</p>
+<pre><code class="lang-auto">void Sample::SplashScreen()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    UI* ui = GetSubsystem&lt;UI&gt;();
+    BorderImage* splashUI = new BorderImage(context_);
+    splashUI-&gt;SetName("Splash");
+    Texture2D* texture = cache-&gt;GetResource&lt;Texture2D&gt;("Textures/LogoLarge.png");
+    splashUI-&gt;SetTexture(texture); // Set texture
+    splashUI-&gt;SetSize(texture-&gt;GetWidth(), texture-&gt;GetHeight());
+    splashUI-&gt;SetAlignment(HA_CENTER, VA_CENTER);
+    ui-&gt;GetRoot()-&gt;AddChild(splashUI);
+    GetSubsystem&lt;Engine&gt;()-&gt;RunFrame(); // Render Splash immediately
+    SubscribeToEvent(E_ENDRENDERING, HANDLER(Sample, HandleSplash)); // Keep visible until rendering of the scene
+}
+
+void Sample::HandleSplash(StringHash eventType, VariantMap&amp; eventData)
+{
+    // Remove splash screen when scene fully rendered
+    UIElement* splashUI = GetSubsystem&lt;UI&gt;()-&gt;GetRoot()-&gt;GetChild("Splash", true);
+    if (splashUI)
+    splashUI-&gt;Remove();
+    UnsubscribeFromEvent(E_ENDRENDERING);
+}</code></pre>
+</details>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks for sharing. I just want to point out that the EndRendering event will keep triggering the HandleSplash() event handler unnecessarily after the splash has been removed. It would be better to unsubscribe the event handler afterwards. Also, I would like to point out that the splash will only be rendered <span class="bbcode-i">after</span> the Urho3D engine is instantiated and initialized. From the time the app is launched and the engine is initialized, user still sees nothing. In mobile environment, I think using the native GUI for this case is more beneficial. For example, one could use a splash screen activity as the launcher before passing the control to the actual application main activity.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks for suggestions and insights.</p>
+<p>For event handler, is it OK if I unsubscribe at the end of HandleSplash() ?</p>
+<p>Can you please elaborate more on the way to switch between activities. Can it be done in lua only or do I need to mix C++ and lua?<br/>
+Currently I’m using this kind of splash screen in lua to transition between levels, passing the image file to use and a few text lines to SplashScreen().</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="Mike">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ffc8d24cecba4d07683b8100d0de8b79.png" width="20"/> Mike:</div>
+<blockquote>
+<p>For event handler, is it OK if I unsubscribe at the end of HandleSplash() ?</p>
+</blockquote>
+</aside>
+<p>Yes, you can.</p>
+<p>[quote=“Mike”]Can you please elaborate more on the way to switch between activities. Can it be done in lua only or do I need to mix C++ and lua?<br/>
+Currently I’m using this kind of splash screen in lua to transition between levels, passing the image file to use and a few text lines to SplashScreen().[/quote]</p>
+<p>I think you misunderstood me. Somehow I have forgotten to type that my example in my last post is for Android development environment and so I was referring to the “android.app.Activity” java class. Please see AndroidManifest.xml for more detail. Instead of launching the main activity, one can easily change it to first launch a simple activity that shows a splash for, say, 5 seconds delay or while performing initialization in the background before switching to the actual main activity when it is ready.</p>
+<p>For the levels transition, I am ambivalent on either ways since at that point the engine should be anyway ready to render game level loading sequence.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Ok, thanks, it’s good to know of this possibility.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">v0van1981</div>
+          <div class="post_content">
+<p>in C++ sample missing unsubscribe from event</p>
+<pre><code class="lang-auto">void Sample::HandleSplash(StringHash eventType, VariantMap&amp; eventData)
+{
+	UnsubscribeFromEvent(E_ENDRENDERING);
+	UIElement* splashUI = GetSubsystem&lt;UI&gt;()-&gt;GetRoot()-&gt;GetChild("Splash", true);
+	if (splashUI)
+		splashUI-&gt;Remove();
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>This looks interesting. I’m still a bit rusty with some engine/script code being away for awhile and I’m curious how do you delay the splash screen so it shows up properly with enough time before the game starts. Any ideas?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Any ideas?</p>
+</blockquote>
+<p>Somewhere in Application start<br/>
+timeToShowScene = time.systemTime+(1000 * secCount)</p>
+<p>load and setup splash scene(Scene with orho camera + plane with splash texture) and show it</p>
+<p>SplashScreen:: FixedUpdate(time) {<br/>
+if (timeToShowScene &lt; time.systemTime)<br/>
+{<br/>
+ShowGameWolrdScene();<br/>
+}<br/>
+}</p>
+<p><img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Thanks codingmonkey for this but I was hoping for an Angel script version…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Just did the splash screen in Angel script, my code is as following</p>
+<pre><code class="lang-auto">namespace SplashScreen {
+
+    Sprite@ logoSprite;
+    Text@ loadingText;
+    float opacity; //current opacity
+    bool show;
+    const float FADE_SPEED = 1.0f; //How fast the logo should fade in and fade out
+    bool ended = false;
+
+    Array&lt;String&gt; textures;
+
+    uint currentIndex = 0;
+
+    /**
+     * List of all the logos which we need to show in the splash screen
+     */
+    void InitList()
+    {
+        textures.Push("Textures/FishBoneLogo.png");
+        textures.Push("Textures/UrhoIcon.png");
+    }
+
+    void SetTexture()
+    {
+        Destroy();
+        logoSprite = ui.root.CreateChild("Sprite");
+        Texture2D@ logoTexture = cache.GetResource("Texture2D", textures[currentIndex]);
+        //if (logoTexture is null)
+          //  return;
+
+        // Set logo sprite texture
+        logoSprite.texture = logoTexture;
+
+        int textureWidth = logoTexture.width;
+        int textureHeight = logoTexture.height;
+
+        // Set logo sprite scale
+        //logoSprite.SetScale(256.0f / textureWidth);
+
+        // Set logo sprite size
+        logoSprite.SetSize(textureWidth, textureHeight);
+
+        logoSprite.position = Vector2(-textureWidth/2, -textureHeight/2);
+
+        // Set logo sprite hot spot
+        //logoSprite.SetHotSpot(textureWidth, textureHeight);
+
+        // Set logo sprite alignment
+        logoSprite.SetAlignment(HA_CENTER, VA_CENTER);
+        //logoSprite.position = Vector2(-textureWidth/2, -textureHeight/2);
+
+        // Make logo not fully opaque to show the scene underneath
+        logoSprite.opacity = opacity;
+
+        // Set a low priority for the logo so that other UI elements can be drawn on top
+        logoSprite.priority = -100;
+        //DelayedExecute(10.0, false, "void SplashScreen::HandleSplashEnd()");
+
+    }
+
+    void SetLoadingText()
+    {
+        loadingText = ui.root.CreateChild("Text");
+        loadingText.text = "LOADING...";
+        loadingText.SetFont(cache.GetResource("Font", "Fonts/Anonymous Pro.ttf"), 20);
+        loadingText.textAlignment = HA_CENTER; // Center rows in relation to each other
+
+        // Position the text relative to the screen center
+        loadingText.horizontalAlignment = HA_RIGHT;
+        loadingText.verticalAlignment = VA_BOTTOM;
+        loadingText.SetPosition(-20, -20);
+    }
+
+    void CreateSplashScreen()
+    {
+        InitList();
+        opacity = 0.f;
+        show = true;
+
+        SubscribeToEvent("Update", "SplashScreen::HandleUpdate");
+
+        SetTexture();
+    }
+
+    void Destroy()
+    {
+        if (logoSprite !is null) {
+            logoSprite.Remove();
+        }
+        if (loadingText !is null) {
+            loadingText.Remove();
+        }
+    }
+
+    void HandleSplashEnd()
+    {
+        Destroy();
+        SendEvent("SplashScreenEnd");
+    }
+
+    void HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+    {
+        float timeStep = eventData["TimeStep"].GetFloat();
+        if (show) {
+            opacity += timeStep * FADE_SPEED;
+            if (opacity &gt; 1.0f) {
+                opacity = 1.0f;
+                show = false;
+            }
+        } else if (!ended) {
+            opacity -= timeStep * FADE_SPEED;
+            if (opacity &lt; 0.0f) {
+                opacity = 0.0f;
+                currentIndex++;
+                if (currentIndex &gt;= textures.length) {
+                    ended = true;
+                    DelayedExecute(1.0, false, "void SplashScreen::HandleSplashEnd()");
+                    SetLoadingText();
+                } else {
+                    show = true;
+                    SetTexture();
+                }
+            }
+        }
+        logoSprite.opacity = opacity;
+    }
+}
+
+</code></pre>
+<p>In your main script call</p>
+<pre><code class="lang-auto">    void Start()
+    {
+        SubscribeToEvent("SplashScreenEnd", "HandleSplashScreenEnd");
+        SplashScreen::CreateSplashScreen();
+     }
+
+      ...
+      
+     void HandleSplashScreenEnd(StringHash eventType, VariantMap&amp; eventData)
+    {
+         SubscribeToEvent("Update", "HandleUpdate"); //This is important to override SplashScreen subscribed event
+         CreateScene();
+    }
+</code></pre>
+<p>Code is still messy and there’s still room for improvements. Basically the splash screen will show all the logos in  the texture array (with fade in and fade out animations) and after that “HandleSplashEnd” event will be called</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>If anyone would like a bigger fishbone logo for this purpose, there’s an SVG version available through <a href="https://libregamewiki.org/Urho3D">LibreGameWiki</a>:<br/>
+<a href="https://libregamewiki.org/images/f/fa/Urho3D.svg"><img alt="" height="300" src="../../../images2/1017933e61895c134bd06089841fe743.svg" width="400"/></a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

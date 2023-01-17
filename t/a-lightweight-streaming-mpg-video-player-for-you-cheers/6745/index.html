@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>A Lightweight Streaming Mpg Video Player for You, Cheers!</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">A Lightweight Streaming Mpg Video Player for You, Cheers!</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1573_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">DinS</div>
+          <div class="post_content">
+<p>While I am working on a project with Urho3D, I have found there’s no built-in way to play video, so I write my own. Since this is a general problem, I’d like to share my work with the community.</p>
+<ol>
+<li>Overview<br/>
+In the zip file, which can be found at the end of this post, there’re 5 files.<br/>
+The MpgVideo.h/cpp defines a new type of Resource. It uses <a href="https://github.com/phoboslab/pl_mpeg" rel="noopener nofollow ugc">plmpeg</a> (MIT license C library) to decode the mpg.<br/>
+The VideoPlayer.h/cpp defines a new type of component. It uses MpgVideo to play the video.</li>
+</ol>
+<p>The problem with video playback is that decoding takes a lot of time and memory space.<br/>
+For a 1280 X 900 mpg video that lasts 18 seconds, which is pretty common, it will take several seconds to fully decode, and the fully decoded video frames will take 1280x900x3x30x18 = 1780MB! <img alt=":scream:" class="emoji" src="../../../images2/b3142e93d493345e2e37dfc0a589df99.png" title=":scream:"/><br/>
+So here comes the idea of streaming. Only decode when we need a new frame, aka decode as you watch(`). Throw out played frames to keep memory small, aka discard as you watch(``). Streaming makes the code neat and keeps performance high.</p>
+<p>` This is true ONLY IF you have a powerful CPU. the CPU needs to decode video frame to raw pixel, format it to Urho3D::Sprite2D, and show it on screen within one Urho3D::Update. The good news is that you can expect it to work for modern CPU.<br/>
+`` The code achieves this by not keeping the Sprite2D in resource cache. BUT after rendering on screen, the render will hold a SharedPtr to the resource, so it can’t be released automatically. To solve this check this <a href="https://discourse.urho3d.io/t/dynamic-loaded-sprite-leaks-memory/6149/3">post</a>. Also see discussion below.</p>
+<ol start="2">
+<li>Usage<br/>
+(1) copy the files under the same folder and add to your project. If you want to place them separately, change the <span class="hashtag">#include</span> accordingly.<br/>
+(2) register the types before use, for example in the constructor of your application, write<br/>
+MpgVideo::RegisterObject(context);<br/>
+VideoPlayer::RegisterObject(context);<br/>
+(3) code as if they are Urho3D built-in types. For example:<br/>
+//Setup 2D Scene…<br/>
+auto pPic = _gameScene-&gt;CreateChild(“test_mpg”);<br/>
+pPic-&gt;SetPosition2D(0, 0);<br/>
+auto pCom = pPic-&gt;CreateComponent&lt; VideoPlayer &gt;();<br/>
+auto pMpg = GetSubsystem&lt; ResourceCache &gt;()-&gt;GetResource&lt; MpgVideo &gt;(“Data/video/test1.mpg”);<br/>
+pCom-&gt;SetMpg(pMpg, 1.0f);</li>
+</ol>
+<p>Check this demon video.</p> <div class="onebox video-onebox">
+<video controls="" height="100%" width="100%">
+<source src="https://dins.site/wp-content/uploads/2021/03/DemonVideo.mp4"/>
+<a href="https://dins.site/wp-content/uploads/2021/03/DemonVideo.mp4" rel="noopener nofollow ugc">https://dins.site/wp-content/uploads/2021/03/DemonVideo.mp4</a>
+</video>
+</div>
+<p>
+On the left side, you can see that before the video, CPU is about 30%, memory is about 40MB. While playing video CPU goes up to 80%, memory stays at 60MB. Using the code directly won’t get you there. The memory will not be freed. See discussion below.</p>
+<ol start="3">
+<li>Discussion<br/>
+To completely remove a rendered resource from memory, I changed the Render2D class. As pointed out in this <a href="https://discourse.urho3d.io/t/dynamic-loaded-sprite-leaks-memory/6149/3">post</a>,  I added an UncacheTexture method, and remove cachedMaterials_ accordingly. But from my experience I found this is not enough. Also need to call viewBatchInfos_.Clear() to completely wipe out SharePtr&lt; Material &gt;.<br/>
+But I’m not sure if this is the proper way to do this. I hope someone can answer my doubt. That is how to completely remove a rendered resource from memory?<br/>
+Since this modification is not standard Urho3D, I commented out the codes in VideoPlayer. And that’s the reason you will not see memory released if you use the code directly.</li>
+</ol>
+<p>4.Notice<br/>
+(1) if you want to predecode the video and save in cache, you need to come up with your own way.<br/>
+(2) the mpg file needs to be MPEG1 video and MP2 audio. You can use ffmpeg to convert file format. check pl_mpeg site for detail.<br/>
+(3) MSVC user: since it uses a C library, you may need to change IDE grammar check from C++ to C.<br/>
+(4) MSVC user: there’re a lot of comments in CHINESE, which is my mother tongue. They are mostly about background knowledge on the media format, rationale and C library usage. If you just want to play an mpg, don’t bother. But you need to change the encoding from UTF-8 to UTF-8 BOM, or else MSVC will output strange errors. Personally I think it’s a flaw in the compiler. Apple Clang and g++ don’t have this issue. Another way is to just remove all comments.</p>
+<p>5.Download<br/>
+The forum doesn’t allow zip file uploading, so I have put the file on my website for your access.<br/>
+<a class="onebox" href="https://dins.site/wp-content/uploads/2021/03/mpg-addon.zip" rel="noopener nofollow ugc" target="_blank">https://dins.site/wp-content/uploads/2021/03/mpg-addon.zip</a></p>
+<p>The codes are released under MIT license.<br/>
+Hope this can help some people in the future.<br/>
+Cheers!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Could you get new frames in a separate thread? Then sync the video frame rate with game frame rate by matching frame expected-time with real-time. Seems like a fun project.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Thanks for the contribution!<br/>
+Also, I thought I’d point out that there is a way to play Theora videos with code here, though it certainly isn’t part of the engine itself.</p>
+<aside class="quote" data-post="14" data-topic="2144">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/theora-video-playback/2144/14">Theora video playback</a> <a class="badge-wrapper bullet" href="/c/showcase/code-exchange/13"><span class="badge-category-parent-bg" style="background-color: #F1592A;"></span><span class="badge-category-bg" style="background-color: #231F20;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Share your helpful Urho3D code snippets, samples and tutorials here.">Code Exchange</span></a>
+</div>
+<blockquote>
+    Audio should be in sync now, <a href="https://github.com/Lumak/Urho3D-Theora">https://github.com/Lumak/Urho3D-Theora</a>
+</blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1573_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">DinS</div>
+          <div class="post_content">
+<p>The code here is a lightweight version. In fact what I am using in my project is a smart video player. That is it can determine how many frames to decode in advance according to CPU powerful, decode in a different thread and sync with the engine. But that uses std::thread and std::chrono. So I’d like to keep things simple here.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

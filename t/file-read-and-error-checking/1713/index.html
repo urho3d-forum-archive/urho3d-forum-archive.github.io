@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>File::Read() and error checking</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">File::Read() and error checking</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Hey!</p>
+<p>I think this is a great project and I want to help contribute. Is there a style/concept guideline anywhere? More specifically I want to know more about the way you handle errors (i.e. why did you choose not to use exceptions).</p>
+<p>Take this snippet for example:</p>
+<p>(Source: <a data-bbcode="true"  rel="nofollow noopener">https://github.com/urho3d/Urho3D/blob/master/Source/Urho3D/IO/File.cpp#L251</a>)</p>
+<p>[code]unsigned File::Read(void* dest, unsigned size)<br/>
+{<br/>
+// SNIP</p>
+<pre><code>if (compressed_)
+{
+    unsigned sizeLeft = size;
+    unsigned char* destPtr = (unsigned char*)dest;
+
+
+    while (sizeLeft)
+    {
+        if (!readBuffer_ || readBufferOffset_ &gt;= readBufferSize_)
+        {
+            unsigned char blockHeaderBytes[4];
+            fread(blockHeaderBytes, sizeof blockHeaderBytes, 1, (FILE*)handle_);
+
+
+            MemoryBuffer blockHeader(&amp;blockHeaderBytes[0], sizeof blockHeaderBytes);
+            unsigned unpackedSize = blockHeader.ReadUShort();
+            unsigned packedSize = blockHeader.ReadUShort();
+
+
+            if (!readBuffer_)
+            {
+                readBuffer_ = new unsigned char[unpackedSize];
+                inputBuffer_ = new unsigned char[LZ4_compressBound(unpackedSize)];
+            }
+
+
+            /// \todo Handle errors
+            fread(inputBuffer_.Get(), packedSize, 1, (FILE*)handle_);
+            LZ4_decompress_fast((const char*)inputBuffer_.Get(), (char*)readBuffer_.Get(), unpackedSize);
+
+
+            readBufferSize_ = unpackedSize;
+            readBufferOffset_ = 0;
+        }
+
+
+        unsigned copySize = (unsigned)Min((int)(readBufferSize_ - readBufferOffset_), (int)sizeLeft);
+        memcpy(destPtr, readBuffer_.Get() + readBufferOffset_, copySize);
+        destPtr += copySize;
+        sizeLeft -= copySize;
+        readBufferOffset_ += copySize;
+        position_ += copySize;
+    }
+
+
+    return size;
+}
+
+// SNIP
+</code></pre>
+<p>}[/code]</p>
+<p>My questions are these.<br/>
+[ul][li]Is it normal not to check the return value of fread() or read()? If the return values shouldn’t be checked, what’s your rationale for that decision?[/li]<br/>
+[li]Is it normal not to check if memory allocations succeeded? Again, rationale?[/li]<br/>
+[li]I see a <span class="bbcode-b">\todo Handle errors</span> there, which I assume is referring to the decompression of the data. Seeing as all callers of File::Read never check the return value either – and the use of exceptions is discouraged – there seems to be little reason to implement error checking unless everyone in the call stack starts checking the return value of File::Read too. Is this something that needs implementing?[/li][/ul]</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">valera_rozuvan</div>
+          <div class="post_content">
+<p>Hello <span class="bbcode-b">TheComet</span>. I was also wondering just today why there are no exceptions…</p>
+<p>Maybe better to move this topic to <span class="bbcode-b">Developer Talk</span> <a data-bbcode="true" href="http://urho3d.prophpbb.com/forum7.html" rel="nofollow noopener">http://urho3d.prophpbb.com/forum7.html</a>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">valera_rozuvan</div>
+          <div class="post_content">
+<p>By the way, take a look at the code conventions that are at <a data-bbcode="true" href="http://urho3d.github.io/documentation/1.5/_conventions.html" rel="nofollow noopener">http://urho3d.github.io/documentation/1.5/_conventions.html</a>. It does mention that:</p>
+<aside class="quote">
+<blockquote>
+<p>No C++ exceptions. Error return values (false / null pointer / dummy reference) are used instead. Script exceptions are used when there is no other sensible way, such as with out of bounds array access.</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The primary reason to avoid exceptions was that they wreak havoc with script bindings, as script VM’s usually can’t handle it when an exposed C++ function throws an exception within the VM run loop.</p>
+<p>There is fread() error checking in the normal (non-compressed) execution path. For the compressed path there’s a todo marked. Overall I know that Urho could use some more error checking.</p>
+<p>Out-of-memory situations are not really handled, because it’s unsure how well the program could recover at that point (even allocating an error message string could also fail.) We use new and new[] instead of malloc, so this should throw a bad alloc, which is typically caught in the Urho application top level.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

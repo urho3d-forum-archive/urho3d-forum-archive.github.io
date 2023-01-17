@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Oh crap, my model animation stepped out of my bounding hull [Solved]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Oh crap, my model animation stepped out of my bounding hull [Solved]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>What is the best way to get the (current) bounding box of (animatedmodel) ?</p>
+<p>Please see my attached issue.<br/>
+<img alt="wed" height="194" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/e/e92abccfc3679aa90c311aa9598f846949c2b6ed.jpeg" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>The capsules seem like <code>CollisionShape</code>s. Maybe you could draw a debug box to visualize the model’s bounding box?<br/>
+Something like:</p>
+<pre><code class="lang-auto">debugRenderer-&gt;AddBoundingBox(animModel-&gt;GetBoundingBox(), ...);
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>That looks like the character demo. If so then those white capsules are the physics capsules for the character in the demo. Like <span class="mention">@Modanung</span> said.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>The capsule, in those samples, does not account for animation, even in the absence of root motion.<br/>
+I will make a post soon about my improvements to the Character class, and offer some solutions to dealing with these issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>My projects work fine. I have my characters animated, and they do not do this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yes there is something more happening here.<br/>
+My application creates a scene, saves it, and reloads it… I have hassles with the latest build of Editor on Linux, and I’m too focused on making code work to worry about downloading the old stable version.</p>
+<p>Occasionally, it appears that after loading, some booleans are not being set correctly - Despite being serialized to disk!</p>
+<p>EDIT:<br/>
+OK! It seems that our Factory function is not clearing the memory on new objects, and that serialized variables which have default values at the time of serialization are not serialized at all, and not initialized to default values by the factory. This means that if you have a serialized member, with a default value, and don’t initialize it yourself, it could have any random value at runtime, and not what you expected, given that you declared it as serialized and gave a default value that was never applied. This seems like something I might elect to remedy with a PR.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yeah, something funky going on, other than my animations having root motions<br/>
+I consider this thread solved, despite having no clear answer, my issue is purely caused by loading a scene, and the factory not setting default values on my serialized members. I would like to see this resolved but I am lazy, and writing about it at least there is some record of the issue and how to resolve it. Should be fixed in the head of the repo.</p>
+<p>I know right, I should be responsible for initializing my own data - but if I went to the trouble of registering my data as serialized class members, I would expect that the defaults I provided would be applied by the factory. Does that sound like a reasonable suggestion?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>This case is solved - when deserializing, the Urho3D factory will not automatically apply any default values you defined as serializable, unless you changed the value from what you declared as default prior to serializing - we end up with a situation that is unsafe unless you (eg in constructor) manually apply the same values you already declared to be defaults - you’re expected to initialize your values as WELL as define the default values that will never be applied during deserialization but only used to filter some data during serialization - I would like to hear some talk about this because really, it’s pretty cheap to fix this.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

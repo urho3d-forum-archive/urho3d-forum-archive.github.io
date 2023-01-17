@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Outline v2</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Outline v2</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><a data-bbcode="true" href="http://savepic.ru/8637634.htm"><img alt="" height="" src="../../../images2/40864155ac7ea8eac75d6aa8c6323a0c.png" width=""/></a></p>
+<p>Old version: <a href="https://github.com/1vanK/Urho3DOutline">github.com/1vanK/Urho3DOutline</a></p>
+<p><span class="bbcode-b">Now with multiple colors and without coping of mesh</span></p>
+<p>Renderpath</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="outlineMask" sizedivisor="1 1" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="outlineBlurredMaskH" sizedivisor="2 2" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="outlineBlurredMaskV" sizedivisor="2 2" format="rgba" filter="true" /&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+    &lt;command type="clear" color="0 0 0 0" output="outlineMask" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+    &lt;command type="scenepass" pass="postopaque" /&gt;
+    &lt;command type="scenepass" pass="refract"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+    &lt;command type="scenepass" pass="outline" output="outlineMask" /&gt;
+    &lt;command type="quad" vs="Outline" ps="Outline" psdefines="BLURH" output="outlineBlurredMaskH"&gt;
+        &lt;texture unit="diffuse" name="outlineMask" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" vs="Outline" ps="Outline" psdefines="BLURV" output="outlineBlurredMaskV"&gt;
+        &lt;texture unit="diffuse" name="outlineBlurredMaskH" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" vs="Outline" ps="Outline" psdefines="OUTPUT" output="viewport"&gt;
+        &lt;texture unit="diffuse" name="outlineBlurredMaskV" /&gt;
+        &lt;texture unit="normal" name="outlineMask" /&gt;
+        &lt;texture unit="specular" name="viewport" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>Outline.glsl</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+
+varying vec2 vTexCoord;
+varying vec2 vScreenPos;
+
+#ifdef COMPILEPS
+    uniform vec4 cOutlineColor;
+    uniform vec2 cOutlineBlurredMaskHInvSize;
+#endif
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+    gl_Position = GetClipPos(worldPos);
+    vTexCoord = GetQuadTexCoord(gl_Position);
+    vScreenPos = GetScreenPosPreDiv(gl_Position);
+}
+
+void PS()
+{
+    #ifdef MASK
+        gl_FragColor = vec4(cOutlineColor.rgb, 1.0);
+    #endif
+
+    #ifdef BLURH
+        vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(-1.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(1.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(-2.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(2.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        gl_FragColor = rgba;
+    #endif
+
+    #ifdef BLURV
+        vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -1.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 1.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -2.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 2.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        gl_FragColor = rgba;
+    #endif
+
+    #ifdef OUTPUT
+        vec4 blurredMask = texture2D(sDiffMap, vTexCoord);
+        vec4 mask = texture2D(sNormalMap, vTexCoord);
+        vec4 viewport = texture2D(sSpecMap, vTexCoord);
+        blurredMask = clamp(blurredMask - mask.a, 0.0, 1.0);
+        blurredMask *= 2.0;
+        gl_FragColor = viewport + blurredMask;
+    #endif
+}</code></pre>
+<p>Techniques/NoTextureOutline.xml</p>
+<pre><code class="lang-auto">&lt;technique vs="LitSolid" ps="LitSolid" vsdefines="NOUV" &gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="litbase" psdefines="AMBIENT" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+    &lt;pass name="prepass" psdefines="PREPASS" /&gt;
+    &lt;pass name="material" psdefines="MATERIAL" depthtest="equal" depthwrite="false" /&gt;
+    &lt;pass name="deferred" psdefines="DEFERRED" /&gt;
+    &lt;pass name="depth" vs="Depth" ps="Depth" /&gt;
+    &lt;pass name="shadow" vs="Shadow" ps="Shadow" /&gt;
+    &lt;pass name="outline" vs="Outline" ps="Outline" psdefines="MASK" depthwrite="false" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>Material</p>
+<pre><code class="lang-auto">&lt;material&gt;
+	&lt;technique name="Techniques/NoTextureOutline.xml" /&gt;
+	&lt;parameter name="MatDiffColor" value="1 1 1 1" /&gt;
+	&lt;parameter name="MatSpecColor" value="1 1 1 300" /&gt;
+    &lt;parameter name="OutlineColor" value="1 0 0 0" /&gt;
+&lt;/material&gt;</code></pre>
+<p><span class="bbcode-b">EDIT:</span> Example <a href="http://urho3d.prophpbb.com/topic1840-10.html#p10978">topic1840-10.html#p10978</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Nice work!<br/>
+Can be very useful for highlighting objects for indication.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><a data-bbcode="true" href="http://savepic.ru/8605934.htm"><img alt="" height="" src="../../../images2/a629b0136ea0bf8655456bac06edd1cc.png" width=""/></a></p>
+<p><span class="bbcode-b">Modified version:</span><br/>
+Outline is visible through other objects like Dota 2 and Left 4 Dead 2 (disabled depth test and enabled sorting).<br/>
+Also some fixes (more correct mixing outline with viewport and more correct blurring).</p>
+<p>shader Outline.glsl</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+
+varying vec2 vTexCoord;
+varying vec2 vScreenPos;
+
+#ifdef COMPILEPS
+    uniform vec4 cOutlineColor;
+    uniform vec2 cOutlineBlurredMaskHInvSize;
+#endif
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+    gl_Position = GetClipPos(worldPos);
+    vTexCoord = GetQuadTexCoord(gl_Position);
+    vScreenPos = GetScreenPosPreDiv(gl_Position);
+}
+
+void PS()
+{
+    #ifdef MASK
+        gl_FragColor = vec4(cOutlineColor.rgb, 1.0);
+    #endif
+
+    #ifdef BLURH
+        vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.1;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(-1.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(1.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.4;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(-2.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(2.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.1;
+        gl_FragColor = rgba;
+    #endif
+
+    #ifdef BLURV
+        vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.1;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -1.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 1.0) * cOutlineBlurredMaskHInvSize) * 0.4;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -2.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 2.0) * cOutlineBlurredMaskHInvSize) * 0.1;
+        gl_FragColor = rgba;
+    #endif
+
+    #ifdef OUTPUT
+        vec4 blurredMask = texture2D(sDiffMap, vTexCoord);
+        vec4 mask = texture2D(sNormalMap, vTexCoord);
+        vec4 viewport = texture2D(sSpecMap, vTexCoord);
+        blurredMask = clamp(blurredMask - mask.a, 0.0, 1.0);
+        gl_FragColor = viewport * (1.0 - blurredMask.a) + blurredMask;
+    #endif
+}</code></pre>
+<p>renderpath</p>
+<p><code>&lt;renderpath&gt;
+    &lt;rendertarget name="outlineMask" sizedivisor="1 1" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="outlineBlurredMaskH" sizedivisor="2 2" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="outlineBlurredMaskV" sizedivisor="2 2" format="rgba" filter="true" /&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+    &lt;command type="clear" color="0 0 0 0" output="outlineMask" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+    &lt;command type="scenepass" pass="postopaque" /&gt;
+    &lt;command type="scenepass" pass="refract"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+    &lt;command type="scenepass" pass="outline" output="outlineMask" sort="backtofront" /&gt;
+    &lt;command type="quad" vs="Outline" ps="Outline" psdefines="BLURH" output="outlineBlurredMaskH"&gt;
+        &lt;texture unit="diffuse" name="outlineMask" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" vs="Outline" ps="Outline" psdefines="BLURV" output="outlineBlurredMaskV"&gt;
+        &lt;texture unit="diffuse" name="outlineBlurredMaskH" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" vs="Outline" ps="Outline" psdefines="OUTPUT" output="viewport"&gt;
+        &lt;texture unit="diffuse" name="outlineBlurredMaskV" /&gt;
+        &lt;texture unit="normal" name="outlineMask" /&gt;
+        &lt;texture unit="specular" name="viewport" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;
+</code></p>
+<p>Technique DiffOutline.xml</p>
+<pre><code class="lang-auto">&lt;technique vs="LitSolid" ps="LitSolid" psdefines="DIFFMAP"&gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="litbase" psdefines="AMBIENT" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+    &lt;pass name="prepass" psdefines="PREPASS" /&gt;
+    &lt;pass name="material" psdefines="MATERIAL" depthtest="equal" depthwrite="false" /&gt;
+    &lt;pass name="deferred" psdefines="DEFERRED" /&gt;
+    &lt;pass name="depth" vs="Depth" ps="Depth" /&gt;
+    &lt;pass name="shadow" vs="Shadow" ps="Shadow" /&gt;
+    &lt;pass name="outline" vs="Outline" ps="Outline" psdefines="MASK" depthtest="always" depthwrite="false" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>material MushroomOutline.xml</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/DiffOutline.xml" /&gt;
+    &lt;texture unit="diffuse" name="Textures/Mushroom.dds" /&gt;
+    &lt;parameter name="MatSpecColor" value="0.1 0.1 0.1 16" /&gt;
+    &lt;parameter name="OutlineColor" value="1 0 0 0" /&gt;
+&lt;/material&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Big size of glow (more samples):</p>
+<p><a data-bbcode="true" href="http://savepic.ru/8617207.htm"><img alt="" height="" src="../../../images2/32ffdfb2b269371debe67be6c5d8df6f.png" width=""/></a></p>
+<p>Outline.glsl</p>
+<p>[code]<span class="hashtag">#include</span> “Uniforms.glsl”<br/>
+<span class="hashtag">#include</span> “Samplers.glsl”<br/>
+<span class="hashtag">#include</span> “Transform.glsl”<br/>
+<span class="hashtag">#include</span> “ScreenPos.glsl”</p>
+<p>varying vec2 vTexCoord;<br/>
+varying vec2 vScreenPos;</p>
+<p><span class="hashtag">#ifdef</span> COMPILEPS<br/>
+uniform vec4 cOutlineColor;<br/>
+uniform vec2 cOutlineBlurredMaskHInvSize;<br/>
+<span class="hashtag">#endif</span></p>
+<p>void VS()<br/>
+{<br/>
+mat4 modelMatrix = iModelMatrix;<br/>
+vec3 worldPos = GetWorldPos(modelMatrix);<br/>
+gl_Position = GetClipPos(worldPos);<br/>
+vTexCoord = GetQuadTexCoord(gl_Position);<br/>
+vScreenPos = GetScreenPosPreDiv(gl_Position);<br/>
+}</p>
+<p>void PS()<br/>
+{<br/>
+<span class="hashtag">#ifdef</span> MASK<br/>
+gl_FragColor = vec4(cOutlineColor.rgb, 1.0);<br/>
+<span class="hashtag">#endif</span></p>
+<pre><code>#ifdef BLURH
+    vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(-1.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(1.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(-2.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(2.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(-3.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(3.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(-4.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(4.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(-5.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(5.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    gl_FragColor = rgba;
+#endif
+
+#ifdef BLURV
+    vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -1.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 1.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -2.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 2.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -3.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 3.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -4.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 4.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -5.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 5.0) * cOutlineBlurredMaskHInvSize) * 0.091;
+    gl_FragColor = rgba;
+#endif
+
+#ifdef OUTPUT
+    vec4 blurredMask = texture2D(sDiffMap, vTexCoord);
+    vec4 mask = texture2D(sNormalMap, vTexCoord);
+    vec4 viewport = texture2D(sSpecMap, vTexCoord);
+    blurredMask = clamp(blurredMask - mask.a, 0.0, 1.0);
+    gl_FragColor = viewport * (1.0 - blurredMask.a) + blurredMask;
+#endif
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Very nice! Thank you for this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Great work! <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>final version of shader</p>
+<p><a data-bbcode="true" href="http://savepic.ru/8596286.htm"><img alt="" height="" src="../../../images2/044536d3e9ec088ca730a855bb943e60.png" width=""/></a></p>
+<p>[code]<span class="hashtag">#include</span> “Uniforms.glsl”<br/>
+<span class="hashtag">#include</span> “Samplers.glsl”<br/>
+<span class="hashtag">#include</span> “Transform.glsl”<br/>
+<span class="hashtag">#include</span> “ScreenPos.glsl”</p>
+<p>varying vec2 vTexCoord;<br/>
+varying vec2 vScreenPos;</p>
+<p><span class="hashtag">#ifdef</span> COMPILEPS<br/>
+uniform vec4 cOutlineColor;<br/>
+uniform vec2 cOutlineBlurredMaskHInvSize;<br/>
+<span class="hashtag">#endif</span></p>
+<p>void VS()<br/>
+{<br/>
+mat4 modelMatrix = iModelMatrix;<br/>
+vec3 worldPos = GetWorldPos(modelMatrix);<br/>
+gl_Position = GetClipPos(worldPos);<br/>
+vTexCoord = GetQuadTexCoord(gl_Position);<br/>
+vScreenPos = GetScreenPosPreDiv(gl_Position);<br/>
+}</p>
+<p>void PS()<br/>
+{<br/>
+<span class="hashtag">#ifdef</span> MASK<br/>
+gl_FragColor = vec4(cOutlineColor.rgb, 1.0);<br/>
+<span class="hashtag">#endif</span></p>
+<pre><code>#ifdef BLURH
+    vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize)
+              + texture2D(sDiffMap, vTexCoord + vec2(-1.0, 0.0) * cOutlineBlurredMaskHInvSize)
+              + texture2D(sDiffMap, vTexCoord + vec2(1.0, 0.0) * cOutlineBlurredMaskHInvSize)
+              + texture2D(sDiffMap, vTexCoord + vec2(-2.0, 0.0) * cOutlineBlurredMaskHInvSize)
+              + texture2D(sDiffMap, vTexCoord + vec2(2.0, 0.0) * cOutlineBlurredMaskHInvSize);
+    gl_FragColor = rgba * 0.2;
+#endif
+
+#ifdef BLURV
+    vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize)
+              + texture2D(sDiffMap, vTexCoord + vec2(0.0, -1.0) * cOutlineBlurredMaskHInvSize)
+              + texture2D(sDiffMap, vTexCoord + vec2(0.0, 1.0) * cOutlineBlurredMaskHInvSize)
+              + texture2D(sDiffMap, vTexCoord + vec2(0.0, -2.0) * cOutlineBlurredMaskHInvSize)
+              + texture2D(sDiffMap, vTexCoord + vec2(0.0, 2.0) * cOutlineBlurredMaskHInvSize);
+    gl_FragColor = rgba * 0.2;
+#endif
+
+#ifdef OUTPUT
+    vec4 blurredMask = texture2D(sDiffMap, vTexCoord);
+    vec4 mask = texture2D(sNormalMap, vTexCoord);
+    vec4 viewport = texture2D(sSpecMap, vTexCoord);
+    blurredMask = clamp(blurredMask - mask.a, 0.0, 1.0);
+    blurredMask *= 3.0;
+    gl_FragColor = viewport * (1.0 - blurredMask.a) + blurredMask;
+#endif
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>This is a great improvement! very nice <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks for sharing this. This is something that definitely will come in handy.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Awesome!  :mrgreen:<br/>
+Great improvement over the first version.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Since people want to use it, open a repo with permissive license?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>code license: public domain</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>Thank you for sharing this.  Great example to learn glsl in urho3d.<br/>
+I suggest to put it together in a new github repo. Many people will be interested to try out.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Why not update the existing GitHub repo with the new shader? Or are you planning to?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8b9decec7cc30729aa8f8f7015602d32.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Why not update the existing GitHub repo with the new shader? Or are you planning to?</p>
+</blockquote>
+</aside>
+<p>This is a different approach, perhaps the old version will be useful to someone. In any case, I see no point in duplicating the same thing in several places <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Small example how to use it for select/deselect objects <a href="https://github.com/1vanK/Urho3DOutlineSelectionExample">github.com/1vanK/Urho3DOutlineSelectionExample</a></p>
+<p>EDIT: Press RMB for moving and rotating camera, and LMB for select</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>nice!<br/>
+Is it possible use this for animated models?<br/>
+like this :</p>
+<div class="spoiler">
+<p>[video]<a href="https://youtu.be/d7QoWUSOZPw?t=16m19s%5B/video%5D">https://youtu.be/d7QoWUSOZPw?t=16m19s[/video]</a></p>
+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]nice!<br/>
+Is it possible use this for animated models?<br/>
+like this :</p>
+<div class="spoiler">
+<p>[video]<a href="https://youtu.be/d7QoWUSOZPw?t=16m19s%5B/video%5D">https://youtu.be/d7QoWUSOZPw?t=16m19s[/video]</a></p>
+</div>
+<p>It is possible for any material <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> just add to technique:</p>
+<pre><code class="lang-auto">&lt;pass name="outline" vs="Outline" ps="Outline" psdefines="MASK" depthtest="always" depthwrite="false" /&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Another (and simplest) method was made possible by the patch <a >github.com/urho3d/Urho3D/commit … 5eea396080</a></p>
+<p><a data-bbcode="true" href="http://savepic.ru/9780680.htm"><img alt="" height="" src="../../../images2/019d8938af99df8599f9a84a78eaf6ee.png" width=""/></a></p>
+<p>Shader Outline.glsl:</p>
+<p>[code]<span class="hashtag">#include</span> “Uniforms.glsl”<br/>
+<span class="hashtag">#include</span> “Transform.glsl”</p>
+<p><span class="hashtag">#ifdef</span> COMPILEVS<br/>
+uniform float cOutlineWidth = 0.01;<br/>
+<span class="hashtag">#endif</span></p>
+<p><span class="hashtag">#ifdef</span> COMPILEPS<br/>
+uniform vec4 cOutlineColor = vec4(1.0, 1.0, 1.0, 1.0);<br/>
+<span class="hashtag">#endif</span></p>
+<p>void VS()<br/>
+{<br/>
+mat4 modelMatrix = iModelMatrix;<br/>
+vec3 worldPos = GetWorldPos(modelMatrix);<br/>
+vec3 vNormal = GetWorldNormal(modelMatrix);<br/>
+// Scale along normal<br/>
+worldPos += vNormal * cOutlineWidth;<br/>
+gl_Position = GetClipPos(worldPos);<br/>
+}</p>
+<p>void PS()<br/>
+{<br/>
+gl_FragColor = cOutlineColor.rgba;<br/>
+}<br/>
+[/code]</p>
+<p>Technique DiffOutline.xml:</p>
+<pre><code class="lang-auto">&lt;technique vs="LitSolid" ps="LitSolid" psdefines="DIFFMAP"&gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="litbase" psdefines="AMBIENT" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+    &lt;pass name="prepass" psdefines="PREPASS" /&gt;
+    &lt;pass name="material" psdefines="MATERIAL" depthtest="equal" depthwrite="false" /&gt;
+    &lt;pass name="deferred" psdefines="DEFERRED" /&gt;
+    &lt;pass name="depth" vs="Depth" ps="Depth" /&gt;
+    &lt;pass name="shadow" vs="Shadow" ps="Shadow" /&gt;
+    
+    &lt;!-- ADDED --&gt;
+    &lt;pass name="postopaque" depthwrite="false" vs="Outline" ps="Outline" cull="cw" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>Material MushroomOutline.xml:</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/DiffOutline.xml" /&gt;
+    &lt;texture unit="diffuse" name="Textures/Mushroom.dds" /&gt;
+    &lt;parameter name="MatSpecColor" value="0.1 0.1 0.1 16" /&gt;
+    
+    &lt;!-- ADDED --&gt;
+    &lt;parameter name="OutlineWidth" value="0.01" /&gt;
+    &lt;parameter name="OutlineColor" value="1 1 0 1" /&gt;
+&lt;/material&gt;</code></pre>
+<p>Note: it works correctly only for models with smooth shading</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Scellow</div>
+          <div class="post_content">
+<p>This is really nice, do you think you can make a voxel based one, like this one ? <a href="https://twitter.com/_chrisro/status/703373120313421825" rel="nofollow noopener">twitter.com/_chrisro/status/703373120313421825</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="Scellow">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/353843b59de9b9054e1f3763cea67007.png" width="20"/> Scellow:</div>
+<blockquote>
+<p>This is really nice, do you think you can make a voxel based one, like this one ? <a href="https://twitter.com/_chrisro/status/703373120313421825">twitter.com/_chrisro/status/703373120313421825</a></p>
+</blockquote>
+</aside>
+<p>The author share his shaders <a href="https://twitter.com/_chrisro/status/759558775657422849">twitter.com/_chrisro/status/759558775657422849</a></p>
+<p>so u can port it to Urho</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>I managed to get this to work with DirectX</p>
+<p>Code:</p>
+<pre><code class="lang-auto">#include "Uniforms.hlsl"
+#include "Samplers.hlsl"
+#include "Transform.hlsl"
+#include "ScreenPos.hlsl"
+#include "PostProcess.hlsl"
+
+uniform float2 vScreenPos;
+
+uniform float4 cOutlineColor;
+uniform float2 cOutlineBlurredMaskHInvSize;
+
+
+void VS(float4 iPos : POSITION,
+    out float2 oTexCoord : TEXCOORD0,
+    out float2 oScreenPos : TEXCOORD1,
+    out float4 oPos : OUTPOSITION)
+{
+    float4x3 modelMatrix = iModelMatrix;
+    float3 worldPos = GetWorldPos(modelMatrix);
+    oPos = GetClipPos(worldPos);
+    oTexCoord = GetQuadTexCoord(oPos);
+    oScreenPos = GetScreenPosPreDiv(oPos);
+}
+
+void PS(
+    float3 iTexCoord : TEXCOORD0,
+    float2 iScreenPos : TEXCOORD1,
+    out float4 oColor : OUTCOLOR0)
+{
+    #ifdef MASK
+    oColor = float4(cOutlineColor.rgb, 1);
+    #endif
+
+    #ifdef BLURH
+        float4 rgba = Sample2D(DiffMap, iScreenPos + float2(0.0, 0.0) * cOutlineBlurredMaskHInvSize);
+        oColor = rgba * 0.2;
+    #endif
+
+    #ifdef BLURV
+        float4 rgba = Sample2D(DiffMap, iScreenPos + float2(0.0, 0.0) * cOutlineBlurredMaskHInvSize);
+        oColor = rgba * 0.2;
+    #endif
+
+
+    #ifdef OUTPUT
+        float4 blurredMask = Sample2D(DiffMap, iScreenPos);
+        float4 mask = Sample2D(NormalMap, iScreenPos);
+        float4 viewport = Sample2D(SpecMap, iScreenPos);
+        blurredMask = clamp(blurredMask - mask.a, 0.0, 1.0);
+        blurredMask *= 200.0;
+        oColor = viewport * (1.0 - blurredMask.a) + blurredMask;
+    #endif
+
+
+}
+</code></pre>
+<p>Althought I did have to change few things to get it to work correctly. Also my experience with HLSL shaders is really small, but I’m happy with the results.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Can you provide a simple working sample with this shader in place?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>See my project here: <a href="https://github.com/ArnisLielturks/Urho3D-Project-Template" rel="nofollow noopener">https://github.com/ArnisLielturks/Urho3D-Project-Template</a><br/>
+There are few commits which shows how its done</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>January 9th commits to be exact</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Ok, got three files, the material, the technique and the hlsl shader.</p>
+<p>In the feature sample billboards, made the tiles out of stoneoutline.xml rather than stone.xml.</p>
+<p>And can’t see a difference.  Log output looks fine, but initially I hadn’t gotten the technique just the shader and material and found that via the log.</p>
+<p>What case is the appropriate use of this material to highlight the effect your work shows?</p>
+<pre><code class="lang-auto">DEBUG: Loading resource Materials/StoneOutline.xml
+DEBUG: Loading resource Techniques/DiffOutline.xml
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>What about render path file? <a href="https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/master/bin/CoreData/RenderPaths/Forward.xml" rel="nofollow noopener">https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/master/bin/CoreData/RenderPaths/Forward.xml</a><br/>
+Also I’m not the author of this so cant take credit for it. Im just the guy who adopted HLSL shader, nothing else</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I’m not sure the effect would be visible on a billboard. Could you try the material on a different model?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="27" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b5c8d49cf06c8c073e35f5d680ff230a.png" width="20"/> Miegamicis:</div>
+<blockquote>
+<p>What about render path file?</p>
+</blockquote>
+</aside>
+<p>Yes, was missing most of the contents of that file, though the file itself was in my RenderPaths folder.</p>
+<aside class="quote no-group" data-post="28" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/77cf83d04c1ba40d49ef5e2eb805a0ac.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Could you try the material on a different model?</p>
+</blockquote>
+</aside>
+<p>I’m not formally running it on a billboard model, but on a box model. Here’s most of the pertinent code, with a change to run forward.xml.</p>
+<pre><code class="lang-auto">var rp = ((StereoApplication)Application).Renderer.DefaultRenderPath.Clone();
+            rp.Append(Application.ResourceCache.GetXmlFile("RenderPaths/Forward.xml"));
+            ((StereoApplication)Application).Renderer.DefaultRenderPath = rp;
+
+            //working on why no shadows ... but so far have never seen an Urho3D shadow on any hololens app
+            Application.Renderer.DrawShadows = true;
+            
+            var YPos = -50;
+            for (int y = -5; y &lt;= 5; ++y)
+                for (int x = -5; x &lt;= 5; ++x)
+                {
+                    var floorNode = billboardNode.CreateChild("FloorTile");
+                    floorNode.AddTag("Billboard");
+                    floorNode.Position = new Vector3(x * 20.5f, YPos, y * 20.5f);
+                    floorNode.Scale = new Vector3(20.0f, 1.0f, 20.0f);
+                    var floorObject = floorNode.CreateComponent&lt;Urho.Shapes.Box&gt;();
+                    floorObject.Material = cache.GetMaterial("Materials/StoneOutline.xml");
+                    //floorObject.Material = cache.GetMaterial("Materials/Stone.xml");
+                }
+</code></pre>
+<p>After adding in the renderpath to forward.xml, and modifying the contents of that file. Perhaps see some additional blurring, but honestly, not sure what to look for. Somehow I thought it would be readily visible.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="28" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/77cf83d04c1ba40d49ef5e2eb805a0ac.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>I’m not sure the effect would be visible on a billboard. Could you try the material on a different model?</p>
+</blockquote>
+</aside>
+<p>Also converted the animating scene feature sample, and again, see no difference. No errors or warnings, all looks just like it did before the conversion to use StoneOutline.xml. Perhaps a bit of shimmer in the light as they rotate? Meaning, when I decrease the light brightness, they seem to give off a sparkle, like rotating a diamond in the light, as if that face of the cube has been polished.</p>
+<p>What is the actual effect?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="30" data-topic="1766" data-username="I3DB">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/08ac2a702e042b87fc3e2def689b323c.png" width="20"/> I3DB:</div>
+<blockquote>
+<p>What is the actual effect?</p>
+</blockquote>
+</aside>
+<p>It adds an outline.<br/>
+<img alt="Outline" data-base62-sha1="4SWuO3uXkjxcVXxSC22nExjGmtR" height="154" src="../../../images2/ae66eacf054a71d689193db97d388b27.png" width="213"/></p>
+<p>Be sure to have something like <code>&lt;parameter name="OutlineWidth" value="0.05" /&gt;</code> and <code>    &lt;parameter name="OutlineColor" value="0 0 0 1" /&gt;</code> in your material file.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Was missing the OutlineWidth parameter, but still no outline seen. I’m using SharpReality and viewing on a hololens.</p>
+<p>Here’s the material file:</p>
+<pre><code class="lang-auto">&lt;material&gt;
+  &lt;technique name="Techniques/DiffOutline.xml" /&gt;
+  &lt;parameter name="MatDiffColor" value="1 1 1 1" /&gt;
+  &lt;parameter name="MatSpecColor" value="1 1 1 300" /&gt;
+ 
+  &lt;parameter name="OutlineBlurredMaskHInvSize" value="1 1" /&gt;
+  &lt;parameter name="OutlineWidth" value="0.15" /&gt;
+  &lt;parameter name="OutlineColor" value=".5 .5 .5" /&gt;
+  &lt;texture unit="diffuse" name="Textures/StoneDiffuse.dds" /&gt;
+  &lt;texture unit="normal" name="Textures/StoneNormal.dds" /&gt;
+&lt;/material&gt;
+</code></pre>
+<p>Have been modifying values trying to see some change. Black doesn’t show up on a hololens unless in front of a colored background like you show.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Could you post a screenshot?<br/>
+Your <code>OutlineColor</code> is missing a fourth number (alpha value), btw.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>It looks identical to what it looks like without StoneOutline.xml, so using Stone.xml produces an identical output. <a href="https://github.com/xamarin/urho-samples/tree/master/FeatureSamples/Core/05_AnimatingScene" rel="nofollow noopener">Using the animatedscene feature sample, in c#</a>. Just converted to run on hololens are the only changes to it. And changes for stoneoutline, the material, the technique, the hlsl shader, and changes to forward.xml, and the change to render path to use forward.xml.</p>
+<p>The urho log runs clean. Added the missing alpha param.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<ol>
+<li>Could you try the material on a different model?</li>
+<li>Could you post a screenshot?</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p><img alt="MCS_Photo17-01-52" height="388" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/5/58efd5b784ab892bf9481a186b538c84b8a64040.jpeg" width="690"/></p>
+<p>With cylinder model:<br/>
+<img alt="MCS_Photo17-07-23" height="388" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/b/b725afa75f919c828a3dd4308a340f54c510d0c9.jpeg" width="690"/></p>
+<p>That shimmer sort of shows up on some of the cylinders. They look really nice on hololens.</p>
+<p>Finally, here is just the plain Stone.xml picture with cylinder model, there’s a bit of sparkle, but it’s more pronounced with the StoneOutline.xml, but still very subtle and only visible at times for just a blink of an eye, just like a diamond rotating in the light:<br/>
+<img alt="MCS_Photo17-18-44" height="388" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/2/2c888e882ccd4aa509b194ac2040b00568528b3c.jpeg" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I believe that’s the specular reflection.<br/>
+Did you add the fourth number to your <code>OutlineColor</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="37" data-topic="1766" data-username="Modanung">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1452724d26bb99fb2e8f87d8c705c1c9.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Did you add the fourth number to your <code>OutlineColor</code> ?</p>
+</blockquote>
+</aside>
+<aside class="quote no-group" data-post="34" data-topic="1766" data-username="I3DB">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/08ac2a702e042b87fc3e2def689b323c.png" width="20"/> I3DB:</div>
+<blockquote>
+<p>The urho log runs clean. Added the missing alpha param.</p>
+</blockquote>
+</aside>
+<p>Yes, and to get to 20 chars, I’ll say it again, yes.</p>
+<p>Edit: here’s the material file:</p>
+<pre><code class="lang-auto">&lt;material&gt;
+  &lt;technique name="Techniques/DiffOutline.xml" /&gt;
+  &lt;parameter name="MatDiffColor" value="1 1 1 1" /&gt;
+  &lt;parameter name="MatSpecColor" value="1 1 1 300" /&gt;
+ 
+  &lt;parameter name="OutlineBlurredMaskHInvSize" value="1 1" /&gt;
+  &lt;parameter name="OutlineWidth" value="0.2" /&gt;
+  &lt;parameter name="OutlineColor" value=".5 .5 .5 1" /&gt;
+  &lt;texture unit="diffuse" name="Textures/StoneDiffuse.dds" /&gt;
+  &lt;texture unit="normal" name="Textures/StoneNormal.dds" /&gt;
+&lt;/material&gt;
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Do you have a repository somewhere?<br/>
+Also, could you try <em>removing</em> - or commenting out - this line:<br/>
+<code>&lt;parameter name="OutlineBlurredMaskHInvSize" value="1 1" /&gt;</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="37" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/77cf83d04c1ba40d49ef5e2eb805a0ac.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>I believe that’s the specular reflection.</p>
+</blockquote>
+</aside>
+<p>But why would it be more pronounced with StoneOutline? Subtle but a bit more noticed.</p>
+<aside class="quote no-group" data-full="true" data-post="39" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/77cf83d04c1ba40d49ef5e2eb805a0ac.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Do you have a repository somewhere?<br/>
+Also, could you try <em>removing</em> - or commenting out - this line:<br/>
+<code>&lt;parameter name="OutlineBlurredMaskHInvSize" value="1 1" /&gt;</code> ?</p>
+</blockquote>
+</aside>
+<p><a href="https://github.com/xamarin/urho-samples/tree/master/FeatureSamples" rel="nofollow noopener">The repository is really the C# featured samples.</a> that run on a number of different platforms. I’ve copied and modified, but the base is the same.</p>
+<p>Removed that parameter … no change.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="40" data-topic="1766" data-username="I3DB">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/08ac2a702e042b87fc3e2def689b323c.png" width="20"/> I3DB:</div>
+<blockquote>
+<p>But why would it be more pronounced with StoneOutline? Subtle but a bit more noticed.</p>
+</blockquote>
+</aside>
+<p>Does it have a different <code>MatSpecColor</code> value?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="41" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5624dbf149ac3676e32d6fe0bdb98907.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Does it have a different <code>MatSpecColor</code> value?</p>
+</blockquote>
+</aside>
+<p>Ahh yes.</p>
+<p>Stone.xml</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/DiffNormal.xml" quality="1" /&gt;
+    &lt;technique name="Techniques/Diff.xml" quality="0" /&gt;
+    &lt;texture unit="diffuse" name="Textures/StoneDiffuse.dds" /&gt;
+    &lt;texture unit="normal" name="Textures/StoneNormal.dds" /&gt;
+    &lt;shader psdefines="PACKEDNORMAL" /&gt;
+    &lt;parameter name="MatSpecColor" value="0.3 0.3 0.3 16" /&gt;
+&lt;/material&gt;
+</code></pre>
+<p>I’ve got the PBR materials sample working without error … just wanted to add a bit of hope.</p>
+<p>Also tried with jack:</p>
+<p><img alt="MCS_Photo18-01-03" height="388" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/8/85df2b4519beb722e4ae741dc28f8a7840f17d32.jpeg" width="690"/></p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/DiffOutline.xml" /&gt;
+    &lt;parameter name="MatSpecColor" value="0.5 0.5 0.5 16" /&gt;
+  &lt;texture unit="diffuse" name="Textures/Smoke.dds" /&gt;
+  &lt;parameter name="OutlineBlurredMaskHInvSize" value="1 1" /&gt;
+  &lt;parameter name="OutlineWidth" value="0.2" /&gt;
+  &lt;parameter name="OutlineColor" value=".5 .5 .5 1" /&gt;
+&lt;/material&gt;
+</code></pre>
+<p>And finally, with a cone:<br/>
+<img alt="MCS_Photo18-12-44" height="388" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/7/74c2f772be8773d00ba17ce16c9431d60835ee34.jpeg" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>How this should look with the HLSL shader:<br/>
+<img alt="Screenshot_Mon_Jan_28_11_51_00_2019" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/e/e12de0775cc6774ba256f18af97e5b0bb56a6e7c.png" width="666"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="22" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b5c8d49cf06c8c073e35f5d680ff230a.png" width="20"/> Miegamicis:</div>
+<blockquote>
+<p>I managed to get this to work with DirectX</p>
+</blockquote>
+</aside>
+<p><a href="https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/aa5e4d6731159dc58bff45e41d502bf683c39c0d/bin/CoreData/Shaders/HLSL/Outline.hlsl#L35" rel="nofollow noopener">What’s checked in looks different. Is the semicolon supposed to be there at the end of the line?</a></p>
+<p>I’ve been trying to figure out why this won’t work for me. And getting some errors now:</p>
+<pre><code class="lang-auto">4:)  [Fri Feb  8 12:10:35 2019] ERROR: Failed to compile vertex shader Outline():
+..\Shaders\HLSL\Outline.hlsl(1,1): error X3000: Illegal character in shader file
+
+4:)  [Fri Feb  8 12:10:35 2019] ERROR: Failed to compile pixel shader Outline(BLURH):
+..\Shaders\HLSL\Outline.hlsl(1,1): error X3000: Illegal character in shader file
+
+4:)  [Fri Feb  8 12:10:35 2019] ERROR: Failed to compile pixel shader Outline(BLURV):
+..\Shaders\HLSL\Outline.hlsl(1,1): error X3000: Illegal character in shader file
+
+4:)  [Fri Feb  8 12:10:35 2019] ERROR: Failed to compile pixel shader Outline(OUTPUT):
+..\Shaders\HLSL\Outline.hlsl(1,1): error X3000: Illegal character in shader file
+</code></pre>
+<p>Those errors were due to creating the file in Visual Studio. So deleted that file, and use VSCode to create and then added into the solution. The compile errors when away.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="22" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b5c8d49cf06c8c073e35f5d680ff230a.png" width="20"/> Miegamicis:</div>
+<blockquote>
+<p>Code:</p>
+<pre><code class="lang-auto">#include "Uniforms.hlsl"
+#include "Samplers.hlsl"
+#include "Transform.hlsl"
+#include "ScreenPos.hlsl"
+#include "PostProcess.hlsl"
+
+uniform float2 vScreenPos;
+
+uniform float4 cOutlineColor;
+uniform float2 cOutlineBlurredMaskHInvSize;
+
+
+void VS(float4 iPos : POSITION,
+    out float2 oTexCoord : TEXCOORD0,
+    out float2 oScreenPos : TEXCOORD1,
+    out float4 oPos : OUTPOSITION)
+{
+    float4x3 modelMatrix = iModelMatrix;
+    float3 worldPos = GetWorldPos(modelMatrix);
+    oPos = GetClipPos(worldPos);
+    oTexCoord = GetQuadTexCoord(oPos);
+    oScreenPos = GetScreenPosPreDiv(oPos);
+}
+
+void PS(
+    float3 iTexCoord : TEXCOORD0,
+    float2 iScreenPos : TEXCOORD1,
+    out float4 oColor : OUTCOLOR0)
+{
+    #ifdef MASK
+    oColor = float4(cOutlineColor.rgb, 1);
+    #endif
+
+    #ifdef BLURH
+        float4 rgba = Sample2D(DiffMap, iScreenPos + float2(0.0, 0.0) * cOutlineBlurredMaskHInvSize);
+        oColor = rgba * 0.2;
+    #endif
+
+    #ifdef BLURV
+        float4 rgba = Sample2D(DiffMap, iScreenPos + float2(0.0, 0.0) * cOutlineBlurredMaskHInvSize);
+        oColor = rgba * 0.2;
+    #endif
+
+
+    #ifdef OUTPUT
+        float4 blurredMask = Sample2D(DiffMap, iScreenPos);
+        float4 mask = Sample2D(NormalMap, iScreenPos);
+        float4 viewport = Sample2D(SpecMap, iScreenPos);
+        blurredMask = clamp(blurredMask - mask.a, 0.0, 1.0);
+        blurredMask *= 200.0;
+        oColor = viewport * (1.0 - blurredMask.a) + blurredMask;
+    #endif
+
+
+}
+</code></pre>
+</blockquote>
+</aside>
+<p><span class="mention">@Miegamicis</span>  What you pasted in there is also not following the glsl shader above it.</p>
+<p><a href="https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/aa5e4d6731159dc58bff45e41d502bf683c39c0d/bin/CoreData/Shaders/HLSL/Outline.hlsl#L35" rel="nofollow noopener">What you have checked in</a>, has that extra semicolon at the end of the line in two places. Otherwise, it looks like the initial glsl shader except as noted in next posts.</p>
+<p>Am referring to this glsl from above:</p>
+<aside class="quote no-group" data-post="3" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8e14485e10e801cd7ee7668b4f98a5bf.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>Modified version:<br/>
+Outline is visible through other objects like Dota 2 and Left 4 Dead 2 (disabled depth test and enabled sorting).<br/>
+Also some fixes (more correct mixing outline with viewport and more correct blurring).</p>
+<p>shader Outline.glsl</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+
+varying vec2 vTexCoord;
+varying vec2 vScreenPos;
+
+#ifdef COMPILEPS
+    uniform vec4 cOutlineColor;
+    uniform vec2 cOutlineBlurredMaskHInvSize;
+#endif
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+    gl_Position = GetClipPos(worldPos);
+    vTexCoord = GetQuadTexCoord(gl_Position);
+    vScreenPos = GetScreenPosPreDiv(gl_Position);
+}
+
+void PS()
+{
+    #ifdef MASK
+        gl_FragColor = vec4(cOutlineColor.rgb, 1.0);
+    #endif
+
+    #ifdef BLURH
+        vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.1;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(-1.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(1.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.4;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(-2.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(2.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.1;
+        gl_FragColor = rgba;
+    #endif
+
+    #ifdef BLURV
+        vec4 rgba = texture2D(sDiffMap, vTexCoord + vec2(0.0, 0.0) * cOutlineBlurredMaskHInvSize) * 0.1;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -1.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 1.0) * cOutlineBlurredMaskHInvSize) * 0.4;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, -2.0) * cOutlineBlurredMaskHInvSize) * 0.2;
+        rgba += texture2D(sDiffMap, vTexCoord + vec2(0.0, 2.0) * cOutlineBlurredMaskHInvSize) * 0.1;
+        gl_FragColor = rgba;
+    #endif
+
+    #ifdef OUTPUT
+        vec4 blurredMask = texture2D(sDiffMap, vTexCoord);
+        vec4 mask = texture2D(sNormalMap, vTexCoord);
+        vec4 viewport = texture2D(sSpecMap, vTexCoord);
+        blurredMask = clamp(blurredMask - mask.a, 0.0, 1.0);
+        gl_FragColor = viewport * (1.0 - blurredMask.a) + blurredMask;
+    #endif
+}
+</code></pre>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Also, you used iScreenPos, and according to GLSL version, that should be iTexCoord.</p>
+<p><a href="https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/aa5e4d6731159dc58bff45e41d502bf683c39c0d/bin/CoreData/Shaders/HLSL/Outline.hlsl#L54-L56" rel="nofollow noopener">Here</a>.</p>
+<p><a href="https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/aa5e4d6731159dc58bff45e41d502bf683c39c0d/bin/CoreData/Shaders/HLSL/Outline.hlsl#L58" rel="nofollow noopener">And this line makes it all disappear, when I run it.</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>I actually tried both, bur iScreenPos looked a lot better when I was running some tests. But maybe my testing was bad, since I’m kinda unexperienced with shaders.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="47" data-topic="1766">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b5c8d49cf06c8c073e35f5d680ff230a.png" width="20"/> Miegamicis:</div>
+<blockquote>
+<p>I’m kinda unexperienced with shaders.</p>
+</blockquote>
+</aside>
+<p>Certainly you’re more experienced than I. But I do try …</p>
+<p>I’m making some progress. Have the outline painting now, but when it does, then the main material doesn’t paint.</p>
+<p>Here’s the shader I’m using:</p>
+<pre><code class="lang-auto">#include "Uniforms.hlsl"
+#include "Samplers.hlsl"
+#include "Transform.hlsl"
+#include "ScreenPos.hlsl"
+#include "PostProcess.hlsl"
+
+#ifdef COMPILEPS
+	uniform float4 cOutlineColor;
+	uniform float2 cOutlineBlurredMaskHInvSize;
+	uniform bool cOutlineEnable;
+#endif
+
+void VS(float4 iPos : POSITION,
+	out float2 oTexCoord : TEXCOORD0,
+	out float2 oScreenPos : TEXCOORD1,
+	out float4 oPos : OUTPOSITION)
+{
+	float4x3 modelMatrix = iModelMatrix;
+	float3 worldPos = GetWorldPos(modelMatrix);
+	oPos = GetClipPos(worldPos);
+	oTexCoord = GetQuadTexCoord(oPos);
+	oScreenPos = GetScreenPosPreDiv(oPos);
+}
+
+void PS(
+	float3 iTexCoord : TEXCOORD0,
+	float2 iScreenPos : TEXCOORD1,
+	out float4 oColor : OUTCOLOR0)
+{
+#ifdef MASK
+	if (!cOutlineEnable) discard;
+	oColor = float4(cOutlineColor.rgb, 1);
+#endif
+#ifdef BLURH
+	float4 rgba = Sample2D(DiffMap, iTexCoord + float2(0.0, 0.0) * cOutlineBlurredMaskHInvSize);
+	rgba += Sample2D(DiffMap, iTexCoord + float2(-1.0, 0.0) * cOutlineBlurredMaskHInvSize);
+	rgba += Sample2D(DiffMap, iTexCoord + float2(1.0, 0.0) * cOutlineBlurredMaskHInvSize);
+	rgba += Sample2D(DiffMap, iTexCoord + float2(-2.0, 0.0) * cOutlineBlurredMaskHInvSize);
+	rgba += Sample2D(DiffMap, iTexCoord + float2(2.0, 0.0) * cOutlineBlurredMaskHInvSize);
+	oColor = rgba * 0.2;
+#endif
+
+#ifdef BLURV
+	float4 rgba = Sample2D(DiffMap, iTexCoord + float2(0.0, 0.0) * cOutlineBlurredMaskHInvSize);
+	rgba += Sample2D(DiffMap, iTexCoord + float2(0.0, -1.0) * cOutlineBlurredMaskHInvSize);
+	rgba += Sample2D(DiffMap, iTexCoord + float2(0.0, 1.0) * cOutlineBlurredMaskHInvSize);
+	rgba += Sample2D(DiffMap, iTexCoord + float2(0.0, -2.0) * cOutlineBlurredMaskHInvSize);
+	rgba += Sample2D(DiffMap, iTexCoord + float2(0.0, 2.0) * cOutlineBlurredMaskHInvSize);
+	oColor = rgba * 0.2;
+#endif
+#ifdef OUTPUT
+	float4 blurredMask = Sample2D(DiffMap, iTexCoord);
+	float4 mask = Sample2D(NormalMap, iTexCoord);
+	float4 viewport = Sample2D(SpecMap, iTexCoord);
+	blurredMask = clamp(blurredMask - mask.a, 0.0, 1.0);
+	blurredMask *= 3.0;
+	oColor = viewport * (1.0 - blurredMask.a) + blurredMask;
+#endif
+}
+</code></pre>
+<p>Here’s the material being used:</p>
+<pre><code class="lang-auto">&lt;material&gt;
+  &lt;technique name="Techniques/DiffOutline.xml" /&gt;
+  &lt;parameter name="MatDiffColor" value=".5 .5 .5 1" /&gt;&gt;
+  &lt;parameter name="MatSpecColor" value="0.3 0.3 0.3 16" /&gt;
+  &lt;texture unit="diffuse" name="Textures/StoneDiffuse.dds" /&gt;
+  &lt;texture unit="normal" name="Textures/StoneNormal.dds" /&gt;
+  &lt;parameter name="OutlineWidth" value="0.1" /&gt;
+  &lt;parameter name="OutlineColor" value=".5 .5 .8 1" /&gt;
+  &lt;parameter name="OutlineEnable" value="true" /&gt;
+&lt;/material&gt;
+</code></pre>
+<p>Here’s the technique being used:</p>
+<pre><code class="lang-auto">&lt;technique vs="LitSolid" ps="LitSolid" psdefines="DIFFMAP"&gt;
+  &lt;pass name="base" /&gt;
+  &lt;pass name="litbase" psdefines="AMBIENT" /&gt;
+  &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+  &lt;pass name="prepass" psdefines="PREPASS" /&gt;
+  &lt;pass name="material" psdefines="MATERIAL" depthtest="equal" depthwrite="false" /&gt;
+  &lt;pass name="deferred" psdefines="DEFERRED" /&gt;
+  &lt;pass name="depth" vs="Depth" ps="Depth" /&gt;
+  &lt;pass name="shadow" vs="Shadow1" ps="Shadow1" /&gt;
+  &lt;pass name="outline" vs="Outline" ps="Outline" psdefines="MASK" depthtest="always" depthwrite="false" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<p>Here’s the rendererer, called Outline.xml:</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+  &lt;rendertarget name="outlineMask" sizedivisor="1 1" format="rgba" filter="true" /&gt;
+  &lt;rendertarget name="outlineBlurredMaskH" sizedivisor="2 2" format="rgba" filter="true" /&gt;
+  &lt;rendertarget name="outlineBlurredMaskV" sizedivisor="2 2" format="rgba" filter="true" /&gt;
+  &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+  &lt;command type="clear" color="0 0 0 0" output="outlineMask" /&gt;
+  &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+  &lt;command type="forwardlights" pass="light" /&gt;
+  &lt;command type="scenepass" pass="postopaque" /&gt;
+  &lt;command type="scenepass" pass="refract"&gt;
+    &lt;texture unit="environment" name="viewport" /&gt;
+  &lt;/command&gt;
+  &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" /&gt;
+  &lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+  &lt;command type="scenepass" pass="outline" output="outlineMask" sort="backtofront" /&gt;
+  &lt;command type="quad" vs="Outline" ps="Outline" psdefines="BLURH" output="outlineBlurredMaskH"&gt;
+    &lt;texture unit="diffuse" name="outlineMask" /&gt;
+  &lt;/command&gt;
+  &lt;command type="quad" vs="Outline" ps="Outline" psdefines="BLURV" output="outlineBlurredMaskV"&gt;
+    &lt;texture unit="diffuse" name="outlineBlurredMaskH" /&gt;
+  &lt;/command&gt;
+  &lt;command type="quad" vs="Outline" ps="Outline" psdefines="OUTPUT" output="viewport"&gt;
+    &lt;texture unit="diffuse" name="outlineBlurredMaskV" /&gt;
+    &lt;texture unit="normal" name="outlineMask" /&gt;
+    &lt;texture unit="specular" name="viewport" /&gt;
+  &lt;/command&gt;
+&lt;/renderpath&gt;
+</code></pre>
+<p>Here are changes to the default render path, which by default only uses ‘Forward’.</p>
+<pre><code class="lang-auto">var rp = ((StereoApplication)Application).Renderer.DefaultRenderPath.Clone();
+rp.SetEnabled("Forward", false);
+rp.Append(Application.ResourceCache.GetXmlFile("RenderPaths/Outline.xml"));
+((StereoApplication)Application).Renderer.GetViewport(0).RenderPath = rp;
+((StereoApplication)Application).Renderer.GetViewport(1).RenderPath = rp;
+</code></pre>
+<p>The two viewports are for the stereo rendering used by hololens, the platform used here.</p>
+<p>Screen shot:<br/>
+<img alt="MCS_Photo15-30-16" height="388" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/0/025f3a462e95041c980462d9af5fd11b93f96ade.jpeg" width="690"/></p>
+<p>The following log outputs are printed:</p>
+<pre><code class="lang-auto">1:)  [Fri Feb  8 16:39:35 2019] DEBUG: Good cleanup, new GameNode being returned
+1:)  [Fri Feb  8 16:39:35 2019] DEBUG: Loading resource RenderPaths/Outline.xml
+1:)  [Fri Feb  8 16:39:35 2019] DEBUG: Loading resource Models/Cylinder.mdl
+1:)  [Fri Feb  8 16:39:35 2019] DEBUG: Loading resource Materials/StoneOutline.xml
+1:)  [Fri Feb  8 16:39:35 2019] DEBUG: Loading resource Techniques/DiffOutline.xml
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Allocated new screen buffer size 1268x720 format 28
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Allocated new screen buffer size 1268x720 format 28
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Allocated new screen buffer size 1268x720 format 28
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Allocated new screen buffer size 634x360 format 28
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Allocated new screen buffer size 634x360 format 28
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Compiled vertex shader LitSolid(DIRLIGHT PERPIXEL)
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Compiled pixel shader LitSolid(AMBIENT DIFFMAP DIRLIGHT PACKEDNORMAL PERPIXEL SPECULAR)
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Compiled vertex shader LitSolid(PERPIXEL POINTLIGHT)
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Compiled pixel shader LitSolid(DIFFMAP PACKEDNORMAL PERPIXEL POINTLIGHT SPECULAR)
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Compiled vertex shader LitSolid(NOUV PERPIXEL POINTLIGHT)
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Compiled pixel shader LitSolid(PERPIXEL POINTLIGHT)
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Allocated new screen buffer size 634x360 format 44
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Loading resource Shaders/HLSL/Outline.hlsl
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Loaded cached vertex shader Outline()
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Loaded cached pixel shader Outline(BLURH)
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Loaded cached pixel shader Outline(BLURV)
+1:)  [Fri Feb  8 16:39:38 2019] DEBUG: Loaded cached pixel shader Outline(OUTPUT)
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="36" data-topic="1766" data-username="I3DB">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/08ac2a702e042b87fc3e2def689b323c.png" width="20"/> I3DB:</div>
+<blockquote>
+<p><img alt="MCS_Photo17-18-44.jpg"  height="388" src="../../../images2/e408979edb8aec119c0e546a64b522aa.jpeg"  width="690"/></p>
+</blockquote>
+</aside>
+<p>This is the way it looked before adding the outline, with files I’m using.</p>
+<p>Just comparing the two pics, it sort off looks like the outline coloring is the same as the material coloring in the photo, so it wouldn’t be seen. Though it is specified to be different.</p>
+<p>In that previous pic above, also note the cursor is no longer visible, the cyan torus.</p>
+<p>Also in the previous pic, each cylinder is transparent/black and not see through. Farther cylinders can’t be seen when looking through a closer one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>I am copycatting the nice effect to my project, and want to share my 2 cents when integrating it.<br/>
+Hope it could save you some time.</p>
+<p>I didn’t try original GLSL version but start with the hlsl by <span class="mention">@Miegamicis</span> .<br/>
+My environment: VS2017 + win10 laptop + D3D11 Urho3D.<br/>
+Some points you may look into when encounter problem:</p>
+<ol>
+<li>In <code>#ifdef BLURH</code> block in PS(); sample the diffuse, render target “outlineMask”, with cOutlineBlurredMaskHInvSize is a bit weird.<br/>
+Because render target “outlineMask” is as large as viewport, but render target “outlineBlurredMaskH” is only 1/4 size of viewport.</li>
+<li>The uniform “cOutlineBlurredMaskHInvSize” should be “coutlineBlurredMaskHInvSize”, see the render target name in render path.</li>
+<li>I as a noob try to set cOutlineBlurredMaskHInvSize parameter in material xml when start to integrate. No, it should be auto set by Urho3D in View.cpp, View::RenderQuad().</li>
+<li>The final <code>oColor = viewport * (1.0 - blurredMask.a) + blurredMask;</code> seems doesn’t work for me.<br/>
+I eventually do an alpha blending like operation:<br/>
+<code>oColor = float4(viewport.rgb * (1.0 - blurredMask.a) + blurredMask.rgb * blurredMask.a, viewport.a);</code>
+</li>
+</ol>
+<p><a href="https://gist.github.com/ab4daa/424140e3c8a98a7d322af4fc22f06324" rel="nofollow noopener">My current HLSL for reference</a></p>
+<p>screenshot<br/>
+<img alt="%E5%9C%96%E7%89%87" height="499" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/b/b9ce71c074e1333a1100281dd76cded54f815166.png" width="637"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

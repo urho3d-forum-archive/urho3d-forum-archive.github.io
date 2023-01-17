@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[IS NOT A] possible bug related to scriptObject [SOLVED]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[IS NOT A] possible bug related to scriptObject [SOLVED]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>I write my urho app on 2 different devices 3 different OSs.<br/>
+Mainly on ubuntu 14.10. on my tower with windows 7 dual boot. second most on my laptop ubuntu 14.04.</p>
+<p>So, I was having some issues last night with the scriptObject, that was fixed by setting the instance to reference my <a href="http://main.as">main.as</a> class instead of just the class file itself.<br/>
+Everything works, both on 14.10 and windows7. I did some extra work after getting it to do what I wanted, all still works.</p>
+<p>This morning on the train, on the laptop, tried the same code, and the same urho and it wasnt working. It didnt error, but what I had working was not working.<br/>
+I redownloaded urho, re downloaded my repo, and nothing was working still.</p>
+<p>The code is actually here:<br/>
+<a href="https://github.com/ghidra/urho_shmup">github.com/ghidra/urho_shmup</a><br/>
+at the  Nov 23, 2014  “faster projctile” commit.<br/>
+forgive me it’s messy.</p>
+<h2>In a nut shell:</h2>
+<p><a href="http://main.as">main.as</a> inits an <a href="http://inputplayer.as">inputplayer.as</a> class to handle controls.<br/>
+it also instantiates my character.xml, that has a <a href="http://character.as">character.as</a> script object.<br/>
+<a href="http://character.as">character.as</a> extends <a href="http://pawn.as">pawn.as</a> extends <a href="http://actor.as">actor.as</a></p>
+<p>playerinput is given the node that is spawned that has the character scriptobject.<br/>
+it then uses that to pass functions to it for controls.</p>
+<p>And that is where it doesnt work on the laptop, but does on my desktop.<br/>
+at this function:</p>
+<pre><code class="lang-auto">void set_controlnode(Node@ control_node){
+   Pawn@ pawn = cast&lt;Pawn&gt;(control_node.scriptObject);
+   //Character@ pawn = cast&lt;Character&gt;(control_node.scriptObject);
+   //Pawn@ pawn = cast&lt;Pawn&gt;(control_node.GetScriptObject("Character"));
+   if (pawn !is null){
+      //Print("we have something to control");
+      node_ = control_node;
+   }
+}</code></pre>
+<p>It doesnt error, because i am doing the null check.<br/>
+And if I Print numComponents it sees them all, or if I grab the components[1], it knows it’s a scriptObject. But it isnt getting passed the null check.</p>
+<p>So, is this a bug, or am i doing someting wrong here? Since it works in 2 different places, but not in 1.</p>
+<p>Thanks</p>
+<p>EDIT:</p>
+<p>I’m also not sure that it isnt some other garbage that is in my code that is causing conflicts, but I’m throwing it out there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>Could it be a load order issue?  Or events running in different orders?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Unless you’re using background loading of resources (it doesn’t happen automatically, so if you don’t know then you aren’t) the load order should be the same on every platform &amp; computer, as it’s all main thread logic.</p>
+<p>What possibly can trip it up if the script file(s) get loaded multiple times. I imagine this can be theoretically possible due to Windows being not case-sensitive, and Ubuntu is. Though I don’t have an idea of the specifics in this case. If you make a debug build it will print to the log whenever a resource gets loaded.</p>
+<p>To save trouble, in small to medium-small games I’d recommend the approach used in NinjaSnowWar: the main script file includes all other script files. All script objects are instantiated by referring to the main scriptfile. This ensures there are no gotchas of script classes in one script file not being visible to other files, which would manifest as casts returning null pointers.</p>
+<p>The “classes not being visible to another script file” is an AngelScript mechanic. For another solution, see the “shared script entities” approach. <a href="http://angelcode.com/angelscript/sdk/docs/manual/doc_script_shared.html">angelcode.com/angelscript/sdk/do … hared.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>Using the Shared Entities did the trick on my laptop, I’ll test it tonight on my desktop to make sure it all still works.<br/>
+Thank you.<br/>
+EDIT: all works!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

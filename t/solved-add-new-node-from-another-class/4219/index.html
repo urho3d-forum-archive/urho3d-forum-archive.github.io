@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Add new node from another class</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Add new node from another class</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">wakko</div>
+          <div class="post_content">
+<p>Starting from the DynamicGeometry sample I am trying to make a class that will add even more geometry to the scene. As far as I see everthing (except for the camera which looks like instantiated on the “context”) all new nodes must be added to the “scene_” object. Unfortunately all samples create the entire scene in the CreateScene() function. I would like to add a bit more structure to this for my project and separate objects groups into their own classes.<br/>
+My own class should have a “parent” Node* to which I add the new objects. However none of my approaches succeeds.<br/>
+Attempt <span class="hashtag">#1:</span> Pass “scene_” as the parent node argument fails due to scene being a the shared_ptr. (Incomplete type…). Maybe my mistake since my experience with shared_ptrs is … little. Same happens upon dereferencing the scene_ shared_ptr and passing this as a “normal” pointer.<br/>
+Attempt <span class="hashtag">#2:</span> Add an empty Node* to the scene_ and pass this to my class as the parent: Upon calling "m_parent-&gt;CreateChild(“MyOwnObject”); does nothing and simply crashes the application without any error message.<br/>
+Can someone point out what I am doing wrong here? Am I mixing up Node and Component somehow?</p>
+<p>Bonus question (before I have to start a new thread for this): Is it possible to manually create a Material in code using an arbitrary jpg/png anywhere on my harddisk? If so: How would I do this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>In general, do not subclass Node. As an alternative, my suggestion would be to just create custom components and you can search for them/have them do the custom logic, or use tags on the nodes, etc. If you just want to load nodes as groups, use Node’s LoadXML (or similar) to load that set of objects.</p>
+<p>As to creating your own material, consider loading one like what you need, Clone()ing it, and then replacing the texture with the other one (you can do the whole thing programmatically, but if your just changing textures you can see up the colors and stuff in the xml and then just replace the texture in code).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">wakko</div>
+          <div class="post_content">
+<p>Thanks for the reply.<br/>
+Apparently the texture loading thing will be easier now.</p>
+<p>For the node-adding: I am not making a subclass of node, I am just trying to move stuff from the “CreateScene” function into a function of a scene-generator class to prevent the CreateScene function from getting excessively long and maintain a bit of readability and modularity. This requires passing a parent Node* as an argument to the generator function so that I can call CreateChild on this parent Node from inside my function. But none of the approaches mentioned above works…<br/>
+As the scene will be generated dynamically considering many other parameters loading an XML is not an option.<br/>
+Edit:<br/>
+To clarify what I am trying to do:<br/>
+This fails at compilation time due to “Incomplete Type” (all variations of &amp;/*  with and without shared_ptr as argument type tested)<br/>
+void SceneGenerator::generateScenePart(shared_ptr parent_)<br/>
+{<br/>
+Node* testNode = parent_-&gt;CreateChild(“testNode”);<br/>
+}<br/>
+This fails at runtime with no error message at all when the parent_ Node is created from within the GenerateScene function from the sample code:<br/>
+void SceneGenerator::generateScenePart(Node* parent_)<br/>
+{<br/>
+Node* testNode = parent_-&gt;CreateChild(“testNode”);<br/>
+}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Instead of using the <em>shared_ptr</em> Urho3d has SharedPtr&lt;&gt; template, but this is not the issue.  I think the issue in your case maybe due to the argument variable named the same as a member variable – this:</p>
+<p><em>void SceneGenerator::generateScenePart</em>(Node* <strong>parent_</strong>)</p>
+<p>Perhaps you already have the parent_ member var assigned some where else and thinking that’s what you’re actually using instead of the argument variable parent_.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">wakko</div>
+          <div class="post_content">
+<p>Thanks for pointing out the SharedPtr vs. shared_ptr difference. That was indeed a mistake and at least I can compile now (using the SharedPtr argument), but it has the same effect as passing just another Node* to my function: A crash without any error message.<br/>
+I have noticed the trailing underscore in member variables in the sample code. In my own classes/functions the trailing underscore marks function arguments. This is not the problem here.</p>
+<p>The question remains: What is the recommended way to pass a parent Node/Component/whatever to a function to add children to it from there?<br/>
+The simplest usecase I can imagine: A function to add multiple lights to the scene…<br/>
+How would I do that?<br/>
+The sole purpose of this is to limit the length of the CreateScene function.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Node::CreateChild() fn. returns Node*, so your argument to your fn. should be Node*. I’m not sure what’s going on with your code, but here’s a simple fn. that I wrote in 18_CharacterDemo to demonstrate instantiating a large model box.</p>
+<pre><code class="lang-auto">void CharacterDemo::TestGenNode(Node* parentNode)
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    Node *node = parentNode-&gt;CreateChild();
+    node-&gt;SetPosition(Vector3(0,15,0));
+    node-&gt;SetScale(10.0f);
+    StaticModel *staticModel = node-&gt;CreateComponent&lt;StaticModel&gt;();
+    staticModel-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+}</code></pre>
+<p>And the call is made from CreateScene() fn.:</p>
+<pre><code class="lang-auto">    Node *parentNode = scene_-&gt;CreateChild();
+    TestGenNode(parentNode);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">wakko</div>
+          <div class="post_content">
+<p>Thanks for the illustration. I am doing exactly the same.<br/>
+I have reduced my own code to do only this:<br/>
+I am creating a Node* in CreateScene (as a class member) and pass it to a function that looks almost identical to yours. It even shows commandline output after each line and the resulting Node* is not NULL. And then I end up with the game window closing and only seeing the terminal window. I have narrowed it down to the line<br/>
+Node *node = parentNode-&gt;CreateChild();<br/>
+When I comment this one line out I am back at the DynamicGeometry sample.<br/>
+I will dig further.</p>
+<p>EDIT:<br/>
+Since Lumak confirmed that I was doing everything correct he encouraged me to check some other part of my code which was causing the error (premature delete…) <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/><br/>
+I have marked the topic as solved. Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

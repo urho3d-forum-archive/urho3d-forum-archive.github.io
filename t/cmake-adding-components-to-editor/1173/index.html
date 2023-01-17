@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CMake Adding Components to Editor</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CMake Adding Components to Editor</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I want to add components to the Urho3DPlayer for use in the Editor. THe problem I have in a separate folder I have the components basically in ExistenceClient like GameObject.cpp and Character.cpp.</p>
+<p>The cmake is coded to use all files in Tools/Urho3DPlayer which I need to compile the other files at the same time.</p>
+<p>The only thing I can think of is adding lines in the cmake file in Tools/Urho3DPlayer to include specifc source in the ExistenceClient folder specifically components.  Or tell Cmake to use the Urho3D library + my components when compiling.</p>
+<p>Vivienne</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There’s still the problem of registering your components before running, which I don’t think is possible without modifying Urho3DPlayer code. You could go that route, but it’s probably easier and more future-proof making a mode in your application which is able to behave like Urho3DPlayer when it’s running the editor. For example when there’s a command line switch “–editor” or similar.</p>
+<p>Ther’s nothing “magic” in what Urho3DPlayer does, you’ll only need to:</p>
+<ul>
+<li>Register your components</li>
+<li>Instantiate the Script subsystem</li>
+<li>Load the editor script and run its Start() function</li>
+<li>Run Urho engine loop until exited</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]There’s still the problem of registering your components before running, which I don’t think is possible without modifying Urho3DPlayer code. You could go that route, but it’s probably easier and more future-proof making a mode in your application which is able to behave like Urho3DPlayer when it’s running the editor. For example when there’s a command line switch “–editor” or similar.</p>
+<p>Ther’s nothing “magic” in what Urho3DPlayer does, you’ll only need to:</p>
+<ul>
+<li>Register your components</li>
+<li>Instantiate the Script subsystem</li>
+<li>Load the editor script and run its Start() function</li>
+<li>Run Urho engine loop until exited[/quote]</li>
+</ul>
+<p>[code]#</p>
+<h1>Copyright © 2008-2015 the Urho3D project.</h1>
+<h1></h1>
+<h1>Permission is hereby granted, free of charge, to any person obtaining a copy</h1>
+<h1>of this software and associated documentation files (the “Software”), to deal</h1>
+<h1>in the Software without restriction, including without limitation the rights</h1>
+<h1>to use, copy, modify, merge, publish, distribute, sublicense, and/or sell</h1>
+<h1>copies of the Software, and to permit persons to whom the Software is</h1>
+<h1>furnished to do so, subject to the following conditions:</h1>
+<h1></h1>
+<h1>The above copyright notice and this permission notice shall be included in</h1>
+<h1>all copies or substantial portions of the Software.</h1>
+<h1></h1>
+<h1>THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR</h1>
+<h1>IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,</h1>
+<h1>FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE</h1>
+<h1>AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER</h1>
+<h1>LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,</h1>
+<h1>OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN</h1>
+<h1>THE SOFTWARE.</h1>
+<h1></h1>
+<h1>Define target name</h1>
+<p>set (TARGET_NAME Urho3DPlayer)</p>
+<h1>Find Urho3D library</h1>
+<p>find_package (Urho3D REQUIRED)<br/>
+include_directories (${URHO3D_INCLUDE_DIRS})</p>
+<h1>Define source files</h1>
+<p>define_source_files ()</p>
+<p><span class="hashtag">#ddd</span> more file<br/>
+FILE(GLOB Character ${CMAKE_SOURCE_DIR}/Source/ExistenceApps/ExistenceClient/Character.cpp)<br/>
+FILE(GLOB GameObject ${CMAKE_SOURCE_DIR}/Source/ExistenceApps/ExistenceClient/GameObject.cpp)<br/>
+FILE(GLOB InteractObject ${CMAKE_SOURCE_DIR}/Source/ExistenceApps/ExistenceClient/InteractObject.cpp)</p>
+<h1>Setup target with resource copying</h1>
+<p>setup_main_executable (NOBUNDLE)</p>
+<h1>Setup test cases</h1>
+<p>if (URHO3D_ANGELSCRIPT)<br/>
+setup_test (NAME Editor OPTIONS Scripts/Editor.as -w)<br/>
+setup_test (NAME NinjaSnowWar OPTIONS Scripts/NinjaSnowWar.as -w)<br/>
+setup_test (NAME SpritesAS OPTIONS Scripts/03_Sprites.as -w)<br/>
+endif ()<br/>
+if (URHO3D_LUA)<br/>
+setup_test (NAME SpritesLua OPTIONS LuaScripts/03_Sprites.lua -w)<br/>
+endif ()</p>
+<h1>Symlink/copy helper shell scripts or batch files to invoke Urho3DPlayer</h1>
+<p>if (NOT IOS AND NOT ANDROID AND NOT EMSCRIPTEN)<br/>
+# Ensure the output directory exist before creating the symlinks<br/>
+file (MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/bin)<br/>
+foreach (FILE Editor NinjaSnowWar)<br/>
+create_symlink (${CMAKE_SOURCE_DIR}/bin/${FILE}${SCRIPT_EXT} ${CMAKE_BINARY_DIR}/bin/${FILE}${SCRIPT_EXT} FALLBACK_TO_COPY)<br/>
+endforeach ()<br/>
+endif ()[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hello</p>
+<p>Which file to load?</p>
+<p>I think I can now build individiual editor without messing with urho3dplayer? Not “<a href="http://Editor.as" rel="nofollow noopener">Editor.as</a>”</p>
+<p>Vivienne</p>
+<p>[quote=“vivienneanthony”][quote=“cadaver”]There’s still the problem of registering your components before running, which I don’t think is possible without modifying Urho3DPlayer code. You could go that route, but it’s probably easier and more future-proof making a mode in your application which is able to behave like Urho3DPlayer when it’s running the editor. For example when there’s a command line switch “–editor” or similar.</p>
+<p>Ther’s nothing “magic” in what Urho3DPlayer does, you’ll only need to:</p>
+<ul>
+<li>Register your components</li>
+<li>Instantiate the Script subsystem</li>
+<li>Load the editor script and run its Start() function</li>
+<li>Run Urho engine loop until exited[/quote]</li>
+</ul>
+<p>[code]#</p>
+<h1>Copyright © 2008-2015 the Urho3D project.</h1>
+<h1></h1>
+<h1>Permission is hereby granted, free of charge, to any person obtaining a copy</h1>
+<h1>of this software and associated documentation files (the “Software”), to deal</h1>
+<h1>in the Software without restriction, including without limitation the rights</h1>
+<h1>to use, copy, modify, merge, publish, distribute, sublicense, and/or sell</h1>
+<h1>copies of the Software, and to permit persons to whom the Software is</h1>
+<h1>furnished to do so, subject to the following conditions:</h1>
+<h1></h1>
+<h1>The above copyright notice and this permission notice shall be included in</h1>
+<h1>all copies or substantial portions of the Software.</h1>
+<h1></h1>
+<h1>THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR</h1>
+<h1>IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,</h1>
+<h1>FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE</h1>
+<h1>AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER</h1>
+<h1>LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,</h1>
+<h1>OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN</h1>
+<h1>THE SOFTWARE.</h1>
+<h1></h1>
+<h1>Define target name</h1>
+<p>set (TARGET_NAME Urho3DPlayer)</p>
+<h1>Find Urho3D library</h1>
+<p>find_package (Urho3D REQUIRED)<br/>
+include_directories (${URHO3D_INCLUDE_DIRS})</p>
+<h1>Define source files</h1>
+<p>define_source_files ()</p>
+<p><span class="hashtag">#ddd</span> more file<br/>
+FILE(GLOB Character ${CMAKE_SOURCE_DIR}/Source/ExistenceApps/ExistenceClient/Character.cpp)<br/>
+FILE(GLOB GameObject ${CMAKE_SOURCE_DIR}/Source/ExistenceApps/ExistenceClient/GameObject.cpp)<br/>
+FILE(GLOB InteractObject ${CMAKE_SOURCE_DIR}/Source/ExistenceApps/ExistenceClient/InteractObject.cpp)</p>
+<h1>Setup target with resource copying</h1>
+<p>setup_main_executable (NOBUNDLE)</p>
+<h1>Setup test cases</h1>
+<p>if (URHO3D_ANGELSCRIPT)<br/>
+setup_test (NAME Editor OPTIONS Scripts/Editor.as -w)<br/>
+setup_test (NAME NinjaSnowWar OPTIONS Scripts/NinjaSnowWar.as -w)<br/>
+setup_test (NAME SpritesAS OPTIONS Scripts/03_Sprites.as -w)<br/>
+endif ()<br/>
+if (URHO3D_LUA)<br/>
+setup_test (NAME SpritesLua OPTIONS LuaScripts/03_Sprites.lua -w)<br/>
+endif ()</p>
+<h1>Symlink/copy helper shell scripts or batch files to invoke Urho3DPlayer</h1>
+<p>if (NOT IOS AND NOT ANDROID AND NOT EMSCRIPTEN)<br/>
+# Ensure the output directory exist before creating the symlinks<br/>
+file (MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/bin)<br/>
+foreach (FILE Editor NinjaSnowWar)<br/>
+create_symlink (${CMAKE_SOURCE_DIR}/bin/${FILE}${SCRIPT_EXT} ${CMAKE_BINARY_DIR}/bin/${FILE}${SCRIPT_EXT} FALLBACK_TO_COPY)<br/>
+endforeach ()<br/>
+endif ()[/code][/quote]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]There’s still the problem of registering your components before running, which I don’t think is possible without modifying Urho3DPlayer code. You could go that route, but it’s probably easier and more future-proof making a mode in your application which is able to behave like Urho3DPlayer when it’s running the editor. For example when there’s a command line switch “–editor” or similar.</p>
+<p>Ther’s nothing “magic” in what Urho3DPlayer does, you’ll only need to:</p>
+<ul>
+<li>Register your components</li>
+<li>Instantiate the Script subsystem</li>
+<li>Load the editor script and run its Start() function</li>
+<li>Run Urho engine loop until exited[/quote]</li>
+</ul>
+<p>That’s what I did. It seems to not pick up the components and it seems if the scene doesn’t fully load the “open scene” does not disappear?</p>
+<p><a href="http://pastebin.com/v6KTEDsH" rel="nofollow noopener">pastebin.com/v6KTEDsH</a></p>
+<p>It does compile.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Do you need to register attributes for your custom components? Also, maybe include them all in a single editor category (the string parameter for RegisterFactory). However, RegisterFactory should be enough for them to appear in the editor menu.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="cadaver">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>Do you need to register attributes for your custom components? Also, maybe include them all in a single editor category (the string parameter for RegisterFactory). However, RegisterFactory should be enough for them to appear in the editor menu.</p>
+</blockquote>
+</aside>
+<p>Yes. They are set on default in the code.</p>
+<p><a href="https://github.com/vivienneanthony/Urho3D-Mastercurrent-Existence/blob/development/Source/ExistenceApps/ExistenceClient/GameObject.h" rel="nofollow noopener">github.com/vivienneanthony/Urho … meObject.h</a><br/>
+<a href="https://github.com/vivienneanthony/Urho3D-Mastercurrent-Existence/blob/development/Source/ExistenceApps/ExistenceClient/GameObject.cpp" rel="nofollow noopener">github.com/vivienneanthony/Urho … Object.cpp</a></p>
+<p>This is one of the codes. I did the register factory line in the post but I am not sure if that’s enougth.</p>
+<p>E[code]xistenceEditor::ExistenceEditor(Context* context) :<br/>
+Board index ? Urho3D User Forum ? Support<br/>
+Change font size<br/>
+E-mail friend<br/>
+Print view</p>
+<pre><code>User Control Panel (0 new messages) ? View your posts
+
+FAQ
+Members
+Logout [ vivienneanthony ]
+
+
+Application(context)
+</code></pre>
+<p>{<br/>
+/// Register</p>
+<pre><code>context_ -&gt; RegisterFactory&lt;Character&gt; ("Character");
+context_ -&gt; RegisterFactory&lt;GameObject&gt; ("GameObject");
+context_ -&gt; RegisterFactory&lt;InteractObject&gt; ("InteractObject");
+context_ -&gt; RegisterFactory&lt;ProceduralTerrain&gt; ("PoceduralTerrain");
+
+cout &lt;&lt; "Debig: Existence Client  Existence " &lt;&lt; &amp;applicationPtr &lt;&lt; endl;
+
+/// Register states
+cout &lt;&lt; "Debug: Existence Client Base Class Constructor context" &lt;&lt; &amp;context &lt;&lt; " context_"&lt;&lt; &amp;context_ &lt;&lt; endl;
+
+return;
+</code></pre>
+<p>}[/code]</p>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/cCmP2A6.png" rel="nofollow noopener" title=""><img alt="" height="431" src="../../../images2/eb8e2305518e31738eb99a4be11b1735.png" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1440×900</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Ok, when your classes have attributes and you have defined a ClassName::RegisterObject() function for them, you should rather call that instead of just registering the factory.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Urho2D Texture Clipping issue</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Urho2D Texture Clipping issue</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OvermindDL1</div>
+          <div class="post_content">
+<p>So, a screenshot of the programmer-art test project:<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://overminddl1.com/screenshots/tmp/Urho2D-Borked.png" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/637bb6b17316a05b78c7b460915982a7.png" width="503"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">561×557</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+This is using the SpriteSheet2D, but it would happen with any kind of Sprite that is using non-full texture.  Apparently whoever designed the Urho2D system locks all UV coordinate to integers, which are then multiplied with 0.0999999… (0.1 not represented accurately due to floating point), which then causes issues with the side pixels leaking since they never actually shifted the inward a little to compensate for the floating point inaccuracy.  This combined with the fact that Urho2D does nonsensical precision losing things like:</p>
+<pre><code class="lang-auto">    float invWidth = 1.0f / (float)texture_-&gt;GetWidth();
+    float invHeight = 1.0f / (float)texture_-&gt;GetHeight();
+
+    rect.min_.x_ = rectangle_.left_ * invWidth;
+    rect.max_.x_ = rectangle_.right_ * invWidth;
+
+    rect.min_.y_ = rectangle_.bottom_ * invHeight;
+    rect.max_.y_ = rectangle_.top_ * invHeight;</code></pre>
+<p>Causes it to slowly hemorrhage accuracy as far as I can tell.</p>
+<p>So, first question, why is this bound to integers instead of floating for UV’s, and why is it scaling UV’s one way, then the other, losing accuracy?  And why oh why does PIXEL_SIZE exist?!</p>
+<p>The test image files are:<br/>
+<a data-bbcode="true" href="http://overminddl1.com/screenshots/tmp/Testing.png" rel="nofollow noopener">Image</a><br/>
+<a data-bbcode="true" href="http://overminddl1.com/screenshots/tmp/Testing.json" rel="nofollow noopener">Image-spritesheet-json</a><br/>
+<a data-bbcode="true" href="http://overminddl1.com/screenshots/tmp/Testing.xml" rel="nofollow noopener">Image-xml</a></p>
+<p>Of course no such issue if I render my own verts, but I would prefer not to rewrite Urho2D to fix what seems like a major design flaw if someone can explain how you are supposed to work around these integer rounding bugs to begin with?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><code>&lt;texture&gt;
+    &lt;address coord="u" mode="clamp" /&gt;
+    &lt;address coord="v" mode="clamp" /&gt;
+&lt;texture&gt;</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[quote=“OvermindDL1”]And why oh why does PIXEL_SIZE exist?!<br/>
+[/quote]</p>
+<p><a >github.com/urho3d/Urho3D/pull/1209</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OvermindDL1</div>
+          <div class="post_content">
+<p>[quote=“1vanK”]<code>&lt;texture&gt;
+    &lt;address coord="u" mode="clamp" /&gt;
+    &lt;address coord="v" mode="clamp" /&gt;
+&lt;texture&gt;</code>[/quote]<br/>
+Nope, no change, and that should only affect what happens on image edges, and as this is a spritesheet then it is not getting to those edges anyway since I am using a tiny part of the sheet.  I was able to fix it by massaging Sprite2d.cpp’s GetTextureRectangle function output (shifting UV’s tiny-bit inwards), but that only works for my sizes and would not work generically.  Need to overhaul Urho2D to get rid of that friggin PIXEL_SIZE and have UV’s use 0.0-1.0 floats instead of integers that lose precision.  Why was that style picked anyway?  It will not scale as I allow different texture sizes to override things, the very design of Urho2D taking integer UV’s makes no sense…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OvermindDL1</div>
+          <div class="post_content">
+<p>Specifically this is what I did:</p>
+<p>Replace in file Sprite2D.cpp starting at line 172 from this:</p>
+<pre><code class="lang-auto">    rect.min_.x_ = rectangle_.left_ * invWidth;
+    rect.max_.x_ = rectangle_.right_ * invWidth;
+
+    rect.min_.y_ = rectangle_.bottom_ * invHeight;
+    rect.max_.y_ = rectangle_.top_ * invHeight;</code></pre>
+<p>To become this:</p>
+<pre><code class="lang-auto">    rect.min_.x_ = rectangle_.left_ * invWidth + 0.0001;
+    rect.max_.x_ = rectangle_.right_ * invWidth - 0.0001;
+
+    rect.min_.y_ = rectangle_.bottom_ * invHeight + 0.0001;
+    rect.max_.y_ = rectangle_.top_ * invHeight - 0.0001;</code></pre>
+<p>Although not generic or properly done, it does fix the spritesheet rendering issues in 99% of cases (which is more than what the spritesheet supports now), and would consequently fix sprites so that the CLAMP mode being force-set in code is likely not necessary anymore.</p>
+<p>I would be amenable to that being put in master as it does resolve a few issues (though still not done ‘properly’, though the proper way involves getting rid of the integer UV addressing and go back to floats, even if it is scaled to pixels).  Only case I see it failing is if they have, say, a 2048x2048 texture and are showing an individual pixel or so as a sprite…</p>
+<p>If that is added to master then the lines of 109 in Sprite2D.cpp of:</p>
+<pre><code class="lang-auto">    // Ensure the texture doesn't have wrap addressing as that will cause bleeding bugs on the edges.
+    // Could also choose border mode, but in that case a universally good border color (without alpha bugs)
+    // would be hard to choose. Ideal is for the user to configure the texture parameters in its parameter
+    // XML file.
+    if (texture_-&gt;GetAddressMode(COORD_U) == ADDRESS_WRAP)
+    {
+        texture_-&gt;SetAddressMode(COORD_U, ADDRESS_CLAMP);
+        texture_-&gt;SetAddressMode(COORD_V, ADDRESS_CLAMP);
+    }</code></pre>
+<p>Could likely be removed then as bleeding edge bugs should not occur anymore (test though on this part, I can foresee a few cases they can still happen, but it ‘should’ be safe).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OvermindDL1</div>
+          <div class="post_content">
+<p>[quote=“OvermindDL1”]Specifically this is what I did:</p>
+<p>Replace in file Sprite2D.cpp starting at line 172 from this:</p>
+<pre><code class="lang-auto">    rect.min_.x_ = rectangle_.left_ * invWidth;
+    rect.max_.x_ = rectangle_.right_ * invWidth;
+
+    rect.min_.y_ = rectangle_.bottom_ * invHeight;
+    rect.max_.y_ = rectangle_.top_ * invHeight;</code></pre>
+<p>To become this:</p>
+<pre><code class="lang-auto">    rect.min_.x_ = rectangle_.left_ * invWidth + 0.0001;
+    rect.max_.x_ = rectangle_.right_ * invWidth - 0.0001;
+
+    rect.min_.y_ = rectangle_.bottom_ * invHeight + 0.0001;
+    rect.max_.y_ = rectangle_.top_ * invHeight - 0.0001;</code></pre>
+<p>Although not generic or properly done, it does fix the spritesheet rendering issues in 99% of cases (which is more than what the spritesheet supports now), and would consequently fix sprites so that the CLAMP mode being force-set in code is likely not necessary anymore.</p>
+<p>I would be amenable to that being put in master as it does resolve a few issues (though still not done ‘properly’, though the proper way involves getting rid of the integer UV addressing and go back to floats, even if it is scaled to pixels).  Only case I see it failing is if they have, say, a 2048x2048 texture and are showing an individual pixel or so as a sprite…</p>
+<p>If that is added to master then the lines of 109 in Sprite2D.cpp of:</p>
+<pre><code class="lang-auto">    // Ensure the texture doesn't have wrap addressing as that will cause bleeding bugs on the edges.
+    // Could also choose border mode, but in that case a universally good border color (without alpha bugs)
+    // would be hard to choose. Ideal is for the user to configure the texture parameters in its parameter
+    // XML file.
+    if (texture_-&gt;GetAddressMode(COORD_U) == ADDRESS_WRAP)
+    {
+        texture_-&gt;SetAddressMode(COORD_U, ADDRESS_CLAMP);
+        texture_-&gt;SetAddressMode(COORD_V, ADDRESS_CLAMP);
+    }</code></pre>
+<p>Could likely be removed then as bleeding edge bugs should not occur anymore (test though on this part, I can foresee a few cases they can still happen, but it ‘should’ be safe).[/quote]</p>
+<p>EDIT0:  Actually, let me wrap that magic number up in a member variable, add getters/setters, and I’ll submit a PR, gimme a few minutes to do that and test it.</p>
+<p>EDIT1:  Done:  <a  rel="nofollow noopener">github.com/urho3d/Urho3D/pull/1239</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

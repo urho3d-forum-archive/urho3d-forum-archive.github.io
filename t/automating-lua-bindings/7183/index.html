@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Automating Lua Bindings</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Automating Lua Bindings</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>The other thread got out of hand and was closed, so here is a new one to keep you up to date on my progress on my attempt to automate the Lua binding generation.</p>
+<hr/>
+<h2>
+<a class="anchor" href="#library-options-1" name="library-options-1"></a>Library Options:</h2>
+<p>(This is not an exhaustive list)</p>
+<ul>
+<li>
+<p><a href="https://github.com/gengyong/luaaa" rel="noopener nofollow ugc">luaaa</a>: The first library I found for the task, which seemed very similar to pybind11 in syntax and thus a good candidate. However, it seems to possibly be missing basic features that would be required for Urho like <a href="https://github.com/gengyong/luaaa/issues/13" rel="noopener nofollow ugc">supporting class inheritance</a>. If the author gets back to me about how it works maybe it is actually viable.</p>
+</li>
+<li>
+<p><a href="https://github.com/vinniefalco/LuaBridge" rel="noopener nofollow ugc">LuaBridge</a>: Seems like a more complete version of what luaaa was aiming for, and has recent (2 months old) activity. Also somewhat similar to pybind11 in syntax, and seemingly simpler to set up than some of the others. It’s features include:</p>
+<ul>
+<li>
+<a href="http://www.opensource.org/licenses/mit-license.html" rel="noopener nofollow ugc">MIT Licensed</a>, no usage restrictions!</li>
+<li>Headers-only: No Makefile, no .cpp files, just one <code>#include</code> !</li>
+<li>Simple, light, and nothing else needed (like Boost).</li>
+<li>No macros, settings, or configuration scripts needed.</li>
+<li>Supports different object lifetime management models.</li>
+<li>Convenient, type-safe access to the Lua stack.</li>
+<li>Automatic function parameter type binding.</li>
+<li>Easy access to Lua objects like tables and functions.</li>
+<li>Written in a clear and easy to debug style.</li>
+<li>C++11 compliant</li>
+</ul>
+<p><strong>However, it has a few things that aren’t supported that might be important to Urho:</strong></p>
+<ul>
+<li>Enumerated constants</li>
+<li>More than 8 parameters on a function or method (although this can be increased by adding more <code>TypeListValues</code> specializations).</li>
+<li>Overloaded functions, methods, or constructors. <em>(May be annoying to use, but should be doable with adding some decoration to the names like c code, and may not differ from how it is presently)</em>
+</li>
+<li>Global variables (variables must be wrapped in a named scope).</li>
+<li>Inheriting Lua classes from C++ classes. <em>(ScriptObject may become more complicated?)</em>
+</li>
+<li>Passing nil to a C++ function that expects a pointer or reference. <em>(Note, the documentation later makes it seem that nil gets converted to nullptr for functions expecting a pointer, so I’m not sure that this is correct)</em>
+</li>
+<li>Standard containers like <code>std::shared_ptr</code>. <em>(Note, it supoprts different object management models like an intrusive ref-counted pointer with custom container types, so this should actually be fine for us)</em>
+</li>
+</ul>
+</li>
+<li>
+<p><a href="https://www.rasterbar.com/products/luabind/docs.html" rel="noopener nofollow ugc">LuaBind</a> (probably <a href="https://github.com/Oberon00/luabind" rel="noopener nofollow ugc">this fork</a>): More complete than LuaBridge, but less lightweight with the Boost dependency. But it supports some of the things LuaBridge lacks, based on its list of its features:</p>
+<ul>
+<li>Overloaded free functions</li>
+<li>C++ classes in Lua</li>
+<li>Overloaded member functions</li>
+<li>Operators</li>
+<li>Properties</li>
+<li>Enums</li>
+<li>Lua functions in C++</li>
+<li>Lua classes in C++</li>
+<li>Lua classes (single inheritance)</li>
+<li>Derives from Lua or C++ classes</li>
+<li>Override virtual functions from C++ classes</li>
+<li>Implicit casts between registered types</li>
+<li>Best match signature matching</li>
+<li>Return value policies and parameter policies</li>
+</ul>
+</li>
+<li>
+<p><a href="https://github.com/gamedevtech/oolua" rel="noopener nofollow ugc">OOLua</a>: Seems the last updates were ~9 years ago and the wiki was on GoogleCode and no longer exists. As such I’ll probably stick with one of the above options instead, even though “OOLua slightly outperforms LuaBridge in some tests”.</p>
+</li>
+<li>
+<p><a href="https://github.com/LuaDist/toluapp" rel="noopener nofollow ugc">tolua++</a>: Urho’s current solution. I don’t plan on using it, as generating pseudo-header files to have a tool generate the binding code sounds  a lot more difficult than some of the other options. I also think that it is no longer maintained, though I’m not sure on that point.</p>
+</li>
+</ul>
+<hr/>
+<h2>
+<a class="anchor" href="#present-plan-2" name="present-plan-2"></a>Present plan</h2>
+<p>Currently I’m planning on trying LuaBridge, with it’s easier setup and seemingly more recent maintenance. If I find that too limiting, I’ll probably switch to one of the LuaBind forks with more recent work (e.g. one that switched to CMake).</p>
+<p>The basic roadmap would be:</p>
+<ol>
+<li>Simple test project evaluating the library like I did with Luaaa to see limitations like not supporting inheritance and how to do the container types and such.</li>
+<li>Generating bindings, probably starting with the Math subfolder (no SharedPtr’s to deal with, and I can test operator handling). Then extend it to support the Container types (String, Vector, HashMap, Variant) and the Core types (Context and Object mainly). Some simple test files would be involved here.</li>
+<li>Generate bindings for all of the classes and test the existing samples.</li>
+<li>If the samples need to be rewritten someone else will have to step up unless it’s some find+replace type changes, as I am not committed enough to Lua to hand-edit 50 programs. I’ll handle a few to test (e.g. Hello World, Physics Stress Test), but I don’t think I’ll be motivated to finish all 50 if they involve significant changes. Hopefully they don’t, and there aren’t too many areas where the current manual bindings would differ from the automatic ones.</li>
+</ol>
+<p>As a heads up, note that I may choose to use python to generate the bindings, as I find it a lot quicker to work with than C++. Or I may stick with C++ given the excellent work done making the AngelScript binding generator, we’ll see. Or a mix of both using <a href="https://nedbatchelder.com/code/cog" rel="noopener nofollow ugc">cog</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I just want to point out one thing that caused me to rewrite the AS binding generator. Derived classes can hide functions of the parent class.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Could you give me an example where it happens in Urho so I’m certain I understand what you mean.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>For example any <code>UIElement</code> have function <code>const IntVector2&amp; UIElement::GetPosition() const</code>, but <code>Sprite</code> hide this function and have <code>const Vector2&amp; Sprite::GetPosition() const</code> instead</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<p>I heard that sol should also be a good luabinding. So if you struggle with the others:</p><aside class="onebox allowlistedgeneric" data-onebox-src="https://github.com/ThePhD/sol2">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/0973ea8ce7121c320f68413e2a2f23ab.svg" width="32"/>
+<a href="https://github.com/ThePhD/sol2" rel="noopener nofollow ugc" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<div class="aspect-image" style="--aspect-ratio:690/345;"><img class="thumbnail" height="345" src="../../../images2/5246947a47c7af4cc2e171bbf136a295" width="690"/></div>
+<h3><a href="https://github.com/ThePhD/sol2" rel="noopener nofollow ugc" target="_blank">GitHub - ThePhD/sol2: Sol3 (sol2 v3.0) - a C++ &lt;-&gt; Lua API wrapper with...</a></h3>
+<p>Sol3 (sol2 v3.0) - a C++ &lt;-&gt; Lua API wrapper with advanced features and top notch performance - is here, and it's great! Documentation: - GitHub - ThePhD/sol2: Sol3 (sol2 v3.0) - a C++ &amp;l...</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Never used it but it is actively developed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Just so you know - CLang (since v10 or v11) has a flag which allows exporting entire AST as json. I am using it to generate bunch of stuff automatically. You may use it to generate source code for bindings using whatever library you chose.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>I don’t want to be too rude but the state of Lua in Urho3D is really really bad, auto generation is the least of its problems.</p>
+<p>Some of the classes don’t even have binding for some of the functions and often it feels like those bindings have been omitted on purpose, primarily cuz they may leak memory and fixing that isn’t easy due to the way tolua++ is hacked together to work with Urho3d.</p>
+<p>I have even had issues related to specific platforms as one of such hacks was built for a specific compiler and tracking that down was a total nightmare.</p>
+<p>There are memory leaks in places you wouldn’t expect and the whole memory management model is really bad as far as Lua is concerned. I was working on a project a while back and I honestly couldn’t continue using Lua in production just because of the huge volume of bugs related to it. Not even the typical rules worked eg call delete yourself. I remember having to make custom bug work arounds for specific scenarios such as re-ordering viewports.</p>
+<p>I have since been forced to switch to C++ despite my love for Lua and abandon all the Lua libs alongside it.</p>
+<p>Urho3D is already a small project, why even bother with Lua? Wouldn’t resources be better spent elsewhere, like geometry shaders or support for more recent rendering techniques. Why not just discontinue Lua?</p>
+<p>Either way, I have had a very good experience with Sol2 and I would very much recommend it, if you do decide to continue support for Lua.  Sol2 has tons of nice features and writing bindings using it doesn’t feel too much like a chore since it’s readable unlike tolua++<br/>
+Sure tolua++ can generate automatic bindings but I wouldn’t want to ever use them again.<br/>
+Why write a script to vomit out total trash while spawning hard to trace bugs, if you can just write good bindings in the first place?</p>
+<p>The dev for sol2 is pretty active, I recall reading somewhere they might be working on automatic binding generator already, but it’s been a while so I can’t link and I don’t think it will be ready anytime soon.</p>
+<p>However as it is right now, I would never use the Lua side of Urho3D again and discourage anyone else to use it at all. The hiccups in the web Lua samples should have been a warning loud enough for me to stay away.</p>
+<p>My apologies for being so negative, but I have a really sour taste in my mouth considering I have wasted a considerable amount of time dealing with these types of bugs and I feel that if I didn’t voice my opinion more resources would be wasted on terrible buggy bindings that will mislead other devs into wasting time just like I have.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>The original bindings were done using tolua++, a basically defunct bindings library and the source of most of the problems eg memory stuff, and the reason that they need to be redone. I doubt anyone is suggesting staying with tolua++, hence this thread.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Any news here? We have some unfixed problems with lua at the moment:</p>
+<ul>
+<li><a >https://github.com/urho3d/Urho3D/issues/2886</a></li>
+<li><a >https://github.com/urho3d/Urho3D/issues/2717</a></li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Progress is happening, though is slow. Luaaa did not work, so I switched to trying sol2. I had some issues with it’s inability to cast from a pointer to a base class to a derived one (e.g. convert the <code>GetComponent</code> result to the <code>StaticModel</code> that it actually is). With the issue down, I need to test some of the math classes as well, and then it’ll just be the easier and more enjoyable binding generation (vs the debugging of a library I’m not familiar with interacting with a language I’m not familiar with and don’t really care about).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>The author of Box2D made significant changes to his library and broke API. Therefore, LUA bindings are currently broken as well. I temporarily (?) disabled LUA support in the engine. LUA support can be returned by reversing this commit: <a >https://github.com/urho3d/Urho3D/commit/07db16f526eb5438121aed9f00803c0b1f0be8c4</a>. LUA samples will also need to be fixed</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Automatic Lua bindings are almost finished (I think - a fair bit of testing still remains). In the process I have discovered that Lua lacks some common sense:</p>
+<pre><code class="lang-auto">if 0 then
+    print("Why does this still execute!?!")
+end
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Re. the falsy value, both LUA and Ruby consider Boolean false and nil as falsy. The rest are truthy, including literal 0.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Batch</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="11" data-topic="7183" data-username="SirNate0">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/fb52f23a6782e890737d90432eac55f2.png" width="20"/> SirNate0:</div>
+<blockquote>
+<p>I had some issues with it’s inability to cast from a pointer to a base class to a derived one (e.g. convert the <code>GetComponent</code> result to the <code>StaticModel</code> that it actually is).</p>
+</blockquote>
+</aside>
+<p>What did you do to get that working?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I have a HashMap of functions that take an <code>Urho3D::Object*</code> (and hidden <code>sol::state_view</code>) and return a <code>sol::object</code> that is a wrapper around the correct type. As a summary example:</p>
+<pre><code class="lang-auto">
+extern Urho3D::HashMap&lt;Urho3D::StringHash, std::function&lt;sol::object(Urho3D::Object*,sol::state_view)&gt;&gt; casters;
+
+
+void bindClass_Urho3D_Node(sol::state_view&amp; lua)
+{
+    
+using namespace Urho3D;
+
+
+    casters[Urho3D::Node::GetTypeStatic()] = [](Object*o,sol::state_view lua)-&gt;sol::object{
+        if (o-&gt;IsInstanceOf(Urho3D::Node::GetTypeStatic()))
+            return sol::make_object(lua,SharedPtr&lt;Urho3D::Node&gt;((Urho3D::Node*)o));
+        return sol::nil;
+    };
+
+
+auto type = lua.new_usertype&lt;Urho3D::Node&gt;( "Node"
+// Base Classes
+    , sol::base_classes, sol::bases&lt;Urho3D::Animatable,Urho3D::Serializable,Urho3D::Object,Urho3D::RefCounted&gt;()
+
+);
+
+...
+
+type["CreateComponent"] = sol::overload(
+        [](Urho3D::Node&amp; self, StringHash type, CreateMode mode=REPLICATED, unsigned id=0, sol::this_state sol_state)-&gt;sol::object{
+            auto o = SharedPtr&lt;Urho3D::Object&gt;(self.CreateComponent(type, mode, id));
+            sol::state_view lua(sol_state);
+            auto real_type = o-&gt;GetType();
+            if (!o || !casters.Contains(real_type))
+                return sol::nil;
+            return casters[real_type](o,lua);
+        },
+        [](Urho3D::Node&amp; self, StringHash type, CreateMode mode, sol::this_state sol_state)-&gt;sol::object{
+            auto o = SharedPtr&lt;Urho3D::Object&gt;(self.CreateComponent(type, mode));
+            sol::state_view lua(sol_state);
+            auto real_type = o-&gt;GetType();
+            if (!o || !casters.Contains(real_type))
+                return sol::nil;
+            return casters[real_type](o,lua);
+        },
+        [](Urho3D::Node&amp; self, StringHash type, sol::this_state sol_state)-&gt;sol::object{
+            auto o = SharedPtr&lt;Urho3D::Object&gt;(self.CreateComponent(type));
+            sol::state_view lua(sol_state);
+            auto real_type = o-&gt;GetType();
+            if (!o || !casters.Contains(real_type))
+                return sol::nil;
+            return casters[real_type](o,lua);
+        } );
+
+...
+
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How so Shared Texture Once to be used by many clones of same material</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How so Shared Texture Once to be used by many clones of same material</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>In our Map Tile application, there is one texture that will be universal and shared by all Tiles the same (it’s like a static lookup table).</p>
+<p>For efficiency-sake, we’d like to avoid having Urho3D set this Texture Unit individually for each Tile instance.   They will all be using a clone of the same Material, but each one will have some material settings that are specific to that instance, and some settings that are shared.  Each Tile will have one Texture that is unique to that Tile, but for ALL TILES, they will have one texture that is set the SAME for all Tile instances.</p>
+<p>Is there a way to specify this ONE SHARED TEXTURE without having Urho3D thinking “it might be different” (we figure Urho has to do work in setting up the Draws for each Tile, and would like for it to “skip this logic” for that shared texture… just set it once, and then forget.</p>
+<p>If not, then we’ll just set this texture the same for each Tile instance, and accept the performance hit.  Likely the hit will be negligible, so this probably isn’t a big deal.  It’s just that if there is an easy way to optimize this, then we should probably optimize it, saving CPU cycles for Urho.</p>
+<p>NOTE: We’re not concerned about the time to call “SetShaderParameter”, but rather are concerned with the Urho engine code that may have to keep setting this same texture for 100 Tiles, every render frame.  I hope I’m explaining this clear enough.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6735" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>NOTE: We’re not concerned about the time to call “SetShaderParameter”, but rather are concerned with the Urho engine code that may have to keep setting this same texture for 100 Tiles, every render frame. I hope I’m explaining this clear enough.</p>
+</blockquote>
+</aside>
+<p>During the batch loop material textures are set through the <code>Graphics</code> class which checks if a given texture is already bound before binding.</p>
+<p>Setting the same texture won’t happen every cloned material change unless other textures are changing. In GL you’re entirely at driver mercy. In D3D11 you’re at the mercy of the SRV binding being lowest-dirty-index to highest-dirty-index. Assuming those materials are activated one after other and batching doesn’t do something else.</p>
+<p>You’re still at driver mercy there as to what really happens.</p>
+<hr/>
+<p>You can try using the render-order in the material to force your cloned-materials to be as contiguous as possible. That lets you fudge the order of things around. I’ve never used it for that kind of optimization though. It’s more the sort of thing you use to draw the FPS-gun first, or alpha-tested/grass last where discard killing early-z won’t hurt as bad — and not so good for other sequencing issues (though usable with work).</p>
+<p>Edit: you could setup a dedicated pass in Renderpath them to ensure their clustered but that’ll almost certainly be slower than the render-order which is already considered in batch sorting anyways.</p>
+<p>Best hope for driver luck is make sure the shared-texture is as low in the texture-units as you can go. Ideally unit-0.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

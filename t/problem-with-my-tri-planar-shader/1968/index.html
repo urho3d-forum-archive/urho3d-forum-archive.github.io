@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Problem with my tri-planar shader</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Problem with my tri-planar shader</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I’ve got a tri-planar shader in my game, that applies diffuse and normal maps to an object based on fragment position and normal. The code of the shader is at <a href="http://pastebin.com/ySFYG5Ka" rel="nofollow noopener">pastebin.com/ySFYG5Ka</a> .</p>
+<p>The shader takes the incoming fragment position and uses the X and Z coordinates to calculate a texture coordinate for the detail textures and normal maps. Then it uses the normal to blend between three mappings of the detail shader, projecting the detail along each of the 3 axes. So far, it has worked well.</p>
+<p>My issue now is that I am attempting to provide a variation of the shader that combines the detail normal map with a model-specific normal map. In the shader code posted above, I have enclosed the model-normal specific sections in <span class="hashtag">#ifdef</span> MODELNORMAL blocks, with the MODELNORMAL being defined in the technique. For objects that want to use the model’s normal map, I use a technique with MODELNORMAL defined, and provide a normal</p>
+<p>The problem is that, while the shader works as expected with MODELNORMAL undefined, when MODELNORMAL is defined, somehow the fog coordinate gets stomped on. Here is a shot of the shader with MODELNORMAL not defined:</p>
+<p><a data-bbcode="true" href="http://i.imgur.com/R6QD7El.jpg" rel="nofollow noopener">http://i.imgur.com/R6QD7El.jpg</a></p>
+<p>Here is a shot with MODELNORMAL defined:</p>
+<p><a data-bbcode="true" href="http://i.imgur.com/yieq5Ur.png" rel="nofollow noopener">http://i.imgur.com/yieq5Ur.png</a></p>
+<p>You can see that in the second shot, the mountain model has the detail from its normal map, as well as the detail from the detail texture. However, the fog color is incorrect. The fog shading on the model stays constant, regardless of distance from the camera.</p>
+<p>I have tried using TEXCOORD11 and TEXCOORD9 semantics for the input model normal, with no change. I’m not really a graphics programmer or shader expert, so I’m not really sure how to fix this, or even what exactly is going wrong. Anyone have any ideas?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Are you on D3D11? Possibly for some reason the VS and PS disagree on the interpolators (mismatching defines?) Remember that on D3D11 their order has to be exactly same, ie. the semantics actually don’t help ordering them properly. The order in the shaders (assuming correct defines in both) seemed to be right, though.</p>
+<p>If it helps you, nothing prevents you defining input and output structs for VS -&gt; PS communication, even if the Urho inbuilt shaders don’t use them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>The error occurs, even if I use structs to pass to the PS:</p>
+<p><a href="http://pastebin.com/Z058yA5z" rel="nofollow noopener">pastebin.com/Z058yA5z</a></p>
+<p>Is it possible for there to be a mis-match even if using structs like this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>There is gawag’s tri-planar wikia article and shader, maybe you can use this instead or at least get some information:</p>
+<p><a href="http://urho3d.wikia.com/wiki/Tri-Planar_Texturing" rel="nofollow noopener">urho3d.wikia.com/wiki/Tri-Planar_Texturing</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>The problem isn’t with the tri-planar part, it’s with the combining it with a normal-mapped model that’s giving me issues.</p>
+<p>Doing some further tinkering, I discovered something interesting. When I disable all lights (directional world lighting and player’s torch) and use only ambient, then it seems to work as expected (albeit boring because of no light):</p>
+<p><a href="http://i.imgur.com/L7tWmsU.png" rel="nofollow noopener">i.imgur.com/L7tWmsU.png</a></p>
+<p>If I then cast a Light Torch spell, it initially appears that I have the correct result:</p>
+<p><a href="http://i.imgur.com/nspkeWh.png" rel="nofollow noopener">i.imgur.com/nspkeWh.png</a></p>
+<p>However, if I rotate the camera a little bit, the error pops in and out, ie moving the camera a little bit from the above view makes the incorrect fogging appear:</p>
+<p><a href="http://i.imgur.com/Flp45MV.png" rel="nofollow noopener">i.imgur.com/Flp45MV.png</a></p>
+<p>This leads me to believe something is uninitialized or using bad data somewhere, since I can get a similar effect from not having a texture bound to a needed slot in other shaders. I have verified that all necessary textures are being bound.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The problem could also be defining texcoord interpolators out of order. Make sure you have the correct defines and vertex+pixel shader combination set also in your lighting pass. For troubleshooting you could try unconditionally defining the interpolator right after the interpolators used by the lighting, even if it’s only used in the “modelnormal” mode.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Oh, man. Okay, looks like defining input/output structures DID actually do the trick. I missed changing the VS designator in a Technique I was using, so it was still pointing to the old vertex shader, rather than the new one. Everything seems to be working great, now, with the side effect of the shader code being much neater, after having the parameters separated out into structures.</p>
+<p><a href="http://i.imgur.com/hDI2lQx.jpg" rel="nofollow noopener">i.imgur.com/hDI2lQx.jpg</a></p>
+<p>Let this be a lesson: always double-check your techniques when doing shader modifications.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>There still seems to be something wrong that I can’t pin down.</p>
+<p>I’m working on my game’s quest map (hence the weird usage of models in these following tests). I am currently using the tri-planar shader (without model normals) for landscape cells, and I am attempting to do the quest map as a render-to-texture scene, using normal-mapped mountain scenery. The mountains in this case are basic models using the DiffNormal technique. I whipped together a quick scene of mountains and built a Map Table, and this is the result:</p>
+<p><a href="http://i.imgur.com/utjWvb7.jpg" rel="nofollow noopener">i.imgur.com/utjWvb7.jpg</a></p>
+<p>Weird, right? And that’s just using the mountain model with a DiffNormal shader. so, I made a test of using the mountain model as a piece in the main world map, and this was the result:</p>
+<p><a href="http://i.imgur.com/baMwOiE.jpg" rel="nofollow noopener">i.imgur.com/baMwOiE.jpg</a></p>
+<p>So here, the mountain works correctly, but now the tri-planar shader for the hex cells is borked. (It looks like the normals are wonky.)</p>
+<p>I quit, and re-ran the exe with no changes, and the result was then this:</p>
+<p><a href="http://i.imgur.com/PKRp50d.jpg" rel="nofollow noopener">i.imgur.com/PKRp50d.jpg</a></p>
+<p>The tri-planar worked again, but this time the mountain was borked.</p>
+<p>Tried it with the hex cell model using the mountain’s shader:</p>
+<p><a href="http://i.imgur.com/7gIPoWd.jpg" rel="nofollow noopener">i.imgur.com/7gIPoWd.jpg</a><br/>
+<a href="http://imgur.com/lx5QHI9" rel="nofollow noopener">imgur.com/lx5QHI9</a></p>
+<p>It seems to be random which version will show up each time (DiffNormal borked or tri-planar borked). But it only affects models mapped with DiffNormal during the level generation phase. The units, including the goblin, also use DiffNormal and they are unaffected regardless of which way the terrain pieces are screwed up.</p>
+<p>Remembering cadaver’s many comments on how D3D11 interpolators sometimes get confused, and remembering how using shader input and output structures helped me before, I modified the LitSolid hlsl shader to use structures, but the result was exactly the same.</p>
+<p>To me, it looks as if the normals are getting fouled up. Also, the mottled pattern of lighter and darker areas in the quest map screen shot makes me wonder if the blending texture used for terrain texture type splatting is also getting mixed in there somehow.</p>
+<p>The full shader code for the tri-planar shader is at <a href="http://pastebin.com/b78ymBCN" rel="nofollow noopener">pastebin.com/b78ymBCN</a></p>
+<p>I understand this is kind of a complex issue to try to debug, so I’m not really expecting any hard answers. But if anyone has any ideas on things I can try to track this down, I’d appreciate it.</p>
+<p>EDIT: Looks like it is somehow breaking the model normal. I modified the shader to output model normals as diffuse.</p>
+<p>Unborked:<br/>
+<a href="http://i.imgur.com/HSCBYZF.jpg" rel="nofollow noopener">i.imgur.com/HSCBYZF.jpg</a></p>
+<p>Borked:<br/>
+<a href="http://i.imgur.com/zrWZyTl.jpg" rel="nofollow noopener">i.imgur.com/zrWZyTl.jpg</a></p>
+<p>Interestingly, I tried a GL build, and the model normals get borked there also, but in a different way:<br/>
+<a href="http://i.imgur.com/L7D4oPR.jpg" rel="nofollow noopener">i.imgur.com/L7D4oPR.jpg</a></p>
+<p>I’m not sure how relevant this is to the current problem, since the GL shader was a quick job and I haven’t tested it thoroughly yet.</p>
+<p>Further Edit: Looks like the GL problem is related to lights somehow not affecting all instances of the hex cell model, rather than whatever is going on with the D3D11 version.</p>
+<p>Another Edit:</p>
+<p>If I disable the normal-mapping for the tri-planar shader, then everything works the way I expect it, in both D3D11 and GL, and both Forward and Deferred. (Note that the problem shows up in both Forward and Deferred modes, with normal-mapping enabled on the tri-planar.)</p>
+<p><a href="http://i.imgur.com/Ex2Et2e.png" rel="nofollow noopener">i.imgur.com/Ex2Et2e.png</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you can, try the HLSL shader in D3D9 (you’ll have to adapt the code since you used explicit SM4+ constructs, and naturally you can’t read texture arrays, but just to debug if the normals break or not), which has simpler generation of vertex declarations that doesn’t depend on the shader being used. In D3D11 there could be a hash collision bug when generating input layout for the shader + vertex buffers combination.</p>
+<p>Note that I’m testing with code past the merge of the arbitrary vertex declarations (current master branch), which changed instancing texcoord from TEXCOORD2 to TEXCOORD4, and I’m talking about hash collisions in terms of that code. Urho doesn’t backport fixes, so if a bug is uncovered and fixed, you will have to update to the latest master to gain benefit of that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In current master branch input layout hashing is performed now so that vertex shader hash goes to upper 32 bits and vertex buffer hash to lower 32 bits. However this may not have anything to do with your issue. I tested your shader (though with no proper textures) and the vertex input elements shouldn’t actually be different to a standard LitSolid normalmapped shader.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>After pulling the latest master, it looks like it is working properly for D3D11.</p>
+<p><a href="http://i.imgur.com/gUFliii.jpg" rel="nofollow noopener">i.imgur.com/gUFliii.jpg</a></p>
+<p>However, the GL build is completely broken:</p>
+<p><a href="http://i.imgur.com/9zDtaFo.png" rel="nofollow noopener">i.imgur.com/9zDtaFo.png</a></p>
+<p>No errors logged to the logfile when trying to build the shaders or anything, just doesn’t work. If I disable the spawning of anything weird (ie, anything using a non-base Urho3D shader) it still doesn’t work. I get the fog color, I get the water planes, I get the characters, but the trees and plants and doodads tend to flicker in and out of existence as the camera moves around, or just plain not show up at all.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Good to hear it’s working for D3D11. That points to the input layout hashes potentially having been the culprit.</p>
+<p>Check that your GL shaders conform to the arbitrary vertex element semantics, which are now zero-based:</p>
+<ul>
+<li>first texcoord: iTexCoord0 (0 can be omitted)</li>
+<li>second texcoord: iTexCoord1</li>
+<li>instance matrix: iTexCoord4, iTexCoord5, iTexCoord6</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Okay, there was a little bit of breakage on my part (I changed/munged/hosed a LOT of stuff trying to figure this issue out) but I think I got it sorted. Was using an old version of some shader code for the GL build. Just cleaned out some stuff, and it looks like it is working as expected. This little sideroad was horrendously disruptive to my already chaotic process. <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>Thanks a LOT for your help, cadaver.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Looks like it is working pretty well now:</p>
+<p><a href="http://i.imgur.com/eFlB7UP.jpg" rel="nofollow noopener">i.imgur.com/eFlB7UP.jpg</a><br/>
+<a href="http://i.imgur.com/gJ5gejI.jpg" rel="nofollow noopener">i.imgur.com/gJ5gejI.jpg</a></p>
+<p>Again, thanks for your help.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

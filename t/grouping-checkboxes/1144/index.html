@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Grouping CheckBoxes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Grouping CheckBoxes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>This code example solves how to group multiple CheckBoxes and have only one checkbox be selected in the group, similar to how a group of radial buttons typically function. I think something like this would be a common feature, but I couldn’t find it in the engine.</p>
+<ol>
+<li>A minor change required in CheckBox.h - add:</li>
+</ol>
+<pre><code class="lang-auto">    void InternalSetChecked(bool _bChecked)
+    {
+        checked_ = _bChecked;
+    }</code></pre>
+<ol start="2">
+<li>Add UIEvent</li>
+</ol>
+<pre><code class="lang-auto">EVENT(E_GROUPCHECKBOX, GroupCheckBoxNamespace)
+{
+    PARAM(P_ELEMENT, Element);             // UIElement pointer
+}
+</code></pre>
+<ol start="3">
+<li>GroupCheckBox class</li>
+</ol>
+<pre><code class="lang-auto">class GroupCheckBox : public UIElement
+{
+    OBJECT(GroupCheckBox);
+public:
+    GroupCheckBox(Context *_pContext)
+        : UIElement( _pContext )
+    {
+        m_vpCheckBox.Clear();
+    }
+
+    ~GroupCheckBox()
+    {
+        m_vpCheckBox.Clear();
+    }
+
+    void AddCheckBox(CheckBox *_pCheckBox, bool _bChecked)
+    {
+        if ( _pCheckBox )
+        {
+            _pCheckBox-&gt;InternalSetChecked( _bChecked );
+
+            AddChild( _pCheckBox );
+
+            m_vpCheckBox.Push( _pCheckBox );
+
+            SubscribeToEvent( _pCheckBox, E_TOGGLED, HANDLER(GroupCheckBox, HandleCheckBoxToggle));
+        }
+    }
+
+    CheckBox* GetCheckBox(unsigned _idx)
+    {
+        if ( _idx &lt; m_vpCheckBox.Size() )
+        {
+             return m_vpCheckBox[ _idx ];
+        }
+        return NULL;
+    }
+
+    void HandleCheckBoxToggle(StringHash _eventType, VariantMap&amp; _eventData)
+    {
+        using namespace Toggled;
+
+        CheckBox *pCheckBox = (CheckBox*)_eventData[P_ELEMENT].GetVoidPtr();
+
+        if ( pCheckBox )
+        {
+            for ( unsigned i = 0; i &lt; m_vpCheckBox.Size(); ++i )
+            {
+                m_vpCheckBox[ i ]-&gt;InternalSetChecked( m_vpCheckBox[ i ] == pCheckBox );
+            }
+
+            VariantMap&amp; eventData = GetEventDataMap();
+            eventData[P_ELEMENT]  = this;
+
+            SendEvent( E_GROUPCHECKBOX, eventData );
+        }
+    }
+
+protected:
+    Vector&lt;CheckBox*&gt;   m_vpCheckBox;
+};
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The RadioButton class is missing in our class hierarchy. Instead of calling it group checkbox, I suppose you could refactor to rename your new class to RadioButton proper and then modify the bin/Data/Textures/UI.png to have the images of radio button in various states, and modify the bin/Data/UI/DefaultStyle.xml to specify that your new RadioButton should use the new textures. If you make a pull request for those changes, I reckon it would be accepted.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I’m fairly new to Urho3D, so I probably wouldn’t make any pull requests anytime soon.  As for my current project, I’m still debating whether the checkbox image looks alright being used as radial buttons.  It doesn’t look all that bad, but I might end up doing what you’ve suggested.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Optimizing rendering big count of objects with same model</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Optimizing rendering big count of objects with same model</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taqer</div>
+          <div class="post_content">
+<p>Hello, I wonder how I could optimize rendering big count of objects with the same model, but different material parameters?</p>
+<p>I was trying to use StaticModelGroup, but I guess it doesn’t support modifying materials per instance?</p>
+<p>What different approach could I try?</p>
+<p>Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Is this a Minecraft-like project? If so, just mention that. Because there are other methods for optimizing that case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>You can still use a <code>StaticModelGroup</code> if you manage to incorporate the variation within the <em>shader</em>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taqer</div>
+          <div class="post_content">
+<p><span class="mention">@S.L.C</span> no, its isometrical 3D flat tile map, where tiles blend with each other. I will try <span class="mention">@Modanung</span> way, and see how it will help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taqer</div>
+          <div class="post_content">
+<p><span class="mention">@Modanung</span> but what do you mean by <code>within the shader</code>?<br/>
+There is how my blending works:<br/>
+<img alt="obraz" data-base62-sha1="dxyoJr3JgP2erbAt75ViwaSRH71" height="283" src="../../../images2/2471700d584783561af4e34a9192da93.png" width="313"/><br/>
+It blends with all neighbour, by setting appropriate flags in material, then shader according to those flags applies specified masks and paints those masks with specified texture.</p>
+<p>I think if I would use <code>StaticModelGroup</code> I would need to have instance for every combination, now I have 3 terrain types so I would need to have <code>3 * 2^8 = 768</code> groups, more if I will add new terrains, and I plan to.</p>
+<p>How much will it optimize then?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="5289" data-username="Taqer">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4186dc2b6a3512d6120c4afee6906362.png" width="20"/> Taqer:</div>
+<blockquote>
+<p>what do you mean by <code>within the shader</code> ?</p>
+</blockquote>
+</aside>
+<p>That the GLSL/HLSL code would handle this instead of a material attribute. I’m no expert on this at all, maybe someone else could provide more clarity. I just know it’s a technical possibility that I would like to explore someday.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I think if you look into tri-planar mapping it might give you some insights in how to approach the problem. Maybe encode the terrain type in the vertex color or normal, and then blend between those in the shader, in a way similar to the tri-planar approach.<br/>
+Potentially there are some further simplifications that you could make so that a bunch of static model groups would also work: if the tile down is orange, then divide that time into 9 squares. The center one is fully the color of the tile. The outer ones in the center only have to blend between 2 squares (the top center one blends neighbor 2 and the tile itself). The corner ones then blend 4 tiles (top right would blend 4 tiles: 2, 3, 5, and self). Ignoring rotations, I believe that should be 3 + 3^2 + 3^4 = 93 different sets. If you optimize for rotations and such you can probably reduce the result further (e.g if we’re blending between the same tile types, that is really the same as being fully that tile). One thing to note, you need to decide how you will handle ambiguities - if you have orange on 2 diagonal corners and red on the other two</p>
+<blockquote>
+<p>o r<br/>
+r o</p>
+</blockquote>
+<p>then which of them will connect in the middle, red or orange?</p>
+<p>Also, look into the <a href="https://en.m.wikipedia.org/wiki/Marching_squares" rel="nofollow noopener">marching squares</a> algorithm, perhaps it will give you additional insight into possible approaches</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

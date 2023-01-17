@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED]distinguish collision of diff parts in AnimatedModel</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED]distinguish collision of diff parts in AnimatedModel</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>Suppose there is an animated Model of human being with head, body, arms and legs. It has several animations such as walk, run, roll. If different parts are hit by a bullet during an animation, it will cause different damages. How can I simulate this situation with Bullet library in Urho3D? Specifically:</p>
+<ol>
+<li>What kind of collision shape should be used? I suppose it should be SetTriangleMesh. But it may not reflect different parts inside the mesh.</li>
+<li>How can I make the bullet collision shape sync with the animated model when it runs a certain animation?</li>
+<li>If a collision happens, is there a way to tell which bone inside the skeleton the collision takes place?</li>
+</ol>
+<p>Maybe there is a completely different way to achieve this in Urho3D? Thanks for any help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[quote=“yushli”]Suppose there is an animated Model of human being with head, body, arms and legs. It has several animations such as walk, run, roll. If different parts are hit by a bullet during an animation, it will cause different damages. How can I simulate this situation with Bullet library in Urho3D? Specifically:</p>
+<ol>
+<li>What kind of collision shape should be used? I suppose it should be SetTriangleMesh. But it may not reflect different parts inside the mesh.</li>
+<li>How can I make the bullet collision shape sync with the animated model when it runs a certain animation?</li>
+<li>If a collision happens, is there a way to tell which bone inside the skeleton the collision takes place?</li>
+</ol>
+<p>Maybe there is a completely different way to achieve this in Urho3D? Thanks for any help.[/quote]</p>
+<p>Just use collections standart shapes (spheres, capsules) and attach its to bones. Also enable “IS Trigger” option for detect collisions with bullet without physics simulation. So u can detect part of model which was hitted.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>Thanks for your reply. That helps a lot.<br/>
+And I also find the sample code in the  13_Ragdolls that uses the method similar to yours.</p>
+<p>Just that the code<br/>
+CreateRagdollBone(“Bip01_R_UpperArm”, SHAPE_CAPSULE, Vector3(0.15f, 0.35f, 0.15f), Vector3(0.1f, 0.0f, 0.0f),<br/>
+Quaternion(0.0f, 0.0f, 90.0f));<br/>
+looks really handwritten and time consuming.</p>
+<p>Is this kind of data(size,position,rotation) of each collision shape can be automatically calculated by given the animated model, with the information of the mesh and the bones of the skeleton?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You could iterate the skeleton and use the bones’ bounding information. The ragdoll is setup by hand since the rotations or limits of the joints are non-obvious or not directly observable from the skeleton. But then, the skeleton is derived from the data needed by the artist for skinning and animation, which may not be the same what the game designer would decide to use for hitboxes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>I use the following code in 13_Ragdolls CreateRagdoll.cpp after line 56 to iterate over the skeleton:</p>
+<pre><code class="lang-auto">auto&amp; bones = node_-&gt;GetComponent&lt;AnimatedModel&gt;()-&gt;GetSkeleton().GetBones();
+		for (auto&amp; bone : bones) {
+			auto&amp; name = bone.name_;
+			if (name == "Bip01_Head" || name == "Bip01_L_UpperArm" ||
+				name == "Bip01_L_Forearm" || name == "Bip01_L_Thigh" ||
+				name == "Bip01_L_Calf") {
+				CreateRagdollBone(name, SHAPE_BOX, Vector3(bone.boundingBox_.max_.x_ - bone.boundingBox_.min_.x_, bone.boundingBox_.max_.y_ - bone.boundingBox_.min_.y_, bone.boundingBox_.max_.z_ - bone.boundingBox_.min_.z_), bone.initialPosition_, bone.initialRotation_);
+			}
+		}</code></pre>
+<p>It turns out that some shapes have rotation and postion problems.</p>
+<p><img alt="" height="" src="../../../images2/d71171c6d0ac2a2fbc05115b6bb0f91d.png" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Sure, they’re bounding AABB’s and bounding spheres, and for the AABBs it totally depends on the base pose (and the axes the bones use in that pose) whether they’re actually good. Though I don’t think the collisions should look as wonky as that. Are you taking bones’ rotation into account? (The AnimatedModel raycast uses bone hitboxes already, in a purely graphical sense, and it should work better than that.)</p>
+<p>I don’t think you’re going to get a very good automatic solution out of the box. You could look into Unity’s RagdollWizard script, which is basically automatic ragdoll and collider parameters creation based on the user specifying the “key” bones. Then it inspects the vertex data to find the body part dimensions. This is not a lot different what the Urho importer programs are already doing for bone hitbox determination (basically, find vertices that are affected “enough” by a bone and those form the hitbox), but maybe it’s more intelligent. Not sure.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>The code passes bone.initialPosition_ and bone.initialRotation_ into CreateRagdollBone. Do I need to consider the bone’s parent’s position and rotation? As for accuracy, I think as long as the AABB bounding box is oriented and positioned correctly that will be good enough, as shown in this image.</p>
+<p>I don’t know Urho3D has hitbox implementation. That sounds good for an automatic solution. Would you like to point me to some source code/ sample code about that? Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I was incorrect, it probably wasn’t the rotation that was missing, but the bounding box’s center in relation to the bone. By default, if no offset is specified, a box collisionshape gets centered to the node.</p>
+<p>Here’s an AngelScript snippet that can be inserted to the Ragdoll sample to create trigger rigidbodies that should be accurate representation of the bone hitboxes. Note that when I tested it the physics simulation got bogged down by all the interpenetration that resulted, so maybe a better approach on the whole is to only use a coarse collision primitive, like a capsule for the whole character, and when that detects a hit, then check against the bones (which don’t even need physics objects, you can just use math)</p>
+<pre><code class="lang-auto">            // Create trigger rigidbody &amp; box collider to each bone
+            for (uint i = 0; i &lt; modelObject.skeleton.numBones; ++i)
+            {
+                Bone@ bone = modelObject.skeleton.bones[i];
+                Node@ boneNode = bone.node;
+
+                RigidBody@ rb = boneNode.CreateComponent("RigidBody");
+                rb.trigger = true;
+                CollisionShape@ c = boneNode.CreateComponent("CollisionShape");
+                c.SetBox(bone.boundingBox.size, bone.boundingBox.center);
+            }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>That works terrific! Thank you for your kind help. Urho3D rules!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Bounding box is computed using nearest vertices and gives rather good results.<br/>
+However, for joint attachment points I am using the model’s node Y position to accurately/perfectly position the rigid bodies and constraints.<br/>
+Maybe it would be good to compute bones’ bounding box on the Y axis that way in AssetImporter and blender exporter.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p><span class="mention">@Mike</span>, would you like to share some code on how to do it your way?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Yes, I’m currently out, I’ll have to dig into my compy when I’ll get back home saturday or sunday.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>In sample 13_Ragdolls, at the end of CreateRagdollBone() :</p>
+<p>[spoiler][code]<br/>
+// Use bone’s bounding box to compute its CollisionShape’s size and position offset<br/>
+AnimatedModel@ model = node.GetComponent(“AnimatedModel”);<br/>
+Skeleton@ skeleton = model.skeleton;<br/>
+Bone@ bone = skeleton.GetBone(boneName);<br/>
+BoundingBox bbox = bone.boundingBox;<br/>
+Vector3 shapeSize = bbox.size;<br/>
+Vector3 posOffset = bbox.center;</p>
+<pre><code>	// Compute Bone length as we can't rely only on bbox to match joints precise location
+	if (boneNode.numChildren &gt; 0)
+		shapeSize.y = (boneNode.children[0].worldPosition - boneNode.worldPosition).length;
+
+	// We use either a box or a capsule shape for all of the bones
+	CollisionShape@ shape = boneNode.CreateComponent("CollisionShape");
+	if (type == SHAPE_BOX)
+		shape.SetBox(shapeSize, posOffset, rotation);
+	else
+		shape.SetCapsule(shapeSize.x, shapeSize.y, posOffset, rotation);
+</code></pre>
+<p>[/code][/spoiler]</p>
+<p>Note that for the capsules this doesn’t work at all with Jack (bones bounding box inaccuracy), so experiment with one of your own models.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>Thanks for sharing this.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

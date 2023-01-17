@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Trying to understand network diffs</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Trying to understand network diffs</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>For the game I’m writing, I have a 2D tilemap where each tile stores a list of properties (claimer ID, timeout period, etc.) and I’m wondering what the best method is to synchronize this over the network.</p>
+<p>Each tile can potentially update at any point in the game, so obviously I don’t want to send the entire tilemap whenever this happens, just the tiles that have changed.</p>
+<p>If I do a thing where I have an object that implements <code>Serializable</code> and it writes the entire tilemap using the Load() and Save() methods, will the network code be smart enough to generate a good diff from that? Or will it just send the entire tilemap?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The network code works on attribute level. If an attribute has changed, it will send it over whole. Serializable’s Load() &amp; Save() are actually not being called in network serialization, so you can’t rely on them.</p>
+<p>Doing what you want might be possibly done best using custom messages.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<p>Not sure what you are doing, but at least in RTS games, the solution is determinism.<br/>
+Everything must happen in exactly the same way for all players. Which is very much doable (even for RNG if you use same seeds) - but you have to plan for it and design your code accordingly.</p>
+<p>And if everything happens in the same way, all data you need to send around is user input.</p>
+<p>Of course, that completely circumvents any (or most) need of any Serializable for most game objects, reducing the data sent to an absolute minimum.</p>
+<p>Personally, I find that approach easier than having to worry about attribute weight of every single object. Plus, your code gets leaner as all your game objects have one less layer to worry about. You “just” have to make sure your simulation is “airtight”. But YMMV <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Ideally this would be the way to go, agreed. However, my game uses physics simulations to interact with the tiles, and Bullet is inherently non-deterministic.</p>
+<p><span class="mention">@cadavar</span> I’ll look into custom messages, because I think there is an opportunity here to define a clean “API” to interact with the tilemap.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="4" data-topic="3449">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/12a1dc2eccbee0e3555e7cc3e716f46e.png" width="20"/> TheComet:</div>
+<blockquote>
+<p>Ideally this would be the way to go, agreed. However, my game uses physics simulations to interact with the tiles, and Bullet is inherently non-deterministic.</p>
+</blockquote>
+</aside>
+<p>Yeah, that is the largest drawback of Bullet. If you really need to use physics for game logic, I don’t even know if there is a deterministic physics engine…<br/>
+I don’t think that is easily doable due to floating point shenanigans.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="5" data-topic="3449">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6426f7dffe1147b9888a7457752fca5d.png" width="20"/> TheSHEEEP:</div>
+<blockquote>
+<p>Yeah, that is the largest drawback of Bullet. If you really need to use physics for game logic, I don’t even know if there is a deterministic physics engine…</p>
+</blockquote>
+</aside>
+<p>I heard about non-production fixed-point physics engines…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/92_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">DrAlta</div>
+          <div class="post_content">
+<p>For Deterministic physics engines there is the proprietary DPhysics for Unity and The Open Source <a href="https://github.com/yoanlcq/boulette-physiques" rel="nofollow noopener">Boulette Physiques</a>  Both appear to be 2D.  Newton Dynamics is as deterministic as floats allow if single threaded.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

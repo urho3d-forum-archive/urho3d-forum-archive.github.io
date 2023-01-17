@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>About E_CLICK and E_CLICKEND</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">About E_CLICK and E_CLICKEND</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>I tested E_CLICK and E_CLICKEND events with the dragg-able fish in HelloGUI sample.</p>
+<pre><code>SubscribeToEvent(draggableFish, E_CLICK, URHO3D_HANDLER(HelloGUI, HandleclickEnd));
+</code></pre>
+<p>Works fine.</p>
+<p>But once I change the dragg-able fish from Button to BorderImage.<br/>
+The events will no longer fire.</p>
+<p>Is this an intentional behavior?<br/>
+Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I am no master of Urho 2D UI stuff - but I don’t think BorderImage was intended to be interactive - most of the other UI classes derive from it, just because it can “draw something”. This does not imply that it’s an interactive base class.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>Probably.<br/>
+I just don’t know what makes Button sends the events but BorderImage.<br/>
+The events are sent in a generic UI function and looks like apply to all UIelements.</p>
+<p>For now I think a Button without hover and press offset may be OK.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Virgo</div>
+          <div class="post_content">
+<p>Button inherits BorderImage which inherits UIElement.<br/>
+But latter one doesn’t implement UIElement::OnKey() , so yes, it’s intentional.</p>
+<p><a  rel="nofollow noopener">Button::OnKey();</a></p>
+<pre><code>void Button::OnKey(Key key, MouseButtonFlags buttons, QualifierFlags qualifiers)
+{
+    if (HasFocus() &amp;&amp; (key == KEY_RETURN || key == KEY_RETURN2 || key == KEY_KP_ENTER || key == KEY_SPACE))
+    {
+        // Simulate LMB click
+        OnClickBegin(IntVector2(), IntVector2(), MOUSEB_LEFT, 0, 0, nullptr);
+        OnClickEnd(IntVector2(), IntVector2(), MOUSEB_LEFT, 0, 0, nullptr, nullptr);
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Virgo</div>
+          <div class="post_content">
+<p><img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/>PS: OnClickBegin() and OnClickEnd() are Button members, they send the click events.</p>
+<p>EDIT: <strong>they actually fire press events</strong>, not click ones.<br/>
+sry for the misleading answer</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>The events in Button::OnClickBegin() and Button::OnClickEnd() are E_PRESSED and E_RELEASED.<br/>
+They can be used as clicked events, but my initial purpose is to handle click on a BorderImage.</p>
+<p>When clicking on a BorderImage, in UI::ProcessClickBegin() the</p>
+<pre><code>WeakPtr&lt;UIElement&gt; element(GetElementAt(windowCursorPos, true, &amp;cursorPos));
+</code></pre>
+<p>is NULL, but it is not NULL if click on a Button.(Don’t know why)</p>
+<p>The element variable is then passed to UI::SendClickEvent(), cause E_CLICK event fire or not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Virgo</div>
+          <div class="post_content">
+<p>haha i didnt check the events names, sry for the wrong answer.<br/>
+checking urho3d ui sources, there are comments on GetElementAt() functions saying<br/>
+<code>By default returns only input-enabled elements.</code><br/>
+im still trying to find out where they wrote those codes checking if the element is input-enabled or not<br/>
+<img alt=":hugs:" class="emoji" src="../../../images2/103623f55e91588d86d74ba866d9e37e.png" title=":hugs:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Virgo</div>
+          <div class="post_content">
+<p>I think i found it, UI::GetElementAt() checks result elements’ enable state, but by default BorderImage’s <code>Is Enabled</code> attribute is <code>fales</code><br/>
+i suggest you try to set it true for your BorderImage and see if it fires the click events</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I don’t think BorderImage subscribes to receive click events, and correspondingly, I believe has no methods to sink them… this component simply does not care to receive input events, so it can’t respond to them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Virgo</div>
+          <div class="post_content">
+<p>hey Leith!<br/>
+i just checked source, click events are sent in <code>UI::SendClickEvent()</code></p>
+<pre><code>void UI::SendClickEvent(StringHash eventType, UIElement* beginElement, UIElement* endElement, const IntVector2&amp; pos, MouseButton button,
+    MouseButtonFlags buttons, QualifierFlags qualifiers)
+{
+    VariantMap&amp; eventData = GetEventDataMap();
+    eventData[UIMouseClick::P_ELEMENT] = endElement;
+    eventData[UIMouseClick::P_X] = pos.x_;
+    eventData[UIMouseClick::P_Y] = pos.y_;
+    eventData[UIMouseClick::P_BUTTON] = button;
+    eventData[UIMouseClick::P_BUTTONS] = (unsigned)buttons;
+    eventData[UIMouseClick::P_QUALIFIERS] = (unsigned)qualifiers;
+
+    // For click end events, send also the element the click began on
+    if (eventType == E_UIMOUSECLICKEND)
+        eventData[UIMouseClickEnd::P_BEGINELEMENT] = beginElement;
+
+    if (endElement)
+    {
+        // Send also element version of the event
+        if (eventType == E_UIMOUSECLICK)
+            endElement-&gt;SendEvent(E_CLICK, eventData);
+        else if (eventType == E_UIMOUSECLICKEND)
+            endElement-&gt;SendEvent(E_CLICKEND, eventData);
+    }
+
+    // Send the global event from the UI subsystem last
+    SendEvent(eventType, eventData);
+}
+</code></pre>
+<p>in the caller functions the <code>endElement</code> argument is obtained through <code>UI::GetElementAt()</code><br/>
+so if we want click event from BorderImage, we just need to make them to be considered “input-enabled”, which i suppose its determined the “Is Enabled” attribute.<br/>
+<img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/> i finally gotcha?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>The receiver, BorderImage, wont receive it, because it never subscribed to the event<br/>
+Urho uses a listener pattern - listeners can subscribe to receive events, either from a specific sender, or from anywhere - if we dont subscribe, we are not notified</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>You are right.<br/>
+Thanks for nice explanation <img alt=":+1:" class="emoji" src="../../../images2/44789f9390639d4847fd0de0a6ae5879.png" title=":+1:"/></p>
+<p>Never noticed that it is default disabled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Virgo</div>
+          <div class="post_content">
+<p><img alt=":innocent:" class="emoji" src="../../../images2/c3dafed216ce260e661f953035333f50.png" title=":innocent:"/> bro i think you got something wrong, there is no receiver here, <code>endElement-&gt;SendEvent()</code> called here is actually <a  rel="nofollow noopener"><code>Urho3D::Object::SendEvent()</code></a> that sends the event (just a guess, there is way too much source code to read, i gave up).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>At the risk of being only slightly off-topic…<br/>
+Doesn’t this ask for a seperate <code>OnKeyDown()</code> and <code>OnKeyUp()</code>?</p>
+<aside class="quote no-group" data-post="4" data-topic="5292" data-username="Virgo">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2ccc6c0235b92a7092b6d0c4cff82461.png" width="20"/> Virgo:</div>
+<blockquote>
+<pre><code class="lang-auto">void Button::OnKey(Key key, MouseButtonFlags buttons, QualifierFlags qualifiers)
+{
+    if (HasFocus() &amp;&amp; (key == KEY_RETURN || key == KEY_RETURN2 || key == KEY_KP_ENTER || key == KEY_SPACE))
+    {
+        // Simulate LMB click
+        OnClickBegin(IntVector2(), IntVector2(), MOUSEB_LEFT, 0, 0, nullptr);
+        OnClickEnd(IntVector2(), IntVector2(), MOUSEB_LEFT, 0, 0, nullptr, nullptr);
+    }
+}
+</code></pre>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Urho eventing is very flexible. I did not say anything was not possible, but I did give hints about how eventing works.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Virgo</div>
+          <div class="post_content">
+<p><img alt=":rofl:" class="emoji" src="../../../images2/b8e55af518619a978b88eeaeaca19aa3.png" title=":rofl:"/> checked source code, i dont understand it either</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I suspect the current implementation to be somewhat of a shortcut. Introducing separate down and up functions would introduce more complexity then one might initially think.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

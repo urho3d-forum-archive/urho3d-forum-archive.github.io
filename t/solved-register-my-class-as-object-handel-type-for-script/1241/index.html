@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Register my class as object handel type for script?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Register my class as object handel type for script?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorfence</div>
+          <div class="post_content">
+<p>Hello Everyone,</p>
+<p>I have write something to try to define a object type as object handel type:</p>
+<p>c++</p>
+<pre><code class="lang-auto">class URHO3D_API CurlWrapper {
+...
+
+static void ConstructCurl(CurlWrapper* ptr) {
+    new(ptr) CurlWrapper();
+}
+...
+
+engine-&gt;RegisterObjectType("Curl", sizeof(CurlWrapper), asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_C);
+engine-&gt;RegisterObjectBehaviour("Curl", asBEHAVE_CONSTRUCT, "void f()", asFUNCTION(ConstructCurl), asCALL_CDECL_OBJLAST);
+engine-&gt;RegisterObjectMethod("Curl", "bool Download(const String&amp;in,const String&amp;in)", asMETHODPR(CurlWrapper, Download,(const String&amp;,const String&amp;), bool), asCALL_THISCALL);
+engine-&gt;RegisterObjectMethod("Curl", "bool Get(const String&amp;in)", asMETHODPR(CurlWrapper, Get,(const String&amp;), bool), asCALL_THISCALL);</code></pre>
+<p>angelscript:</p>
+<pre><code class="lang-auto">Curl@ c=Curl();</code></pre>
+<p>I got a error of: Object handle is not supported for this type, so is it possible or something necessary missed?</p>
+<p>thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You’re registering it as a value type, which means you can’t use handles on it, so leave the @ out.</p>
+<p>If you want to use handles on your object, you need to register as a ref type instead and handle refcounting (with classes that derive from Urho’s RefCounted this is rather easy)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorfence</div>
+          <div class="post_content">
+<p>Hi Cadaver, thanks a lot for your guid. My class definition is done by these codes now:</p>
+<pre><code class="lang-auto">class URHO3D_API CurlWrapper : public Object {
+  OBJECT(CurlWrapper);
+  BASEOBJECT(CurlWrapper);
+...
+
+RegisterObjectConstructor&lt;CurlWrapper&gt;(engine, "Curl");
+engine-&gt;RegisterObjectMethod("Curl", "bool Download(const String&amp;in,const String&amp;in)",
+        asMETHODPR(CurlWrapper, Download,(const String&amp;,const String&amp;), bool), asCALL_THISCALL);
+...</code></pre>
+<p>And, may I ask another question?<br/>
+Each of my “Curl” object always downloads file under a sub thread(pthread), I want to send “ProgressChanged” event to each angelscript “Curl” instances:</p>
+<pre><code class="lang-auto">VariantMap eventData;
+eventData["progress"] = progress;
+SendEvent("ProgressChanged",eventData);</code></pre>
+<p>When I try this, I got:<br/>
+ERROR: Sending events is only supported from the main thread</p>
+<p>I know this should not a defect of urho3d, but I’d like to hear any suggestion about this, thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You need a “master” object that polls on the main thread, for example in the Application update event, for a queue that the subthreads post their progress reports to. The master object will actually send the events.</p>
+<p>See the FileWatcher class which does something very similar.</p>
+<p>Urho doesn’t implement this kind of mechanism automatically because it’s not unambiguous, at what stage of frame processing these “other-thread” events should be handled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorfence</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]You need a “master” object that polls on the main thread, for example in the Application update event, for a queue that the subthreads post their progress reports to. The master object will actually send the events.</p>
+<p>See the FileWatcher class which does something very similar.</p>
+<p>Urho doesn’t implement this kind of mechanism automatically because it’s not unambiguous, at what stage of frame processing these “other-thread” events should be handled.[/quote]</p>
+<p>Thank you Cadaver, It’s good to know this can be done. I’ll take a look!!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

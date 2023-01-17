@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Hinge constraints floppy not stiff</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Hinge constraints floppy not stiff</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mechsect</div>
+          <div class="post_content">
+<p>Hello all… first post here.</p>
+<p>I am trying to build a legged creature using constraints to set angles between leg segments. This works but the results are kind of floppy in the physics simulation. I am trying to have stiff leg joints set at exactly the angle I set the hinge too.</p>
+<p>Any help would be most appreciated.</p>
+<p>Here’s code for a leg segment:</p>
+<pre><code class="lang-auto">
+Node* Hexapod::
+CreateSegment( Node*         aParentSegNode,
+               const Vector3 aParentConstraintOffset,
+               double        aRotFromParent,
+               const String&amp; aName,
+               double        aLen,
+               const Vector3 aAxis,
+               double        aAngle )
+        {
+        auto ballRestitution = 0.75f;
+        auto NewSegNode = aParentSegNode-&gt;CreateChild(aName);
+        NewSegNode-&gt;SetName(aName);
+        //NewSegNode-&gt;Roll(180.0);
+        //NewSegNode-&gt;SetPosition( Vector3(0.5 * aLen, 0.0f, 0.f));
+        Vector3 xoffs;
+        if( aParentConstraintOffset.x_ &gt; 0.0 )
+            xoffs = Vector3(aLen / 2.0, 0, 0);
+        else
+            {
+            xoffs = Vector3(-aLen / 2.0, 0, 0);
+            }
+
+        NewSegNode-&gt;SetPosition( aParentConstraintOffset + xoffs);
+        NewSegNode-&gt;SetRotation(Quaternion(0., aRotFromParent, 0.));
+
+        auto shape = NewSegNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+        // set the collision shape slightly smaller than the bone so ends don't collide.
+        shape-&gt;SetBox(Vector3( 0.9 * aLen, .1, .3));
+
+        auto body = NewSegNode-&gt;CreateComponent&lt;RigidBody&gt;();
+        // Gravity override
+        body-&gt;SetGravityOverride(Vector3(0.0f, -1.0f, 0.0f));
+        //body-&gt;SetRestitution(ballRestitution);
+        body-&gt;SetRestitution(0.);      // legs shouldn't bounce
+        // Set mass to make movable
+        body-&gt;SetMass(1.0f);
+        body-&gt;SetFriction(2.0f);
+        // Set damping parameters to smooth out the motion
+        body-&gt;SetLinearDamping(0.05f);
+        body-&gt;SetAngularDamping(0.85f);
+        // Set rest thresholds to ensure the rigid bodies come to rest to not consume CPU endlessly
+        body-&gt;SetLinearRestThreshold(1.5f);
+        body-&gt;SetAngularRestThreshold(2.5f);
+
+        auto* constraint = NewSegNode-&gt;CreateComponent&lt;Constraint&gt;();
+        constraint-&gt;SetConstraintType(CONSTRAINT_HINGE);
+        // Most of the constraints will work better when the connected bodies don't collide against each other
+        constraint-&gt;SetDisableCollision(true);
+        // The connected body must be specified before setting the world position
+        constraint-&gt;SetOtherBody(aParentSegNode-&gt;GetComponent&lt;RigidBody&gt;());
+
+        constraint-&gt;SetOtherPosition(aParentConstraintOffset);
+        constraint-&gt;SetPosition(Vector3(-0.5 * aLen,0,0));
+        //constraint-&gt;SetWorldPosition(aParentSegNode-&gt;GetWorldPosition() + aParentConstraintOffset);
+
+        constraint-&gt;SetCFM( 0 );
+        constraint-&gt;SetERP( 0.8 );
+        //std::cerr &lt;&lt; "CFM *** " &lt;&lt; constraint-&gt;GetCFM() &lt;&lt; " ERP " &lt;&lt; constraint-&gt;GetERP() &lt;&lt; std::endl;
+
+        constraint-&gt;SetAxis(aAxis);
+        constraint-&gt;SetOtherAxis(aAxis);
+        constraint-&gt;SetHighLimit(Vector2(aAngle,0.f));
+        constraint-&gt;SetLowLimit(Vector2(aAngle,0.f));
+
+        return NewSegNode;
+        }
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mechsect</div>
+          <div class="post_content">
+<p>Floppy constraints was most solved by doing the following:</p>
+<pre><code class="lang-auto">btHingeConstraint* btConst = (btHingeConstraint*) constraint-&gt;GetConstraint();
+btConst-&gt;setOverrideNumSolverIterations(100);
+</code></pre>
+<p>Basically, reach past Urho3D to the underlying Bullet constraint and do more iterations. Not sure if 100 is the right number, but it does make the joints behave as expected.</p>
+<p>Also, setting ERP and CRM to 1 and 0 respectively seems right. This is based on:</p>
+<aside class="onebox pdf">
+<header class="source">
+<a href="https://doc.lagout.org/programmation/OpenGL/Learning%20Game%20Physics%20with%20Bullet%20Physics%20and%20OpenGL%20%5BDickinson%202013-10-25%5D.pdf" rel="nofollow noopener" target="_blank">doc.lagout.org</a>
+</header>
+<article class="onebox-body">
+<a href="https://doc.lagout.org/programmation/OpenGL/Learning%20Game%20Physics%20with%20Bullet%20Physics%20and%20OpenGL%20%5BDickinson%202013-10-25%5D.pdf" rel="nofollow noopener" target="_blank"><span class="pdf-onebox-logo"></span></a>
+<h3><a href="https://doc.lagout.org/programmation/OpenGL/Learning%20Game%20Physics%20with%20Bullet%20Physics%20and%20OpenGL%20%5BDickinson%202013-10-25%5D.pdf" rel="nofollow noopener" target="_blank">Learning%20Game%20Physics%20with%20Bullet%20Physics%20and%20OpenGL%20%5BDickinson%202013-10-25%5D.pdf</a></h3>
+<p class="filesize">1939.73 KB</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>"CFM is essentially a measure of the strength of the constraint. A value of 0 means a  perfectly rigid constraint, while increasing values make the constraint more spring like, up to a value of 1where it has no effect at all.</p>
+<p>ERP represents the fraction of how much joint error will be used in the next simulation step. Many constraints could be working in unison to create a complex interaction (imagine a rope bridge, which can be simulated by a attaching a bunch of  springs connected together) and ERP is used to determine how much of the previous data will affect the calculation of future data. This is a difficult concept to explain in such a short space, but imagine that we have multiple constraints acting on the same object, each forcing the others into breaking their own rules. ERP is then the  priority of this constraint relative to the others, and helps determine who has higher importance during these types of complex constraint scenarios."</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

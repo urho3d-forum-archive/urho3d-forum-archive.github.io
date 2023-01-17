@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Link errors when using setup_main_executable()</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Link errors when using setup_main_executable()</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’m trying to set up my project so all of my game code gets compiled into a shared library <code>lightship</code>, and then two executables (server and client) link it, so server and client specific code is separated.</p>
+<p>Here’s how I set up the game library:</p>
+<pre><code>include (UrhoCommon)
+set (TARGET_NAME lightship)
+define_source_files (RECURSE)
+setup_library (SHARED)
+include_directories ("include")
+</code></pre>
+<p>And here’s how I set up the server executable:</p>
+<pre><code>include (UrhoCommon)
+set (TARGET_NAME lightship-server)
+define_source_files (RECURSE)
+setup_main_executable (LIBS lightship)
+include_directories ("${CMAKE_SOURCE_DIR}/lightship/include")
+</code></pre>
+<p>The error I’m getting is:</p>
+<pre><code>CMakeFiles/lightship-server.dir/src/main.cpp.o: In function `main':
+/home/thecomet/documents/programming/cpp/lightship-cpp/server/src/main.cpp:25: undefined reference to `Lightship::Lightship(Urho3D::Context*)'
+</code></pre>
+<p>Here’s my main():</p>
+<pre><code>int main(int argc, char** argv)
+{
+    SharedPtr&lt;Context&gt; context(new Context);
+    SharedPtr&lt;Application&gt; app(new Lightship(context));
+    return app-&gt;Run();
+}
+</code></pre>
+<p>And here’s my Lightship class:</p>
+<pre><code>class Lightship : public Urho3D::Application
+{
+public:
+    enum DebugDrawMode
+    {
+        DRAW_NONE = 0,
+        DRAW_PHYSICS
+    };
+
+    Lightship(Urho3D::Context* context);
+
+    virtual void Setup() override;
+    virtual void Start() override;
+    virtual void Stop() override;
+
+private:
+    void RegisterSubsystems();
+    void RegisterComponents();
+    void LoadScene();
+    void CreateCamera();
+    void CreatePlayer();
+    void CreateDebugHud();
+
+    void HandleKeyDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+    void HandlePostRenderUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+    void HandleFileChanged(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+
+    DebugDrawMode debugDrawMode_;
+
+    Urho3D::SharedPtr&lt;TrackingCamera&gt; trackingCamera_;
+    Urho3D::SharedPtr&lt;MapState&gt; map_;
+    Urho3D::SharedPtr&lt;Urho3D::Scene&gt; scene_;
+    Urho3D::SharedPtr&lt;Urho3D::XMLFile&gt; xmlScene_;
+    Urho3D::SharedPtr&lt;Urho3D::DebugHud&gt; debugHud_;
+};</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Try to set all the variables before calling the macro. The LIBS is a variable, not a macro argument so you cannot pass the value in the manner you posted above.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I tried, it still fails. I also tried calling target_link_libraries (lightship-server lightship) and the same thing happens.</p>
+<p>Interestingly it works if the game library is static instead of shared.</p>
+<p>Here’s the updated config</p>
+<pre><code>set (TARGET_NAME lightship-server)
+set (LIBS lightship)
+define_source_files (RECURSE)
+setup_main_executable ()
+include_directories ("${CMAKE_SOURCE_DIR}/lightship/include")</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Our <code>setup_main_executable()</code> macro internally calls the same CMake <code>target_link_libraries()</code> command. You have different observation between static and shared library type then it is the setup for your library target that has problem. The linker may have optimizes out most of your symbols when you build your own shared lib. But I am just speculating here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I figured out what’s going on, but I am not sure how to “properly” fix it.</p>
+<p>UrhoCommon.cmake has the line:</p>
+<p><code>set (CMAKE_CXX_VISIBILITY_PRESET hidden)</code></p>
+<p>By calling <code>include (UrhoCommon)</code> (which, as we established earlier, is required for find_package() to work), all subsequent targets will be compiled with CMAKE_CXX_VISIBILITY_PRESET=hidden which in my case is not desirable.</p>
+<p>I currently just set it back to default after the find_package() call. There’s probably a better solution.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>No. Although you are right to point out that is why the symbols are hidden when building a shared library using our common module, that is not the place that needs fixing. See <a href="https://gcc.gnu.org/wiki/Visibility">https://gcc.gnu.org/wiki/Visibility</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>That’s cool, I didn’t know GCC supported visibility. I fixed things up with proper import/export macros like on windows using the visibility attributes and now it works fine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Glad to hear that. It works on Clang too, BTW.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

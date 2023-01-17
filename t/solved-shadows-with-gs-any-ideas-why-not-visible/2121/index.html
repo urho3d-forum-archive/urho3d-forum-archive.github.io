@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Shadows with GS: any ideas why not visible?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Shadows with GS: any ideas why not visible?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi there!<br/>
+I trying to figure out with new changes in renderer. So i porting my prev GS-related code into the new master.<br/>
+And it’s seems works in most cases fine (i mean as before), but when I try to implement shadow pass (from unlit grass onto floor) and there is nothing to visible, but in same time all shaders programs linked sucessful and grass has rendered in firs pass fine. Only shadow from grass are not visible, so my question is why?</p>
+<p>Is shadow pass has custom primitive input state? (not from material) ?<br/>
+is shadow pass do not use all elements from vertex (model) (use only position semantic in vertex for example) ?</p>
+<p>tech</p>
+<pre><code class="lang-auto">&lt;technique vs="UnlitGSGrass" ps="UnlitGSGrass" gs="UnlitGSGrass" vsdefines="VERTEXCOLOR" gsdefines="VERTEXCOLOR" psdefines="DIFFMAP ALPHAMASK VERTEXCOLOR" alphamask="true"&gt;
+    &lt;pass name="alpha" blend="replace"/&gt;
+    &lt;pass name="shadow" vs="GrassShadow" vsdefines="VERTEXCOLOR" gs="GrassShadow" gsdefines="VERTEXCOLOR" ps="GrassShadow" psdefines="ALPHAMASK" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>forward render, pcf shadows 24bit<br/>
+debug info<br/>
+<a data-bbcode="true" href="http://savepic.ru/10493947.htm"><img alt="" height="" src="../../../images2/1cd7e42d2fb2528c2f012c1f30b90117.png" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Shadow shader uses only the position and first texcoord in case alpha masking is needed. However you would easily end up in the same situation with a textured unlit shader as well. Otherwise there shouldn’t be anything special in how it works. If your old code was from the time before arbitrary vertex declarations, then handling them has changed quite a bit.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Yes I see what std shadow shader use position and texcoords.<br/>
+actually I use almost the same: position, texcoord(only for randomization in GS, real texcoord generated in GS for PS shader), and VertexColor<br/>
+anyway I guess I find the solution.<br/>
+I find that the shadow pass are rendered through Graphics::Draw(…) but I was thinking what it use only Batch::Draw(…). (with my GS hack code)<br/>
+So that’s why it was not be visible.</p>
+<p>Fixed Graphics::Draw()</p>
+<p>[spoiler][code]<br/>
+void BatchGroup::Draw(View* view, Camera* camera, bool allowDepthWrite) const<br/>
+{<br/>
+Graphics* graphics = view-&gt;GetGraphics();<br/>
+Renderer* renderer = view-&gt;GetRenderer();</p>
+<pre><code>if (instances_.Size() &amp;&amp; !geometry_-&gt;IsEmpty())
+{
+    // Draw as individual objects if instancing not supported or could not fill the instancing buffer
+    VertexBuffer* instanceBuffer = renderer-&gt;GetInstancingBuffer();
+    if (!instanceBuffer || geometryType_ != GEOM_INSTANCED || startIndex_ == M_MAX_UNSIGNED)
+    {
+        Batch::Prepare(view, camera, false, allowDepthWrite);
+
+        graphics-&gt;SetIndexBuffer(geometry_-&gt;GetIndexBuffer());
+        graphics-&gt;SetVertexBuffers(geometry_-&gt;GetVertexBuffers());
+
+        for (unsigned i = 0; i &lt; instances_.Size(); ++i)
+        {
+			if (graphics-&gt;NeedParameterUpdate(SP_OBJECT, instances_[i].worldTransform_))
+			{
+				graphics-&gt;SetShaderParameter(VSP_MODEL, *instances_[i].worldTransform_);
+				graphics-&gt;SetShaderParameter(GSP_MODEL, *instances_[i].worldTransform_);
+			}
+
+			PrimitiveType gsPrimitiveType = graphics-&gt;GetEffectivePrimitiveTypeOverGSInput(geometry_-&gt;GetPrimitiveType());
+
+			graphics-&gt;Draw(gsPrimitiveType, geometry_-&gt;GetIndexStart(), geometry_-&gt;GetIndexCount(),
+                geometry_-&gt;GetVertexStart(), geometry_-&gt;GetVertexCount());
+        }
+    }
+    else
+    {
+        Batch::Prepare(view, camera, false, allowDepthWrite);
+
+        // Get the geometry vertex buffers, then add the instancing stream buffer
+        // Hack: use a const_cast to avoid dynamic allocation of new temp vectors
+        Vector&lt;SharedPtr&lt;VertexBuffer&gt; &gt;&amp; vertexBuffers = const_cast&lt;Vector&lt;SharedPtr&lt;VertexBuffer&gt; &gt;&amp;&gt;(
+            geometry_-&gt;GetVertexBuffers());
+        vertexBuffers.Push(SharedPtr&lt;VertexBuffer&gt;(instanceBuffer));
+
+        graphics-&gt;SetIndexBuffer(geometry_-&gt;GetIndexBuffer());
+        graphics-&gt;SetVertexBuffers(vertexBuffers, startIndex_);
+		PrimitiveType gsPrimitiveType = graphics-&gt;GetEffectivePrimitiveTypeOverGSInput(geometry_-&gt;GetPrimitiveType());
+		graphics-&gt;DrawInstanced(gsPrimitiveType, geometry_-&gt;GetIndexStart(), geometry_-&gt;GetIndexCount(),
+            geometry_-&gt;GetVertexStart(), geometry_-&gt;GetVertexCount(), instances_.Size());
+
+        // Remove the instancing buffer &amp; element mask now
+        vertexBuffers.Pop();
+    }
+}
+</code></pre>
+<p>}<br/>
+[/code][/spoiler]</p>
+<p>But now I have other problem unlit box with texture and shadows are gone )<br/>
+<a data-bbcode="true" href="http://savepic.ru/10532611.htm"><img alt="" height="" src="../../../images2/d5327022545053a0473a923680795a87.png" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I have solved last problem with the “disappeared Box” I just manualy set Primitive mode in material, by default it’s uses wrong type: point list insted triangle list</p>
+<p>So now I have other problem with shadows from my grass, and I thinking that this is because render gets wrong BoundaryBox of rendered model. Since I use GS for generate model I do not have ability to set BB manualy, or somehow else.</p>
+<p>So, Is it BB issue produce this “shadows flickering/cliping” or something else?</p>
+<p>[video]<a href="https://youtu.be/PNq_ha7PfXk%5B/video%5D">https://youtu.be/PNq_ha7PfXk[/video]</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Obviously if bounding box of model is smaller than what the GS creates, there is bound to be culling issues. That sounds like it could be a job for a subclass of StaticModel that can define the BB expansion.</p>
+<p>However I can’t wrap my head around why moving one node would cause the other’s shadow to disappear.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>However I can’t wrap my head around why moving one node would cause the other’s shadow to disappear.</p>
+</blockquote>
+</aside>
+<p>Ordering? I’m guessing it doesn’t matter which one is moved.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>That sounds like it could be a job for a subclass of StaticModel that can define the BB expansion.</p>
+</blockquote>
+</aside>
+<p>I hack this in minor code change style - just add</p>
+<p><code>
+	URHO3D_ATTRIBUTE("Use Manual BBox", bool, useManualBoundingBox_, false, AM_DEFAULT);
+	URHO3D_ATTRIBUTE("Manual BBox", Vector3, manualBoundingBox_, Vector3(1,1,1), AM_DEFAULT);</code></p>
+<pre><code class="lang-auto">void StaticModel::SetBoundingBox(const BoundingBox&amp; box)
+{
+	if (!useManualBoundingBox_)
+		boundingBox_ = box;
+	else
+	{
+		boundingBox_.Clear();
+		boundingBox_.Merge(manualBoundingBox_ / -2.0);
+		boundingBox_.Merge(manualBoundingBox_ / 2.0);
+	}
+	
+    OnMarkedDirty(node_);
+}</code></pre>
+<aside class="quote">
+<blockquote>
+<p>Ordering? I’m guessing it doesn’t matter which one is moved.</p>
+</blockquote>
+</aside>
+<p>No, I guess it because instansing somehow “purge” data for shadows pass (in case GS using)<br/>
+because if I try to use two various model there is no bug, but if I try use two equal models shadows are disappears<br/>
+example:<br/>
+[video]<a href="https://www.youtube.com/watch?v=WA1MESkVS3E%5B/video%5D">https://www.youtube.com/watch?v=WA1MESkVS3E[/video]</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Can your GS handle instancing properly? If not, you could test with turning instancing off. Or if you want the GS-objects to never use instancing while others can still use it, you can use the geometry type GEOM_STATIC_NOINSTANCING.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Oh you right, I guess i missed something big <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>after turn-off instansing in Editor, two grass planes rendered fine with shadows<br/>
+<a data-bbcode="true" href="http://savepic.ru/10601886.htm"><img alt="" height="" src="../../../images2/4bbe99640cdda76e117b247ae130f5b2.png" width=""/></a></p>
+<p>so I think, i take a look into transfoms.glsl</p>
+<p><code>#ifdef INSTANCED
+mat4 GetInstanceMatrix()
+{
+    const vec4 lastColumn = vec4(0.0, 0.0, 0.0, 1.0);
+    return mat4(iTexCoord4, iTexCoord5, iTexCoord6, lastColumn);
+}
+#endif</code><br/>
+and try to find way to use instansing with GS</p>
+<p>add:<br/>
+I found interesting results of perfomance ( GS with instansing )<br/>
+<a href="http://www.joshbarczak.com/blog/?p=667">joshbarczak.com/blog/?p=667</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Finally I solved this problem with using iModelMatrix it store within the propely object’s transformation, in case auto pushed shaders definition such as <span class="hashtag">#INSTANCED</span><br/>
+So i just fix VS</p>
+<p><span class="bbcode-b">gl_Position = pos * cModel;<br/>
+</span><br/>
+to</p>
+<p><span class="bbcode-b">gl_Position = pos * iModelMatrix; </span></p>
+<p>Now shadowed GS-generated models working fine even with instansing</p>
+<p>grassShadow.glsl for<br/>
+</p>
+<div class="spoiler">
+<p>[pastebin]YrSeUjef[/pastebin]</p>
+</div>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

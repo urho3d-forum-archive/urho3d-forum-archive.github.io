@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Vegetation in Urho3D. How?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Vegetation in Urho3D. How?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lazypanda</div>
+          <div class="post_content">
+<p>Hey again!</p>
+<p>Could some one tell me about vegetation systems and how they’re implemented in games. I’ve been studying pagedgeometry from ogre3d. The general notion seems to be to divide the terrain into batches and load grass around the camera in a cache-friendly way (using vectors?).</p>
+<p>My questions are:</p>
+<ul>
+<li>Can I use the octree in Urho3d for spatial partioning, or is it better to write my own grid classes?</li>
+<li>What is the most performance friendly way to load and unload meshes in Urho?</li>
+<li>Can I use the inbuilt instancing with alpha (grass)? I read in some thread that this wasn’t possible in Urho.</li>
+</ul>
+<p>Thanks  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The octree should be perfectly fine for creating grass objects dynamically, and in fact you would certainly want to use it so that the grass objects can interact normally with the rest of the rendering (ie. lights and shadows).</p>
+<p>If the grass patches use ordinary model resources loaded through the ResourceCache, instantiating more copies of them is fairly fast (ie. create a scene node and a drawable component, SetModel to it), as well as deleting them (just remove the scene node). ResourceCache takes care of keeping the model resource(s) in memory for fast access.</p>
+<p>If you need to create model resources dynamically, there is not a real “fast” or a “slow” path either to it. Create model, create vertex/index buffers, fill them with data. Refer to the 34_DynamicGeometry C++ sample.</p>
+<p>Most FPS / TPS games seem to use alpha-tested opaque vegetation, which means that it’s not an actual alpha object as far as the Urho’s renderer would be concerned, but writes to the Z-buffer normally. In this case the renderer can instance your objects. If you need actual alpha blending, the grass patches will need to be distance-sorted and that will tax the CPU and not allow instancing. In that case I’d recommend to use as large patches as possible, so that you only need a few of them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lazypanda</div>
+          <div class="post_content">
+<p>Thanks cadaver! So I’ve thought  about StaticModels close to the camera and billboards further back. Are lots of billboards performance hungry in Urho? Also is a cache system needed like the one in pagedgeometry or should add/removing nodes be enough?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>One BillboardSet component is one drawcall. These will not be instanced because each sends unique shader constants for the camera orientation. So gather as many billboards as you can into one BillboardSet. About the cache system I cannot answer, as I haven’t studied Ogre PagedGeometry code and don’t know what it exactly does, so you should profile yourself: start with the simplest code you can and see if the performance is already OK.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Here is an image of my day/night cycle with my vegetation system in uhro. My system is made by using a custom grid class and some billboard textures that are automatically generated from the tree models. Tree in front are regular meshes and of course trees in distance are billboards.</p>
+<p>So yes urho can handle this easilly but you need to do some of the work yourself <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p><a data-bbcode="true" href="http://tof.canardpc.com/view/fd79006c-3ec2-4812-ab53-de30b3dd5e6f.jpg" rel="nofollow noopener"><img alt="" height="338" src="../../../images2/1e42fbbec617ef6b6ce9818763156a50.jpg" width="600"/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Oh that looks really great!</p>
+<p>I’ve used PagedGeometry with Ogre before and I would / we could really need something like that for Urho3D as well.<br/>
+I’ve also used two different Day/Night/Weather things with Ogre, one was called SkyX I think. Those systems also changed models and the terrain by adding a shader phase to it, to influence them with the current lighting.</p>
+<p>Could you release your work regarding those things in some way? Even it’s unfinished/buggy. They could be expanded to be general and easily usable as PagedGeometry was.<br/>
+Can it also do grass? PagedGeometry used two triangles per grass “billboard”, which were deformed depending on terrain shape. Paged Geometry also automatically created images of objects to have billboard of them from different angles.<br/>
+Are your systems used in any game project?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

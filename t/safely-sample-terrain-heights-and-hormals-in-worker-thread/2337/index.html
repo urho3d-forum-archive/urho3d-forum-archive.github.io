@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Safely sample Terrain heights and hormals in worker thread</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Safely sample Terrain heights and hormals in worker thread</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>subj.<br/>
+It is const op, so theoretically it can be safe, unless… unless what? What could happen with Terrain that ruin anything?</p>
+<p>PS: Why does BillboardSet::UpdateBufferSize calls geometry_-&gt;SetVertexBuffer(0, vertexBuffer_) on every resize?<br/>
+I can’t undertand why since it is plain assignment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If the main thread destroys the terrain from under you or changes its size, in that case you’re screwed, otherwise should be safe.</p>
+<p>The BillboardSet code is likely a leftover from a time when re-setting the vertex buffer actually updated some internals in the geometry (in case vertex format changed), now it is unnecessary. Feel free to remove.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Would it be okay to hold shared pointer on Terrain in other component?</p>
+<p>Update:<br/>
+Can I somehow destroy object if some work items (maybe executing right now) need this object EXCEPT completing all work items?<br/>
+Just infinite loop like WorkQueue::Complete, no other ways?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Note the Urho shared pointers are not threadsafe. Holding a shared pointer in another component’s main thread code is OK though, but will not protect against modification of the Terrain component, ie. terrain resize.</p>
+<p>There are presently no mechanisms to synchronize dependency on objects when the work queue tasks are being executed. If you look how Urho itself uses the queue presently, it’s limited to the render update, during which the scene is assumed to not be modified.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>It is true that I’ll need some manual guarantees on terrain immutability, I can deal with it.<br/>
+However, I need some way to guaranteely stop some work item.</p>
+<p>Will code like this work as I expect?<br/>
+With obviuos precondition that work item was added and wasn’t completed/removed.<br/>
+It looks like I missed something…</p>
+<pre><code class="lang-auto">/// Remove a work item if possible, otherwise complete executing. Return true if item was completed.
+bool WorkQueue::DiscardWorkItem(SharedPtr&lt;WorkItem&gt; item)
+{
+    if (RemoveWorkItem(item))
+        return false;
+    Resume();
+    while (!item-&gt;completed_)
+    {
+    }
+    item-&gt;sendEvent_ = false;
+    return true;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If it’s OK for you to poll in the main thread until it has completed that should work.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>UI Drag Changes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">UI Drag Changes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Hey,</p>
+<p>I’ve been slowly working on some UI drag changes and am getting closer to pull-request, but wouldn’t mind some tips with how to set up the scripting.</p>
+<p>[quote]- Multi-touch drag support</p>
+<ul>
+<li>Combo press touch support – you get id mask of pressed buttons + number of buttons + the average of their positions</li>
+<li>Improved drag canceling support</li>
+</ul>
+<p>Line edit now has a numeric mode:</p>
+<ul>
+<li>Supports setting a precision for # of decimal points formatting.</li>
+<li>Supports drag editing; can set increment amount, increment smoothing, button mask to activate the drag.</li>
+<li>E_TEXTFINISHED is sent when LineEdit is defocused (press enter, escape, press away from it / finishing a drag).[/quote]</li>
+</ul>
+<p>Branch:<a href="https://github.com/hdunderscore/Urho3D/tree/drag_clean" rel="nofollow noopener">https://github.com/hdunderscore/Urho3D/tree/drag_clean</a><br/>
+Commit with all differences: <a href="https://github.com/hdunderscore/Urho3D/commit/40a1ddbbe918dde7ae7f24fd1d25c12dd36a7636" rel="nofollow noopener">github.com/hdunderscore/Urho3D/ … 2dd36a7636</a><br/>
+An earlier pull-request I closed: <a  rel="nofollow noopener">github.com/urho3d/Urho3D/pull/473</a></p>
+<p>A summary of changed function signatures:<br/>
+UI.cpp:<br/>
+[color=#FF8080]-UIElement* UI::GetDragElement() const[/color]<br/>
+[color=#008040]+const HashMap&lt;UIElement*, int&gt; UI::GetDragElements()[/color]</p>
+<p>UIElement.cpp (and derivatives):<br/>
+[color=#FF8080]-void Slider::OnDragEnd(const IntVector2&amp; position, const IntVector2&amp; screenPosition, Cursor* cursor)[/color]<br/>
+[color=#008040]+void Slider::OnDragEnd(const IntVector2&amp; position, const IntVector2&amp; screenPosition, int dragButtons, int buttons, Cursor* cursor)[/color]</p>
+<p>A summary of new functions:<br/>
+UIElement.cpp<br/>
+[color=#008040]+virtual void OnDragCancel(const IntVector2&amp; position, const IntVector2&amp; screenPosition, int dragButtons, int buttons, Cursor* cursor);[/color]</p>
+<p>New event related:<br/>
+UIEvents.h - E_TEXTFINISHED:<br/>
+[color=#008040]+    PARAM(P_VALUE, Value);                 // Float[/color]</p>
+<p>UIEvents.h - E_DRAG*:<br/>
+[color=#008040]+    PARAM(P_BUTTONS, Buttons);              // int[/color]<br/>
+[color=#008040]+    PARAM(P_NUMBUTTONS, NumButtons);        // int[/color]</p>
+<p>New Exposed attribute accessors:</p>
+<p>[code]+    ENUM_ACCESSOR_ATTRIBUTE(LineEdit, “Line Edit Mode”, GetMode, SetMode, LineEditMode, lineEditModes, LEM_ALL, AM_FILE);</p>
+<ul>
+<li>ACCESSOR_ATTRIBUTE(LineEdit, VAR_INT, “Numeric Precision”, GetNumericPrecision, SetNumericPrecision, unsigned, 4, AM_FILE);</li>
+<li>ACCESSOR_ATTRIBUTE(LineEdit, VAR_FLOAT, “Value”, GetValue, SetValue, float, 0.0f, AM_FILE);</li>
+<li>ACCESSOR_ATTRIBUTE(LineEdit, VAR_INT, “Drag Edit Combo”, GetDragEditCombo, SetDragEditCombo, int, MOUSEB_RIGHT, AM_FILE);</li>
+<li>ACCESSOR_ATTRIBUTE(LineEdit, VAR_FLOAT, “Drag Edit Increment”, GetDragEditIncrement, SetDragEditIncrement, float, 0.1f, AM_FILE);</li>
+<li>ACCESSOR_ATTRIBUTE(LineEdit, VAR_FLOAT, “Drag Edit Smooth”, GetDragEditSmooth, SetDragEditSmooth, float, 0.1f, AM_FILE);[/code]</li>
+</ul>
+<p>There may be other functions that need to be exposed to scripting/attributes, I’ll need to comb over the commit.</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If the HashMap is problematic, you could alternatively expose a Vector or PODVector of the dragged elements, and make it so that the drag touch ID is retrievable from the element itself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>I made the change, however I am realising that I need to do some extra step (intermediate function converting from vector to array). This is what I have so far:<br/>
+<span class="bbcode-b">UI.h:</span></p>
+<pre><code class="lang-auto"></code></pre>
+<p><span class="bbcode-b">UIAPI.cpp:</span></p>
+<pre><code class="lang-auto">static CScriptArray* UIGetDragElements(UI* ptr)
+{
+    return VectorToArray(ptr-&gt;GetDragElements(), "const Array&lt;UIElement@&gt;");
+}
+
+static void RegisterUI(asIScriptEngine* engine) 
+{
+...
+engine-&gt;RegisterObjectMethod("UI", "const Array&lt;UIElement@&gt; GetDragElements()", asFUNCTION(UIGetDragElements), asCALL_CDECL_OBJLAST);
+...
+}</code></pre>
+<p>I’ve tried a few variations of the above too, however I get an error when I try to run an application (eg, editor):</p>
+<p>[quote]ERROR: :0,0 Failed in call to function ‘RegisterObjectMethod’ with ‘UI’ and ‘const Array&lt;UIElement@&gt; GetDragElements()’ (Code: -10)<br/>
+ERROR: :0,0 Invalid configuration. Verify the registered application interface.<br/>
+ERROR: Failed to compile script module Scripts/Editor.as [/quote]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In AngelScript arrays are returned by handle, so your function declaration should be something like “const Array&lt;UIElement@&gt;@ GetDragElements()”. Also, you likely have to use VectorToHandleArray instead so that refcounting of the elements inside the array is handled correctly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>That worked perfectly, thanks for that !</p>
+<p>I’ve been busy the last few days, so not many changes. At the moment the biggest issue I have is a hard to track bug that causes editor to crash when saving a new file.</p>
+<p>Since it might take a while to get everything ready, I’ll start splitting off the small changes into their own pull-requests which should also help with evaluating the changes.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

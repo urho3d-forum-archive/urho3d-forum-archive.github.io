@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Registering collision events on btKinematicCharacterController</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Registering collision events on btKinematicCharacterController</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">HaeferlKaffee</div>
+          <div class="post_content">
+<p>I’m essentially using the implementation here:<br/>
+<a href="https://discourse.urho3d.io/t/kinematic-character-controllers/3555">https://discourse.urho3d.io/t/kinematic-character-controllers/3555</a></p>
+<p>It works fantastically other than that if you want a velocity-based movement system, you can’t use Bullet’s internal “velocity” (.setLinearVelocity(), etc.), and must use <em>setWalkDirection()</em> instead, otherwise the character won’t ‘step’ over objects.</p>
+<p>My solution has been to define a velocity variable in my implementation the controller, accelerating in the input direction with some maths to create friction when grounded and limit acceleration based on Quake’s dot-product method.</p>
+<p>The problem is that if this character hits an angled wall (say a small wall at 45° to the direction of the controller’s velocity), no absorption/restitution/friction occurs, and they simply slide along the wall then continue in their original direction. Collisions are obviously not able to affect the velocity because it’s in my implementation, but even if I use setLinearVelocity(), which again is not ideal due to not stepping, it still ignores these collisions.</p>
+<p>Ideally without changing Bullet’s library code, how can I add a function/listener that handles the collisions made by the controller’s ghost object? Adding a collision callback like with rigid bodies in Urho3D doesn’t work (It simply doesn’t recognise the collisions). <strong>Is there a way to add a callback for Bullet’s collisions?</strong></p>
+<hr/>
+<p>EDIT:<br/>
+<em>(Currently I’m using a large sphere, a child of the controller, that detects collisions and applies a repulsive force to cancel out the velocity in that direction, which works sometimes but fails are high speeds because it’s not in the same place as the ghost object - bit of a headache. Also, using a sphere larger than the capsule collider of course causes issues at low speeds where the player is prevented from moving in a certain direction even though the capsule isn’t actually touching the wall, but the sphere is.)</em></p>
+<pre><code>// node_ has a btKinematicCharacterController implementation attached.
+SubscribeToEvent(node_, E_PHYSICSCOLLISIONSTART, URHO3D_HANDLER(CrabCharacterController, DebugGhostCollision));
+
+...
+
+void CrabCharacterController::DebugGhostCollision(StringHash eventType, VariantMap&amp; eventData) {
+    using namespace PhysicsCollisionStart;
+
+    RigidBody *rb1 = (RigidBody*)eventData[P_BODYA].GetPtr();
+    btTransform t;
+    rb1-&gt;getWorldTransform(t);
+    if (t == ghostObject_-&gt;getWorldTransform()) {
+	    int done = 1;               // Breakpoint here, just to test if the event rigidbody is the same as the ghost object, not efficient but just to test
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Hi! Yes I ran into this one too… I addressed exactly this issue recently, you are welcome to use it and change it any way you like <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<aside class="quote no-group">
+<blockquote>
+<p><a class="inline-onebox" href="https://discourse.urho3d.io/t/support-for-ghostobject-collision-events/5215">Support for GhostObject collision events</a></p>
+</blockquote>
+</aside>
+<p>If you need more help, that’s cool too, just yell out if you get stuck.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>with respect to high speed tunneling bugs, turn on ccd - instead of instant position testing for collisions, we will use quadratic equations, swept tests, extrusions of the moving shape over time - in my opinion, any modern physics engine should DEFAULT to using CCD in collision tests, and never call the instantaneous “query” tests, which we reserve for specific queries outside of the physics step</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

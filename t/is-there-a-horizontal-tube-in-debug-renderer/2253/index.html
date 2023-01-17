@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Is there a horizontal tube in debug renderer?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Is there a horizontal tube in debug renderer?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<p>I am currently adding the visualization for the Area lights but i am unable to find anything that would fit the tube and unsure how to approach creating a tube shaped debug feature. Am i missing something and if not can someone help out with creating one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>CollisionShape can draw debug capsule with any transforms, may be take code from thence</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>CollisionShape can draw debug capsule with any transforms, may be take code from thence</p>
+</blockquote>
+</aside>
+<p>it looks to draw its debug shape from bullet physics and im not sure if that is best practice to use bullet in the renderer</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Yes, calling Bullet’s debug draw functions would require an actual collisionshape, which I don’t recommend. I recommend making your own scaled sphere debug draw and adding it to DebugRenderer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>Yes, calling Bullet’s debug draw functions would require an actual collisionshape, which I don’t recommend. I recommend making your own scaled sphere debug draw and adding it to DebugRenderer.</p>
+</blockquote>
+</aside>
+<p>id likely need help on the math for getting a capsule in the debug renderer</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[code]    void DrawCylinder(const Vector3&amp; position, float radius, float height, const Quaternion&amp; rotation, const Color&amp; color, bool depthTest)<br/>
+{<br/>
+DebugRenderer* debug = scene_-&gt;GetOrCreateComponent();</p>
+<pre><code>    Sphere sphere(Vector3::ZERO, radius);
+    Vector3 heightVec = rotation * Vector3(0, height, 0);
+    Vector3 offsetXVec = rotation * Vector3(radius, 0, 0);
+    Vector3 offsetZVec = rotation * Vector3(0, 0, radius);
+    for (unsigned i = 0; i &lt; 360; i += 45)
+    {
+        Vector3 p1 = rotation * PointOnSphere(sphere, i, 90) + position;
+        Vector3 p2 = rotation * PointOnSphere(sphere, i + 45, 90) + position;
+        debug-&gt;AddLine(p1, p2, color, depthTest);
+        debug-&gt;AddLine(p1 + heightVec, p2 + heightVec, color, depthTest);
+    }
+    debug-&gt;AddLine(position + offsetXVec, position + heightVec + offsetXVec, color, depthTest);
+    debug-&gt;AddLine(position - offsetXVec, position + heightVec - offsetXVec, color, depthTest);
+    debug-&gt;AddLine(position + offsetZVec, position + heightVec + offsetZVec, color, depthTest);
+    debug-&gt;AddLine(position - offsetZVec, position + heightVec - offsetZVec, color, depthTest);
+}[/code]
+</code></pre>
+<p>This code based on void DebugRenderer::AddCylinder() with minimal changes</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Draw cylinder from center:</p>
+<p>[code]<br/>
+void DrawCylinder(const Vector3&amp; position, float radius, float halfHeight, const Quaternion&amp; rotation, const Color&amp; color, bool depthTest)<br/>
+{<br/>
+DebugRenderer* debug = scene_-&gt;GetOrCreateComponent();</p>
+<pre><code>    Sphere sphere(Vector3::ZERO, radius);
+    Vector3 halfHeightVec = rotation * Vector3(0, halfHeight, 0);
+    Vector3 offsetXVec = rotation * Vector3(radius, 0, 0);
+    Vector3 offsetZVec = rotation * Vector3(0, 0, radius);
+    for (unsigned i = 0; i &lt; 360; i += 45)
+    {
+        Vector3 p1 = rotation * PointOnSphere(sphere, i, 90) + position;
+        Vector3 p2 = rotation * PointOnSphere(sphere, i + 45, 90) + position;
+        debug-&gt;AddLine(p1 - halfHeightVec, p2 - halfHeightVec, color, depthTest);
+        debug-&gt;AddLine(p1 + halfHeightVec, p2 + halfHeightVec, color, depthTest);
+    }
+    debug-&gt;AddLine(position - halfHeightVec + offsetXVec, position + halfHeightVec + offsetXVec, color, depthTest);
+    debug-&gt;AddLine(position - halfHeightVec - offsetXVec, position + halfHeightVec - offsetXVec, color, depthTest);
+    debug-&gt;AddLine(position - halfHeightVec + offsetZVec, position + halfHeightVec + offsetZVec, color, depthTest);
+    debug-&gt;AddLine(position - halfHeightVec - offsetZVec, position + halfHeightVec - offsetZVec, color, depthTest);
+}[/code]</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<p>[quote=“1vanK”]Draw cylinder from center:</p>
+<p>[code]<br/>
+void DrawCylinder(const Vector3&amp; position, float radius, float halfHeight, const Quaternion&amp; rotation, const Color&amp; color, bool depthTest)<br/>
+{<br/>
+DebugRenderer* debug = scene_-&gt;GetOrCreateComponent();</p>
+<pre><code>    Sphere sphere(Vector3::ZERO, radius);
+    Vector3 halfHeightVec = rotation * Vector3(0, halfHeight, 0);
+    Vector3 offsetXVec = rotation * Vector3(radius, 0, 0);
+    Vector3 offsetZVec = rotation * Vector3(0, 0, radius);
+    for (unsigned i = 0; i &lt; 360; i += 45)
+    {
+        Vector3 p1 = rotation * PointOnSphere(sphere, i, 90) + position;
+        Vector3 p2 = rotation * PointOnSphere(sphere, i + 45, 90) + position;
+        debug-&gt;AddLine(p1 - halfHeightVec, p2 - halfHeightVec, color, depthTest);
+        debug-&gt;AddLine(p1 + halfHeightVec, p2 + halfHeightVec, color, depthTest);
+    }
+    debug-&gt;AddLine(position - halfHeightVec + offsetXVec, position + halfHeightVec + offsetXVec, color, depthTest);
+    debug-&gt;AddLine(position - halfHeightVec - offsetXVec, position + halfHeightVec - offsetXVec, color, depthTest);
+    debug-&gt;AddLine(position - halfHeightVec + offsetZVec, position + halfHeightVec + offsetZVec, color, depthTest);
+    debug-&gt;AddLine(position - halfHeightVec - offsetZVec, position + halfHeightVec - offsetZVec, color, depthTest);
+}[/code][/quote]
+</code></pre>
+<p>The results from that are close.</p>
+<p>Here is the shape needed:<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/4BnJj6f.jpg" title=""><img alt="" height="365" src="../../../images2/bf4bb314f7c47e17caed5164c93ac076.jpg" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1920×1017</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>Here is the shape we have<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/7RhEW15.jpg" title=""><img alt="" height="365" src="../../../images2/1b387a49b161a656314dd58f05e69bd2.jpg" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1920×1017</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>An alternative i noticed in Frostbites papers is they have debug system in the shader to turn the lights into meshes, not sure how to approach that or if we want to take that path.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Hm, void DebugRenderer::AddSphere has error?</p>
+<p>[code]void DebugRenderer::AddSphere(const Sphere&amp; sphere, const Color&amp; color, bool depthTest)<br/>
+{<br/>
+unsigned uintColor = color.ToUInt();</p>
+<pre><code>for (unsigned j = 0; j &lt; 180; j += 45)
+{
+    for (unsigned i = 0; i &lt; 360; i += 45)
+    {
+        Vector3 p1 = PointOnSphere(sphere, i, j);
+        Vector3 p2 = PointOnSphere(sphere, i + 45, j);
+        Vector3 p3 = PointOnSphere(sphere, i, j + 45);
+        Vector3 p4 = PointOnSphere(sphere, i + 45, j + 45);
+
+        AddLine(p1, p2, uintColor, depthTest);
+        //AddLine(p3, p4, uintColor, depthTest);
+        AddLine(p1, p3, uintColor, depthTest);
+        //AddLine(p2, p4, uintColor, depthTest);
+    }
+}
+</code></pre>
+<p>}<br/>
+[/code]</p>
+<p>comment two lines not affect to result</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[code]    void DrawCapsule(const Vector3&amp; position, float radius, float halfLength, const Quaternion&amp; rotation, const Color&amp; color, bool depthTest)<br/>
+{<br/>
+DebugRenderer* debug = scene_-&gt;GetOrCreateComponent();</p>
+<pre><code>    Sphere sphere(Vector3::ZERO, radius);
+    Vector3 halfLengthVec = rotation * Vector3(halfLength, 0, 0);
+
+    unsigned uintColor = color.ToUInt();
+
+    for (unsigned j = 0; j &lt; 180; j += 45)
+    {
+        for (unsigned i = 0; i &lt; 180; i += 45)
+        {
+            Vector3 p1 = rotation * PointOnSphere(sphere, i, j) + halfLengthVec + position;
+            Vector3 p2 = rotation * PointOnSphere(sphere, i + 45, j) + halfLengthVec + position;
+            Vector3 p3 = rotation * PointOnSphere(sphere, i, j + 45) + halfLengthVec + position;
+            Vector3 p4 = rotation * PointOnSphere(sphere, i + 45, j + 45) + halfLengthVec + position;
+
+            debug-&gt;AddLine(p1, p2, uintColor, depthTest);
+            //debug-&gt;AddLine(p3, p4, uintColor, depthTest);
+            debug-&gt;AddLine(p1, p3, uintColor, depthTest);
+            debug-&gt;AddLine(p2, p4, uintColor, depthTest);
+        }
+
+        for (unsigned i = 180; i &lt; 360; i += 45)
+        {
+            Vector3 p1 = rotation * PointOnSphere(sphere, i, j) - halfLengthVec + position;
+            Vector3 p2 = rotation * PointOnSphere(sphere, i + 45, j) - halfLengthVec + position;
+            Vector3 p3 = rotation * PointOnSphere(sphere, i, j + 45) - halfLengthVec + position;
+            Vector3 p4 = rotation * PointOnSphere(sphere, i + 45, j + 45) - halfLengthVec + position;
+
+            debug-&gt;AddLine(p1, p2, uintColor, depthTest);
+            //debug-&gt;AddLine(p3, p4, uintColor, depthTest);
+            debug-&gt;AddLine(p1, p3, uintColor, depthTest);
+            debug-&gt;AddLine(p2, p4, uintColor, depthTest);
+        }
+
+        Vector3 p1 = rotation * PointOnSphere(sphere, 0, j) + halfLengthVec + position;
+        Vector3 p2 = rotation * PointOnSphere(sphere, 0, j) - halfLengthVec + position;
+        debug-&gt;AddLine(p1, p2, uintColor, depthTest);
+        Vector3 p3 = rotation * PointOnSphere(sphere, 0, j + 180) + halfLengthVec + position;
+        Vector3 p4 = rotation * PointOnSphere(sphere, 0, j + 180) - halfLengthVec + position;
+        debug-&gt;AddLine(p3, p4, uintColor, depthTest);
+    }
+}
+
+
+
+void HandlePostUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    //DrawCylinder(Vector3(0.0f, 5.0f, 0.0f), 5.0f, 10.0f, Quaternion(45.0f, 45.0f, 45.0f), Color::RED, true);
+    DrawCapsule(Vector3(0, 10, 0), 5.f, 10.f, Quaternion(45.0f, 45.0f, 45.0f), Color::RED, false);
+}
+</code></pre>
+<p>[/code]</p>
+<p><a data-bbcode="true" href="http://savepic.ru/11422230.htm"><img alt="" height="" src="../../../images2/e40d90e7d993e873d973796012366f28.png" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Why not a cylinder model - <a data-bbcode="true" >https://github.com/urho3d/Urho3D/blob/master/bin/Data/Models/Cylinder.mdl</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="Lumak">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/> Lumak:</div>
+<blockquote>
+<p>Why not a cylinder model - <a data-bbcode="true" >https://github.com/urho3d/Urho3D/blob/master/bin/Data/Models/Cylinder.mdl</a></p>
+</blockquote>
+</aside>
+<p>I already write DrawCylinder function…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>A flat pill model? <a data-bbcode="true" href="https://github.com/Lumak/Urho3D-Assets/tree/master/Urho3DPill">https://github.com/Lumak/Urho3D-Assets/tree/master/Urho3DPill</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="Lumak">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/> Lumak:</div>
+<blockquote>
+<p>A flat pill model? <a data-bbcode="true" href="https://github.com/Lumak/Urho3D-Assets/tree/master/Urho3DPill">https://github.com/Lumak/Urho3D-Assets/tree/master/Urho3DPill</a></p>
+</blockquote>
+</aside>
+<p>Im planning to intergrate this into the editor for the debug of area lights.</p>
+<aside class="quote no-group" data-username="1vanK">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8e14485e10e801cd7ee7668b4f98a5bf.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>I already write DrawCylinder function…</p>
+</blockquote>
+</aside>
+<p>The capsule solution you created dosent seam to work as intended and i am not sure why, the size and length just changes the size of the sphere.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Do not see any problems in my tests</p>
+<p><code>    void HandlePostUpdate(StringHash eventType, VariantMap&amp; eventData)
+    {
+        DrawCapsule(Vector3(-10, 10, 0), 1.f, 1.f, Quaternion(45.0f, 45.0f, 45.0f), Color::RED, false);
+        DrawCapsule(Vector3(0, 10, 0), 1.f, 2.f, Quaternion(45.0f, 45.0f, 45.0f), Color::RED, false);
+        DrawCapsule(Vector3(10, 10, 0), 3.f, 2.f, Quaternion(45.0f, 45.0f, 45.0f), Color::RED, false);
+    }</code></p>
+<p><a data-bbcode="true" href="http://savepic.ru/11501983.htm"><img alt="" height="" src="../../../images2/586e1a639954f69955eb549b15e9f66f.png" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<p>[quote=“1vanK”]Do not see any problems in my tests</p>
+<p><code>    void HandlePostUpdate(StringHash eventType, VariantMap&amp; eventData)
+    {
+        DrawCapsule(Vector3(-10, 10, 0), 1.f, 1.f, Quaternion(45.0f, 45.0f, 45.0f), Color::RED, false);
+        DrawCapsule(Vector3(0, 10, 0), 1.f, 2.f, Quaternion(45.0f, 45.0f, 45.0f), Color::RED, false);
+        DrawCapsule(Vector3(10, 10, 0), 3.f, 2.f, Quaternion(45.0f, 45.0f, 45.0f), Color::RED, false);
+    }</code></p>
+<p><a data-bbcode="true" href="http://savepic.ru/11501983.htm"><img alt="" height="" src="../../../images2/586e1a639954f69955eb549b15e9f66f.png" width=""/></a>[/quote]</p>
+<p>I renamed the function to better fit the standards in Urho but results are not as you have shown and im not sure why.</p>
+<pre><code class="lang-auto">void DebugRenderer::AddCapsule(const Vector3&amp; position, float radius, float halfLength, const Quaternion&amp; rotation, const Color&amp; color, bool depthTest)
+{
+ 
+    Sphere sphere(Vector3::ZERO, radius);
+    Vector3 halfLengthVec = rotation * Vector3(halfLength, 0, 0);
+
+    unsigned uintColor = color.ToUInt();
+
+    for (unsigned j = 0; j &lt; 180; j += 45)
+    {
+        for (unsigned i = 0; i &lt; 180; i += 45)
+        {
+            Vector3 p1 = rotation * PointOnSphere(sphere, i, j) + halfLengthVec + position;
+            Vector3 p2 = rotation * PointOnSphere(sphere, i + 45, j) + halfLengthVec + position;
+            Vector3 p3 = rotation * PointOnSphere(sphere, i, j + 45) + halfLengthVec + position;
+            Vector3 p4 = rotation * PointOnSphere(sphere, i + 45, j + 45) + halfLengthVec + position;
+
+            AddLine(p1, p2, uintColor, depthTest);
+            //debug-&gt;AddLine(p3, p4, uintColor, depthTest);
+            AddLine(p1, p3, uintColor, depthTest);
+            AddLine(p2, p4, uintColor, depthTest);
+        }
+
+        for (unsigned i = 180; i &lt; 360; i += 45)
+        {
+            Vector3 p1 = rotation * PointOnSphere(sphere, i, j) - halfLengthVec + position;
+            Vector3 p2 = rotation * PointOnSphere(sphere, i + 45, j) - halfLengthVec + position;
+            Vector3 p3 = rotation * PointOnSphere(sphere, i, j + 45) - halfLengthVec + position;
+            Vector3 p4 = rotation * PointOnSphere(sphere, i + 45, j + 45) - halfLengthVec + position;
+
+            AddLine(p1, p2, uintColor, depthTest);
+            //debug-&gt;AddLine(p3, p4, uintColor, depthTest);
+            AddLine(p1, p3, uintColor, depthTest);
+            AddLine(p2, p4, uintColor, depthTest);
+        }
+
+        Vector3 p1 = rotation * PointOnSphere(sphere, 0, j) + halfLengthVec + position;
+        Vector3 p2 = rotation * PointOnSphere(sphere, 0, j) - halfLengthVec + position;
+        AddLine(p1, p2, uintColor, depthTest);
+        Vector3 p3 = rotation * PointOnSphere(sphere, 0, j + 180) + halfLengthVec + position;
+        Vector3 p4 = rotation * PointOnSphere(sphere, 0, j + 180) - halfLengthVec + position;
+        AddLine(p3, p4, uintColor, depthTest);
+    }
+}</code></pre>
+<pre><code class="lang-auto">        case LIGHT_TUBE:
+            debug-&gt;AddSphere(Sphere(node_-&gt;GetWorldPosition(), range_), color, depthTest);
+            debug-&gt;AddCapsule(node_-&gt;GetWorldPosition(), lightSize_, lightLength_, node_-&gt;GetWorldRotation() + Quaternion(90,0,0),color, depthTest);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>node_-&gt;GetWorldRotation() + Quaternion(90,0,0)</p>
+</blockquote>
+</aside>
+<p>I’m not sure, that it correct</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>try (Quaternion1 * delta).Normalized()</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>try (Quaternion1 * delta).Normalized()</p>
+</blockquote>
+</aside>
+<p>There is no delta im drawing it from DrawDebugGeometry starting on line 247 of Light.cpp</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I mean, u can not just add one quternion to other</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>I mean, u can not just add one quternion to other</p>
+</blockquote>
+</aside>
+<p>fair enough <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> its been way to long since using quternions</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

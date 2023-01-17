@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Lua] scene_:LoadXML() segfaults</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Lua] scene_:LoadXML() segfaults</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Hi!</p>
+<p>I’m trying to load a scene XML in lua but Urho3DPlayer is segfaulting. Am I doing something wrong, or is this an issue that needs to be fixed?</p>
+<p>I created a scene in Urho3D’s editor and saved it under Data/Scenes/ramps.xml.</p>
+<p>Loading the scene using C++ <span class="bbcode-i">works fine</span>:</p>
+<p>[code]void App::CreateScene()<br/>
+{<br/>
+ResourceCache* cache = GetSubsystem();</p>
+<pre><code>scene_ = SharedPtr&lt;Scene&gt;(new Scene(context_));
+XMLFile* sceneFile = cache-&gt;GetResource&lt;XMLFile&gt;("Scenes/Ramps.xml");
+scene_-&gt;LoadXML(sceneFile-&gt;GetRoot());
+</code></pre>
+<p>}[/code]</p>
+<p>I then tried to re-write the above in Lua and ran it using <span class="bbcode-b">Urho3DPlayer</span>, but it segfaults.</p>
+<p><code>function CreateScene()
+    scene_ = Scene()
+    local sceneXML = cache:GetResource("XMLFile", "Scenes/Ramps.xml")
+    scene_:LoadXML(sceneXML:GetRoot()) -- This line causes the segfault.
+end</code></p>
+<p>Exact command and backtrace:</p>
+<p><code>[1]    2680 segmentation fault  /usr/urho3d/bin/Urho3DPlayer MyScript.lua -w
+#0  0x0000000000d877c4 in Urho3D::XMLFile::BeginLoad(Urho3D::Deserializer&amp;) ()
+#1  0x0000000000d94201 in Urho3D::Resource::Load(Urho3D::Deserializer&amp;) ()
+#2  0x0000000000d2a5f2 in Urho3D::Scene::LoadXML(Urho3D::Deserializer&amp;) ()
+#3  0x0000000000bf8955 in tolua_SceneLuaAPI_Scene_LoadXML01(lua_State*) ()
+#4  0x0000000001184f07 in lj_BC_FUNCC ()
+#5  0x0000000000a6d8bd in lua_pcall ()
+#6  0x000000000104342f in Urho3D::LuaFunction::EndCall(int) ()
+#7  0x000000000063117f in Urho3DPlayer::Start() ()</code></p>
+<p>My version of Urho3D is on the master branch, commit hash 0906da48badacb227701e85b186581b580f9f778 (Fri Jan 15 21:02:56 2016 +0800). I built using the following options:</p>
+<p><code>$ git clone git://github.com/urho3d/urho3d &amp;&amp; cd urho3d
+$ mkdir build &amp;&amp; cd build
+$ cmake                                   \
+    -DURHO3D_C++11=ON                     \
+    -DURHO3D_DOCS=ON                      \
+    -DURHO3D_LUA=ON                       \
+    -DURHO3D_LUAJIT=ON                    \
+    -DCMAKE_INSTALL_PREFIX=/usr/urho3d \
+    ..
+$ make -j7
+$ make install</code></p>
+<p>OS:</p>
+<p><code>$ uname -a
+Linux rainbowdash 4.1.12-gentoo #1 SMP Tue Nov 10 00:33:50 CET 2015 x86_64 Intel(R) Core(TM) i5-2410M CPU @ 2.30GHz GenuineIntel GNU/Linux</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p><span class="bbcode-b">[size=150]Update[/size]</span></p>
+<p>I re-built Urho3D and enabled all of the debug options and here’s the error message:</p>
+<p><code>[Mon Jan 25 02:04:56 2016] ERROR: Execute Lua function failed: [string "hound"]:20: error in function 'LoadXML'.
+     argument #2 is 'XMLFile'; 'File' expected.</code></p>
+<p>Code:</p>
+<p><code>    scene_ = Scene()
+    local sceneFile = cache:GetResource("XMLFile", "Scenes/Ramps.xml")
+    scene_:LoadXML(sceneFile)</code></p>
+<p>I’m pretty sure this is wrong and I’m not sure what Lua is really expecting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Due to technical reasons (scene wants to be able to get a file checksum for e.g. networking) there isn’t an overload of Scene::LoadXML which takes a XMLFile. For Lua, it can take either a File* (which you get with ResourceCache::GetFile, be careful with memory management) or a string containing pathname.</p>
+<p>Due to tolua++ being what it is, getting crashes with wrong parameters is easy. This is unfortunate, for now if you want a more robust scripting environment I’d recommend using AngelScript instead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Thanks for the insight!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

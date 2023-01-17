@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Terrain editor</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Terrain editor</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>Hi, I’m working on a terrain editor, basically heightmap modification and texturing in real time. For now I’m starting with the heightmap, but I think I’ll have to modify  the Terrain source code.<br/>
+The approach I was using was to modify the heightmap  image, the problem is that reloading the whole geometry with the new image takes almost a second, so it can’t be used efficiently as a brush to paint height.</p>
+<p>Looking at the source, I think it requires something to modify the geometry on the fly, and another function to update the heightmap image to the new geometry.</p>
+<p>Also, to speed things up, the vertex buffer should be modified using shaders. That would also make easier creating new brushes, just create a shader and pass it as argument to the modify geometry function.</p>
+<p>I think I can make it, but I’m not sure how long it will take, I’m not familiarised with the code and I never used shaders.</p>
+<p>What are your thoughts about it?</p>
+<p><img alt="" height="300" src="../../../images2/b512e43610085a265226c5d61671b3b6.jpg" width="300"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>I am very interested.  I have a hard time believing anything would take a second in urho.  Are you will to show the code how you are modifying the terrain?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>Sure. It’s in lua.<br/>
+The code for creating the Terrain is almost the same as in the examples, but storing the image in a variable.</p>
+<p>[code]    – Create heightmap terrain<br/>
+terrainNode = scene_:CreateChild(“Terrain”)<br/>
+terrainNode.position = Vector3(0.0, 0.0, 0.0)<br/>
+local terrain = terrainNode:CreateComponent(“Terrain”)<br/>
+terrain.patchSize = 64<br/>
+terrain.spacing = Vector3(2.0, 0.5, 2.0) – Spacing between vertices and vertical resolution of the height map<br/>
+terrain.smoothing = true<br/>
+heightMapImage = cache:GetResource(“Image”, “Textures/HeightMap.png”)</p>
+<pre><code>terrain.heightMap = heightMapImage
+terrain.material = cache:GetResource("Material", "Materials/Terrain.xml")
+-- The terrain consists of large triangles, which fits well for occlusion rendering, as a hill can occlude all
+-- terrain patches and other objects behind it
+terrain.occluder = true[/code]
+</code></pre>
+<p>Then the painting itself. This is just an example, not a real brush, it increases +10% the height on each point.</p>
+<p>[code]function PaintBrush(center, radius)<br/>
+radius = radius or 80.0<br/>
+center = center or Vector3(.0,.0,.0)<br/>
+local terrain = terrainNode:GetComponent(“Terrain”)</p>
+<pre><code>center.x = (center.x + heightMapImage.width) / terrain.spacing.x
+center.z = (center.z - heightMapImage.height)/ terrain.spacing.z * (-1.0)
+radius = radius / terrain.spacing.x
+radiusSquare = radius * radius or 400.0
+
+local x_min = center.x - radius
+
+local y_min = center.z - radius
+
+local x_max = center.x + radius
+
+local y_max = center.z + radius
+
+for i=x_min, x_max do
+    for j=y_min, y_max do
+        if ((i - center.x) * (i - center.x) + (j - center.z) * (j - center.z)) &lt;= radiusSquare then
+            heightMapImage:SetPixel(i,j, heightMapImage:GetPixel(i,j) * 1.1)
+        end
+    end
+end
+terrain.heightMap = heightMapImage
+</code></pre>
+<p>end[/code]</p>
+<p>You should be able to add that to the water or vehicle example and execute the paint through console, both arguments are optional, it will paint a 80 radius circle on the centre of the map.</p>
+<p>I don’t think it’s weird that it takes a second, it’s reconstructing all the vertex in the terrain from scratch, instead of just the ones being modified.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There are some modifications in the master branch now which make partial updates take less time. It basically checks for which terrain patches the heightmap image has actually changed. I tested it in the vehicledemo by constantly updating the terrain under the vehicle (1 pixel only) and it seemed to work at a nice framerate.</p>
+<p>The slow parts are (among other things) the heightmap smoothing, calculating LOD errors for all LOD levels, and generating normals for the vertex buffer data.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>I’ll try to disable those things and see if it goes fast enough.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>Ok, it seems fast enough now. I’ll give it a try and make the brushes just with lua.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">christianclavet</div>
+          <div class="post_content">
+<p>HI, I’m an thinking about creating the geometry directly in URHO (A simple plane with vertices of the resolution of the height map), then manipulating the vertices directly. Once the edit is done of the terrain mesh, convert the vertices values to a height map and replace it with a terrain mesh.<br/>
+My old editor use a similar method and refreshes are quite fast. There are methods to create a mesh and modify all the attributes of the meshbuffers in URHO3D?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>There are methods to create a mesh and modify all the attributes of the meshbuffers in URHO3D?</p>
+</blockquote>
+<p>Yes, you need create your new class based on Drawable</p>
+<p>class URHO3D_API YourNewDrawableClass : public Drawable {}</p>
+<p>then resize batches and fill geometry for each batch as you wish</p>
+<p>geometry_-&gt;SetVertexBuffer(0, vertexBuffer_, MASK_POSITION | MASK_COLOR | MASK_TEXCOORD1);<br/>
+geometry_-&gt;SetIndexBuffer(indexBuffer_);<br/>
+batches_.Resize(1);<br/>
+batches_[0].geometry_ = geometry_;</p>
+<p>for more info see thread about creating tail-component <a href="http://discourse.urho3d.io/t/solved-own-component-based-on-drawable-dont-work/809/1">topic828.html</a> there a lot code examples</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

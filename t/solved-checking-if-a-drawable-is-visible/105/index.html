@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Checking if a drawable is visible</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Checking if a drawable is visible</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>I’ wondering what function(s) to use to check if a drawable is visible in a viewport.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The drawable has a IsInView() method. Is that what you are looking for? That method is exposed rather nicely for AngelScript API and becomes ‘inView’ property. The same cannot be said for Lua API which exposed the method as it is, that requires the frameNumber parameter.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Yes, I have trouble with the IsInView for lua (I think that’s the function I need).<br/>
+I’ve tried to get frameNumber using Time:GetFrameNumber() but I end up with a segmentation fault.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I have made a commit to change how the Drawable::IsInView() method is exposed in LuaScript API. I now wrap the Drawable::IsInView() method in a convenient static function, and then bind that static function to a readonly property called ‘inView’ (similar to how it is done in AngelScript API). You should be able to use the property directly to check whether a drawable is in viewing frustum. Something like this:</p>
+<p><code>local model = characterNode:GetComponent("AnimatedModel")
+debugHud:SetAppStats("Model is in view", Variant(model.inView))</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Many thanks for commit and detailed explanations. <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p>However it doesn’t exactly work as expected (maybe that’s the normal behavior): for example, if I instantiate a Ninja in sample <span class="hashtag">#18</span>, it gets visible in a 180? range, so it returns true even if Ninja is not visible in my viewport. If this is the intended behavior of inView, how can we tweak to match camera visibility?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The drawable should be “in view” when it’s bounding box is even partially visible in the camera frustum. Check with debug geometry drawing to verify.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>How do you define “camera visibility”? If the character is standing in front of the camera but behind a big box which occludes the character, the character is not <span class="bbcode-i">visible</span> from the camera’s point of view but still the character’s drawable is considered as “in view”. Right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I’ll have to check, if the object is an occludee and it’s completely obscured by an occluder in the software occlusion system then it shouldn’t be marked in view, even though it’s inside the frustum. Otherwise, if the object is occluded by actual rendering only (but not by the occlusion system) it will be marked “in view” even though nothing is visible.</p>
+<p>EDIT: there is somewhat of a bug. The IsInView() function should by default check visibility in the viewport only, and not in shadow maps. However, what happens is that when shadows are on, the drawable will report visible even when occluded. With shadows off it works correctly.</p>
+<p>EDIT2: Fixing this is not trivial, because the drawable only keeps memory of the last view rendered from. Better solution, with some overhead would be to change drawables to keep a set of cameras they have been rendered from last frame, so you could ask IsInView(camera).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks for checking.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

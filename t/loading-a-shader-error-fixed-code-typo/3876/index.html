@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Loading a shader error. Fixed. Code Typo!</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Loading a shader error. Fixed. Code Typo!</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>I’m trying to load a shader following into the Shader class. One shader work but this one fails. Do anyone know what could be the cause</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+
+uniform sampler2D positionmap;
+uniform float texelSize;
+
+void VS()
+{
+	gl_TexCoord[0].st = gl_MultiTexCoord0.st;
+	gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+}
+
+void PS()
+{
+ // Sample positions
+  vec3 posX0Y0 = texture2D(positionmap, gl_TexCoord[0].st).rgb;
+  vec3 posXMY0 = texture2D(positionmap, gl_TexCoord[0].st - vec2(texelSize, 0.0)).rgb;
+  vec3 posXPY0 = texture2D(positionmap, gl_TexCoord[0].st + vec2(texelSize, 0.0)).rgb;
+  vec3 posX0YM = texture2D(positionmap, gl_TexCoord[0].st - vec2(0.0, texelSize)).rgb;
+  vec3 posX0YP = texture2D(positionmap, gl_TexCoord[0].st + vec2(0.0, texelSize)).rgb;
+  
+  // Edges connecting the samples
+  vec3 edgeXM = posXMY0 - posX0Y0;
+  vec3 edgeXP = posXPY0 - posX0Y0;
+  vec3 edgeYM = posX0YM - posX0Y0;
+  vec3 edgeYP = posX0YP - posX0Y0;
+  
+  // Using only one of these normals is faster but not as accurate
+  vec3 normalM = cross(edgeXM, edgeYM);
+  vec3 normalP = cross(edgeXP, edgeYP);
+ 
+  // Normalize the sum of both normals (averaging happens automatically)
+  vec3 normal = normalize(normalM + normalP);
+  gl_FragData[0] = 0.5 + 0.5 * vec4(normal, 1.0);
+  gl_FragData[1] = vec4(texture2D(positionmap, gl_TexCoord[0].st).a);
+}</code></pre>
+<p>The code to load is the following</p>
+<pre><code class="lang-auto">// Load resource cache
+	ResourceCache * cache = g_pApp-&gt;GetConstantResCache();
+
+	// Get Position Map
+	shaderQuadNormalHeightMap = (Shader *) cache-&gt;GetResource("Shader",
+			"CoreData/Shaders/GLSL/QuadTreeNormalHeightMap.glsl");
+
+	if (!shaderQuadTreePositionMap) {
+		URHO3D_LOGINFO("Loading Shader shaderprogQuadNormalHeightMap failed");
+	} else {
+		URHO3D_LOGINFO(
+				"Loading Shader shaderprogQuadNormalHeightMap successful");
+
+		String Defines1;
+		String Defines2;
+
+		ShaderVariation * vs0 = shaderQuadTreePositionMap-&gt;GetVariation(VS,
+				Defines1);
+		ShaderVariation * ps0 = shaderQuadTreePositionMap-&gt;GetVariation(PS,
+				Defines2);
+
+		shaderprogQuadNormalHeightMap = new ShaderProgram(g_pApp-&gt;GetGraphics(),
+				vs0, ps0);
+	}
+
+	// Get Position Map
+	shaderQuadTreePositionMap = (Shader *) cache-&gt;GetResource("Shader",
+			"CoreData/Shaders/GLSL/QuadTreePositionMap.glsl");
+
+	if (!shaderQuadTreePositionMap) {
+		URHO3D_LOGINFO("Loading Shader shaderprogQuadTreePositionMap failed");
+	} else {
+		URHO3D_LOGINFO(
+				"Loading Shader shaderprogQuadTreePositionMap successful");
+
+		String Defines3;
+		String Defines4;
+
+		ShaderVariation * vs1 = shaderQuadTreePositionMap-&gt;GetVariation(VS,
+				Defines3);
+		ShaderVariation * ps1 = shaderQuadTreePositionMap-&gt;GetVariation(PS,
+				Defines4);
+
+		shaderprogQuadTreePositionMap = new ShaderProgram(g_pApp-&gt;GetGraphics(),
+				vs1, ps1);
+	}</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

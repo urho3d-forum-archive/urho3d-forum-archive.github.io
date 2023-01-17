@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Having an issue with array of float uniforms on D3D11</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Having an issue with array of float uniforms on D3D11</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Working on the terrain shader for my terrain editor, and having some issues with the D3D11 version. I am declaring an array of float uniforms as:</p>
+<pre><code>static const int numlayers=8;
+#ifdef COMPILEPS
+
+	cbuffer CustomPS : register(b6)
+	{
+		float cLayerScaling[numlayers];
+	};
+#endif
+</code></pre>
+<p>Then, I access it to scale a terrain texture layer by a specified amount:</p>
+<pre><code>float4 SampleDiffuse(float3 detailtexcoord, int layer, float3 blend)
+{
+	return tDetailMap2.Sample(sDetailMap2, float3(detailtexcoord.zy*cLayerScaling[layer], layer))*blend.x +
+		tDetailMap2.Sample(sDetailMap2, float3(detailtexcoord.xy*cLayerScaling[layer], layer))*blend.z +
+		tDetailMap2.Sample(sDetailMap2, float3(detailtexcoord.xz*cLayerScaling[layer], layer))*blend.y;
+}
+</code></pre>
+<p>In Lua script, I pass the material an array Variant object constructed like so:</p>
+<pre><code>local buf=VectorBuffer()
+buf:WriteFloat(2)
+buf:WriteFloat(2)
+buf:WriteFloat(1.0)
+buf:WriteFloat(1.0)
+buf:WriteFloat(1.0)
+buf:WriteFloat(1.0)
+buf:WriteFloat(1.0)
+buf:WriteFloat(0.25)
+
+local ary=Variant()
+ary:Set(buf)
+TerrainState.terrainMaterial:SetShaderParameter("LayerScaling", ary)
+</code></pre>
+<p>But for some reason, the shader isn’t receiving all of the floats in the array. It receives the first float correctly, it receives an incorrect value for the second one, and the rest it receives the value of 0.</p>
+<p><img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/d1053f0a172aba845dff12421ec8c5cf6591d703.png"/></p>
+<p>It works on the OpenGL version just fine, so I don’t think it’s a problem with constructing the VectorBuffer and setting the parameter:</p>
+<p><img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/86ffe967bc1b4c7b1a2b82519446863eb9c89698.png"/></p>
+<p>Anybody have any ideas?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Ty to debug <code>Graphics::SetShaderParameter(StringHash param, const float* data, unsigned count)</code><br/>
+Does it receive valid values?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I added some logging code, and it looks like it is getting the values:</p>
+<pre><code>[Thu Sep 21 16:29:59 2017] INFO: Shader parameter buffer index 0: 2
+[Thu Sep 21 16:29:59 2017] INFO: Shader parameter buffer index 1: 2
+[Thu Sep 21 16:29:59 2017] INFO: Shader parameter buffer index 2: 1
+[Thu Sep 21 16:29:59 2017] INFO: Shader parameter buffer index 3: 1
+[Thu Sep 21 16:29:59 2017] INFO: Shader parameter buffer index 4: 1
+[Thu Sep 21 16:29:59 2017] INFO: Shader parameter buffer index 5: 1
+[Thu Sep 21 16:29:59 2017] INFO: Shader parameter buffer index 6: 1
+[Thu Sep 21 16:29:59 2017] INFO: Shader parameter buffer index 7: 0.25
+</code></pre>
+<p>I added a check in ConstantBuffer as well to make sure it’s not overflowing the buffer, and everything looks good there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/503_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alex-Doc</div>
+          <div class="post_content">
+<p>Maybe this can be useful for investigating further?<br/>
+<a class="onebox" href="https://renderdoc.org" rel="nofollow noopener" target="_blank">https://renderdoc.org</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Arrays are not packed in DX11. Every element of the array is aligned to float4 vector.<br/>
+<a class="onebox" href="https://msdn.microsoft.com/ru-ru/library/windows/desktop/bb509632%28v=vs.85%29.aspx?f=255&amp;MSPPError=-2147217396" rel="nofollow noopener" target="_blank">https://msdn.microsoft.com/ru-ru/library/windows/desktop/bb509632(v=vs.85).aspx?f=255&amp;MSPPError=-2147217396</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Looks like that was the issue. Thank you!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

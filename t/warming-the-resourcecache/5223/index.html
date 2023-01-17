@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Warming the ResourceCache</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Warming the ResourceCache</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I have several weapon models that I instantiate at runtime (typically from .mdl files).<br/>
+One in particular takes an exceptional amount of time to load - and it’s not a big model, it’s the urho fish model. I think the main cause of the delay is texture loading. When the model instance is destroyed and recreated, there is no noticeable delay (resourcecache still has the assets loaded).</p>
+<p>What is the best way to “warm the resourcecache” in order to eliminate the initial delay?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>It has been a little while – when <span class="mention">@cadaver</span> had mentioned it in   <a class="inline-onebox" href="https://discourse.urho3d.io/t/async-loading-help/1120">Async loading help?</a>  I thought <code>ResourceCache::BackgroundLoadResource()</code> might be useful for background precaching.  <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/><br/>
+… async methods should potentially be nicer than <code>GetResource()</code>.</p>
+<p>For a directory I might try something like</p>
+<pre><code class="lang-auto">FileSystem* fs(context_-&gt;GetSubsystem&lt;FileSystem&gt;());
+Vector&lt;String&gt; files;
+String texDir("Data/Textures"));
+fs-&gt;ScanDir(files, texDir, "*.tga", SCAN_FILES, true);
+Vector&lt;String&gt;::ConstIterator file(files.Begin());
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I am not convinced this is enough for my use-case. But I very much appreciate the feedback, so I thank you. I am not sure this solves my problem, but I like to learn, and I do use asynch loading already, again thanks very much, I will make of this what I can.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Profiler should tell more, but maybe image decoding is eating a fair bit of CPU?<br/>
+TGA and RLE compression are fast, JPEG is probably a few times slower than most HDs, and (compressed) PNG usually slower still.</p>
+<p>On dev rig, I have put resources on tmpfs/RAM with symlinks in <code>bin/Autoload</code> to good effect.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I don’t want to scan for and load every possible texture from some pathway, there has to be a nicer way, even if i need to make my own data driven solution for entire scenes (effectively, a set of per scene data that was not serialized with the scene)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>good luck with roll-your-own. <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/><br/>
+On delays: In addition to texture decoding there’s texture uploading to GPU (that’s on main thread).</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Streaming of Navigation Meshes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Streaming of Navigation Meshes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I’d like to introduce support of sparse navigation meshes with dynamically streamed tiles.</p>
+<p>Urho3D branch with this feature and two samples is available here:<br/>
+<a href="https://github.com/eugeneko/Urho3D/tree/navmesh-streaming" rel="nofollow noopener">https://github.com/eugeneko/Urho3D/tree/navmesh-streaming</a></p>
+<p>It’s a kind of sketch, so I would be happy if someone test and/or review it.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"  rel="nofollow noopener" title="49_CrowdNavigationStreaming_d 2017-08-04 01-06-50-290.jpg"><img alt="49_CrowdNavigationStreaming_d 2017-08-04 01-06-50-290"  height="500" src="../../../images2/c10bbec0f439e5dee670f460f99572fd.jpg"  width="666"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">49_CrowdNavigationStreaming_d 2017-08-04 01-06-50-290.jpg</span><span class="informations">1024×768 684 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<h3>Guide</h3>
+<p>First of all, <code>NavigationMesh::Allocate()</code> shall be used instead of <code>NavigationMesh::Build()</code>:</p>
+<pre><code class="lang-auto">navMesh-&gt;Allocate(boundingBox, maxTiles);
+</code></pre>
+<p>The bounding box of the entire area is almost unlimited (I hope), but it shall be somehow computed on the user side. Then, user shall provide the limit for simultaneously loaded mesh tiles.</p>
+<p>Then, navigation mesh shall be built. It is actually fine to use <code>NavigationMesh::Build()</code> first time and <code>NavigationMesh::Allocate()</code> other times, but huge areas may cause <code>out of memory</code>.</p>
+<p><code>NavigationMesh::Build(fromTile, toTile)</code> could be used to build few tiles in the rectangular area specified.<br/>
+Then, these tiles could be received via <code>NavigationMesh::GetTileData(x, z)</code> and e.g. saved onto disk.<br/>
+To build next bucket of tiles, do <code>NavigationMesh::RemoveAllTiles()</code> first.</p>
+<p>The simplest example:</p>
+<pre><code class="lang-auto">for each tile
+{
+    navMesh-&gt;Build(tile, tile);
+    tileData = navMesh-&gt;GetTileData(tile.x, tile.y);
+    SaveToDisk(tileData);
+    navMesh-&gt;RemoveAllTiles();
+}
+</code></pre>
+<p>Stored tiles could be added to and removed from navigation mesh via <code>NavigationMesh::AddTile(tileData)</code> and <code>NavigationMesh::RemoveTile(x, z)</code>.</p>
+<h3>Known issues</h3>
+<p><s><code>Obstacle</code>s shall be re-added on the user side once <code>AddTile</code> is called in order to be correctly rendered into navigation mesh.</s></p>
+<p><s><code>CrowdAgent</code>s linked to removed chunks become invalid and stuck. This shall be handled somehow at the user side.</s></p>
+<p><s><code>OffMeshConnection</code> sometimes doesn’t work properly.</s><br/>
+<code>OffMeshConnection</code> sometimes doesn’t work properly even without streaming.</p>
+<p><code>CrowdAgent</code> may behave strangely if its path lays through removed tile.</p>
+<p>Any streaming logic shall be implemented on the user side.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Ah, this is so cool!<br/>
+How do you display this debug geometry?<br/>
+Also would you like to handle obstacles and agents in a way so it would be more transparent<br/>
+(or more or less clear what to do about them)?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Didn’t look in any detail, but concept is very cool!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="3416" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>How do you display this debug geometry?</p>
+</blockquote>
+</aside>
+<p>I draw all tiles currently added to the navmesh.</p>
+<aside class="quote no-group" data-post="2" data-topic="3416" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>Also would you like to handle obstacles and agents in a way so it would be more transparent</p>
+<p>(or more or less clear what to do about them)?</p>
+</blockquote>
+</aside>
+<p>Oh, I definently would like to do something. I just don’t know what.<br/>
+<code>49_CrowdNavigationStreaming</code> contains workaround for these issues, but it’s not the best way of doing things…</p>
+<p>My changes now has zero cost: user don’t pay for streaming neither CPU nor memory if he doesn’t use it. I don’t know how to keep zero cost and fix the issues simultaneously.</p>
+<p>Huh… I can send some event from the navmesh and somehow handle it in <code>CrowdAgent</code>s and <code>Obstacle</code>s…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Works great <img alt=":grinning:" class="emoji" src="../../../images2/993cdd6d5aba3f941b7389fd0b3a1ba1.png" title=":grinning:"/><br/>
+Just noticed that the character doesn’t move with a 9 tiles grid (streamingDistance_ set to 1).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I fixed the problem with Obstacles. They are automatically re-added if <code>AddTile</code> was called for the tile intersected with the obstacle. <code>CrowdAgent</code>s are harder to handle…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I fixed <code>CrowdAgent</code>s. They still just stuck when become out-of-mesh, but they are re-added (and so repaired) once the underlying tile is added to the navigation mesh. IMO this is enough.</p>
+<p><span class="mention">@cadaver</span> I found some strange logic in navmesh transform calculations… Does navmesh really support node transform or not? E.g. look at NavigationMesh::CollectGeometries.<br/>
+NavigationGeometryInfo bounding boxes for geometry are stored in the node space…<br/>
+But right below the boxes for NavArea and OffMeshConnection are stored in the world space o_o<br/>
+Obstacles are also added to the mesh in the world space.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Thank you so much! This feature is great addition.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Since it seems pretty stable, I’ll start to work on PR.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Yes, there are comments that FindPath() et al. expect the navmesh data to be in the navmesh node’s local space. There may be various brainfarts so feel free to fix them as you encounter them. Multiple people have also worked on it.</p>
+<p>Or alternatively, if you find this unnecessary you’re also just as free to transform the whole system to work in global space, I don’t have objections to this, as it’s a quite crazy usecase to move a whole navigation mesh.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Will it be possible then to build navmesh parts on demand? And have multiple navmeshes for various kinds of agents?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="11" data-topic="3416" data-username="cadaver">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>it’s a quite crazy usecase to move a whole navigation mesh</p>
+</blockquote>
+</aside>
+<p>I’ve just added something like</p>
+<pre><code class="lang-auto">    rootNode = scene_-&gt;CreateChild();
+    rootNode-&gt;SetPosition(Vector3(10, 0, 0));
+    rootNode-&gt;SetRotation(Quaternion(0, 15, 0));
+</code></pre>
+<p>to CrowdNavigation sample and navigation got completely broken.<br/>
+So I’ll remove any stuff that handles node-to-global space converstion for navigation since it’s verbose, redundant and don’t work properly now. I’ll also add porting note just in case.</p>
+<aside class="quote no-group" data-post="12" data-topic="3416" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>Will it be possible then to build navmesh parts on demand?</p>
+</blockquote>
+</aside>
+<p>It’s possible now if you have already built the whole mesh.<br/>
+It will be possible to build parts without building whole mesh, but some uncaught bugs may hide there, beware.</p>
+<aside class="quote no-group" data-post="12" data-topic="3416" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>And have multiple navmeshes for various kinds of agents?</p>
+</blockquote>
+</aside>
+<p>It’s not supported by <code>CrowdManager</code> now and I am not going to change anything here in the nearest future.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>This is nice feature UE4 has, so I;d look into it in future.</p>
+<p>Thanks for your work!</p>
+<p>I think navmesh moving can be implemented after cleanup. The use case is movable platforms (UE4 has support for this kind of thing too), probably interesting feature to have.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

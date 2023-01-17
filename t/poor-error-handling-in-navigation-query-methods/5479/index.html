@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Poor error handling in Navigation query methods</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Poor error handling in Navigation query methods</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I noticed there’s a lack of appropriate error handling in the Navigation classes… the first thing I noticed was that NavigationMesh::FindPath has absolutely no error checking of return values, and itself returns void - there is no triggering of a statechange event that could inform us that a pathfinding attempt has failed. The next thing I noticed was that FindNearestPoint does something almost as bad - if it fails to initialize a query object, or fails to locate nearest polygon, it simply returns the input point - no error event is sent, and no useful error appears to be stored anywhere.</p>
+<p>All that effectively means that if I try to find a path to a target point that is completely outside the bounds of my navmesh, I am greeted with silence, rather than “path not found”… and if I ask for the closest point on the navmesh to my invalid target point, I am handed back the same invalid point!</p>
+<p>Just wondering how others may have approached the lack of appropriate error handling when making invalid navmesh queries…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Please read the <a href="https://git-scm.com/book/en/v2" rel="nofollow noopener">git book</a> I sent you earlier. The knowledge held within will allow you to suggest concrete changes instead of only being able to point at work. That would be most helpful.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Detour rarely returns any sort of meaningful error-code for us to do anything whatsoever with. In order for Detour’s <code>findNearestPoly</code> to actually say that it “<strong>failed</strong>” you have to give it garbage it inputs, otherwise Detour will always <strong>succeed</strong>.</p>
+<p>Most of navigation runs into philosophical dilemmas about <em>“what is a failure?”</em>, crowds only have so much psychotic and overbearing error raising because DetourCrowd does have some sort of discernable valid state, unlike a random query.</p>
+<p>So what then is failure for <code>FindNearestPoint</code>? Absence of a poly-ref from <code>dtNavMeshQuery::findNearestPoly</code>? What does that even rationally mean and what’s the ratio of genres where that would be an error to those that it wouldn’t be?</p>
+<p>Since navigation is ultimately project specific, a lot of navigation just walks away from that problem and leaves it to the end-user.</p>
+<hr/>
+<p>I regret submitting the PR for detour-crowd. Objectively, none of navigation has any business being there at all and belongs elsewhere like a community repo so that it’s approached from the “<em>I’m going to have to fiddle with dials and tweak some code</em>” angle as it should be.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p><span class="mention">@Sinoid</span> - For FindNearestPoly, this may be the case… but FindPath can return a meaningful result for sure, and we’re doing nothing with it.<br/>
+Please feel no regret for your work with detour-crowd: its good work, I applaud and thank you for taking the time! I plan to make use of at least some of it!<br/>
+The issues I refer to are based in the NavigationMesh class, not per se the crowd stuff built on top. I’m certain there’s a simple way to remedy this situation without going back to the drawing board <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p><span class="mention">@Modanung</span> - There are two parts to problem solving - I’m with you on the GIT stuff and I will remedy, but it would make no sense to publish in a vacuum, without being able to reason, in public, about what the (perceived) issue was - preferably, prior to addressing it. Sometimes I overlook things entirely, and at least to my mind, it’s not an attack on the system to point out where the system could be improved.<br/>
+I’m not offering a solution, I realize it, I was kinda hoping someone else may already have addressed it, perhaps in some far flung fork, where it languishes, waiting to be rediscovered.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>I never had any problems with navigation so far, and the integration is great. My usage of it isn’t very demanding, but I’m grateful for it</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Me too - it works perfectly, when we request a target inside a safe volume, but we’re game devs, and the volume is never safe… just to see what would happen, I asked for a target outside the world. I got nothing - no errors, no replies. This is not good.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>You’re the game dev here. A good game is a game where you provide the illusion of the player being in control. If they can create unsafe environments, then either too much control is being given, or there isn’t a warning being shown.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>If WE create unsafe environments, the game is not going to succeed… we need to be rock solid.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Games rely on robust rules, and so do we, game developers: programmers, artists, audio engineers, marketing people, we all live and breathe rules, but the rules can always give way to positive change. Here’s a sore spot though, because the query method, and the query reply structure, neither give us space to talk about who’s doing the asking. This makes it slightly harder to make a meaningful event to notify about this failure, without changing the return value, and breaking existing code. Sigh.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Certainly can give a use-case! NavMeshes are finite creatures, that may or may not be connected to others, via off-mesh links. Games on the other hand, particularly those with physics involved, are unbounded, and things will try to escape our world, with or without the help of the players.<br/>
+If we are trying to track our way to something we want, that has left the nav mesh, and we are using nav mesh queries to do so, we are screwed - that is to say, we can’t seek a target outside of the navmesh in which the query began - whether or not its in a valid navmesh elsewhere.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’m pretty sure I got that right… please anyone, step in and enlighten me <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve begun to patch this issue, starting with the NavigationMesh class.</p>
+<p>The two FindPath methods were returning void - since anyone already calling these methods was not expecting / using the return value, this meant it was “safe” for me to change the return type to dtStatus, and return a meaningful result (success, failed, or pending, but there’s actually a lot more rich information available in the status bits than that - see DetourStatus.h)</p>
+<p>The FindNearestPoint method was already using its return value - so I tacked on an extra input argument, an optional dtStatus*=nullptr, which if valid, is used to return the status value from its call to navMeshQuery_-&gt;findNearestPoly. Adding an optional arg with a default value, again, does not break any existing code.</p>
+<p>There were some subtle changes made to the code, mainly to return a failure code, instead of just exiting early. I also had to modify DynamicNavigationMesh.cpp already, just to make it include the dtStatus stuff, so that the NavigationAPI.cpp angelscript stuff stopped complaining.</p>
+<p>I am not sure why, but NavigationMesh.cpp is including DynamicNavigationMesh.h, this seems like a backward arrangement, since the classes are related the other way around.</p>
+<p>I’ve checked that my changes compile, and don’t affect existing code, but I’ll test them out before I take this any further - and by that I simply mean reflecting these changes in DynamicNavigationMesh.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Do you plan to issue this improvement as a pull request? If so, I guess it would make sense to do so for the original repo, to which Urho could then sync:<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/298b47bcb25b5f93b2f65fdd18e4cc1a.ico" width="32"/>
+<a href="https://github.com/recastnavigation/recastnavigation" rel="nofollow noopener" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="420" src="https://avatars1.githubusercontent.com/u/16167685?s=400&amp;amp;v=4" width="420"/>
+<h3><a href="https://github.com/recastnavigation/recastnavigation" rel="nofollow noopener" target="_blank">recastnavigation/recastnavigation</a></h3>
+<p>Navigation-mesh Toolset for Games. Contribute to recastnavigation/recastnavigation development by creating an account on GitHub.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>I have no idea when our repo was last synchronized with theirs, btw.</p>
+<p>Basically this is <em>not an Urho3D issue</em>, but rather a feature request for Recast &amp; Detour.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yep, I plan to push this to my repo, and then issue PR, not that it has historically been a useful avenue for publication for me personally, but yes, I do plan to PR</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>For me, personally, its more valuable to talk about code, to be seen talking about code, than to provide code examples, but I am always happy to adapt to meet the need.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="45" data-topic="5479">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>not that it has historically been a useful avenue for publication for me personally</p>
+</blockquote>
+</aside>
+<p>Could you put to words what you considered not useful about your single PR experience?</p>
+<aside class="onebox githubpullrequest">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com/urho3d/Urho3D</a>
+</header>
+<article class="onebox-body">
+<a href="https://github.com/LeithKetchell" rel="nofollow noopener" target="_blank">
+<img alt="LeithKetchell" class="thumbnail onebox-avatar" height="90" src="../../../images2/24351b40c956eb0a91d1c0b0c48c9cc9" width="90"/>
+</a>
+<h4>
+<a  rel="nofollow noopener" target="_blank">Files patched for Issue# 2352 (unordered network replication of node hierarchies)</a>
+</h4>
+<div class="date">
+  by <a href="https://github.com/LeithKetchell" rel="nofollow noopener" target="_blank">LeithKetchell</a>
+  on <a  rel="nofollow noopener" target="_blank">12:07AM - 15 Jan 19 UTC</a>
+</div>
+<div class="github-commit-stats">
+<strong>4 commits</strong>
+  changed <strong>6 files</strong>
+  with <strong>20 additions</strong>
+  and <strong>16 deletions</strong>.
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yes.<br/>
+I patched an issue, my first issue, and my patch is not in the master branch. Why not? It passed all tests. Why was it ignored? I feel like I wasted my time. I’ve since posted all my current changes, except that one, to my working repo. PR or not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>The thing is that it’s your PR, there was a proposed way how to test it but not further action was taken and no additional comments regarding the test results. I thought that I would be able to help, but so far  haven’t found the time to do so and it’s not really my duty to do it, since I’m allowed to participate in the project as much as I want to.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>What is the avenue for feedback provided with the PR mechanism? Who has access? Who sees what?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Everyone can see PR’s and discussions with them. So anyone could potentially participate in the conversation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>So everyone who had access to see my PR, whether they tested or not, effectively ignored it, and nobody is in charge of actually merging the changes?<br/>
+I’m not sure what to make of that. For now, I’ll just post my changes on my own fork. I have a copy, there’s a copy on another system, and people can see it if they want to. I can link to it, everyone’s happy.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Yes, almost all viewers ignored it. No one tried to test it, no one commented about the state of the PR and sadly that’s when everything stopped. In the past months the activity in the main repo has decreased, but we can still make it better by actively participating in the PR reviews. Your provided changes are still actual to this day and I would like it to get merged, but not without additional testing and feedback.</p>
+<p>Don’t be discouraged to submit your changes, engine needs improvements and don’t let your first PR experience get in your way.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I won’t be submitting PR for the time being. But I will link to my changes, and there is a record.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Can we continue the discussion in the PR?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>check ur mail <img alt=":wink:" class="emoji" src="../../../images2/537e3e653d641df5b9858e75faf3862a.png" title=":wink:"/> I have responded.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

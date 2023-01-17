@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Send delayed or timed Event (SendEvent)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Send delayed or timed Event (SendEvent)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1956_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">urnenfeld</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>Is it possible to send an event (<a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_object.html#ac0088ab93a71b930fd8cbc06b0afddc7" rel="noopener nofollow ugc">SendEvent</a>), but the triggering actually happening after a specific delay?</p>
+<p>My use case is attemping to trigger an action from a Handler, after a specific amount of time.</p>
+<p>Is there any other more elegant method than subscribing E_UPDATE and keeping a <a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_timer.html" rel="noopener nofollow ugc">timer</a> and only then perform the SendEvent() call?</p>
+<p>… This option, forces extra status handling &amp; logic between the triggering handler, and the update handler.</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>If you want a delay, you’ll need a timer of some kind… there is nothing built-in for this. If you don’t want the timer to block execution, then maybe push your event/handler into a queue and check with every E_UPDATE call if enough time has passed (E_UPDATE has P_TIMESTEP parameter, which returns duration of previous frame as a float in milliseconds).</p>
+<p>Unless you want to get into the weeds of controlling FPS, exceeding that level of granularity is pointless.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Builtin events don’t and can’t really support it. <code>SendEvent</code> is synchronous, will all benefits and disadvantages of this approach. You have to make your own event system if you want them to be processed in MT or delayed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>There’s nothing builtin at the moment iirc. But it shouldn’t be too hard to implement a component/sub-system which handle these things for you.</p>
+<p>You basically inherit from <code>Object</code> type to create your subsystem, which you then create an instance of. Which you then pass to <code>Context::RegisterSubsystem(...)</code> to have it as a subsystem in your application. Look at <code>Source\Urho3D\Core\Timer.h/cpp</code> for a simple sub-system used by the engine.</p>
+<p>You then listen to <code>E_BEGINFRAME</code> or <code>E_ENDFRAME</code> (<em>or both</em>) to process pending events.</p>
+<p>Storing events for calling later should be easy. All you need to store is the hash of the event you want to emit, a pointer to the sender (<em>because the event must appear to come from the sender not your sub-system</em>), a <code>VariantMap</code> with the event parameters and the conditions required to send that event. All of which should be trivial to store in a <code>Vector</code>.</p>
+<p>Be aware of the sender lifetime tho! I hope I don’t have to warn you about the consequences of accessing freed memory. How you tackle this issue is up to you.</p>
+<p>On each frame event your custom sub-system receives, you process the array of pending event conditions. And if the condition is met, you invoke the <code>SendEvent(...)</code> method on the sender with the hash and stored <code>VariantMap</code>.</p>
+<p>This would the simplest approach to this if all you need is a timer.</p>
+<p>If however the number of pending events is huge and processing starts to affect your frame-time. You may have to look a different approaches. Like processing conditions in a separate thread. But that’s outside the scope of this post.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1956_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">urnenfeld</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="6619" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Builtin events don’t and can’t really support it. <code>SendEvent</code> is synchronous, will all benefits and disadvantages of this approach.</p>
+</blockquote>
+</aside>
+<p>From an external point of view, someone would think that the natural way would be inside the Object class… however if I look deeply inside… nah…</p>
+<p>In a more generic &amp; phylosofical scope, Does the feature exposed, have any sense?</p>
+<p>Anyway, here there is an implementation(closer to <span class="mention">@vmost</span> proposal).  Is required to instantiate this class in your Object, and ensure you call the <em>ProceesTimedEvents()</em> method in the E_UPDATE handler.</p>
+<aside class="onebox githubgist">
+<header class="source">
+<a href="https://gist.github.com/urnenfeld/8dd867fa2f2780446d90c8736581377e" rel="noopener nofollow ugc" target="_blank">gist.github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://gist.github.com/urnenfeld/8dd867fa2f2780446d90c8736581377e" rel="noopener nofollow ugc" target="_blank">https://gist.github.com/urnenfeld/8dd867fa2f2780446d90c8736581377e</a></h4>
+<h5>EventScheduler.hpp</h5>
+<pre><code class="C++">class EventScheduler {
+
+public:
+
+    typedef struct {
+        Object* sender;
+        StringHash eventType;
+        VariantMap eventData;
+        int time;
+    } tTimedEvent;</code></pre>
+This file has been truncated. <a href="https://gist.github.com/urnenfeld/8dd867fa2f2780446d90c8736581377e" rel="noopener nofollow ugc" target="_blank">show original</a>
+<p>
+</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>The concept looks correct to me. You may want to use smart pointers instead of raw pointers.</p>
+<ul>
+<li>
+<code>Object* sender</code> -&gt; <code>Urho3D::WeakPtr&lt;Object&gt; sender</code><br/>
+note: Urho3D <code>Object</code>s are intrusively reference counted, so creating a weak pointer off a normal object should work as expected (afaik).</li>
+<li>
+<code>timedEvent-&gt;sender-&gt;SendEvent(...)</code> -&gt;</li>
+</ul>
+<pre><code class="lang-auto">if (timedEvent-&gt;sender)
+    timedEvent-&gt;sender-&gt;SendEvent(...);
+</code></pre>
+<ul>
+<li>
+<code>Vector&lt;tTimedEvent*&gt;</code> -&gt; <code>Urho3D::Vector&lt;Urho3D::UniquePtr&lt;tTimedEvent&gt;&gt;</code>
+</li>
+<li>
+<code>new tTimedEvent {...}</code> -&gt; <code>Urho3D::MakeUnique&lt;tTimedEvent&gt;(...)</code>
+</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="6619" data-username="urnenfeld">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d36963c2a9b4f8f359a407e59eafd546.png" width="20"/> urnenfeld:</div>
+<blockquote>
+<p>From an external point of view, someone would think that the natural way would be inside the Object class… however if I look deeply inside… nah…</p>
+</blockquote>
+</aside>
+<p>It’s hard to do it inside Object. E.g. what should happen if sender is destroyed? Some events may want to fire anyway, some events should be cancelled. So, event function is required to check if sender is still alive. Moreover, raw pointers in event parameters may expire as well. Also, someone has to take care of allocations. Current events kind of optimize VariantMap allocation which is not compatible with async events.</p>
+<p>It’s all solvable, at the cost of API clarity and a lot of code written. It’s simpler to just make external system that fits your needs.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>If this is not discrete event time,  then why not creating a component?  Then you can have unlimited schedule events attach to what other object/entity that you like.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1956_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">urnenfeld</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="6619" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<ul>
+<li>
+<code>Vector&lt;tTimedEvent*&gt;</code> -&gt; <code>Urho3D::Vector&lt;Urho3D::UniquePtr&lt;tTimedEvent&gt;&gt;</code>
+</li>
+<li>
+<code>new tTimedEvent {...}</code> -&gt; <code>Urho3D::MakeUnique&lt;tTimedEvent&gt;(...)</code>
+</li>
+</ul>
+</blockquote>
+</aside>
+<p>Thanks! that solves some TODOs but:</p>
+<p>Isn’t this creating actually problems in lines 16, 25 &amp; 35? The pointer gets copied in those lines…</p>
+<aside class="quote no-group" data-post="8" data-topic="6619" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>If this is not discrete event time</p>
+</blockquote>
+</aside>
+<p>I don’t understand what you mean by <em>discrete event time</em></p>
+<aside class="quote no-group" data-post="8" data-topic="6619" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>then why not creating a component?</p>
+</blockquote>
+</aside>
+<p>Could be, it would feel more <em>Urho3D like</em>…<br/>
+But would the implementation then only available for <strong>Nodes</strong> or other sibling <strong>Components</strong>? and not to other non-Node kind of <strong>Objects</strong>?</p>
+<aside class="quote no-group" data-post="8" data-topic="6619" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>Then you can have unlimited schedule events attach to what other object/entity that you like.</p>
+</blockquote>
+</aside>
+<p>I used multiple events for testing the implementation. Then… <img alt=":confused:" class="emoji" src="../../../images2/7678bd25c0e19b3a45e5d0b2348a29ef.png" title=":confused:"/> I don’t understand the limitation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>lines 16 and 25: use <code>timedEvents_.EmplaceBack(MakeUnique&lt;tTimedEvent&gt;(...));</code><br/>
+line 35: can use <code>auto</code> or <code>UniquePtr&lt;tTimedEvent&gt;</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1956_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">urnenfeld</div>
+          <div class="post_content">
+<p>Sorry this has become a c++ best practices, but I value your opinion here.</p>
+<aside class="quote no-group" data-post="10" data-topic="6619" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<p>lines 16 and 25: use <code>timedEvents_.EmplaceBack(MakeUnique&lt;tTimedEvent&gt;(...));</code></p>
+</blockquote>
+</aside>
+<p>I was stubborn and wanted to keep creating the entry via an initialazer list, and was forced to create a <em><a href="https://gist.github.com/urnenfeld/8dd867fa2f2780446d90c8736581377e#file-eventscheduler-hpp-L3" rel="noopener nofollow ugc">MakeUniqueFromList</a></em>. I have updated the gist, the 3 options shown (EmplaceBack, Push, moving) would be working.</p>
+<aside class="quote no-group" data-post="10" data-topic="6619" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<p>line 35: can use <code>auto</code> or <code>UniquePtr&lt;tTimedEvent&gt;</code></p>
+</blockquote>
+</aside>
+<p>I am not sure I got you here, creating an UniquePtr(<a href="https://gist.github.com/urnenfeld/8dd867fa2f2780446d90c8736581377e#file-eventscheduler-hpp-L51" rel="noopener nofollow ugc">now #51</a>) would copy the pointer from the iterator… Check the gist, solved it with a reference(feels cheaty) … or not creating the intermediate pointer(<img alt=":chicken:" class="emoji" src="../../../images2/0555d636b8d017b9a6530c7a92b1fc20.png" title=":chicken:"/>)…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>My simple solution -</p><aside class="onebox githubgist">
+<header class="source">
+<a href="https://gist.github.com/SuperWangKai/d480c48f6056d0ba69a019ae37b665d6" rel="noopener nofollow ugc" target="_blank">gist.github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://gist.github.com/SuperWangKai/d480c48f6056d0ba69a019ae37b665d6" rel="noopener nofollow ugc" target="_blank">https://gist.github.com/SuperWangKai/d480c48f6056d0ba69a019ae37b665d6</a></h4>
+<h5>CallbackTimer.cpp</h5>
+<pre><code class="C++">#include "CallbackTimer.h"
+#include "Urho3D/Core/Context.h"
+#include "Urho3D/DebugNew.h"
+
+
+CallbackTimer::CallbackTimer(Context* context)
+    : LogicComponent(context)
+{
+    // Only the scene update event is needed: unsubscribe from the rest for optimization
+    SetUpdateEventMask(USE_UPDATE);</code></pre>
+This file has been truncated. <a href="https://gist.github.com/SuperWangKai/d480c48f6056d0ba69a019ae37b665d6" rel="noopener nofollow ugc" target="_blank">show original</a>
+<h5>CallbackTimer.h</h5>
+<pre><code class="C++">#pragma once
+
+#include &lt;Urho3D/Scene/LogicComponent.h&gt;
+
+using namespace Urho3D;
+
+/// Callback timer.
+class CallbackTimer : public LogicComponent
+{
+    URHO3D_OBJECT(CallbackTimer, LogicComponent);</code></pre>
+This file has been truncated. <a href="https://gist.github.com/SuperWangKai/d480c48f6056d0ba69a019ae37b665d6" rel="noopener nofollow ugc" target="_blank">show original</a>
+<p>
+</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Using lambda as the callback -</p>
+<pre><code class="lang-auto">auto timer = node-&gt;CreateComponent&lt;CallbackTimer&gt;();
+timer-&gt;SetCallback([=]() {
+    // Do delayed things here.
+    node-&gt;Remove(); // e.g. to remove the node.
+    }, 1.0f, false);
+</code></pre>
+<p>The minor issue I see here is that the base class <code>LogicComponent</code> is a little large in size, if we use <code>Urho3D::Object</code> as the parent class, we have to manage the timer object manually without attaching to the Node.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1956_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">urnenfeld</div>
+          <div class="post_content">
+<p>Yep, an option, although my intention was to get benefit of the <em>Events</em> and its <em>VariantMaps</em>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>The AS API <em>does</em> have a <code>DelayedExecute</code>, btw.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,2446 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Turbo Badger implementation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Turbo Badger implementation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I’ve had this for over a month now, and progress has been slow. I don’t foresee any modifications that I need to do to the port itself, so I feel confident enough in releasing this. However this implementation makes several assumptions that will not be true for everyone, so some modification may be required to fit your specific needs.</p>
+<p>This is primarily based off the existing Urho3D UI implementation, so there will be a lot of similarities.</p>
+<p>It still uses Urho3D resources to load files, so turbobadger file paths are the same as loading any files through Urho3D. I did hard-code the skin and override skin paths in TBUI.cpp, so you may need to change these if you use different paths.</p>
+<p><a data-bbcode="true" href="http://i.imgur.com/H7kQDU8.png" rel="nofollow noopener"><img alt="" height="240" src="../../../images2/0b93f66e5d226e2d72e310c228b16c84.png" width="320"/></a><br/>
+[size=85]Turbo Badger running in Urho3D in a wxWidgets window.[/size]</p>
+<p>TBUI.h:</p>
+<pre><code class="lang-auto">&gt;&gt;Removed&lt;&lt;</code></pre>
+<p>TBUI.cpp:</p>
+<pre><code class="lang-auto">&gt;&gt;Removed&lt;&lt;</code></pre>
+<p>To setup the subsystem:</p>
+<pre><code class="lang-auto">// Setup Turbo Badger UI
+UI::TBUI::RegisterSystem(_context);
+_context-&gt;RegisterSubsystem(new UI::TBUI(_context));
+_context-&gt;GetSubsystem&lt;UI::TBUI&gt;()-&gt;Init();</code></pre>
+<p>Adding an editor control that expands the entire window is easy:</p>
+<pre><code class="lang-auto">_editorUI = ui-&gt;LoadWidget&lt;tb::TBWidget&gt;("UI/ui_resources/editor_tab_content.tb.txt");
+ui-&gt;SetRoot(_editorUI);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Great share! <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Excellent, thanks blue <img alt=":sunglasses:" class="emoji" src="../../../images2/b11e15d62f952a3da9d0ff6e5174f0bc.png" title=":sunglasses:"/></p>
+<p>diff from tb_config.h</p>
+<pre><code class="lang-auto">35c35
+&lt; #define TB_FONT_RENDERER_TBBF
+---
+&gt; //#define TB_FONT_RENDERER_TBBF
+38c38
+&lt; //#define TB_FONT_RENDERER_FREETYPE
+---
+&gt; #define TB_FONT_RENDERER_FREETYPE
+102c102
+&lt; #define TB_FILE_POSIX
+---
+&gt; //#define TB_FILE_POSIX
+107c107
+&lt; #define TB_FILE_POSIX
+---
+&gt; //#define TB_FILE_POSIX
+112c112
+&lt; #define TB_FILE_POSIX
+---
+&gt; //#define TB_FILE_POSIX</code></pre>
+<p>Initialize subsystem (assuming similar namespace setup):</p>
+<pre><code class="lang-auto">  // Setup Turbo Badger UI
+  context_-&gt;RegisterSubsystem(new App::UI::TBUI(context_));
+  context_-&gt;GetSubsystem&lt;App::UI::TBUI&gt;()-&gt;Init();</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>A little example to working with events, including input.</p>
+<p>Working with Carnalis’ example, your class needs to inherit from TBWidgetListener and set itself as a global event handler. This example is for clicking a button called “fileMenu”, and showing a popup window with the File menu options:</p>
+<pre><code class="lang-auto">bool Editor::OnWidgetInvokeEvent(tb::TBWidget *widget, const tb::TBWidgetEvent &amp;ev)
+{
+	if (ev.target-&gt;GetID() == tb::TBID("fileMenu"))
+	{
+		if (ev.type == tb::EVENT_TYPE_CLICK)
+		{
+			static tb::TBGenericStringItemSource source;
+			if (!source.GetNumItems())
+			{
+				source.AddItem(new tb::TBGenericStringItem("New", tb::TBID("default font")));
+				source.AddItem(new tb::TBGenericStringItem("Open File", tb::TBID("large font")));
+				source.AddItem(new tb::TBGenericStringItem("-"));
+				source.AddItem(new tb::TBGenericStringItem("Save", tb::TBID("large font")));
+				source.AddItem(new tb::TBGenericStringItem("Save All", tb::TBID("large font")));
+				source.AddItem(new tb::TBGenericStringItem("-"));
+				source.AddItem(new tb::TBGenericStringItem("Exit", tb::TBID("align left")));
+			}
+
+			if (tb::TBMenuWindow *menu = new tb::TBMenuWindow(widget, tb::TBID("popup_menu")))
+			{
+				menu-&gt;Show(&amp;source, tb::TBPopupAlignment());
+			}
+		}
+	}
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p><a href="https://github.com/fruxo/turbobadger">github.com/fruxo/turbobadger</a><br/>
+Very slick UI <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/><br/>
+Candidate for Urho3D? I really like the way TurboBadger does things, it seems rather complete, internationalized…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>A TurboBadger Console (Urho3D::Object, TBWidget) inspired by Urho3D::Console.</p>
+<p><a data-bbcode="true" href="http://imgur.com/SBDcK9n"><img alt="" height="98" src="../../../images2/dd2fe8534adf1a2ae96696df6d21c966.png" width="640"/></a></p>
+<p>Still a couple rough edges…<br/>
+Being a TBWidget, it’s easily styled and modified. I did not implement SetNumLines() (calc the line height) but it shouldn’t be hard.</p>
+<p>Besides Urho3D’s Console, the TurboBadger Demo application was helpful in developing this, and can offer a lot of insight.</p>
+<p>After instantiating TBUI and creating a root widget…</p>
+<pre><code class="lang-auto">Console* console(new ::Console(context_, tbRoot));
+console-&gt;LoadResourceFile("UI/resources/console.txt"); // required widgets
+console-&gt;Initialize();
+// Change custom styles for LOG_* constants (output widget in console.txt has 'styling 1')..
+console-&gt;styleMap_[LOG_ERROR] = Pair&lt;String, String&gt;("&lt;color #ff0000&gt;", "&lt;/color&gt;");
+console-&gt;Toggle(); // It's invisible by default
+
+console-&gt;SetID(TBIDC("console"));
+// Can be later retrieved by ID:
+// Console* console(static_cast&lt;Console*&gt;(tbRoot-&gt;GetWidgetByID(TBIDC("console"))));</code></pre>
+<p>Console.h<br/>
+<a href="https://gist.github.com/jforjustin/2761431647bda9c90b4d">gist.github.com/jforjustin/2761431647bda9c90b4d</a></p>
+<p>Console.cc<br/>
+<a href="https://gist.github.com/jforjustin/6fbc1202729f21f6c153">gist.github.com/jforjustin/6fbc1202729f21f6c153</a></p>
+<p>console.txt<br/>
+TurboBadger widget definition file; leading tabs are significant.<a href="https://gist.github.com/jforjustin/baa26a0943c684c4b8a9">gist.github.com/jforjustin/baa26a0943c684c4b8a9</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I’m looking at your code and Atomic’s code for the first time, and it looks like you copied and pasted Atomics code. From rendering process to key inputs, they’re identical.</p>
+<p>Well, I guess it’s ok if you gave him credit for his work.</p>
+<p>Wow, I’m surprize to see Atomic’s UIInput.cpp file is almost as long as my entire integration.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>[quote=“Lumak”]I’m looking at your code and Atomic’s code for the first time, and it looks like you copied and pasted Atomics code. From rendering process to key inputs, they’re identical.</p>
+<p>Well, I guess it’s ok if you gave him credit for his work.</p>
+<p>Wow, I’m surprize to see Atomic’s UIInput.cpp file is almost as long as my entire integration.[/quote]</p>
+<p>Input stuff I got from Atomic. Rendering stuff was based on Urho3D’s existing UI class. The reason our code base looks similar is because we both used UI as our base. However Atomic uses a functionally different batching process which I skipped altogether. I actually finished the rendering part before I took a look at Atomic, but I got stuck on “proper” input support and filesystem stuff.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I see. It would’ve been nice to see a reference.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/88_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jenge</div>
+          <div class="post_content">
+<p>I am glad that some of the Atomic code was useful.</p>
+<p>I don’t really mind for snippets, though when sharing in the “Code Exchange” section for others to use, probably a good idea to leave copyright and license notifications in place  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/681663cf4b0ef54ca55e07e2e5f4c951.png" width="20"/> jenge:</div>
+<blockquote>
+<p>probably a good idea to leave copyright and license notifications in place  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+</blockquote>
+</aside>
+<p>Granted, it’s less “leaving them in place” and more “adding them to the post”. The Atomic MIT license is in the correct place for the next release, whenever that will be.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/88_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jenge</div>
+          <div class="post_content">
+<p>There’s no need from here to remove code from posts, I was just mentioning that when sharing code for others to use, good to cite sources and licenses of where pulling code from… even with the permissive MIT, in any event cheers <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>I think the implementation that was posted still exists and I’ll look to posting that when it’s available.</p>
+<p>Here is my own working edition of the implementation.  Changes include a license header (let me know if it needs further changes), some private to protected members, various updates for Urho3D, formatting. no real API changes that I recall…</p>
+<p>tb_Urho3D.h</p>
+<pre><code class="lang-auto">/**
+  @license MIT License
+  @copyright
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.
+
+  Portions Copyright (c) 2008-2016 the Urho3D project.
+  Portions Copyright (c) Thebluefish
+  Portions Copyright (c) 2014-2015 THUNDERBEAST GAMES
+*/
+
+#pragma once
+
+#include &lt;Urho3D/Urho3D.h&gt;
+#include &lt;Urho3D/Core/Object.h&gt;
+#include &lt;Urho3D/Graphics/ShaderVariation.h&gt;
+
+#include &lt;tb_types.h&gt;
+#include &lt;tb_system.h&gt;
+#include &lt;tb_widgets_listener.h&gt;
+#include &lt;tb_window.h&gt;
+#include &lt;renderers/tb_renderer_batcher.h&gt;
+
+namespace Urho3D {
+class File;
+class UIBatch;
+class VertexBuffer;
+class Texture2D;
+class ResourceCache;
+class Graphics;
+class Input;
+}
+
+namespace tb {
+extern Urho3D::Context* context_;
+}
+
+class TBUrho3DBitmap: public Urho3D::Object, public tb::TBBitmap {
+  URHO3D_OBJECT(TBUrho3DBitmap, Urho3D::Object);
+
+public:
+  TBUrho3DBitmap(Urho3D::Context* context);
+  ~TBUrho3DBitmap();
+
+  static void RegisterObject(Urho3D::Context* context);
+
+  void Init(int width, int height, tb::uint32* data);
+
+  virtual int Width() {
+    return size.x_;
+  }
+  virtual int Height() {
+    return size.y_;
+  }
+
+  virtual void SetData(tb::uint32* data);
+
+  Urho3D::Vector2 size;
+  Urho3D::SharedPtr&lt;Urho3D::Texture2D&gt; texture;
+};
+
+
+class TBUrho3DFile: public tb::TBFile {
+public:
+  TBUrho3DFile(Urho3D::File* file);
+  virtual ~TBUrho3DFile();
+
+  virtual long Size();
+  virtual size_t Read(void* buf, size_t elemSize, size_t count);
+
+private:
+  Urho3D::SharedPtr&lt;Urho3D::File&gt; file_;
+};
+
+// =====================================
+
+class TBUI: public Urho3D::Object, public tb::TBRendererBatcher, public tb::TBWidgetListener {
+  URHO3D_OBJECT(TBUI, Urho3D::Object);
+public:
+  TBUI(Urho3D::Context* context);
+  ~TBUI();
+
+  static void RegisterObject(Urho3D::Context* context);
+  static void RegisterSystem(Urho3D::Context* context);
+
+  void Init(const Urho3D::String&amp; languageFile);
+  void LoadSkin(const Urho3D::String&amp; skin, const Urho3D::String&amp; overrideSkin);
+  void AddFontInfo(const Urho3D::String&amp; fileName, const Urho3D::String&amp; fontName);
+  void SetDefaultFont(const Urho3D::String&amp; fontName, int size = 12);
+
+  void SetRoot(tb::TBWidget* widget);
+  tb::TBWidget* GetRoot() {
+    return root_;
+  }
+
+  tb::TBWidget* LoadWidget(const Urho3D::String&amp; fileName, tb::TBWidget* widget);
+  template&lt;class T&gt; T* LoadWidget(const Urho3D::String&amp; fileName) {
+    T* newWidget = new T();
+    return static_cast&lt;T*&gt;(LoadWidget(fileName, newWidget));
+  }
+
+  tb::TBWidget* GetWidget(const Urho3D::String&amp; name, tb::TBWidget* parent = 0);
+  template&lt;class T&gt; T* GetWidget(const Urho3D::String&amp; name, tb::TBWidget* parent = 0) {
+    if (!parent) {
+      parent = root_;
+    }
+
+    return static_cast&lt;T*&gt;(GetWidget(name, parent));
+  }
+
+  void ResizeWidgetToFitContent(tb::TBWidget* widget, tb::TBWindow::RESIZE_FIT fit = tb::TBWindow::RESIZE_FIT_PREFERRED);
+
+  // TB Renderer Batcher overrides
+public:
+  tb::TBBitmap* CreateBitmap(int width, int height, tb::uint32* data) override;
+  void RenderBatch(Batch* batch) override;
+  void SetClipRect(const tb::TBRect&amp; rect) override;
+
+protected:
+  void SetupTurboBadger();
+  void SubscribeToEvents();
+
+protected:
+  void SetVertexData(Urho3D::VertexBuffer* dest, const Urho3D::PODVector&lt;float&gt;&amp; vertexData);
+
+protected:
+  void HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+  void HandleRenderUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+
+  void HandleScreenMode(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+  void HandleMouseButtonDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+  void HandleMouseButtonUp(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+  void HandleMouseMove(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+  void HandleMouseWheel(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+  void HandleKeyDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+  void HandleKeyUp(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+  void HandleTextInput(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+
+protected:
+  tb::TBWidget* root_;
+  Urho3D::IntRect scissor_;
+  Urho3D::ResourceCache* cache_;
+  Urho3D::Graphics* graphics_;
+  Urho3D::Input* input_;
+};</code></pre>
+<p>tb_Urho3D.cpp</p>
+<pre><code class="lang-auto">/**
+  @license MIT License
+  @copyright
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.
+
+  Portions Copyright (c) 2008-2016 the Urho3D project.
+  Portions Copyright (c) Thebluefish
+  Portions Copyright (c) 2014-2015 THUNDERBEAST GAMES
+*/
+
+#include "tb_Urho3D.h"
+
+#include &lt;Urho3D/Urho3D.h&gt;
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Core/CoreEvents.h&gt;
+#include &lt;Urho3D/Graphics/Graphics.h&gt;
+#include &lt;Urho3D/Graphics/GraphicsEvents.h&gt;
+#include &lt;Urho3D/Graphics/VertexBuffer.h&gt;
+#include &lt;Urho3D/Graphics/Texture2D.h&gt;
+#include &lt;Urho3D/Input/Input.h&gt;
+#include &lt;Urho3D/Input/InputEvents.h&gt;
+#include &lt;Urho3D/IO/Log.h&gt;
+#include &lt;Urho3D/Resource/ResourceCache.h&gt;
+
+#include &lt;tb_core.h&gt;
+#include &lt;tb_debug.h&gt;
+#include &lt;tb_font_renderer.h&gt;
+#include &lt;tb_language.h&gt;
+#include &lt;tb_skin.h&gt;
+#include &lt;tb_widgets_reader.h&gt;
+#include &lt;tb_message_window.h&gt;
+#include &lt;tb_node_tree.h&gt;
+#include &lt;animation/tb_widget_animation.h&gt;
+
+#include &lt;assert.h&gt;
+
+// TB global functions
+void register_freetype_font_renderer();
+
+namespace tb {
+
+Urho3D::Context* context_(nullptr);
+
+void TBSystem::RescheduleTimer(double fire_time) { }
+
+TBFile* TBFile::Open(const char* filename, TBFileMode mode) {
+  Urho3D::SharedPtr&lt;Urho3D::File&gt; file(context_-&gt;GetSubsystem&lt;Urho3D::ResourceCache&gt;()-&gt;GetFile(filename));
+
+  if (!file || !file-&gt;IsOpen()) {
+    return nullptr;
+  }
+
+  TBUrho3DFile* tbUrho3DFile(new TBUrho3DFile(file));
+
+  return tbUrho3DFile;
+}
+
+} // namespace tb
+
+
+TBUrho3DBitmap::TBUrho3DBitmap(Urho3D::Context* context) :
+  Urho3D::Object(context)
+{
+}
+
+TBUrho3DBitmap::~TBUrho3DBitmap() {
+}
+
+void TBUrho3DBitmap::RegisterObject(Urho3D::Context* context) {
+  context-&gt;RegisterFactory&lt;TBUrho3DBitmap&gt;();
+}
+
+void TBUrho3DBitmap::Init(int width, int height, tb::uint32* data) {
+  size = Urho3D::Vector2(width, height);
+  SetData(data);
+}
+
+void TBUrho3DBitmap::SetData(tb::uint32* data) {
+  TBUI* ui(GetSubsystem&lt;TBUI&gt;());
+
+  ui-&gt;FlushBitmap(this);
+
+  if (texture.Null()) {
+    texture = new Urho3D::Texture2D(context_);
+
+    // Needs to be called BEFORE Texture2D::SetSize
+    texture-&gt;SetAddressMode(Urho3D::COORD_U, Urho3D::ADDRESS_BORDER);
+    texture-&gt;SetAddressMode(Urho3D::COORD_V, Urho3D::ADDRESS_BORDER), texture-&gt;SetBorderColor(Urho3D::Color(0.0f, 0.0f, 0.0f, 0.0f));
+    texture-&gt;SetMipsToSkip(Urho3D::QUALITY_LOW, 0);
+    texture-&gt;SetNumLevels(1);
+
+    texture-&gt;SetSize(size.x_, size.y_, Urho3D::Graphics::GetRGBAFormat(), Urho3D::TEXTURE_STATIC);
+  }
+
+  texture-&gt;SetData(0, 0, 0, size.x_, size.y_, data);
+}
+
+TBUrho3DFile::TBUrho3DFile(Urho3D::File* file) :
+  file_(file)
+{
+}
+
+TBUrho3DFile::~TBUrho3DFile() {
+  file_-&gt;Close();
+}
+
+long TBUrho3DFile::Size() {
+  return file_-&gt;GetSize();
+}
+
+size_t TBUrho3DFile::Read(void* buf, size_t elemSize, size_t count) {
+  size_t size(elemSize * count);
+  size_t totalSize = 0;
+
+  totalSize += file_-&gt;Read(buf, size);
+
+  return totalSize;
+}
+
+// =====================================
+
+TBUI::TBUI(Urho3D::Context* context):
+  Urho3D::Object(context)
+  , root_(nullptr)
+  , cache_(GetSubsystem&lt;Urho3D::ResourceCache&gt;())
+  , graphics_(GetSubsystem&lt;Urho3D::Graphics&gt;())
+  , input_(GetSubsystem&lt;Urho3D::Input&gt;())
+{
+  tb::context_ = context;
+  tb::TBWidgetsAnimationManager::Init();
+  tb::TBWidgetListener::AddGlobalListener(this);
+}
+
+TBUI::~TBUI() {
+  TBWidgetListener::RemoveGlobalListener(this);
+  tb::TBWidgetsAnimationManager::Shutdown();
+  if (root_) delete root_;
+  tb::tb_core_shutdown();
+}
+
+void TBUI::RegisterObject(Urho3D::Context* context) {
+  context-&gt;RegisterFactory&lt;TBUI&gt;();
+}
+
+void TBUI::RegisterSystem(Urho3D::Context* context) {
+  TBUI::RegisterObject(context);
+  TBUrho3DBitmap::RegisterObject(context);
+}
+
+void TBUI::Init(const Urho3D::String&amp; languageFile) {
+  // Initialize Turbo Badger
+  tb::tb_core_init(this);
+
+  // Setup localization
+  tb::g_tb_lng = new tb::TBLanguage;
+  tb::g_tb_lng-&gt;Load(languageFile.CString());
+
+  register_freetype_font_renderer();
+
+  SubscribeToEvents();
+}
+
+void TBUI::LoadSkin(const Urho3D::String&amp; skin, const Urho3D::String&amp; overrideSkin) {
+  // Load the default skin, and override skin (if any)
+  tb::g_tb_skin-&gt;Load(skin.CString(), overrideSkin.CString());
+}
+
+
+void TBUI::SetDefaultFont(const Urho3D::String&amp; fontName, int size) {
+  tb::TBFontDescription fd;
+  fd.SetID(TBIDC(fontName.CString()));
+  fd.SetSize(tb::g_tb_skin-&gt;GetDimensionConverter()-&gt;DpToPx(size));
+  tb::g_font_manager-&gt;SetDefaultFontDescription(fd);
+  // Create the font now.
+  tb::TBFontFace* font(tb::g_font_manager-&gt;CreateFontFace(tb::g_font_manager-&gt;GetDefaultFontDescription()));
+
+  // Render some glyphs in one go now since we know we are going to use them. It would work fine
+  // without this since glyphs are rendered when needed, but with some extra updating of the glyph bitmap.
+  if (font)
+    font-&gt;RenderGlyphs(" !\"#$%&amp;'()*+,-./0123456789:;&lt;=&gt;?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~????????");
+}
+
+void TBUI::AddFontInfo(const Urho3D::String&amp; fileName, const Urho3D::String&amp; fontName) {
+  tb::g_font_manager-&gt;AddFontInfo(fileName.CString(), fontName.CString());
+}
+
+void TBUI::SetRoot(tb::TBWidget* widget) {
+  root_ = widget;
+  root_-&gt;SetSize(graphics_-&gt;GetWidth(), graphics_-&gt;GetHeight());
+}
+
+tb::TBWidget* TBUI::GetWidget(const Urho3D::String&amp; name, tb::TBWidget* parent) {
+  return parent-&gt;GetWidgetByID(TBIDC(name.CString()));
+}
+
+tb::TBWidget* TBUI::LoadWidget(const Urho3D::String&amp; fileName, tb::TBWidget* widget) {
+  // Load widget
+  tb::TBNode node;
+  if (node.ReadFile(fileName.CString())) {
+    tb::g_widgets_reader-&gt;LoadNodeTree(widget, &amp;node);
+  }
+  return widget;
+}
+
+void TBUI::ResizeWidgetToFitContent(tb::TBWidget* widget, tb::TBWindow::RESIZE_FIT fit) {
+  assert(widget);
+  tb::PreferredSize ps(widget-&gt;GetPreferredSize());
+  int new_w(ps.pref_w);
+  int new_h(ps.pref_h);
+  if (fit == tb::TBWindow::RESIZE_FIT_MINIMAL) {
+    new_w = ps.min_w;
+    new_h = ps.min_h;
+  } else if (fit == tb::TBWindow::RESIZE_FIT_CURRENT_OR_NEEDED) {
+    new_w = tb::Clamp(widget-&gt;GetRect().w, ps.min_w, ps.max_w);
+    new_h = tb::Clamp(widget-&gt;GetRect().h, ps.min_h, ps.max_h);
+  }
+  if (widget-&gt;GetParent()) {
+    new_w = tb::Min(new_w, widget-&gt;GetParent()-&gt;GetRect().w);
+    new_h = tb::Min(new_h, widget-&gt;GetParent()-&gt;GetRect().h);
+  }
+  widget-&gt;SetRect(tb::TBRect(widget-&gt;GetRect().x, widget-&gt;GetRect().y, new_w, new_h));
+}
+
+tb::TBBitmap* TBUI::CreateBitmap(int width, int height, tb::uint32* data) {
+  TBUrho3DBitmap* bitmap(new TBUrho3DBitmap(context_));
+  bitmap-&gt;Init(width, height, data);
+
+  return bitmap;
+}
+
+void TBUI::RenderBatch(Batch* batch) {
+  if (!batch-&gt;vertex_count)
+    return;
+
+  Urho3D::Texture2D* texture(NULL);
+
+  if (batch-&gt;bitmap) {
+    TBUrho3DBitmap* tbuibitmap((TBUrho3DBitmap*)batch-&gt;bitmap);
+    texture = tbuibitmap-&gt;texture;
+  }
+
+  Urho3D::PODVector&lt;float&gt; vertexData;
+  Urho3D::SharedPtr&lt;Urho3D::VertexBuffer&gt; vertexBuffer(new Urho3D::VertexBuffer(context_));
+
+  Urho3D::UIBatch newBatch;
+  newBatch.blendMode_ = Urho3D::BLEND_ALPHA;
+  newBatch.scissor_ = scissor_;
+  newBatch.texture_ = texture;
+  newBatch.vertexData_ = &amp;vertexData;
+  newBatch.invTextureSize_ = (texture ? Urho3D::Vector2(1.0f / (float)texture-&gt;GetWidth(), 1.0f / (float)texture-&gt;GetHeight()) : Urho3D::Vector2::ONE);
+
+  unsigned begin(newBatch.vertexData_-&gt;Size());
+  newBatch.vertexData_-&gt;Resize(begin + batch-&gt;vertex_count * Urho3D::UI_VERTEX_SIZE);
+  float* dest(&amp;(newBatch.vertexData_-&gt;At(begin)));
+  newBatch.vertexEnd_ = newBatch.vertexData_-&gt;Size();
+
+  for (int i = 0; i &lt; batch-&gt;vertex_count; i++) {
+    Vertex* v = &amp;batch-&gt;vertex[i];
+    dest[0] = v-&gt;x;
+    dest[1] = v-&gt;y;
+    dest[2] = 0.0f;
+    ((unsigned&amp;)dest[3]) = v-&gt;col;
+    dest[4] = v-&gt;u;
+    dest[5] = v-&gt;v;
+    dest += Urho3D::UI_VERTEX_SIZE;
+  }
+
+  SetVertexData(vertexBuffer, vertexData);
+
+  Urho3D::Vector2 invScreenSize(1.0f / (float)graphics_-&gt;GetWidth(), 1.0f / (float)graphics_-&gt;GetHeight());
+  Urho3D::Vector2 scale(2.0f * invScreenSize.x_, -2.0f * invScreenSize.y_);
+  Urho3D::Vector2 offset(-1.0f, 1.0f);
+
+  Urho3D::Matrix4 projection(Urho3D::Matrix4::IDENTITY);
+  projection.m00_ = scale.x_;
+  projection.m03_ = offset.x_;
+  projection.m11_ = scale.y_;
+  projection.m13_ = offset.y_;
+  projection.m22_ = 1.0f;
+  projection.m23_ = 0.0f;
+  projection.m33_ = 1.0f;
+
+  graphics_-&gt;ClearParameterSources();
+  graphics_-&gt;SetColorWrite(true);
+  graphics_-&gt;SetCullMode(Urho3D::CULL_NONE);
+  graphics_-&gt;SetDepthTest(Urho3D::CMP_ALWAYS);
+  graphics_-&gt;SetDepthWrite(false);
+  graphics_-&gt;SetFillMode(Urho3D::FILL_SOLID);
+  graphics_-&gt;SetStencilTest(false);
+
+  graphics_-&gt;ResetRenderTargets();
+
+  graphics_-&gt;SetVertexBuffer(vertexBuffer);
+
+  Urho3D::ShaderVariation* noTextureVS(graphics_-&gt;GetShader(Urho3D::VS, "Basic", "VERTEXCOLOR"));
+  Urho3D::ShaderVariation* diffTextureVS(graphics_-&gt;GetShader(Urho3D::VS, "Basic", "DIFFMAP VERTEXCOLOR"));
+  Urho3D::ShaderVariation* noTexturePS(graphics_-&gt;GetShader(Urho3D::PS, "Basic", "VERTEXCOLOR"));
+  Urho3D::ShaderVariation* diffTexturePS(graphics_-&gt;GetShader(Urho3D::PS, "Basic", "DIFFMAP VERTEXCOLOR"));
+  Urho3D::ShaderVariation* diffMaskTexturePS(graphics_-&gt;GetShader(Urho3D::PS, "Basic", "DIFFMAP ALPHAMASK VERTEXCOLOR"));
+  Urho3D::ShaderVariation* alphaTexturePS(graphics_-&gt;GetShader(Urho3D::PS, "Basic", "ALPHAMAP VERTEXCOLOR"));
+
+  unsigned alphaFormat(Urho3D::Graphics::GetAlphaFormat());
+
+  if (newBatch.vertexStart_ == newBatch.vertexEnd_) {
+    return;
+  }
+
+  Urho3D::ShaderVariation* ps;
+  Urho3D::ShaderVariation* vs;
+
+  if (!newBatch.texture_) {
+    ps = noTexturePS;
+    vs = noTextureVS;
+  } else {
+    // If texture contains only an alpha channel, use alpha shader (for fonts)
+    vs = diffTextureVS;
+
+    if (newBatch.texture_-&gt;GetFormat() == alphaFormat) {
+      ps = alphaTexturePS;
+    } else if (newBatch.blendMode_ != Urho3D::BLEND_ALPHA &amp;&amp; newBatch.blendMode_ != Urho3D::BLEND_ADDALPHA &amp;&amp; newBatch.blendMode_ != Urho3D::BLEND_PREMULALPHA) {
+      ps = diffMaskTexturePS;
+    } else {
+      ps = diffTexturePS;
+    }
+  }
+
+  graphics_-&gt;SetShaders(vs, ps);
+  if (graphics_-&gt;NeedParameterUpdate(Urho3D::SP_OBJECT, this)) {
+    graphics_-&gt;SetShaderParameter(Urho3D::VSP_MODEL, Urho3D::Matrix3x4::IDENTITY);
+  }
+  if (graphics_-&gt;NeedParameterUpdate(Urho3D::SP_CAMERA, this)) {
+    graphics_-&gt;SetShaderParameter(Urho3D::VSP_VIEWPROJ, projection);
+  }
+  if (graphics_-&gt;NeedParameterUpdate(Urho3D::SP_MATERIAL, this)) {
+    graphics_-&gt;SetShaderParameter(Urho3D::PSP_MATDIFFCOLOR, Urho3D::Color(1.0f, 1.0f, 1.0f, 1.0f));
+  }
+
+  graphics_-&gt;SetBlendMode(newBatch.blendMode_);
+  graphics_-&gt;SetScissorTest(true, newBatch.scissor_);
+  graphics_-&gt;SetTexture(0, newBatch.texture_);
+  graphics_-&gt;Draw(Urho3D::TRIANGLE_LIST, newBatch.vertexStart_ / Urho3D::UI_VERTEX_SIZE, (newBatch.vertexEnd_ - newBatch.vertexStart_) / Urho3D::UI_VERTEX_SIZE);
+}
+
+void TBUI::SetClipRect(const tb::TBRect&amp; rect) {
+  scissor_.top_ = rect.y;
+  scissor_.left_ = rect.x;
+  scissor_.bottom_ = rect.y + rect.h;
+  scissor_.right_ = rect.x + rect.w;
+}
+
+void TBUI::SubscribeToEvents() {
+  SubscribeToEvent(Urho3D::E_UPDATE, URHO3D_HANDLER(TBUI, HandleUpdate));
+  SubscribeToEvent(Urho3D::E_ENDRENDERING, URHO3D_HANDLER(TBUI, HandleRenderUpdate));
+
+  SubscribeToEvent(Urho3D::E_SCREENMODE, URHO3D_HANDLER(TBUI, HandleScreenMode));
+  SubscribeToEvent(Urho3D::E_MOUSEBUTTONDOWN, URHO3D_HANDLER(TBUI, HandleMouseButtonDown));
+  SubscribeToEvent(Urho3D::E_MOUSEBUTTONUP, URHO3D_HANDLER(TBUI, HandleMouseButtonUp));
+  SubscribeToEvent(Urho3D::E_MOUSEMOVE, URHO3D_HANDLER(TBUI, HandleMouseMove));
+  SubscribeToEvent(Urho3D::E_MOUSEWHEEL, URHO3D_HANDLER(TBUI, HandleMouseWheel));
+  SubscribeToEvent(Urho3D::E_KEYDOWN, URHO3D_HANDLER(TBUI, HandleKeyDown));
+  SubscribeToEvent(Urho3D::E_KEYUP, URHO3D_HANDLER(TBUI, HandleKeyUp));
+  SubscribeToEvent(Urho3D::E_TEXTINPUT, URHO3D_HANDLER(TBUI, HandleTextInput));
+}
+
+void TBUI::SetVertexData(Urho3D::VertexBuffer* dest, const Urho3D::PODVector&lt;float&gt;&amp; vertexData) {
+  if (vertexData.Empty()) {
+    return;
+  }
+
+  // Update quad geometry into the vertex buffer
+  // Resize the vertex buffer first if too small or much too large
+  unsigned numVertices(vertexData.Size() / Urho3D::UI_VERTEX_SIZE);
+  if (dest-&gt;GetVertexCount() &lt; numVertices || dest-&gt;GetVertexCount() &gt; numVertices * 2) {
+    dest-&gt;SetSize(numVertices, Urho3D::MASK_POSITION | Urho3D::MASK_COLOR | Urho3D::MASK_TEXCOORD1, true);
+  }
+
+  dest-&gt;SetData(&amp;vertexData[0]);
+}
+
+void TBUI::HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  tb::TBMessageHandler::ProcessMessages();
+}
+
+void TBUI::HandleRenderUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  // Setup scissor
+  tb::TBRect rect(root_-&gt;GetRect());
+  scissor_ = Urho3D::IntRect(0, 0, rect.w, rect.h);
+
+  tb::TBAnimationManager::Update();
+
+  // Update all widgets
+  root_-&gt;InvokeProcessStates();
+  root_-&gt;InvokeProcess();
+
+  // Render UI
+  tb::g_renderer-&gt;BeginPaint(rect.w, rect.h);
+
+  root_-&gt;InvokePaint(tb::TBWidget::PaintProps());
+
+  tb::g_renderer-&gt;EndPaint();
+
+  //_root-&gt;Invalidate();
+}
+
+void TBUI::HandleScreenMode(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  using namespace Urho3D::ScreenMode;
+
+  int width(eventData[P_WIDTH].GetInt());
+  int height(eventData[P_HEIGHT].GetInt());
+
+  root_-&gt;SetSize(width, height);
+}
+
+void TBUI::HandleMouseButtonDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  using namespace Urho3D::MouseButtonDown;
+
+  unsigned button(eventData[P_BUTTON].GetUInt());
+  unsigned qualifiers(eventData[P_QUALIFIERS].GetUInt());
+
+  Urho3D::IntVector2 mousePosition(input_-&gt;GetMousePosition());
+
+  tb::MODIFIER_KEYS modifiers(tb::TB_MODIFIER_NONE);
+  if (qualifiers &amp; Urho3D::QUAL_CTRL) {
+    modifiers |= tb::TB_CTRL;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_SHIFT) {
+    modifiers |= tb::TB_SHIFT;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_ALT) {
+    modifiers |= tb::TB_ALT;
+  }
+
+  switch (button) {
+  case Urho3D::MOUSEB_LEFT:
+    root_-&gt;InvokePointerDown(mousePosition.x_, mousePosition.y_, 1, modifiers, false);
+    break;
+  }
+
+}
+
+void TBUI::HandleMouseButtonUp(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  using namespace Urho3D::MouseButtonUp;
+
+  unsigned button(eventData[P_BUTTON].GetUInt());
+  unsigned qualifiers(eventData[P_QUALIFIERS].GetUInt());
+
+  Urho3D::IntVector2 mousePosition(input_-&gt;GetMousePosition());
+
+  tb::MODIFIER_KEYS modifiers(tb::TB_MODIFIER_NONE);
+  if (qualifiers &amp; Urho3D::QUAL_CTRL) {
+    modifiers |= tb::TB_CTRL;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_SHIFT) {
+    modifiers |= tb::TB_SHIFT;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_ALT) {
+    modifiers |= tb::TB_ALT;
+  }
+
+  switch (button) {
+  case Urho3D::MOUSEB_LEFT:
+    root_-&gt;InvokePointerUp(mousePosition.x_, mousePosition.y_, modifiers, false);
+    break;
+  case Urho3D::MOUSEB_RIGHT:
+    tb::TBWidgetEvent ev(tb::EVENT_TYPE_CONTEXT_MENU, mousePosition.x_, mousePosition.y_, false, modifiers);
+    root_-&gt;InvokeEvent(ev);
+    break;
+  }
+}
+
+void TBUI::HandleMouseMove(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  using namespace Urho3D::MouseMove;
+
+/*
+  int x(eventData[P_X].GetInt());
+  int y(eventData[P_Y].GetInt());
+*/
+
+  unsigned qualifiers(eventData[P_QUALIFIERS].GetUInt());
+  Urho3D::IntVector2 mousePosition(input_-&gt;GetMousePosition());
+
+  tb::MODIFIER_KEYS modifiers(tb::TB_MODIFIER_NONE);
+  if (qualifiers &amp; Urho3D::QUAL_CTRL)
+    modifiers |= tb::TB_CTRL;
+  if (qualifiers &amp; Urho3D::QUAL_SHIFT)
+    modifiers |= tb::TB_SHIFT;
+  if (qualifiers &amp; Urho3D::QUAL_ALT)
+    modifiers |= tb::TB_ALT;
+
+  root_-&gt;InvokePointerMove(mousePosition.x_, mousePosition.y_, modifiers, false);
+}
+
+void TBUI::HandleMouseWheel(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  using namespace Urho3D::MouseWheel;
+
+  int wheel(eventData[P_WHEEL].GetInt());
+  unsigned qualifiers(eventData[P_QUALIFIERS].GetInt());
+
+  Urho3D::Input* input_(GetSubsystem&lt;Urho3D::Input&gt;());
+  Urho3D::IntVector2 mousePosition(input_-&gt;GetMousePosition());
+
+  tb::MODIFIER_KEYS modifiers(tb::TB_MODIFIER_NONE);
+  if (qualifiers &amp; Urho3D::QUAL_CTRL) {
+    modifiers |= tb::TB_CTRL;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_SHIFT) {
+    modifiers |= tb::TB_SHIFT;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_ALT) {
+    modifiers |= tb::TB_ALT;
+  }
+
+  root_-&gt;InvokeWheel(mousePosition.x_, mousePosition.y_, 0, -wheel, tb::TB_MODIFIER_NONE);
+}
+
+void TBUI::HandleKeyDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  using namespace Urho3D::KeyDown;
+
+  int key(eventData[P_KEY].GetInt());
+  unsigned qualifiers(eventData[P_QUALIFIERS].GetUInt());
+
+  Urho3D::Input* input_(GetSubsystem&lt;Urho3D::Input&gt;());
+  Urho3D::IntVector2 mousePosition(input_-&gt;GetMousePosition());
+
+  tb::MODIFIER_KEYS modifiers(tb::TB_MODIFIER_NONE);
+  if (qualifiers &amp; Urho3D::QUAL_CTRL) {
+    modifiers |= tb::TB_CTRL;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_SHIFT) {
+    modifiers |= tb::TB_SHIFT;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_ALT) {
+    modifiers |= tb::TB_ALT;
+  }
+
+  switch (key) {
+  case Urho3D::KEY_RETURN:
+  case Urho3D::KEY_RETURN2:
+  case Urho3D::KEY_KP_ENTER:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_ENTER, modifiers, true);
+    break;
+  case Urho3D::KEY_F1:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F1, modifiers, true);
+    break;
+  case Urho3D::KEY_F2:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F2, modifiers, true);
+    break;
+  case Urho3D::KEY_F3:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F3, modifiers, true);
+    break;
+  case Urho3D::KEY_F4:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F4, modifiers, true);
+    break;
+  case Urho3D::KEY_F5:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F5, modifiers, true);
+    break;
+  case Urho3D::KEY_F6:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F6, modifiers, true);
+    break;
+  case Urho3D::KEY_F7:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F7, modifiers, true);
+    break;
+  case Urho3D::KEY_F8:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F8, modifiers, true);
+    break;
+  case Urho3D::KEY_F9:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F9, modifiers, true);
+    break;
+  case Urho3D::KEY_F10:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F10, modifiers, true);
+    break;
+  case Urho3D::KEY_F11:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F11, modifiers, true);
+    break;
+  case Urho3D::KEY_F12:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F12, modifiers, true);
+    break;
+  case Urho3D::KEY_LEFT:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_LEFT, modifiers, true);
+    break;
+  case Urho3D::KEY_UP:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_UP, modifiers, true);
+    break;
+  case Urho3D::KEY_RIGHT:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_RIGHT, modifiers, true);
+    break;
+  case Urho3D::KEY_DOWN:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_DOWN, modifiers, true);
+    break;
+  case Urho3D::KEY_PAGEUP:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_PAGE_UP, modifiers, true);
+    break;
+  case Urho3D::KEY_PAGEDOWN:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_PAGE_DOWN, modifiers, true);
+    break;
+  case Urho3D::KEY_HOME:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_HOME, modifiers, true);
+    break;
+  case Urho3D::KEY_END:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_END, modifiers, true);
+    break;
+  case Urho3D::KEY_INSERT:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_INSERT, modifiers, true);
+    break;
+  case Urho3D::KEY_TAB:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_TAB, modifiers, true);
+    break;
+  case Urho3D::KEY_DELETE:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_DELETE, modifiers, true);
+    break;
+  case Urho3D::KEY_BACKSPACE:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_BACKSPACE, modifiers, true);
+    break;
+  case Urho3D::KEY_ESCAPE:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_ESC, modifiers, true);
+    break;
+  default:
+    if (modifiers &amp; tb::TB_SUPER) {
+      root_-&gt;InvokeKey(key, tb::TB_KEY_UNDEFINED, modifiers, true);
+    }
+  }
+}
+
+void TBUI::HandleKeyUp(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  using namespace Urho3D::KeyUp;
+
+  int key(eventData[P_KEY].GetInt());
+  unsigned qualifiers(eventData[P_QUALIFIERS].GetUInt());
+
+  Urho3D::Input* input_(GetSubsystem&lt;Urho3D::Input&gt;());
+  Urho3D::IntVector2 mousePosition(input_-&gt;GetMousePosition());
+
+  tb::MODIFIER_KEYS modifiers(tb::TB_MODIFIER_NONE);
+  if (qualifiers &amp; Urho3D::QUAL_CTRL) {
+    modifiers |= tb::TB_CTRL;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_SHIFT) {
+    modifiers |= tb::TB_SHIFT;
+  }
+  if (qualifiers &amp; Urho3D::QUAL_ALT) {
+    modifiers |= tb::TB_ALT;
+  }
+
+  switch (key) {
+  case Urho3D::KEY_RETURN:
+  case Urho3D::KEY_RETURN2:
+  case Urho3D::KEY_KP_ENTER:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_ENTER, modifiers, false);
+    break;
+  case Urho3D::KEY_F1:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F1, modifiers, false);
+    break;
+  case Urho3D::KEY_F2:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F2, modifiers, false);
+    break;
+  case Urho3D::KEY_F3:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F3, modifiers, false);
+    break;
+  case Urho3D::KEY_F4:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F4, modifiers, false);
+    break;
+  case Urho3D::KEY_F5:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F5, modifiers, false);
+    break;
+  case Urho3D::KEY_F6:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F6, modifiers, false);
+    break;
+  case Urho3D::KEY_F7:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F7, modifiers, false);
+    break;
+  case Urho3D::KEY_F8:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F8, modifiers, false);
+    break;
+  case Urho3D::KEY_F9:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F9, modifiers, false);
+    break;
+  case Urho3D::KEY_F10:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F10, modifiers, false);
+    break;
+  case Urho3D::KEY_F11:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F11, modifiers, false);
+    break;
+  case Urho3D::KEY_F12:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_F12, modifiers, false);
+    break;
+  case Urho3D::KEY_LEFT:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_LEFT, modifiers, false);
+    break;
+  case Urho3D::KEY_UP:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_UP, modifiers, false);
+    break;
+  case Urho3D::KEY_RIGHT:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_RIGHT, modifiers, false);
+    break;
+  case Urho3D::KEY_DOWN:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_DOWN, modifiers, false);
+    break;
+  case Urho3D::KEY_PAGEUP:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_PAGE_UP, modifiers, false);
+    break;
+  case Urho3D::KEY_PAGEDOWN:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_PAGE_DOWN, modifiers, false);
+    break;
+  case Urho3D::KEY_HOME:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_HOME, modifiers, false);
+    break;
+  case Urho3D::KEY_END:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_END, modifiers, false);
+    break;
+  case Urho3D::KEY_INSERT:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_INSERT, modifiers, false);
+    break;
+  case Urho3D::KEY_TAB:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_TAB, modifiers, false);
+    break;
+  case Urho3D::KEY_DELETE:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_DELETE, modifiers, false);
+    break;
+  case Urho3D::KEY_BACKSPACE:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_BACKSPACE, modifiers, false);
+    break;
+  case Urho3D::KEY_ESCAPE:
+    root_-&gt;InvokeKey(0, tb::TB_KEY_ESC, modifiers, false);
+    break;
+  default:
+    if (modifiers &amp; tb::TB_SUPER) {
+      root_-&gt;InvokeKey(key, tb::TB_KEY_UNDEFINED, modifiers, false);
+    }
+  }
+}
+
+void TBUI::HandleTextInput(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData) {
+  using namespace Urho3D::TextInput;
+
+  Urho3D::String text(eventData[P_TEXT].GetString());
+
+  for (unsigned i = 0; i &lt; text.Length(); i++) {
+    root_-&gt;InvokeKey(text[i], tb::TB_KEY_UNDEFINED, tb::TB_MODIFIER_NONE, true);
+    root_-&gt;InvokeKey(text[i], tb::TB_KEY_UNDEFINED, tb::TB_MODIFIER_NONE, false);
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks a lot.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>[quote=“carnalis”]I think the implementation that was posted still exists and I’ll look to posting that when it’s available.</p>
+<p>Here is my own working edition of the implementation.  Changes include a license header (let me know if it needs further changes), some private to protected members, various updates for Urho3D, formatting. no real API changes that I recall…</p>
+<p>tb_Urho3D.h</p>
+<div class="spoiler">
+<p><code></code></p>
+</div>
+<p>tb_Urho3D.cpp</p>
+<div class="spoiler">
+<p><code></code></p>
+</div>
+<p>Is this really complete? Because i can not get it working.</p>
+<p>Edit:<br/>
+For the next poor soul that bumps into same thing here is working example:</p>
+<p><code>    TurboBadgerUI::RegisterSystem(context_);
+    tbui.Init("TBUI/language/lng_en.tb.txt");
+    tbui.LoadSkin("TBUI/default_skin/skin.tb.txt");
+    tbui.AddFontInfo("TBUI/vera.ttf", "Vera");
+    tbui.SetDefaultFont("Vera", 14);
+    tbui.SetRoot(new tb::TBWidget());
+    auto window = tbui.LoadWidget&lt;tb::TBWindow&gt;("TBUI/ui_resources/test_layout01.tb.txt");
+    tbui.GetRoot()-&gt;AddChild(window);
+    tbui.ResizeWidgetToFitContent(window);
+</code></p>
+<p>For some reason default fotns (.tb.txt) did not work however ttf fonts work fine. Also trick was to call tbui.ResizeWidgetToFitContent(window); because for some reason widget size initially seems to be 0;0.</p>
+<p>Really nice class by the way. I love it how its two files handling all the integration. Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>To configure tb/tb_config.h for Linux, I enable <span class="hashtag">#define</span> TB_FONT_RENDERER_TBBF, enable TB_FONT_RENDERER_FREETYPE, undefine TB_FILE_POSIX (we’re using TBUrho3DFile), and it was similar for MSWindows.</p>
+<p>And yes, to solve a problem we all had: ResizeWidgetToFitContent() was written to size widgets which are <span class="bbcode-i">not</span> within a top-level widget like TBWindow (TB docs did not make this clear at the time).</p>
+<p>Here is my TB-Urho3D setup code <span class="bbcode-b">*edit: added more context</span><br/>
+cfg_ refers to the config file parser here: <a href="http://discourse.urho3d.io/t/a-more-advanced-ini-parser/1449/1">topic1502.html</a></p>
+<pre><code class="lang-auto">#include &lt;tb_widgets.h&gt;
+#include &lt;tb_widgets_listener.h&gt;
+#include &lt;tb_widgets_common.h&gt;
+
+class UIManager : public Urho3D::Object, public tb::TBWidgetListener {
+//...
+  TBUI* tbui_;
+  tb::TBWidget* tbRoot_;
+  bool OnWidgetInvokeEvent(tb::TBWidget* widget, const tb::TBWidgetEvent&amp; ev);
+//...
+};
+
+// in UIManager::Initialize()
+
+if (!tbui_) {
+  TBUI::RegisterSystem(context_); // TBBitmap &amp; TBUI RegisterObject()
+  context_-&gt;RegisterSubsystem(new TBUI(context_));
+  tbui_ = GetSubsystem&lt;TBUI&gt;(); }
+if (!tbui_) {
+  URHO3D_LOGERROR("TBUI subsystem unregistered.");
+  return false; }
+
+const String langFileName(cfg_-&gt;GetString("ui", "languageFile", "UI/language/lng_en.tb.txt"));
+tbui_-&gt;Init(langFileName);
+
+// Load skin(s).
+const String skinOverrideFile(cfg_-&gt;GetString("ui", "skinOverrideFile"));
+const String skinDefaultFile(cfg_-&gt;GetString("ui", "skinDefaultFile"));
+LoadSkins(skinDefaultFile, skinOverrideFile);
+
+// Setup default font.
+const String fontName(cfg_-&gt;GetString("ui", "fontName", "NotoMono-Regular"));
+const String fontFile(cfg_-&gt;GetString("ui", "fontFile", "Fonts/NotoMono-Regular.ttf"));
+
+if (cache_-&gt;Exists(fontFile)) {
+  tbui_-&gt;AddFontInfo(fontFile, fontName);
+  tbui_-&gt;SetDefaultFont(fontName); }
+else {
+  URHO3D_LOGERROR("UIManager: cannot find default font: " + fontFile); }
+
+TBWidgetListener::AddGlobalListener(this); // Remember to RemoveGlobalListener(this) on delete.
+
+tbRoot_ = new TBWidget(); // TBUI deletes the tree itself.
+tbui_-&gt;SetRoot(tbRoot_);
+
+//////////////////
+
+bool UIManager::LoadSkins(const String&amp; skinDefaultFile, const String&amp; skinOverrideFile/*= String::EMPTY */) {
+  bool loaded(false);
+  if (skinDefaultFile == String::EMPTY) {
+    URHO3D_LOGERROR("UIManager::LoadSkins: skinDefaultFile empty");
+    return false; }
+  if (!cache_-&gt;Exists(skinDefaultFile)) {
+    URHO3D_LOGERROR("UIManager: Skin file not found: " + skinDefaultFile);
+    return false; }
+
+  if (skinOverrideFile != String::EMPTY) {
+    if (!cache_-&gt;Exists(skinOverrideFile)) {
+      URHO3D_LOGWARNING("UIManager: Skin override file not found: " + skinOverrideFile); }
+    loaded = tb::g_tb_skin-&gt;Load(skinDefaultFile.CString(), skinOverrideFile.CString()); }
+  else {
+    loaded = tb::g_tb_skin-&gt;Load(skinDefaultFile.CString()); }
+  if (!loaded) {
+    URHO3D_LOGERROR("UIManager: Skin file load failed: " + skinDefaultFile + "  override: " + skinOverrideFile); }
+  return loaded;
+}</code></pre>
+<p>If it is help to someone, here is the tb_Urho3D originally posted by Thebluefish. Note that it does not include my updates; I only added the license header.</p>
+<aside class="quote no-group" data-username="Thebluefish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bf1ad5330f9831ec6d82214e91751e5d.png" width="20"/> Thebluefish:</div>
+<blockquote>
+<p>TBUI.h</p>
+<pre><code class="lang-auto">/**
+  @license MIT License
+  @copyright
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.
+
+  Portions Copyright (c) 2008-2016 the Urho3D project.
+  Portions Copyright (c) Thebluefish
+  Portions Copyright (c) 2014-2015 THUNDERBEAST GAMES
+*/
+
+#ifndef _TBUI_TBUI_H
+#define _TBUI_TBUI_H
+
+#include &lt;Urho3D/Urho3D.h&gt;
+#include &lt;Urho3D/Core/Object.h&gt;
+#include &lt;Urho3D/Graphics/ShaderVariation.h&gt;
+
+#include &lt;tb_types.h&gt;
+#include &lt;tb_system.h&gt;
+#include &lt;tb_widgets_listener.h&gt;
+#include &lt;tb_window.h&gt;
+#include &lt;renderers/tb_renderer_batcher.h&gt;
+
+namespace Urho3D
+{
+   class File;
+   class UIBatch;
+   class VertexBuffer;
+   class Texture2D;
+}
+
+namespace JRPG
+{
+   namespace UI
+   {
+      class Bitmap : public Urho3D::Object, public tb::TBBitmap
+      {
+         OBJECT(Bitmap);
+
+      public:
+         Bitmap(Urho3D::Context* context);
+         ~Bitmap();
+
+         static void RegisterObject(Urho3D::Context* context);
+
+         void Init(int width, int height, tb::uint32 *data);
+
+         virtual int Width() { return size.x_; }
+         virtual int Height() { return size.y_; }
+
+         virtual void SetData(tb::uint32 *data);
+
+         Urho3D::Vector2 size;
+         Urho3D::SharedPtr&lt;Urho3D::Texture2D&gt; texture;
+      };
+
+      class TBUrho3DFile : public tb::TBFile
+      {
+      public:
+         TBUrho3DFile(Urho3D::File* file);
+         virtual ~TBUrho3DFile();
+
+         virtual long Size();
+         virtual size_t Read(void *buf, size_t elemSize, size_t count);
+
+      private:
+         Urho3D::SharedPtr&lt;Urho3D::File&gt; _file;
+      };
+
+      // Turbo Badger UI subsystem
+      class TBUI : public Urho3D::Object, public tb::TBRendererBatcher, public tb::TBWidgetListener
+      {
+         OBJECT(TBUI);
+
+      public:
+         TBUI(Urho3D::Context* context);
+         ~TBUI();
+
+         static void RegisterObject(Urho3D::Context* context);
+         static void RegisterSystem(Urho3D::Context* context);
+
+         void Init();
+
+         void AddFontInfo(const Urho3D::String&amp; fileName, const Urho3D::String&amp; fontName);
+         void SetFont(const Urho3D::String&amp; fontName, int size = 12);
+
+         tb::TBWidget* GetRoot() { return _root; }
+         void SetRoot(tb::TBWidget* widget);
+
+         tb::TBWidget* GetWidget(const Urho3D::String&amp; name, tb::TBWidget* parent = 0);
+         template&lt;class T&gt; T* GetWidget(const Urho3D::String&amp; name, tb::TBWidget* parent = 0)
+         {
+            if (!parent)
+               parent = _root;
+
+            return static_cast&lt;T*&gt;(GetWidget(name, parent));
+         }
+
+         tb::TBWidget* LoadWidget(const Urho3D::String&amp; fileName, tb::TBWidget* widget);
+         template&lt;class T&gt; T* LoadWidget(const Urho3D::String&amp; fileName)
+         {
+            T* newWidget = new T();
+            return (T*)LoadWidget(fileName, newWidget);
+         }
+         
+         void ResizeWidgetToFitContent(tb::TBWidget* widget, tb::TBWindow::RESIZE_FIT fit = tb::TBWindow::RESIZE_FIT_PREFERRED);
+
+         // TB Renderer Batcher overrides
+      public:
+
+         tb::TBBitmap *CreateBitmap(int width, int height, tb::uint32* data) override;
+         void RenderBatch(Batch* batch) override;
+         void SetClipRect(const tb::TBRect&amp; rect) override;
+
+         // Internal functions
+      protected:
+
+         void SetupTurboBadger();
+
+         void SubscribeToEvents();
+
+         
+      protected:
+
+         void SetVertexData(Urho3D::VertexBuffer* dest, const Urho3D::PODVector&lt;float&gt;&amp; vertexData);
+
+      protected:
+
+         void HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+         void HandleRenderUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+
+         void HandleScreenMode(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+         void HandleMouseButtonDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+         void HandleMouseButtonUp(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+         void HandleMouseMove(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+         void HandleMouseWheel(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+         void HandleKeyDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+         void HandleKeyUp(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+         void HandleTextInput(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData);
+
+      private:
+
+         tb::TBWidget* _root;
+
+         Urho3D::IntRect _scissor;
+      };
+   }
+}
+#endif</code></pre>
+<p>TBUI.cpp</p>
+<pre><code class="lang-auto">/**
+  @license MIT License
+  @copyright
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.
+
+  Portions Copyright (c) 2008-2016 the Urho3D project.
+  Portions Copyright (c) Thebluefish
+  Portions Copyright (c) 2014-2015 THUNDERBEAST GAMES
+*/
+
+#include "TBUI.h"
+
+#include &lt;Urho3D/Urho3D.h&gt;
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Core/CoreEvents.h&gt;
+#include &lt;Urho3D/Graphics/Graphics.h&gt;
+#include &lt;Urho3D/Graphics/GraphicsEvents.h&gt;
+#include &lt;Urho3D/Graphics/VertexBuffer.h&gt;
+#include &lt;Urho3D/Graphics/Texture2D.h&gt;
+#include &lt;Urho3D/Input/Input.h&gt;
+#include &lt;Urho3D/Input/InputEvents.h&gt;
+#include &lt;Urho3D/Resource/ResourceCache.h&gt;
+
+
+
+
+#include &lt;tb_core.h&gt;
+#include &lt;tb_debug.h&gt;
+#include &lt;tb_font_renderer.h&gt;
+#include &lt;tb_language.h&gt;
+#include &lt;tb_skin.h&gt;
+#include &lt;tb_widgets_reader.h&gt;
+
+#include &lt;tb_message_window.h&gt;
+#include &lt;tb_node_tree.h&gt;
+#include &lt;animation/tb_widget_animation.h&gt;
+
+// TB global functions
+void register_freetype_font_renderer();
+
+namespace tb
+{
+   static Urho3D::WeakPtr&lt;Urho3D::Context&gt; _context;
+
+   void TBSystem::RescheduleTimer(double fire_time) { }
+
+   TBFile* TBFile::Open(const char *filename, TBFileMode mode)
+   {
+      auto cache = _context-&gt;GetSubsystem&lt;Urho3D::ResourceCache&gt;();
+
+      Urho3D::SharedPtr&lt;Urho3D::File&gt; file = cache-&gt;GetFile(filename);
+
+      if (!file || !file-&gt;IsOpen())
+      {
+         //LOGERRORF("TBUI: Unable to load file: %s", filename);
+         return 0;
+      }
+
+      JRPG::UI::TBUrho3DFile* tbUrho3DFile = new JRPG::UI::TBUrho3DFile(file);
+
+      return tbUrho3DFile;
+   }
+}
+
+namespace JRPG
+{
+   namespace UI
+   {
+      Bitmap::Bitmap(Urho3D::Context* context) :
+         Urho3D::Object(context)
+      {
+      }
+
+      Bitmap::~Bitmap()
+      {
+
+      }
+
+      void Bitmap::RegisterObject(Urho3D::Context* context)
+      {
+         context-&gt;RegisterFactory&lt;Bitmap&gt;();
+      }
+
+      void Bitmap::Init(int width, int height, tb::uint32 *data)
+      {
+         size = Urho3D::Vector2(width, height);
+
+         SetData(data);
+      }
+
+      void Bitmap::SetData(tb::uint32 *data)
+      {
+         auto ui = GetSubsystem&lt;TBUI&gt;();
+
+         ui-&gt;FlushBitmap(this);
+
+         if (texture.Null())
+         {
+            texture = new Urho3D::Texture2D(context_);
+
+            // Needs to be called BEFORE Texture2D::SetSize
+            texture-&gt;SetAddressMode(Urho3D::COORD_U, Urho3D::ADDRESS_BORDER);
+            texture-&gt;SetAddressMode(Urho3D::COORD_V, Urho3D::ADDRESS_BORDER),
+               texture-&gt;SetBorderColor(Urho3D::Color(0.0f, 0.0f, 0.0f, 0.0f));
+            texture-&gt;SetMipsToSkip(Urho3D::QUALITY_LOW, 0);
+            texture-&gt;SetNumLevels(1);
+
+            texture-&gt;SetSize(size.x_, size.y_, Urho3D::Graphics::GetRGBAFormat(), Urho3D::TEXTURE_STATIC);
+         }
+
+         texture-&gt;SetData(0, 0, 0, size.x_, size.y_, data);
+      }
+
+      TBUrho3DFile::TBUrho3DFile(Urho3D::File* file) :
+         _file(file)
+      {
+
+      }
+      TBUrho3DFile::~TBUrho3DFile()
+      {
+         _file-&gt;Close();
+      }
+
+      long TBUrho3DFile::Size()
+      {
+         return _file-&gt;GetSize();
+      }
+
+      size_t TBUrho3DFile::Read(void *buf, size_t elemSize, size_t count)
+      {
+         size_t size = elemSize * count;
+         size_t totalSize = 0;
+
+         totalSize += _file-&gt;Read(buf, size);
+
+         return totalSize;
+      }
+
+      TBUI::TBUI(Urho3D::Context* context) :
+         Urho3D::Object(context),
+         _root(0)
+      {
+         tb::_context = context;
+      }
+
+      TBUI::~TBUI()
+      {
+         TBWidgetListener::RemoveGlobalListener(this);
+         tb::TBWidgetsAnimationManager::Shutdown();
+
+         delete _root;
+
+         tb::tb_core_shutdown();
+      }
+
+      void TBUI::RegisterObject(Urho3D::Context* context)
+      {
+         context-&gt;RegisterFactory&lt;TBUI&gt;();
+      }
+
+      void TBUI::RegisterSystem(Urho3D::Context* context)
+      {
+         TBUI::RegisterObject(context);
+
+         UI::Bitmap::RegisterObject(context);
+      }
+
+      void TBUI::Init()
+      {
+         SetupTurboBadger();
+         SubscribeToEvents();
+      }
+
+      void TBUI::AddFontInfo(const Urho3D::String&amp; fileName, const Urho3D::String&amp; fontName)
+      {
+         tb::g_font_manager-&gt;AddFontInfo(fileName.CString(), fontName.CString());
+      }
+
+      void TBUI::SetFont(const Urho3D::String&amp; fontName, int size)
+      {
+         tb::TBFontDescription fd;
+         fd.SetID(tb::TBID(fontName.CString()));
+         fd.SetSize(tb::g_tb_skin-&gt;GetDimensionConverter()-&gt;DpToPx(12));
+
+         tb::g_font_manager-&gt;SetDefaultFontDescription(fd);
+         tb::g_font_manager-&gt;CreateFontFace(tb::g_font_manager-&gt;GetDefaultFontDescription());
+      }
+
+      void TBUI::SetRoot(tb::TBWidget* widget)
+      {
+         auto graphics = GetSubsystem&lt;Urho3D::Graphics&gt;();
+
+         _root = widget;
+         _root-&gt;SetSize(graphics-&gt;GetWidth(), graphics-&gt;GetHeight());
+      }
+
+      tb::TBWidget* TBUI::GetWidget(const Urho3D::String&amp; name, tb::TBWidget* parent)
+      {
+         return parent-&gt;GetWidgetByID(tb::TBID(name.CString()));
+      }
+
+      tb::TBWidget* TBUI::LoadWidget(const Urho3D::String&amp; fileName, tb::TBWidget* widget)
+      {
+         auto cache = GetSubsystem&lt;Urho3D::ResourceCache&gt;();
+
+         // Load widget
+         tb::TBNode node;
+         if (node.ReadFile(fileName.CString()))
+         {
+            tb::g_widgets_reader-&gt;LoadNodeTree(widget, &amp;node);
+         }
+
+         return widget;
+      }
+
+      void TBUI::ResizeWidgetToFitContent(tb::TBWidget* widget, tb::TBWindow::RESIZE_FIT fit)
+      {
+         tb::PreferredSize ps = widget-&gt;GetPreferredSize();
+         int new_w = ps.pref_w;
+         int new_h = ps.pref_h;
+         if (fit == tb::TBWindow::RESIZE_FIT_MINIMAL)
+         {
+            new_w = ps.min_w;
+            new_h = ps.min_h;
+         }
+         else if (fit == tb::TBWindow::RESIZE_FIT_CURRENT_OR_NEEDED)
+         {
+            new_w = tb::Clamp(widget-&gt;GetRect().w, ps.min_w, ps.max_w);
+            new_h = tb::Clamp(widget-&gt;GetRect().h, ps.min_h, ps.max_h);
+         }
+         if (widget-&gt;GetParent())
+         {
+            new_w = tb::Min(new_w, widget-&gt;GetParent()-&gt;GetRect().w);
+            new_h = tb::Min(new_h, widget-&gt;GetParent()-&gt;GetRect().h);
+         }
+         widget-&gt;SetRect(tb::TBRect(widget-&gt;GetRect().x, widget-&gt;GetRect().y, new_w, new_h));
+      }
+
+      tb::TBBitmap* TBUI::CreateBitmap(int width, int height, tb::uint32* data)
+      {
+         auto bitmap = new Bitmap(context_);
+         bitmap-&gt;Init(width, height, data);
+
+         return bitmap;
+      }
+
+      void TBUI::RenderBatch(Batch* batch)
+      {
+         if (!batch-&gt;vertex_count)
+            return;
+
+         Urho3D::Texture2D* texture = NULL;
+
+         if (batch-&gt;bitmap)
+         {
+            Bitmap* tbuibitmap = (Bitmap*)batch-&gt;bitmap;
+            texture = tbuibitmap-&gt;texture;
+         }
+
+         Urho3D::PODVector&lt;float&gt; vertexData;
+         Urho3D::SharedPtr&lt;Urho3D::VertexBuffer&gt; vertexBuffer(new Urho3D::VertexBuffer(context_));
+
+         Urho3D::UIBatch newBatch;
+         newBatch.blendMode_ = Urho3D::BLEND_ALPHA;
+         newBatch.scissor_ = _scissor;
+         newBatch.texture_ = texture;
+         newBatch.vertexData_ = &amp;vertexData;
+         newBatch.invTextureSize_ = (texture ? Urho3D::Vector2(1.0f / (float)texture-&gt;GetWidth(), 1.0f / (float)texture-&gt;GetHeight()) : Urho3D::Vector2::ONE);
+
+         unsigned begin = newBatch.vertexData_-&gt;Size();
+         newBatch.vertexData_-&gt;Resize(begin + batch-&gt;vertex_count * Urho3D::UI_VERTEX_SIZE);
+         float* dest = &amp;(newBatch.vertexData_-&gt;At(begin));
+         newBatch.vertexEnd_ = newBatch.vertexData_-&gt;Size();
+
+         for (int i = 0; i &lt; batch-&gt;vertex_count; i++)
+         {
+            Vertex* v = &amp;batch-&gt;vertex[i];
+            dest[0] = v-&gt;x; dest[1] = v-&gt;y; dest[2] = 0.0f;
+            ((unsigned&amp;)dest[3]) = v-&gt;col;
+            dest[4] = v-&gt;u; dest[5] = v-&gt;v;
+            dest += Urho3D::UI_VERTEX_SIZE;
+         }
+
+         SetVertexData(vertexBuffer, vertexData);
+
+         auto graphics = GetSubsystem&lt;Urho3D::Graphics&gt;();
+
+         Urho3D::Vector2 invScreenSize(1.0f / (float)graphics-&gt;GetWidth(), 1.0f / (float)graphics-&gt;GetHeight());
+         Urho3D::Vector2 scale(2.0f * invScreenSize.x_, -2.0f * invScreenSize.y_);
+         Urho3D::Vector2 offset(-1.0f, 1.0f);
+
+         Urho3D::Matrix4 projection(Urho3D::Matrix4::IDENTITY);
+         projection.m00_ = scale.x_;
+         projection.m03_ = offset.x_;
+         projection.m11_ = scale.y_;
+         projection.m13_ = offset.y_;
+         projection.m22_ = 1.0f;
+         projection.m23_ = 0.0f;
+         projection.m33_ = 1.0f;
+
+         graphics-&gt;ClearParameterSources();
+         graphics-&gt;SetColorWrite(true);
+         graphics-&gt;SetCullMode(Urho3D::CULL_NONE);
+         graphics-&gt;SetDepthTest(Urho3D::CMP_ALWAYS);
+         graphics-&gt;SetDepthWrite(false);
+         graphics-&gt;SetFillMode(Urho3D::FILL_SOLID);
+         graphics-&gt;SetStencilTest(false);
+
+         graphics-&gt;ResetRenderTargets();
+
+         graphics-&gt;SetVertexBuffer(vertexBuffer);
+
+         Urho3D::ShaderVariation* noTextureVS = graphics-&gt;GetShader(Urho3D::VS, "Basic", "VERTEXCOLOR");
+         Urho3D::ShaderVariation* diffTextureVS = graphics-&gt;GetShader(Urho3D::VS, "Basic", "DIFFMAP VERTEXCOLOR");
+         Urho3D::ShaderVariation* noTexturePS = graphics-&gt;GetShader(Urho3D::PS, "Basic", "VERTEXCOLOR");
+         Urho3D::ShaderVariation* diffTexturePS = graphics-&gt;GetShader(Urho3D::PS, "Basic", "DIFFMAP VERTEXCOLOR");
+         Urho3D::ShaderVariation* diffMaskTexturePS = graphics-&gt;GetShader(Urho3D::PS, "Basic", "DIFFMAP ALPHAMASK VERTEXCOLOR");
+         Urho3D::ShaderVariation* alphaTexturePS = graphics-&gt;GetShader(Urho3D::PS, "Basic", "ALPHAMAP VERTEXCOLOR");
+
+         unsigned alphaFormat = Urho3D::Graphics::GetAlphaFormat();
+
+         if (newBatch.vertexStart_ == newBatch.vertexEnd_)
+            return;
+
+         Urho3D::ShaderVariation* ps;
+         Urho3D::ShaderVariation* vs;
+
+         if (!newBatch.texture_)
+         {
+            ps = noTexturePS;
+            vs = noTextureVS;
+         }
+         else
+         {
+            // If texture contains only an alpha channel, use alpha shader (for fonts)
+            vs = diffTextureVS;
+
+            if (newBatch.texture_-&gt;GetFormat() == alphaFormat)
+               ps = alphaTexturePS;
+            else if (newBatch.blendMode_ != Urho3D::BLEND_ALPHA &amp;&amp; newBatch.blendMode_ != Urho3D::BLEND_ADDALPHA &amp;&amp; newBatch.blendMode_ != Urho3D::BLEND_PREMULALPHA)
+               ps = diffMaskTexturePS;
+            else
+               ps = diffTexturePS;
+         }
+
+         graphics-&gt;SetShaders(vs, ps);
+         if (graphics-&gt;NeedParameterUpdate(Urho3D::SP_OBJECT, this))
+            graphics-&gt;SetShaderParameter(Urho3D::VSP_MODEL, Urho3D::Matrix3x4::IDENTITY);
+         if (graphics-&gt;NeedParameterUpdate(Urho3D::SP_CAMERA, this))
+            graphics-&gt;SetShaderParameter(Urho3D::VSP_VIEWPROJ, projection);
+         if (graphics-&gt;NeedParameterUpdate(Urho3D::SP_MATERIAL, this))
+            graphics-&gt;SetShaderParameter(Urho3D::PSP_MATDIFFCOLOR, Urho3D::Color(1.0f, 1.0f, 1.0f, 1.0f));
+
+         graphics-&gt;SetBlendMode(newBatch.blendMode_);
+         graphics-&gt;SetScissorTest(true, newBatch.scissor_);
+         graphics-&gt;SetTexture(0, newBatch.texture_);
+         graphics-&gt;Draw(Urho3D::TRIANGLE_LIST, newBatch.vertexStart_ / Urho3D::UI_VERTEX_SIZE, (newBatch.vertexEnd_ - newBatch.vertexStart_) /
+            Urho3D::UI_VERTEX_SIZE);
+      }
+
+      void TBUI::SetClipRect(const tb::TBRect&amp; rect)
+      {
+         _scissor.top_ = rect.y;
+         _scissor.left_ = rect.x;
+         _scissor.bottom_ = rect.y + rect.h;
+         _scissor.right_ = rect.x + rect.w;
+      }
+
+      void TBUI::SetupTurboBadger()
+      {
+         auto cache = GetSubsystem&lt;Urho3D::ResourceCache&gt;();
+         auto graphics = GetSubsystem&lt;Urho3D::Graphics&gt;();
+
+         tb::TBWidgetsAnimationManager::Init();
+         tb::TBWidgetListener::AddGlobalListener(this);
+
+         // Initialize Turbo Badger
+         tb::tb_core_init(this);
+
+         // Setup localization
+         tb::g_tb_lng = new tb::TBLanguage;
+         tb::g_tb_lng-&gt;Load("UI/Language/lng_en.tb.txt");
+
+         // Setup font
+         register_freetype_font_renderer();
+         AddFontInfo("UI/vera.ttf", "Vera");
+         SetFont("Vera");
+
+         if (cache-&gt;Exists("UI/override_skin/skin.tb.txt"))
+         {
+            tb::g_tb_skin-&gt;Load("UI/default_skin/skin.tb.txt", "UI/override_skin/skin.tb.txt");
+         }
+         else
+         {
+            tb::g_tb_skin-&gt;Load("UI/default_skin/skin.tb.txt");
+         }
+      }
+
+      void TBUI::SubscribeToEvents()
+      {
+         SubscribeToEvent(Urho3D::E_UPDATE, HANDLER(TBUI, HandleUpdate));
+         SubscribeToEvent(Urho3D::E_ENDRENDERING, HANDLER(TBUI, HandleRenderUpdate));
+
+         SubscribeToEvent(Urho3D::E_SCREENMODE, HANDLER(TBUI, HandleScreenMode));
+         SubscribeToEvent(Urho3D::E_MOUSEBUTTONDOWN, HANDLER(TBUI, HandleMouseButtonDown));
+         SubscribeToEvent(Urho3D::E_MOUSEBUTTONUP, HANDLER(TBUI, HandleMouseButtonUp));
+         SubscribeToEvent(Urho3D::E_MOUSEMOVE, HANDLER(TBUI, HandleMouseMove));
+         SubscribeToEvent(Urho3D::E_MOUSEWHEEL, HANDLER(TBUI, HandleMouseWheel));
+         SubscribeToEvent(Urho3D::E_KEYDOWN, HANDLER(TBUI, HandleKeyDown));
+         SubscribeToEvent(Urho3D::E_KEYUP, HANDLER(TBUI, HandleKeyUp));
+         SubscribeToEvent(Urho3D::E_TEXTINPUT, HANDLER(TBUI, HandleTextInput));
+      }
+
+      void TBUI::SetVertexData(Urho3D::VertexBuffer* dest, const Urho3D::PODVector&lt;float&gt;&amp; vertexData)
+      {
+         if (vertexData.Empty())
+            return;
+
+         // Update quad geometry into the vertex buffer
+         // Resize the vertex buffer first if too small or much too large
+         unsigned numVertices = vertexData.Size() / Urho3D::UI_VERTEX_SIZE;
+         if (dest-&gt;GetVertexCount() &lt; numVertices || dest-&gt;GetVertexCount() &gt; numVertices * 2)
+            dest-&gt;SetSize(numVertices, Urho3D::MASK_POSITION | Urho3D::MASK_COLOR | Urho3D::MASK_TEXCOORD1, true);
+
+         dest-&gt;SetData(&amp;vertexData[0]);
+      }
+
+      void TBUI::HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         tb::TBMessageHandler::ProcessMessages();
+      }
+
+      void TBUI::HandleRenderUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         // Setup scissor
+         tb::TBRect rect = _root-&gt;GetRect();
+         _scissor = Urho3D::IntRect(0, 0, rect.w, rect.h);
+
+         tb::TBAnimationManager::Update();
+
+         // Update all widgets
+         _root-&gt;InvokeProcessStates();
+         _root-&gt;InvokeProcess();
+
+         // Render UI
+         tb::g_renderer-&gt;BeginPaint(rect.w, rect.h);
+
+         _root-&gt;InvokePaint(tb::TBWidget::PaintProps());
+         
+         tb::g_renderer-&gt;EndPaint();
+
+         //_root-&gt;Invalidate();
+      }
+
+      void TBUI::HandleScreenMode(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         using namespace Urho3D::ScreenMode;
+
+         int width = eventData[P_WIDTH].GetInt();
+         int height = eventData[P_HEIGHT].GetInt();
+
+         _root-&gt;SetSize(width, height);
+      }
+
+      void TBUI::HandleMouseButtonDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         using namespace Urho3D::MouseButtonDown;
+
+         unsigned button = eventData[P_BUTTON].GetUInt();
+         unsigned qualifiers = eventData[P_QUALIFIERS].GetUInt();
+
+         auto input = GetSubsystem&lt;Urho3D::Input&gt;();
+         auto mousePosition = input-&gt;GetMousePosition();
+
+         tb::MODIFIER_KEYS modifiers = tb::TB_MODIFIER_NONE;
+         if (qualifiers &amp; Urho3D::QUAL_CTRL)
+            modifiers |= tb::TB_CTRL;
+         if (qualifiers &amp; Urho3D::QUAL_SHIFT)
+            modifiers |= tb::TB_SHIFT;
+         if (qualifiers &amp; Urho3D::QUAL_ALT)
+            modifiers |= tb::TB_ALT;
+
+         switch (button)
+         {
+         case Urho3D::MOUSEB_LEFT:
+            _root-&gt;InvokePointerDown(mousePosition.x_, mousePosition.y_, 1, modifiers, false);
+            break;
+         }
+
+      }
+
+      void TBUI::HandleMouseButtonUp(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         using namespace Urho3D::MouseButtonUp;
+
+         unsigned button = eventData[P_BUTTON].GetUInt();
+         unsigned qualifiers = eventData[P_QUALIFIERS].GetUInt();
+
+         auto input = GetSubsystem&lt;Urho3D::Input&gt;();
+         auto mousePosition = input-&gt;GetMousePosition();
+
+         tb::MODIFIER_KEYS modifiers = tb::TB_MODIFIER_NONE;
+         if (qualifiers &amp; Urho3D::QUAL_CTRL)
+            modifiers |= tb::TB_CTRL;
+         if (qualifiers &amp; Urho3D::QUAL_SHIFT)
+            modifiers |= tb::TB_SHIFT;
+         if (qualifiers &amp; Urho3D::QUAL_ALT)
+            modifiers |= tb::TB_ALT;
+
+         switch (button)
+         {
+         case Urho3D::MOUSEB_LEFT:
+            _root-&gt;InvokePointerUp(mousePosition.x_, mousePosition.y_, modifiers, false);
+            break;
+         case Urho3D::MOUSEB_RIGHT:
+            _root-&gt;InvokeEvent(tb::TBWidgetEvent(tb::EVENT_TYPE_CONTEXT_MENU, mousePosition.x_, mousePosition.y_, false, modifiers));
+            break;
+         }
+      }
+
+      void TBUI::HandleMouseMove(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         using namespace Urho3D::MouseMove;
+
+         int x = eventData[P_X].GetInt();
+         int y = eventData[P_Y].GetInt();
+
+         _root-&gt;InvokeEvent(tb::TBWidgetEvent(tb::EVENT_TYPE_POINTER_MOVE, x, y, false));
+      }
+
+      void TBUI::HandleMouseWheel(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         using namespace Urho3D::MouseWheel;
+
+         int wheel = eventData[P_WHEEL].GetInt();
+         unsigned qualifiers = eventData[P_QUALIFIERS].GetInt();
+
+         auto input = GetSubsystem&lt;Urho3D::Input&gt;();
+         auto mousePosition = input-&gt;GetMousePosition();
+
+         tb::MODIFIER_KEYS modifiers = tb::TB_MODIFIER_NONE;
+         if (qualifiers &amp; Urho3D::QUAL_CTRL)
+            modifiers |= tb::TB_CTRL;
+         if (qualifiers &amp; Urho3D::QUAL_SHIFT)
+            modifiers |= tb::TB_SHIFT;
+         if (qualifiers &amp; Urho3D::QUAL_ALT)
+            modifiers |= tb::TB_ALT;
+
+         _root-&gt;InvokeWheel(mousePosition.x_, mousePosition.y_, 0, -wheel, tb::TB_MODIFIER_NONE);
+      }
+
+      void TBUI::HandleKeyDown(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         using namespace Urho3D::KeyDown;
+
+         int key = eventData[P_KEY].GetInt();
+         unsigned qualifiers = eventData[P_QUALIFIERS].GetUInt();
+
+         auto input = GetSubsystem&lt;Urho3D::Input&gt;();
+         auto mousePosition = input-&gt;GetMousePosition();
+
+         tb::MODIFIER_KEYS modifiers = tb::TB_MODIFIER_NONE;
+         if (qualifiers &amp; Urho3D::QUAL_CTRL)
+            modifiers |= tb::TB_CTRL;
+         if (qualifiers &amp; Urho3D::QUAL_SHIFT)
+            modifiers |= tb::TB_SHIFT;
+         if (qualifiers &amp; Urho3D::QUAL_ALT)
+            modifiers |= tb::TB_ALT;
+
+         switch (key)
+         {
+         case Urho3D::KEY_RETURN:
+         case Urho3D::KEY_RETURN2:
+         case Urho3D::KEY_KP_ENTER:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_ENTER, modifiers, true);
+            break;
+         case Urho3D::KEY_F1:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F1, modifiers, true);
+            break;
+         case Urho3D::KEY_F2:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F2, modifiers, true);
+            break;
+         case Urho3D::KEY_F3:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F3, modifiers, true);
+            break;
+         case Urho3D::KEY_F4:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F4, modifiers, true);
+            break;
+         case Urho3D::KEY_F5:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F5, modifiers, true);
+            break;
+         case Urho3D::KEY_F6:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F6, modifiers, true);
+            break;
+         case Urho3D::KEY_F7:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F7, modifiers, true);
+            break;
+         case Urho3D::KEY_F8:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F8, modifiers, true);
+            break;
+         case Urho3D::KEY_F9:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F9, modifiers, true);
+            break;
+         case Urho3D::KEY_F10:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F10, modifiers, true);
+            break;
+         case Urho3D::KEY_F11:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F11, modifiers, true);
+            break;
+         case Urho3D::KEY_F12:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F12, modifiers, true);
+            break;
+         case Urho3D::KEY_LEFT:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_LEFT, modifiers, true);
+            break;
+         case Urho3D::KEY_UP:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_UP, modifiers, true);
+            break;
+         case Urho3D::KEY_RIGHT:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_RIGHT, modifiers, true);
+            break;
+         case Urho3D::KEY_DOWN:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_DOWN, modifiers, true);
+            break;
+         case Urho3D::KEY_PAGEUP:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_PAGE_UP, modifiers, true);
+            break;
+         case Urho3D::KEY_PAGEDOWN:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_PAGE_DOWN, modifiers, true);
+            break;
+         case Urho3D::KEY_HOME:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_HOME, modifiers, true);
+            break;
+         case Urho3D::KEY_END:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_END, modifiers, true);
+            break;
+         case Urho3D::KEY_INSERT:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_INSERT, modifiers, true);
+            break;
+         case Urho3D::KEY_TAB:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_TAB, modifiers, true);
+            break;
+         case Urho3D::KEY_DELETE:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_DELETE, modifiers, true);
+            break;
+         case Urho3D::KEY_BACKSPACE:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_BACKSPACE, modifiers, true);
+            break;
+         case Urho3D::KEY_ESC:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_ESC, modifiers, true);
+            break;
+         default:
+            if (modifiers &amp; tb::TB_SUPER)
+               _root-&gt;InvokeKey(key, tb::TB_KEY_UNDEFINED, modifiers, true);
+         }
+      }
+
+      void TBUI::HandleKeyUp(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         using namespace Urho3D::KeyUp;
+
+         int key = eventData[P_KEY].GetInt();
+         unsigned qualifiers = eventData[P_QUALIFIERS].GetUInt();
+
+         auto input = GetSubsystem&lt;Urho3D::Input&gt;();
+         auto mousePosition = input-&gt;GetMousePosition();
+
+         tb::MODIFIER_KEYS modifiers = tb::TB_MODIFIER_NONE;
+         if (qualifiers &amp; Urho3D::QUAL_CTRL)
+            modifiers |= tb::TB_CTRL;
+         if (qualifiers &amp; Urho3D::QUAL_SHIFT)
+            modifiers |= tb::TB_SHIFT;
+         if (qualifiers &amp; Urho3D::QUAL_ALT)
+            modifiers |= tb::TB_ALT;
+
+         switch (key)
+         {
+         case Urho3D::KEY_RETURN:
+         case Urho3D::KEY_RETURN2:
+         case Urho3D::KEY_KP_ENTER:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_ENTER, modifiers, false);
+            break;
+         case Urho3D::KEY_F1:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F1, modifiers, false);
+            break;
+         case Urho3D::KEY_F2:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F2, modifiers, false);
+            break;
+         case Urho3D::KEY_F3:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F3, modifiers, false);
+            break;
+         case Urho3D::KEY_F4:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F4, modifiers, false);
+            break;
+         case Urho3D::KEY_F5:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F5, modifiers, false);
+            break;
+         case Urho3D::KEY_F6:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F6, modifiers, false);
+            break;
+         case Urho3D::KEY_F7:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F7, modifiers, false);
+            break;
+         case Urho3D::KEY_F8:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F8, modifiers, false);
+            break;
+         case Urho3D::KEY_F9:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F9, modifiers, false);
+            break;
+         case Urho3D::KEY_F10:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F10, modifiers, false);
+            break;
+         case Urho3D::KEY_F11:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F11, modifiers, false);
+            break;
+         case Urho3D::KEY_F12:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_F12, modifiers, false);
+            break;
+         case Urho3D::KEY_LEFT:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_LEFT, modifiers, false);
+            break;
+         case Urho3D::KEY_UP:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_UP, modifiers, false);
+            break;
+         case Urho3D::KEY_RIGHT:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_RIGHT, modifiers, false);
+            break;
+         case Urho3D::KEY_DOWN:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_DOWN, modifiers, false);
+            break;
+         case Urho3D::KEY_PAGEUP:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_PAGE_UP, modifiers, false);
+            break;
+         case Urho3D::KEY_PAGEDOWN:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_PAGE_DOWN, modifiers, false);
+            break;
+         case Urho3D::KEY_HOME:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_HOME, modifiers, false);
+            break;
+         case Urho3D::KEY_END:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_END, modifiers, false);
+            break;
+         case Urho3D::KEY_INSERT:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_INSERT, modifiers, false);
+            break;
+         case Urho3D::KEY_TAB:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_TAB, modifiers, false);
+            break;
+         case Urho3D::KEY_DELETE:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_DELETE, modifiers, false);
+            break;
+         case Urho3D::KEY_BACKSPACE:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_BACKSPACE, modifiers, false);
+            break;
+         case Urho3D::KEY_ESC:
+            _root-&gt;InvokeKey(0, tb::TB_KEY_ESC, modifiers, false);
+            break;
+         default:
+            if (modifiers &amp; tb::TB_SUPER)
+               _root-&gt;InvokeKey(key, tb::TB_KEY_UNDEFINED, modifiers, false);
+         }
+      }
+
+      void TBUI::HandleTextInput(Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData)
+      {
+         using namespace Urho3D::TextInput;
+
+         auto text = eventData[P_TEXT].GetString();
+
+         for (unsigned i = 0; i &lt; text.Length(); i++)
+         {
+            _root-&gt;InvokeKey(text[i], tb::TB_KEY_UNDEFINED, tb::TB_MODIFIER_NONE, true);
+            _root-&gt;InvokeKey(text[i], tb::TB_KEY_UNDEFINED, tb::TB_MODIFIER_NONE, false);
+         }
+      }
+   }
+}</code></pre>
+<p>To setup the subsystem:</p>
+<pre><code class="lang-auto">// Setup Turbo Badger UI
+UI::TBUI::RegisterSystem(_context);
+_context-&gt;RegisterSubsystem(new UI::TBUI(_context));
+_context-&gt;GetSubsystem&lt;UI::TBUI&gt;()-&gt;Init();</code></pre>
+<p>Adding an editor control that expands the entire window is easy:</p>
+<pre><code class="lang-auto">_editorUI = ui-&gt;LoadWidget&lt;tb::TBWidget&gt;("UI/ui_resources/editor_tab_content.tb.txt");
+ui-&gt;SetRoot(_editorUI);</code></pre>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">djmig</div>
+          <div class="post_content">
+<p>Hi,<br/>
+Turbo Badger looks great and I want to use it as the UI for my application. So, a few minutes ago<br/>
+I git clone Turbo Badger from Github and followed the instruction to clone GLFW as a submodule. All went well including its compilation, but unfortunately TurboBadgerDemo appear as an image cornered to the lower left side of the window.</p>
+<p><img alt="" height="" src="../../../images2/bbd385b308f6c0fce179a6bada37177b.png" width=""/></p>
+<p>BTW, I’m on OS X El Capitan.</p>
+<p>Don.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hey guys it seems that GetSubsystem()-&gt;SetTouchEmulation(true) is blocking the mouse events from Turbo Badger. Is there anyway around this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="djmig">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/acc7040870d40bf1a87ff214efb7bdb3.png" width="20"/> djmig:</div>
+<blockquote>
+<p>unfortunately TurboBadgerDemo appear as an image cornered to the lower left side of the window.</p>
+</blockquote>
+</aside>
+<p>I have not seen that yet… If this is just with TB’s own demo, maybe there is some issue there? <a href="https://github.com/fruxo/turbobadger/issues">github.com/fruxo/turbobadger/issues</a></p>
+<aside class="quote no-group" data-username="sabotage3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4d54cd4ee2f08a1ba79603d6f6b6ab43.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>Hey guys it seems that GetSubsystem()-&gt;SetTouchEmulation(true) is blocking the mouse events from Turbo Badger. Is there anyway around this?</p>
+</blockquote>
+</aside>
+<p>Urho (<span class="bbcode-b">***</span>) recently added some events that allow us to hook the raw events and consume them. I have not yet worked this into the tb_Urho3D implementation, so if anyone has a good way to suggest, that’s welcome.</p>
+<pre><code class="lang-auto">E_INPUTBEGIN : input handling starts.
+E_INPUTEND : input handling ends.
+E_SDLRAWINPUT
+    URHO3D_PARAM(P_SDL_EVENT, SdlEvent);           // SDL_Event*
+    URHO3D_PARAM(P_CONSUMED, Consumed);            // bool</code></pre>
+<p><a >github.com/urho3d/Urho3D/blob/a … nts.h#L224</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In touch emulation mode mouse events are intentionally not sent, so that you can see the effect of only touch events and not get them mixed. Touch events should be hooked to TB too to make it work correctly with touch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>I think this is great and a really good implementation however i would rather see a version that is more urho compatible.Instead of implementing it as an external subsystem why not wrap it like the other libraries ? So the default Urho3D::UI should use TurboBadger ? Im not familiar with TurboBadger but i think it would be even possible to add some CMake configuration to build Urho3d with the default UI or with TurboBadger.<br/>
+So this way :<br/>
+1 will work out of box (at some point)<br/>
+2 the Urho3D Editor would work with TurboBadger widgets without any major code modifications<br/>
+3 Without code modifications it is automatically exposed to Scripts too.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I don’t think you can reasonably expect to code to the same API if you switch the underlying UI library, except by simplifying a lot, and that wouldn’t benefit the good parts of either UI library.</p>
+<p>This has been discussed before and I do think the ideal would be for the UI library to be wrapped so that you use e.g. Urho events and Urho resources instead of the UI library’s native ones. However in practice it’s a very difficult ideal, since either you have a lot of wrapping/adaptation work to do, or lose features. Compare to Bullet: Urho’s physics components don’t expose Bullet nearly completely so for a physics power user using Bullet directly could actually make more sense.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<aside class="quote no-group">
+<blockquote>
+<p>I don’t think you can reasonably expect to code to the same API if you switch the underlying UI library, except by simplifying a lot, and that wouldn’t benefit the good parts of either UI library.</p>
+</blockquote>
+</aside>
+<p>Yes , these are the modifications i mention , but yes this would require a lot lot work ,when probably after TurboBadger integration the default UI would be obsolete anyway.So maybe it would be better just switching to TurboBadger as the UI (by using the existing UI unterface and expanding it).Maybe it worth a new branch for testing this.</p>
+<aside class="quote no-group">
+<blockquote>
+<p>This has been discussed before and I do think the ideal would be for the UI library to be wrapped so that you use e.g. Urho events and Urho resources instead of the UI library’s native ones. However in practice it’s a very difficult ideal, since either you have a lot of wrapping/adaptation work to do, or lose features. Compare to Bullet: Urho’s physics components don’t expose Bullet nearly completely so for a physics power user using Bullet directly could actually make more sense.</p>
+</blockquote>
+</aside>
+<p>Well i would rather lose features than using api’s directly.Thats the main reason i like Urho3d.It’s clear and easily understandable interface.Once you learned the coding workflow you don’t need extra tutorials to get into other features.By using apis directly you always have to learn the new library first…Which isn’t really attractive for new users</p>
+<p>here’s a screen shot of my modified gui skin.I added some shadows , highlights to buttons and switched to monochrome style.I think it is more pleasant for the eyes than the deafult blue style.<br/>
+<img alt="" height="" src="../../../images2/fdfebcf380491067b1e538d83fe23321.jpg" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

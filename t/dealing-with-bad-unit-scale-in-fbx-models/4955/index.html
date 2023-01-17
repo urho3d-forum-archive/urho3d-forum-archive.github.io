@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Dealing with bad unit scale in FBX models</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Dealing with bad unit scale in FBX models</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve got a model that appears to be 100x too large, due to assimp’s FBX importer assuming scale is in centimeters. Today I added code to our AssetImporter tool - first I tried to read the unit scale factor from the fbx file prior to import, but it appears there is no such meta-property in my FBX file - so I added a new option to apply a user-defined scale factor during import (eg -sc 0.01) and enabled the appropriate import flag, but it seemed to make no difference!</p>
+<pre><code class="lang-auto">            PrintLine("Applying Unit Scale Factor: "+String(GlobalScale));
+            aiSetImportPropertyFloat(aiprops, AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY, GlobalScale);
+            flags |= aiProcess_GlobalScale;
+
+            scene_ = aiImportFileExWithProperties(GetNativePath(inFile).CString(), flags, nullptr, aiprops);</code></pre>
+<p>In frustration, I turned back to Blender. Here is the workflow I found to work for me:<br/>
+In a new scene, I first import my FBX model, with import scale of 1.<br/>
+Now I set Units to Metric, and Unit Scale to 0.01 - at this point, my model visibly shrinks in Blender’s 3D view by 100 times.<br/>
+Next, I export the model, with export scale of 1, and “!EXPERIMENTAL: Apply Transform” enabled.<br/>
+Finally, I run the exported FBX through AssetImporter.<br/>
+The result is a model that looks correct in Urho3D with no scaling applied at runtime, which ought to make my life a bit easier, as they now comply with the scale of the models used in the samples.<br/>
+Any animations that I had previously imported, back when I had a scale issue, required no changes - they “just worked” with the scaled-down model (though I think I have no translate keys…)</p>
+<p>I just thought this information might be useful for future reference, as it took me a few attempts to get the settings right in Blender.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>The exporter also has a <em>Scale</em> option.</p>
+<p>Btw, after scaling an <em>object</em> in Blender its scale should be applied using <strong>Ctrl+A S</strong> before exporting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’m still having trouble with baking scale into the geometry - Blender is insisting on injecting a root node (called “Armature”) that contains scale.<br/>
+This is bad for me, specifically because Urho3D’s CollisiionShape class applies WORLD scale to rigidbodies attached to an armature:</p>
+<aside class="quote no-group">
+<blockquote>
+<pre><code>    case SHAPE_CAPSULE:
+        shape_ = new btCapsuleShape(size_.x_ * 0.5f, Max(size_.y_ - size_.x_, 0.0f));
+        shape_-&gt;setLocalScaling(ToBtVector3(cachedWorldScale_));
+</code></pre>
+</blockquote>
+</aside>
+<p>Personally, I think we’re doing it wrong - collision shapes should be querying their parent node for its LOCAL scale, so that any scaling applied to the model is not inherited by collision shapes.<br/>
+I believe that Bullet called it “local scale” for a good reason - it implies that scale inheritance won’t be a problem when attaching (physics objects defined in local space coordinates) to a node hierarchy.<br/>
+I understand it’s not quite trivial to modify CollisionShape.cpp to respect local scale, but at the same time, I don’t believe that such a change would break anything in any of our existing samples.</p>
+<p>Yes, baking scale to the geometry will solve this problem, but it still makes me wonder why we’re applying world scale to physics shapes, which are defined in local space! I personally think we should only be applying localspace scale to collision shapes, ie, the local scale of the immediate parent node (which is typically unit scale, regardless of what scale we applied at the root of the model).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/698_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TrevorCash</div>
+          <div class="post_content">
+<p>In my newton integration, collision shape scale is by default scaled by the node’s scale. But can be turned off via a call to SetInheritNodeScale(bool enable = false);  in addition to this control, the collision shape also has its own localscale, offset, and rotation parameters.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I absolutely agree - at the very least we could provide a SetWorldScale method in CollisionShape that can be called on an existing, attached object, to counteract the existing logic.<br/>
+Personally, I’d rather deal with the issue in CollisionShape class, than have to run various models through the Blender / Maya Gauntlet - we SHOULD be able to diffuse bad art with good code, and not require the art to naturally conform to our expectations.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Thanks for the heads up about applying scale to geom - I’m still not happy with my workflow, I think there could be a small PR in this for a method in CollisionShape that gives us access to set the local scale on a collision object to whatever we want. This would allow us to attach physics objects defined in local coords to a scaled model, then correct the scale on the attached shapes as a post step, and has minimal impact on the existing logic in CollisionShape class.<br/>
+I’d rather describe the scale of my model at runtime via xml, than rely on metadata that may not exist, or deal with the art scale piecemeal as part of my workflow.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2525_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Valdar</div>
+          <div class="post_content">
+<p>Just FYI, Blender doesn’t require you to have an Armature root, though in most cases you would want one (a rigged character for example). If you have simple static geometry that already has an armature, you can select the geometric item in Outliner, go to the object tab, and clear the “Parent” box. That will move the item from being a child of the armature to a root level object. As Modanung mentioned, you may need to apply scale, as well as rotation and location before removing it from the parent.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

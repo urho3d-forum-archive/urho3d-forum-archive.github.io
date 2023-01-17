@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Best Way To Toggle Shader Techniques or Materials?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Best Way To Toggle Shader Techniques or Materials?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>In our GPS map app, as you zoom in closer to the ground, we toggle our shader to draw more expensive detail.</p>
+<p>Currently, it’s kludged, we do it via one of the shader parameters turn on/off the extra detail technique (which shows contour lines based upon elevation).   However, because the 'if" branch is inside the shader, it’s performing the cost of this “if” no matter what.   I assume that this kludged method hurts performance enough that we ought to instead have two versions of the shader, and just swap “Shader Technique”.</p>
+<h1>Pixel Shader looks like this:</h1>
+<p>void PS()<br/>
+{<br/>
+vec4 diffColor = texture2D(sDiffMap, vTexCoord);</p>
+<pre><code>vec4 elevNorm = texture2D(sNormalMap, vElevCoord).rgba; // was ra
+
+float hiByte = elevNorm.x * 65280.0;
+float loByte = elevNorm.y * 255.0;
+
+float elevFt = hiByte + loByte; // elevNorm * 65535.0;
+elevFt -= cOwnshipAltitudeFt;
+
+if (cHighlightAlpha &gt; 0.01 &amp;&amp; elevFt &gt; -1500.0)   // &lt;&lt;&lt;&lt;= I WANT TO DITCH THIS 'IF' branch
+{
+        .... complex logic to show Altitude Highlights, and Contours ....
+ }
+</code></pre>
+<p>…<br/>
+gl_FragColor = diffColor;<br/>
+}</p>
+<p>====</p>
+<p>ALSO, related, we as the user pans/zooms, we like to do a QUICK fade-in (0.15 sec) new content and fade out the old content.   This “fading” effect requires us to use “alpha” pass as follows;</p>
+<p>&lt;pass name=“alpha”  depthwrite=“false” blend=“alpha” /&gt;</p>
+<p>I would imagine that calling this the “alpha” pass requires extra CPU work to “sort” the objects in the alpha pass (back to front?), to make it work correctly.   However, we ONLY need this during the 0.15 seconds where we are fading in/out.</p>
+<p>So currently, we’re ALWAYS rendering these tiles on the “alpha” pass, so that we can do this fade in/out on-demand  (each material has an “opacity” parameter).</p>
+<p>So for efficiency, we’re wanting to swap in/out the technique used (from “alpha” password to “base” pass).    What is the most efficient way to swap this techique?</p>
+<p>Two cases:</p>
+<ol>
+<li>Case <span class="hashtag">#1</span> - same pass, but added shader logic to show “contour lines” as you zoom way in.</li>
+<li>Case <span class="hashtag">#2</span> - Want to toggle the pass between “alpha” and “base”, and for the “base” pass shader, we would omit use of the “opacity” shader parameter.</li>
+</ol>
+<p>What is the best way to toggle techniques on an object to make it most efficient for the CPU/GPU?</p>
+<p>Options that I can think of:</p>
+<ol>
+<li>One Material with advanced settings that allow you to programmatically tell the material which technique to use for rendering.</li>
+<li>Multiple simple materials, and just assign the material dynamically.</li>
+<li>One Material, but programmatically use “SetTechnique(…)” to set it’s technique.</li>
+</ol>
+<p>I’m leaning towards <span class="hashtag">#3</span> right now, but figured there may be a better way to do it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lys0gen</div>
+          <div class="post_content">
+<p>If your primary concern is getting rid of the <strong>if</strong> for performance you should simply use a <em>step</em> multiplication as a substitute.</p>
+<pre><code>float trueValue = step(THRESHOLD, INPUT);// 1.0 if INPUT &gt;= THRESHOLD
+useColor = falseColor * (1.0 - trueValue) + trueColor * trueValue;
+</code></pre>
+<p>“If”-checking more values like this is trivial by just adding more of these step multiplications.</p>
+<p>If you actually need to swap out the entire material/technique I don’t know what is best. You’d probably have to benchmark it yourself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Lys0gen thanks for the response.  Since this is a pixel shader that covers the full-screen, I thought it would be best to remove the ‘if’ branches from the shader (which will be run for every pixel, every frame).</p>
+<p>And for my Case <span class="hashtag">#2</span> - it’s also a matter of “pass”, as I believe the “alpha” pass is extra expensive since it requires these passes to be sorted by “distance from camera” which can be costly for the CPU.   99% of the time these tiles are NOT transparent, and only need to be transparent when showing up or hiding (to prevent the abrupt blit, the fade is easier on the eyes and more polished).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>You can set multiple techniques for Material based on distance, <a href="https://urho3d.github.io/documentation/HEAD/_materials.html" rel="noopener nofollow ugc">see docs</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Eugene, I did see that.   It looks like those options will have issue, and will incur extra CPU-load per object.</p>
+<p>It looks to me like I can’t programmatically tell Urho which quality level to use on an object-by-object basis… it’s a “Renderer” setting.   And if I tell it to sort by distance, then I’m just giving Urho more-work-to-do (CPU) per frame by making it calculate Camera-Distance-to-each-object, and then sifting through the techniques.   I’m not sure how efficient Urho is at doing this.</p>
+<p>ISSUE: I determine LOD for an entire group of tiles based on Camera Y-Position.   So when Y drops below 100, I want to change the Technique for 100 tiles all at once.   I’d prefer to not have Urho doing “distance math” for all 100 tiles every frame, to determine if I’m close enough – PLUS – that math will NOT do it consistently for all tiles at once… because the tiles directly below the camera will be closer that those near to the edge of the screen… so Distance-based Technique Switching is bad, because the centered tiles will switch over before those at the edge, and this’ll look funny, since it’s one contiguous map.</p>
+<p>If I opt for Quality-based switching, then I am limited to 3 quality levels (0 to 2) for all tiles… AND then lose the ability for users to toggle up/down the quality of rendering based upon their device specs.</p>
+<p>===<br/>
+So I think I need something different than both of those.   In the absence of alternate advice, I am considering just using the “SetTechnique()” for each object when the camera crosses that threshold.  So I make 100 calls at the Y-threshold, and then am done.   Does this sound efficient/reasonable?</p>
+<p>I think that may be a better approach than using “SetMaterial” to get the job done.</p>
+<p>I can either call “Model.SetMaterial()” 100x for the switch, or “Material.SetTechnique()” 100x.</p>
+<p>New Idea:<br/>
+Currently each tile has it’s own Material instance (clone).  I think this might be a case where I can assign the SAME material to all 100 objects.  And then, to switch the technique, it only requires ONE call to Material.SetTechnique().</p>
+<p>EDIT:   New Idea won’t work, at least not without added complexity.  Currently there are various raster tiles that overlay each other (e.g… the more detailed city map overlays the lower-detail state map), and so I deal with this using “RenderOrder” (so I’d need to have at least one material per RenderOrder).</p>
+<p>Then there is the matter of Fading In/Out – which is another ShaderParameter, that is dynamically set upon Fading-in/out.    So it’s not as simple as using one Material for all tiles.   At minimum, I’d need to have one material for each RenderOrder used, and a separate materials for batches of tiles as they fade in/out.</p>
+<p>I may still go this route, but it’s not as simple as just having “one material for all tiles”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="6635" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>Eugene, I did see that. It looks like those options will have issue, and will incur extra CPU-load per object.</p>
+</blockquote>
+</aside>
+<p>Have you profiled to see if its actually a problem, or is this a case of premature optimization? There is going to be CPU utilization in a task like this, so your best bet is to implement a solution and profile it to see if it will be acceptable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>JTippetts1, thanks!  I may tend to optimize prematurely.  But in general, I just like to design an approach that isn’t wasteful.   By doing a reasonable amount of optimization as you go, you don’t have to rework things later.  When you can reduce 150 materials down to 10 materials to manage, for not much extra work, it seems like a no-brainer.</p>
+<p>We’re working with .NET, which has a Garbage-Collector (GC), which has to do more work if there are more objects on the heap.   So reduction of object counts tends to be a good practice to eliminate the occasional hiccups that can happen if the GC takes too long.</p>
+<p>Also, this’ll be lower CPU load.   We modify Shader Parameters per-frame, for our throbbing effect.   So right off the bat, reducing 150 materials down to 10, reduces the “SetShaderParameter()” calls from 150 to 10, per frame, for this one throbbing effect.</p>
+<p>So it seems to be a no-brainer, IMO, to do the “easy optimizations” upfront.   That’s why I ask the questions now, so that I can make smarter upfront decisions, and save unnecessary headaches later-on.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

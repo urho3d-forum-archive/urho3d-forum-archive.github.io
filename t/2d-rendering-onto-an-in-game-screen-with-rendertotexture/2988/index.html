@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>2D Rendering onto an in-game screen with RenderToTexture</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">2D Rendering onto an in-game screen with RenderToTexture</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elissa</div>
+          <div class="post_content">
+<p>Hey there, I’m doing a test to see if we can use Urho’s rendering engine to replace our existing one.</p>
+<p>What we need is be able to render 2D elements to screens within a 3D space.</p>
+<p>Obviously, Urho can do this quite fine (and very well - it’s so far been a pleasure of an engine to work with) but there’s two things left confusing me. I’ve already scoured the forums but haven’t found any help for this specific problem.</p>
+<p>For context, I’ve attached a screenshot of my test scene, and I’ll list the code I’m using and what the problems are.</p>
+<p><img height="422" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/5f96f8595c308c2ae5b263fe149f52a8c1e8f395.png" width="690"/></p>
+<p>The first thing I’m doing is creating an Ortho camera for the 2D rendering</p>
+<pre><code>m_rtScene = new Scene(context_);
+m_rtScene-&gt;CreateComponent&lt;Octree&gt;();
+
+m_rtCameraNode = m_rtScene-&gt;CreateChild("Camera");
+Camera* c = m_rtCameraNode-&gt;CreateComponent&lt;Camera&gt;();
+c-&gt;SetOrthographic(true);
+c-&gt;SetOrthoSize(Vector2(SCREEN_WIDTH * PIXEL_SIZE, SCREEN_HEIGHT * PIXEL_SIZE));
+c-&gt;SetAspectRatio(SCREEN_WIDTH/SCREEN_HEIGHT);
+</code></pre>
+<p>In this case it’s intended to simulate a nice low res, so SCREEN_WIDTH is 320, and SCREEN_HEIGHT is 320.</p>
+<p>Then the actual rendertexture gets created</p>
+<pre><code>SharedPtr&lt;Texture2D&gt; renderTexture(new Texture2D(context_));
+renderTexture-&gt;SetSize(SCREEN_WIDTH, SCREEN_HEIGHT, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+renderTexture-&gt;SetFilterMode(FILTER_NEAREST);
+SharedPtr&lt;Material&gt; renderMaterial(new Material(context_));
+renderMaterial-&gt;SetTechnique(0, cache-&gt;GetResource&lt;Technique&gt;("Techniques/DiffUnlit.xml"));
+renderMaterial-&gt;SetTexture(TU_DIFFUSE, renderTexture);
+renderMaterial-&gt;SetDepthBias(BiasParameters(-0.001f, 0.0f));
+m_monitorScreen-&gt;SetMaterial(renderMaterial);
+m_renderSurface = renderTexture-&gt;GetRenderSurface();
+m_renderViewport = new Viewport(context_, m_rtScene, m_rtCameraNode-&gt;GetComponent&lt;Camera&gt;());
+m_renderSurface-&gt;SetViewport(0, m_renderViewport);
+</code></pre>
+<p>And finally, putting a sprite in there</p>
+<pre><code>Node* spriteNode = m_rtScene-&gt;CreateChild("StaticSprite2D");
+StaticSprite2D* sprite = spriteNode-&gt;CreateComponent&lt;StaticSprite2D&gt;();
+Sprite2D* sr = cache-&gt;GetResource&lt;Sprite2D&gt;("Resources/spr.png");
+sr-&gt;SetHotSpot(Vector2(0, 0));
+spriteNode-&gt;SetPosition2D(0, 0);
+sprite-&gt;SetSprite(sr);
+</code></pre>
+<p>The problem is threefold:</p>
+<ol>
+<li>The sprite’s 0,0 position (as you can see) places it bang in the middle of the “screen” - top-left or bottom-left would be ideal, but I presume I can move the ortho camera around to compensate for this - although it seems less than ideal.</li>
+<li>positions for objects to go on this screen aren’t per-pixel, I presume because I haven’t set the ortho size correctly? For instance, the two sprites you see on the screen have the positions 0,0 and 1,0 respectively - and they’re very far apart.<br/>
+and</li>
+<li>Despite it being a clean sprite set to FILTER_NEAREST, it still does a bit of alpha blending - it’s a little fuzzy around the edges there.</li>
+</ol>
+<p>Any suggestions as to what I’m doing wrong? It’s VERY close to being exactly what we need.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

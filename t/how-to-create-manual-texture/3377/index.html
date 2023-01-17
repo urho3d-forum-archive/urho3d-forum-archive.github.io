@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to create manual texture?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to create manual texture?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>For some reason Urho3D’s image loader is unable to load my .png file, so I used lodePNG. It worked fine but I’m having a hard to creating a texture over it.<br/>
+I Make an Urho3D::Image Set the image’s pixels based on the unsigned char array (lodePNG repeats array as RGBARGBARGBA)<br/>
+This works fine as I have some pixel colors logged and they seem to be unique.</p>
+<p>I then make a new Texture2D and set it’s data to the image.<br/>
+This is where it breaks I believe.<br/>
+In the logs it says</p>
+<pre><code>ERROR: No texture created, can not set data
+</code></pre>
+<p>and if it’s concerning this is how I make the texture (Seems right)</p>
+<pre><code>ur::Texture2D *tex = new ur::Texture2D(context_);
+tex-&gt;SetNumLevels(1);
+tex-&gt;SetData(0,0,0, width, height, image-&gt;GetData());
+</code></pre>
+<p>Am I doing it wrong possibly?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>Hmm, try doing tex-&gt;SetSize before doing SetData.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>Doing</p>
+<pre><code>tex-&gt;SetSize(width, height, 0);
+</code></pre>
+<p>Before SetData gives me an error "Failed to create texture"<br/>
+Attempting to do Texture2D’s SetData function with only an image as an arg throws an exception at OGLTexture2D.cpp too.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>texture-&gt;SetData(image)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>With SetSize you’ll want to not give it 0 components. Try setting that last parameter to 3 (RGB)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>I was a bit hesitant to give that solution. I recently had an issue where I had to set the size first.  <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/> Not sure if that’s a new issue or not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Urho3D\Graphics\OpenGL\OGLTexture2D.cpp</p>
+<pre><code class="lang-auto">bool Texture2D::SetData(Image* image, bool useAlpha)
+{
+...
+SetSize(levelWidth, levelHeight, format);
+...
+SetData(i, 0, 0, levelWidth, levelHeight, levelData);
+...
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>Calling that specifically is what throws the exception.</p>
+<pre><code>ur::Texture2D *tex = new ur::Texture2D(context_);
+tex-&gt;SetNumLevels(1);
+//tex-&gt;SetSize(width, height, 0);
+tex-&gt;SetData(texture);
+</code></pre>
+<p>This for some reason throws an exception on line 227 of OGLTexture2D.cpp (on the “switch (components)”)</p>
+<p>EDIT: After trying to call  SavePNG to the image and being unable to open it, it looks like the problem lies in the image itself <img alt=":thinking:" class="emoji" src="../../../images2/82a9651f7660764b4331d6a14d303910.png" title=":thinking:"/></p>
+<p>If it matters this is how I get the pixels</p>
+<pre><code>	std::vector&lt;unsigned char&gt; imgData;
+		unsigned width, height;
+		unsigned error = lodepng::decode(imgData, width, height, "Data/image.png");
+
+		ur::Image *texture = new ur::Image(context_);
+		texture-&gt;SetSize(width, height, 0);
+		
+		for (unsigned x = 0; x &lt; width; ++x) {
+			for (unsigned y = 0; y &lt; height; ++y) {
+				unsigned int iter = x * width + y;
+				ur::Color color = RGBToColor(imgData[iter], ///RGBToColor converts unsigned char to 0.0-1.0
+					imgData[iter + 1],
+					imgData[iter + 2]);
+
+				texture-&gt;SetPixel(x, y, color);
+			
+		
+			}
+		}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<pre><code class="lang-auto">unsigned int iter = x * width + y;
+</code></pre>
+<p>may be</p>
+<pre><code class="lang-auto">unsigned int iter = y * width * 3 + x * 3 ;
+</code></pre>
+<p>or *4 ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>Still doesn’t seem to work. <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/><br/>
+The png file created is 73 bytes long, when the actual file is around 21 kb.</p>
+<p>Alright. I’m confused now, I tried using ResourceCache to get the http requested image and now it works perfectly fine. I’m not sure how it started working fine now. Just yesterday it was complaining that it couldn’t read the .png.</p>
+<p>Anyways, thanks for your help guys!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Flowing texture - UV Animations</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Flowing texture - UV Animations</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>Hi all, so I have a texture that is 16x64 and what I’m trying to do is animate the UV coordinates such that the texture flows across the v-coordinate space over a set amount of time to give the illusion that the texture is <em>flowing</em>.</p>
+<p>So far I defined the geometry’s vertex buffer such that the uv coordinates are within the 16x16 coordinate space so where u goes from 0…1 and v goes from 0…0.25 (which is 1 / 4).  Next I defined the value animation as follows:</p>
+<pre><code class="lang-auto">auto *animation = new ValueAnimation( context_ );
+animation-&gt;SetKeyFrame(  0.f, Vector4( 0.f, 0.00f, 0.f, 1.f ) );
+animation-&gt;SetKeyFrame(  2.f, Vector4( 0.f, 0.25f, 0.f, 1.f ) );
+animation-&gt;SetKeyFrame(  4.f, Vector4( 0.f, 0.50f, 0.f, 1.f ) );
+animation-&gt;SetKeyFrame(  8.f, Vector4( 0.f, 0.75f, 0.f, 1.f ) );
+</code></pre>
+<p>My understanding is then after 8 seconds, the texture will have flowed from the first 16x16 portion to the last 16x16 portion and will then loop to the first 16x16 frame portion.</p>
+<p>Next I defined my material as follows and assigned the animation:</p>
+<pre><code class="lang-auto">auto *mat = new Material( context_ );
+mat-&gt;SetTechnique( 0, GetResource&lt;Material&gt;( "Techniques/DiffUnlitAlpha.xml" ) );
+mat-&gt;SetTexture( TU_DIFFUSE, GetResource&lt;Texture2D&gt;( "Textures/WaterFlow.png" ) );
+mat-&gt;SetVertexShaderDefines( "DIFFMAP VERTEXCOLOR" );
+mat-&gt;SetPixelShaderDefines( "DIFFMAP VERTEXCOLOR" );
+mat-&gt;SetScene( scene_ );
+mat-&gt;SetShaderParameterAnimation( "VOffset", animation );
+</code></pre>
+<p><s>It’s my understanding that both <code>cUOffset</code> and <code>cVOffset</code> are built-in animation uniforms and are applied when the VS calls <code>GetTexCoord</code> on the incoming UV coordinates and so there shouldn’t be any other code necessary to get this to work afaict.</s></p>
+<p><s>If I don’t apply the animation, I get the first frame, first 16x16 portion of the water flow strip.  But when I apply the animation, I don’t see anything being animated nor can I make out any portion of the texture that looks like any of the 16x16 frames.</s></p>
+<p>So after some debugging, I found that the value for the offset needs to be provided as a Vector4 and not as a Vector2 as I originally thought.  Making that change, I now see the animations; however they are not transitioning as I would have thought.  Instead it appears it transitions as if no uvs are set, the blue water vertex color and then the texture animates in 1 pixel per frame until the original 16x16 texture is there if I were not applying any uv animations and then loops.</p>
+<p>What I actually wanted here is to take my 16x64 texture, initially render the bottom part of the strip at 16x16 and then adjust the uv coordinates so that I move down the strip with each key frame until I reach the final 16x16 portion at the other end before I repeat.</p>
+<p>This is clearly a UV keyframe issue now but I’m not sure what I did wrong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>From what I recall of how this thing works, I think the mistake is you didn’t close the loop. That is, the last key frame should have the same value as your initial key frame.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>The quad is animating such that the texture animations in from the -Z plane but I never see it animate off the +Z plane so it gives this unusual artifact when you have neighboring quads of water planes that the water isn’t animating as a single cohesive unit.</p>
+<p>What you mentioned makes sense but can you clarify if the key frame offsets I provide are additive to the UV coordinates specified in the vertex buffer or should these be seeded with the initial values from the 16x16 bottom portion of the water texture strip?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>After a bit more tweaking, finally found the solution.  In case others are interested, I setup the keyframes as follows:</p>
+<pre><code class="lang-auto">animation-&gt;SetKeyFrame( 0.f, Urho3D::Vector4( 1.f, 0.f, 0.f, 0.f ) );
+animation-&gt;SetKeyFrame( 2.f, Urho3D::Vector4( 1.f, 0.f, 0.f, 1.f ) );
+animation-&gt;SetKeyFrame( 0.f, Urho3D::Vector4( 1.f, 0.f, 0.f, 0.f ) );
+</code></pre>
+<p>This moves the texture and gives the illusion that the water is flowing.  I honestly expected the key frames to be more complicated for what I wanted but seems to work nonetheless.</p>
+<p><span class="mention">@weitjong</span>, if I wanted to provide a <em>sparkling</em> approach rather than this <em>flowing</em> where again I take this 16x64 texture and I split the uv-coordinates into 4 groups:</p>
+<pre><code class="lang-auto">+---------+
+| 16x16 A |
++---------+
+| 16x16 B |
++---------+
+| 16x16 C |
++---------+
+| 16x16 D |
++---------+
+</code></pre>
+<p>Then for 2 seconds I would display the A slice, after 2 seconds I would display the B slice and so on so that I cycle through each slice every few seconds and repeat.  The idea is that rather than the concept of moving the texture as if it were flowing, I would be shifting what portion of the texture is rendered periodically.</p>
+<p>Is there a way to do this out-of-the-box?  Would this rely on the <code>EventFrame</code> concept on the animation to fire and event and the drawable would adjust the UV coordinates in the vertex buffer?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Lumak demos have some effects.  E,g flowing larva and water.  Maybe you can convert it to new version.</p>
+<aside class="quote" data-post="38" data-topic="2953">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/basic-material-effects-for-rendering/2953/38">Basic material effects for rendering</a> <a class="badge-wrapper bullet" href="/c/discussions/7"><span class="badge-category-bg" style="background-color: #25AAE2;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Discussions about using Urho3D.">Discussions</span></a>
+</div>
+<blockquote>
+    Wrapped up the project and checked everything in on the repo. A ton of files deleted and replaced, so I might have missed some.  Let me know if something’s missing, thx. 
+What’s new: 
+-per object, per emissive mask post process glow 
+-fake BRDF 
+-all 500+ sequence frame images, i.e. fire, explosion, etc., were deleted packed into a single files 
+-several new shaders added for both glsl and hlsl 
+-uv sequencer class to handle updates 
+etc. etc. 
+edit: update the post process glow.xml 
+vid
+  </blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>Hi <span class="mention">@George1</span>, thanks for the link.  So it looks like what Lumak did for this use case is designed a special pipeline (shader / technique) to be used in materials and effectively has a <code>LogicComponent</code> that adjusts a special shader parameter to control the row / column within the texture to render.  The shader then uses these values to set the UV coordinates according to the row / column pattern.</p>
+<p>I’m curious if this can be done using <code>InterpMethod::IM_NONE</code> on a <code>ValueAnimation</code> but so far I have not been able to get this to work as I would have expected.</p>
+<p>If a <code>LogicComponent</code> is the only way, so be it but I feel that’s precisely what <code>ValueAnimation</code> is meant to provide without having to introduce the extra scene component to do it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I just quickly look at the relevant code. I don’t think currently there is a way to easily do the animation swap like you described out of the box. Except, by defining the a single more elaborated ValueAnimation that eventually going through all the 4 slices before you close the animation loop.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

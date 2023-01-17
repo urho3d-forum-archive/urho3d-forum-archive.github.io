@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Lighting issue when supporting transparency fading</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Lighting issue when supporting transparency fading</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">daokoder</div>
+          <div class="post_content">
+<p>I am trying to implement a fading effect by increasing material transparency. I duplicated the DiffAlpha technique, and changed depth write from false to true. Now the object fades properly, but its lighting seems gone, and become dimmed.</p>
+<p><img alt="Urho3D_IssueReport_Screenshot" data-base62-sha1="rTdcfAk0lQArVlMpVQ9KOoI38lX" height="480" src="../../../images2/978420bfbc6987ca799d7e92bb330603.png" width="640"/></p>
+<p>I tried to add additional passes, but I can only get either lighting properly or fading properly, never both. Any suggestions?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>You have a second transparent object, right, a large plane or something? It’s possible that the plane is “in front” of the box based on your image (it’s based only on the center coordinates of the object) which could make it look weird. To check, I’d suggest disabling every other transparent object and see if it gets better, as this may not in fact be your problem at all.</p>
+<p>If it is your problem, though, you could try adjusting the render order if the box is always going to be in front.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">daokoder</div>
+          <div class="post_content">
+<p>Right, there was a second transparent object which normally was used to highlight the block (and its neighbors) below. In certain condition, it would become fully transparent. But due to some recent changes, it didn’t become fully transparent.</p>
+<p>Just now I disabled this transparent object completely, but the issue remains. I will try to adjust the render order as you suggested, and see how it works.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>If you disabled it completely and it didn’t fix it your problem must be something else, so hopefully someone else has some idea what is going on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">daokoder</div>
+          <div class="post_content">
+<p>Yes, it must be something else. Since it looks like a lighting issue, I tried to change the light mode of the alpha pass to per pixel ( the default is per vertex), then the lighting seemed better, but the fading was broken (the object became always transparent, just like before without changing depth write to true). Very strange.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>This does seem odd from your screenshot for sure. I spent a few minutes trying to reproduce it, and couldn’t. I got other anomalies with hardware depth texture, but not like what I’m seeing in your pics. I created a new technique from DiffAlpha with depth writing on, and used a value animation on MatDiffColor, fading alpha channel from 0 to 1 and back. Lighting was correct, alpha fading was correct. I checked both forward and deferred render paths with hardware depth texture and without. I didn’t mess around too much to try to figure out what wasn’t working right on the hardware depth, but lighting and fading were both working correctly on all tests. Any significant deviations from the provided render paths? Adjusting MatDiffColor to handle the opacity change? No other ideas at the moment.</p>
+<p>-PsychoCircuitry</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">daokoder</div>
+          <div class="post_content">
+<p><span class="mention">@PsychoCircuitry</span> Thank you for testing it. I did exactly the same thing. Since it works for you, I will check if it is a problem of my Urho3D fork. Maybe it has something to do with my changes to the fork, or simply because my fork is outdated.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">daokoder</div>
+          <div class="post_content">
+<p>Just checked by modifying the material animation sample, the fading and lighting works properly with the revision on which my fork was based. So it must have something to do with my changes. Now knowing where to look for the problem should make it easier.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">daokoder</div>
+          <div class="post_content">
+<p>Now the issue is solved. It turned out the technique file had a couple of additional changes that I made some time ago for another effect. I mistook those changes as part of the original file. After removing those changes, the lighting issue is gone.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Could you post the final image?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">daokoder</div>
+          <div class="post_content">
+<p>Sure.</p>
+<p>High transparency:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screen Shot 2021-10-02 at 10.25.15 PM"><img alt="Screen Shot 2021-10-02 at 10.25.15 PM" data-base62-sha1="9C4qhPbNnWZjgylyAzo8WjUNYzD"  height="388" src="../../../images2/7e900791062df72b5aa103cae550f77c.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2021-10-02 at 10.25.15 PM</span><span class="informations">1920×1080 106 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Low transparency:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screen Shot 2021-10-02 at 10.17.25 PM"><img alt="Screen Shot 2021-10-02 at 10.17.25 PM" data-base62-sha1="3uwrvM7P0g54Pgu5LtoNOVUA1OM"  height="388" src="../../../images2/ff6feedad1b1ff88db2f41d40832960f.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2021-10-02 at 10.17.25 PM</span><span class="informations">1920×1080 106 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>GetMouseButtonDown(Urho3D::MOUSEB_LEFT) not working</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">GetMouseButtonDown(Urho3D::MOUSEB_LEFT) not working</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simple</div>
+          <div class="post_content">
+<p>Somebody have same problem like me with newest version of urho3d?</p>
+<p>If i bind engine’s externalWindow with QWidget-&gt;winId() (which is parented with QMainWindow) or wxControl-&gt;GetHandle() then GetMouseButtonDown(Urho3D::MOUSEB_LEFT) doesnt work.<br/>
+If I bind engine’s externalWindow wirh QMainWindow-&gt;winId() then GetMouseButtonDown(Urho3D::MOUSEB_LEFT) works.<br/>
+Not sure with earlier version of urho3d, but I earlier also use wxWidgets and use wxControl (as child window) then GetMouseButtonDown(Urho3D::MOUSEB_LEFT) works, now not working.<br/>
+(probably externalWindow with wxFrame-&gt;GetHandle() will also work (anyway this not tested))</p>
+<p>maybe GetMouseButtonDown(Urho3D::MOUSEB_LEFT) not working with all window childrens, only works with main windows???</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I recommend to debug inside Urho’s Input class: are you getting the SDL mouse event? If yes, is it being discarded because the inputFocus_ flag is false (or some other reason)?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simple</div>
+          <div class="post_content">
+<p>I was debugged app, and i found problem with <span class="bbcode-b">SDL_WINDOW_INPUT_FOCUS</span>.<br/>
+This flag is always zero.<br/>
+So urho3d GainFocus and just after LoseFocus because of this line:</p>
+<p><span class="bbcode-b">        if (inputFocus_ &amp;&amp; (flags &amp; SDL_WINDOW_INPUT_FOCUS) == 0)<br/>
+LoseFocus();</span></p>
+<p>So problem was widget was not focused, but <span class="bbcode-b">QWidget::setFocus(), QWidget::activateWindow(),SetActiveWindow(this-&gt;GetHandle()) and wxControl::SetFocus()</span><br/>
+doesnt send window-message <span class="bbcode-b">WM_ACTIVATE </span>where <span class="bbcode-b">SDL_WINDOW_INPUT_FOCUS </span>is set by <span class="bbcode-b">SDL_SetKeyboardFocus(data-&gt;window);</span><br/>
+I decided send this message maually by this code (is little dirty but work):<br/>
+<span class="bbcode-b">SendMessageA((HWND)this-&gt;winId(),WM_ACTIVATE,WA_ACTIVE,0);</span></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Thanks for the debugging. It looks like we should perhaps always assume SDL_WINDOW_INPUT_FOCUS for external windows.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

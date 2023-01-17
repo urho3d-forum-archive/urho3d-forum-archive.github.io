@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>AngelScript random crash</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">AngelScript random crash</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Hi , so i can’t tell whats exacly happening but in some cases calling ScriptInstance::CrateObject crashes. I couldn’t figure out why…<br/>
+The script works fine until i add another method then the game starts crashing afterwards.</p>
+<p><code>if (!scriptName.Empty())
+{
+	Urho3D::ScriptInstance * scrInst = this-&gt;CreateComponent&lt;Urho3D::ScriptInstance&gt;();
+              // Cript instance is successfully created
+	scrInst-&gt;CreateObject(GetSubsystem&lt;Urho3D::ResourceCache&gt;()-&gt;GetResource&lt;Urho3D::ScriptFile&gt;(scriptName + ".as") , "INFScript");
+              // The program never reaches this part !
+}</code></p>
+<p>i think that (i suppose) there’s a dangling pointer somewhere in either anglescript’s or Urho’s CreateObject function…</p>
+<p>Here’s the latest test i ran :</p>
+<p>This works :</p>
+<p>[code]class INFScript : ScriptObject<br/>
+{<br/>
+void onPick()<br/>
+{<br/>
+INFGame@ game = getGame();<br/>
+Node@ key = node.GetChild(“Security Key” , true);</p>
+<pre><code>	if (key !is null) game.switchToPuzzleMode();
+	else game.enableDialog("The security panel is turned off.There's a keyhole on the panel" , 0 , 0 , null);
+}
+</code></pre>
+<p>}[/code]</p>
+<p>changing to this and it just keeps crashing.</p>
+<p>[code]class INFScript : ScriptObject<br/>
+{<br/>
+void onPick()<br/>
+{<br/>
+INFGame@ game = getGame();<br/>
+Node@ key = node.GetChild(“Security Key” , true);</p>
+<pre><code>	if (key !is null) game.switchToPuzzleMode();
+	else game.enableDialog("The security panel is turned off.There's a keyhole on the panel" , 0 , 0 , null);
+}
+     
+Overloaded function with a Node as a parameter
+void onPick(Node@ inNode)
+{
+          
+}
+</code></pre>
+<p>}[/code]</p>
+<p><span class="bbcode-b">EDIT:</span></p>
+<p>now thats strange… deleting few lines remove empty lines and now it works again…<br/>
+The crash is totally unpredictable…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Can you give us a backtrace? Otherwise it’s just guess work.</p>
+<pre><code class="lang-auto"></code></pre>
+<p>If CreateObject() fails (for some reason) it could explain the crash.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>If CreateObject() fails (for some reason) it could explain the crash.</p>
+</blockquote>
+</aside>
+<p>Hi ! Yes the crash happens somewhere inside CreateObject (like i stated in my first post).When the crash happens the program never leaves the CreateObject function</p>
+<p><code>inst-&gt;CreateObject(blahblah);
+LOGDEBUG("This line will never be written in the console if the program crashed...")</code></p>
+<p>The problem is the crash is sooo rare i couldn’t investigate it <a href="http://yet.It" rel="nofollow noopener">yet.It</a> could be a dangling pointer or null pointer access but could be some *.as file parsing error… i have no idea.<br/>
+I didn’t modified my scripts for a week (i’m working on level design right now). So now the crash doesn’t happen at all. The crash only happens if i add/remove some code to the script. But after a bit modifying (removing empty lines , swap function definitions in the script file etc) then the SAME code just works without crashing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>[quote=“Dave82”]now thats strange… deleting few lines remove empty lines and now it works again…<br/>
+The crash is totally unpredictable…[/quote]<br/>
+It does not make any sense. IMHO, AngelScript should not be the root cause of your problem. Let me guess. You are using MSVC as your compiler toolchain and your project is 64-bit using DetourCrowd? If so, I think the root cause of the problem is with our integration of DetourCrowd into Urho3D. I have not done any investigation yet, but since we have enabled AppVeyor (our CI server using VS2015) to test run all the sample apps as part of the CI jobs, we have observed random segfault on 64-bit build of 39_CrowdNavigation for both STATIC and SHARED lib types. Note this is just a wild guess that your problem is related to this observation. You should probably log this as an issue to our GitHub issue tracker.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>[quote=“weitjong”]<br/>
+It does not make any sense. IMHO, AngelScript should not be the root cause of your problem. Let me guess. You are using MSVC as your compiler toolchain and your project is 64-bit using DetourCrowd? If so, I think the root cause of the problem is with our integration of DetourCrowd into Urho3D. I have not done any investigation yet, but since we have enabled AppVeyor (our CI server using VS2015) to test run all the sample apps as part of the CI jobs, we have observed random segfault on 64-bit build of 39_CrowdNavigation for both STATIC and SHARED lib types. Note this is just a wild guess that your problem is related to this observation. You should probably log this as an issue to our GitHub issue tracker.[/quote]</p>
+<p>Thanks weitjong ! Yes i use MSVC but on a 32 bit system. I found some issues with DetourCrowd but only in the previous (1.4) version of Urho. Since 1.5 these issues were gone (Crashes in CrowdManager, and NavigationMesh-&gt;Build()). It seems that this is working now.<br/>
+The problem is that the program never leaves the ScriptInstance’s CreateObject function after the crash. But i only tested it like this :</p>
+<p><code>
+URHO3D_LOGINFO("The program reaches this point");
+scrInst-&gt;CreateObject(cache-&gt;GetResource&lt;ScriptFile&gt;("Scripts/" + scriptName + ".as") , "INFScript");
+URHO3D_LOGINFO("If the program crashes this will not print");</code></p>
+<p>Thats just my experience but ofcourse i could be wrong… I didn’t have time to examine ScriptInstance’s source code yet , i’m busy with job and life , all my free time goes into level design and modelling.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

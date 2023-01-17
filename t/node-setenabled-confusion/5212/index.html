@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Node SetEnabled confusion</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Node SetEnabled confusion</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I’m having trouble understanding how all the Node SetEnabled variants work.</p>
+<p>First problem is:</p>
+<blockquote>
+<pre><code>/// Set enabled state on self and child nodes. Nodes' own enabled state is remembered (IsEnabledSelf) and can be restored.
+void Node::SetDeepEnabled(bool enable)
+{
+    SetEnabled(enable, true, false);
+}
+</code></pre>
+</blockquote>
+<p>The comment says the node remembers is current state which can be restored later, however the 3rd parameter to the SetEnabled function which flags whether to remember its state or not, is actually false.</p>
+<p>Second problem:</p>
+<blockquote>
+<p>void Node::SetEnabled(bool enable, bool recursive, bool storeSelf)<br/>
+{<br/>
+…</p>
+<pre><code>if (storeSelf)
+    enabledPrev_ = enable;
+
+if (enable != enabled_)
+{
+</code></pre>
+</blockquote>
+<p>The function is not storing its current state, but the new state which is passed on as a parameter. Shouldn’t it be:</p>
+<blockquote>
+<pre><code>if (storeSelf)
+    enabledPrev_ = enabled_;
+</code></pre>
+</blockquote>
+<p>So, either I don’t understand how this code works or there are some serious bugs! Can someone clarify? Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>SetEnabled does what it says - it enables, or disables, a node, for update purposes. Its children may still receive updates! SetEnabled applies to exactly one node, and not to its children, or their children.<br/>
+SetDeepEnabled does something slightly different, it enables, or disables, a node, and all its children, and their children!, and remembers what it did, so it can be undone for some entire scene subtree. I use this to pause stuff.<br/>
+I am implying some things that are not clear about Urho - object updates don’t stop when we hit a disabled object, its children can still fire unless explicitly disabled. Urho, like all game engines, has some quirks.<br/>
+The strategy of having a master thing live outside of game scenes, was something I had already applied to a commercial game in Unity - they had the hindsight to implement support for “things that are immortal”</p>
+<p>When I began using Urho, I decided to create a unique scene - not the game scene, but a manager scene, that would live outside of all game scenes, with components to represent my major game states, and one ring to rule them all. I had no idea what I was doing, but it turned out to be a good plan, to separate my game state management</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Urho3D is an open source project. When in doubt, you can always use the <code>git blame</code> to find out which commit introduced the code in question. It did not take me more than a minute to find the commit.</p>
+<aside class="onebox githubcommit">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com/urho3d/Urho3D</a>
+</header>
+<article class="onebox-body">
+<a href="https://github.com/cadaver" rel="nofollow noopener" target="_blank">
+<img alt="cadaver" class="thumbnail onebox-avatar" height="90" src="../../../images2/7346a0de27c29afd0dfc50df9364187e.jpeg" width="90"/>
+</a>
+<h4>
+<a  rel="nofollow noopener" target="_blank">Unify SetDeepEnabled() API between UI &amp; Node. Removed IsDeepEnabled() function &amp; "Is Deep Enabled" attribute as it may return different value than last SetDeepEnabled() and can not therefore serialize/deserialize accurately. Instead added IsEnabledSelf() which returns the enabled state before SetDeepEnabled(). Changed Node::SetEnabled(bool, bool) to SetEnabledRecursive(). Unlike SetDeepEnabled() it does not preserve node's self enabled state. Added AngelScript binding for SetDeepEnabled operations.</a>
+</h4>
+<div class="date">
+  by <a href="https://github.com/cadaver" rel="nofollow noopener" target="_blank">cadaver</a>
+  on <a  rel="nofollow noopener" target="_blank">09:10PM - 24 Sep 14 UTC</a>
+</div>
+<div class="github-commit-stats">
+  changed <strong>10 files</strong>
+  with <strong>128 additions</strong>
+  and <strong>79 deletions</strong>.
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>And with the whole commit message and the whole changes in the context, it does not seem to me that there is any bug in the code.</p>
+<p>I have helped Lasse to migrate from SVN to GitHub and I can confirm that we have never lost any commit history since the day this project was his pet project till today. The code itself is the ultimate document of the project. Read from source to get the truth yourself instead of from other personal opinion.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>Your argument seems to be based on the Appeal to Authority fallacy: This piece of code is the perfect original creation of the project god, which has never been corrupted by other influences throughout its history, so how dare you doubt it!?<br/>
+With all due respect to Lasse, who created an awesome project, I’ll commit the blasphemy of suggesting that the original code written by him is logically wrong, and I’m guessing that no one has picked it up because no one really tried to use it to its potential.<br/>
+Can someone prove wrong my critique of the code using logic?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>That’s not exactly what I meant. I don’t care who was the author of that commit. I have looked at that code when it was first committed and again yesterday. My logic says it is correct. As I recall, the <code>SetDeepEnabled()</code> is something added much later and it is intended to let user temporarily toggle the state to one way or another. So, it is intentional that it does not alter the <code>enablePrev_</code>. For the permanent toggle, use the <code>SetEnabledRecursive()</code>. If you have actually looked at the commit I linked then you should have understood why I said it appears there is no bug to me.</p>
+<p>I guess one has to get accustomed to Lasse ‘s code style to understand his logic better. Don’t get me wrong, I am not saying he is or we are always right.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I did look at the commit and read all the replies, however, what I don’t get is:</p>
+<ul>
+<li>If  SetDeepEnabled() is intended to temporarily toggle the state, then how does it store the current state so it can be restored it back if it’s not using the enablePrev_ field? RestoreDeepEnabled() is relying on this variable!</li>
+<li>If SetEnabledRecursive() does a permanent toggle, then what does it need the enablePrev_ for? It shouldn’t care about the previous state if it’s a permanent action.</li>
+</ul>
+<p>I appreciate your reply, but I’m sorry, neither the code nor your explanation make sense to me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>If the enabledPrev_ is unaltered then it contains the value of the last permanent state. So the reset method can revert to whatever as it was.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I finally get it! I think the name of RestoreDeepEnabled got me confused about what the Set… functions are supposed to do. I was thinking of a different mechanism all along while looking at the code.<br/>
+Thanks for clarifying and apologies about the bother.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>No problem. The name of the method could have been better.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

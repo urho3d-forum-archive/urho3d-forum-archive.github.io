@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Render order transparency?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Render order transparency?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Ok, I’m a novice graphics programmer and don’t understand what’s going on with what’s shown in the pic nor what it’s called.</p>
+<p>The problem is when looking at a wave in a way which will overlap some waves behind it, I see some triangle become transparent and renders what’s behind it making it look like there’s a hole there.</p>
+<p>How to fix this?  This occurs in DX9 and OpenGL, the transparency setting is 0.94, freznel env map.</p>
+<p>Edit: the red circle is a vertex reference to give some perspective from one pic to the other.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/6rnCGZP.jpg" title=""><img alt="" height="313" src="../../../images2/4c1d5921e7b0afa075c0c12e39e863fb.jpg" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1266×576</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>[EDIT] Disregard this post, it turns out I was wrong and I’m having the same issue.</p>
+<p>You could try enabling depth write (which is the default setting).</p>
+<p><code>&lt;technique&gt;
+    &lt;pass name="litalpha" depthwrite="true" blend="addalpha" /&gt;
+&lt;/technique&gt;</code></p>
+<p>Disclaimer: This turned out to work for me, but I am by no means an expert myself either.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Having depth write on is likely fine if your material is “mostly opaque”. It can cause missing blending of the far-away triangles, in case the front triangles get drawn first.</p>
+<p>To properly solve the issue, you would need to rewrite the model’s index buffer each frame based on the camera position, so that back-to-front order is guaranteed. But that could be a nasty performance drain.</p>
+<p>That’s sort of what billboardset does, it sorts the billboards back-to-front when the sorting is enabled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>[quote=“TheComet”][EDIT] Disregard this post, it turns out I was wrong and I’m having the same issue.<br/>
+[/quote]</p>
+<p>Yeah, it’s difficult to know what’s going.</p>
+<p><span class="bbcode-b">Some helpful debugging code:</span><br/>
+Remove 	<br/>
+<br/>
+from MatOcean.xml</p>
+<p>In Ocean.hpp/.c</p>
+<pre><code class="lang-auto">    void SetPause(bool bset)            { pauseProcessing_ = bset; }
+    bool GetPause() const               { return pauseProcessing_; }
+
+    // dbg
+    bool                pauseProcessing_;
+
+
+void Ocean::HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    if ( !pauseProcessing_ &amp;&amp; !IsProcessPending() )
+    {
+        UpdateVertexBuffer();
+
+        SetProcessPending(true);
+    }
+}
+</code></pre>
+<p>Edit: I had my SetPause() in .cpp but moved it in .h for this.</p>
+<p>In Water.cpp</p>
+<pre><code class="lang-auto">void Water::MoveCamera(float timeStep)
+{
+. . .
+
+    if (input-&gt;GetKeyDown(' ') &amp;&amp; m_pOcean)
+    {
+        bool setpause = !m_pOcean-&gt;GetPause();
+        m_pOcean-&gt;SetPause(setpause);
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]Having depth write on is likely fine if your material is “mostly opaque”. It can cause missing blending of the far-away triangles, in case the front triangles get drawn first.</p>
+<p>To properly solve the issue, you would need to rewrite the model’s index buffer each frame based on the camera position, so that back-to-front order is guaranteed. But that could be a nasty performance drain.</p>
+<p>That’s sort of what billboardset does, it sorts the billboards back-to-front when the sorting is enabled.[/quote]</p>
+<p>That does sound nasty.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p><span class="mention">@TheComet</span>,<br/>
+Setting the depthwrite=“true” looks much better. At least it gets rid of holes.  I can live with this. Thx.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>It will look good from certain angles, but as cadavar pointed out, if fragments behind other fragments happen to be rendered first, you’ll still get those “holes” you speak of.</p>
+<p>I’m just thinking out loud here, but it should be possible to completely solve this issue by using two passes. In the first pass you render all transparent objects to a depth buffer. In the second pass you do the actual alpha shading, and discard any pixels with a depth value not equal to what you sample from the depth buffer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>[quote=“TheComet”]It will look good from certain angles, but as cadavar pointed out, if fragments behind other fragments happen to be rendered first, you’ll still get those “holes” you speak of.<br/>
+[/quote]</p>
+<p>I made more tweaks in the shader progs just minutes ago.  Check out the latest repo, and you’ll see that it’s fixed.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

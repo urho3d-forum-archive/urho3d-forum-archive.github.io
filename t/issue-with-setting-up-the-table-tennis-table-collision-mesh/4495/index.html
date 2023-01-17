@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Issue with setting up the table tennis table collision mesh</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Issue with setting up the table tennis table collision mesh</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<p>I am working on my first Urho3D game using the Character Demo as the starting point.<br/>
+I have the basic scene setup and some logic to shoot some table tennis balls to the table tennis table surface. The problem is, some balls just get stuck on the tables, some balls can bounce over to the other side of the table and some just pass through the table surface and drop tot he floor.</p>
+<p>It seems like the collision mesh of the table is not setup correctly but I could not figure where is the problem. Any advise here is appreciated.</p>
+<p>Below are the source code for the setup:</p>
+<pre><code class="lang-auto">   // set this one up manually to explore the parameters of these functions
+    Node* tableNode = scene_-&gt;CreateChild("Table");
+    tableNode-&gt;SetPosition(Vector3(0.0f, 0.8f, 0.0f));
+    tableNode-&gt;SetRotation(Quaternion(0.0f, 90.0f, 90.0f));
+    tableNode-&gt;SetScale(1.0f);
+
+    auto* tableObject = tableNode-&gt;CreateComponent&lt;StaticModel&gt;();
+    tableObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Table3D.mdl"));
+    tableObject-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Table.xml"));
+
+    auto* tableBody = tableNode-&gt;CreateComponent&lt;RigidBody&gt;();
+    tableBody-&gt;SetMass(10.0f);
+    tableBody-&gt;SetRestitution(0.6f);
+    tableBody-&gt;SetKinematic(false);
+
+    auto* tableShape = tableNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+    tableShape-&gt;SetTriangleMesh(tableObject-&gt;GetModel(), 0);
+</code></pre>
+<p>The function which instantiates the balls and shoot at the table based on the camera direction:</p>
+<pre><code class="lang-auto">void TableTennisDemo::SpawnObject()
+{
+    auto* cache = GetSubsystem&lt;ResourceCache&gt;();
+    Node* boxNode = scene_-&gt;CreateChild("Ball");
+    boxNode-&gt;SetPosition(cameraNode_-&gt;GetPosition());
+    boxNode-&gt;SetRotation(cameraNode_-&gt;GetRotation());
+    boxNode-&gt;SetScale(1.00f);
+
+    auto* boxObject = boxNode-&gt;CreateComponent&lt;StaticModel&gt;();
+    boxObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/ball.mdl"));
+    boxObject-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Ball.xml"));
+    boxObject-&gt;SetCastShadows(true);
+
+    auto* body = boxNode-&gt;CreateComponent&lt;RigidBody&gt;();
+    body-&gt;SetMass(0.027f);
+    body-&gt;SetRollingFriction(0.05f);
+    body-&gt;SetRestitution(0.8f);
+    body-&gt;SetLinearDamping(0.2f);
+
+    auto* shape = boxNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+    shape-&gt;SetSphere(0.04f);
+
+    const float OBJECT_VELOCITY = 6.0f;
+
+    // Set initial velocity for the RigidBody based on camera forward vector. Add also a slight up component
+    // to overcome gravity better
+    body-&gt;SetLinearVelocity(cameraNode_-&gt;GetRotation() * Vector3(0.0f, 0.25f, 1.0f) * OBJECT_VELOCITY);
+}
+</code></pre>
+<p>A snapshot of the game scene:</p>
+<p><img alt="Game%20Scene%20Screenshot" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/6/68cab2623c9b4ba5e6a5a58bb109b60f9486fb75.jpeg" width="632"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>From the <a href="http://www.cs.kent.edu/~ruttan/GameEngines/lectures/Bullet_User_Manual.pdf">Bullet Physics Manual</a>:</p>
+<blockquote>
+<h4>Avoid very small and very large collision shapes</h4>
+<p>The minimum object size for moving objects is about 0.2 units, 20 centimeters for Earth gravity. If smaller objects or bigger gravity are manipulated, reduce the internal simulation frequency accordingly, using the third argument of btDiscreteDynamicsWorld::stepSimulation. By default it is 60Hz. For instance, simulating a dice throw (1cm wide box with a gravity of 9.8m/s2) requires a frequency of at least 300Hz (1./300.). It is recommended to keep the maximum size of moving objects smaller then about 5 units/meters.</p>
+</blockquote>
+<p>In Urho3D the simulation frequency can be changed using <code>PhysicsWorld::SetFps(int)</code>.</p>
+<p>Also, did you know you can enable debug rendering of collision shapes? This is done by calling <code>DrawDebugGeometry(true)</code> on the <code>PhysicsWorld</code> during the <code>PostRenderUpdate</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4495">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/84ac0c212b0409b829a9017e6a2fe154.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>60Hz</p>
+</blockquote>
+</aside>
+<p>Thanks a lot! I am aware of the DrawDebugGeometry function but not able to get it to work. Maybe that is the best path to get a better handle of the collision mesh problem. The Bullet Physics manual reference definitely helps. Lets me dig a bit more in it. Thanks again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>To draw the debug geometry you’ll need to subscribe to the PostRenderUpdate event as such:</p>
+<pre><code class="lang-auto">SubscribeToEvent(E_POSTRENDERUPDATE, URHO3D_HANDLER(TableTennisDemo, HandlePostRenderUpdate));
+</code></pre>
+<p>The function itself should look something like this:</p>
+<pre><code class="lang-auto">void TableTennisDemo::HandlePostRenderUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    scene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;DrawDebugGeometry(true);
+}
+</code></pre>
+<p>And you’re welcome! <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I had a similar problem starting with Urho and Bullet physics and I’m also pretty sure it’s the size of the objects being too small. I suggest scaling everything up, i.e. making the balls 1m in diameter and scale the table and everything else accordingly.</p>
+<p>You could also increase the simulation rate, but if you are aiming for low power devices (mobiles), it could take a toll on performance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Another thing that might help is to not use triangle meshes - break the table into components like convex hulls, cubes, cylinders, etc. The triangle meshes aren’t actually filled - they behave like rigid shells, but if an object (say the ball) passes through the skin it can get stuck in the table, whereas the other shapes will push the ball out.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<p>Thanks for both of your replies!</p>
+<p>I increased the scale of the ball from 1.0f to 2.0f. It resolved the problem.<br/>
+I also got the debug render working.</p>
+<p>I want to try to set the FPS to a higher rate if it can support the real life scale of table tennis models.<br/>
+However my program crashes with a core dumped. I tried different value such as 10, 60, 300, 600 with no success yet.</p>
+<p>I add the SetFps logic during the CreateScene function as below:</p>
+<p>void TableTennisDemo::CreateScene()<br/>
+{<br/>
+auto* cache = GetSubsystem();<br/>
+scene_ = new Scene(context_);<br/>
+scene_-&gt;CreateComponent();<br/>
+scene_-&gt;CreateComponent();<br/>
+scene_-&gt;GetComponent()-&gt;SetFps(10);</p>
+<p>The work in progress so far:<br/>
+<a href="https://www.youtube.com/watch?v=YMEBHLqOYH8" rel="nofollow noopener">https://www.youtube.com/watch?v=YMEBHLqOYH8</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="4495" data-username="SirNate0">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fb52f23a6782e890737d90432eac55f2.png" width="20"/> SirNate0:</div>
+<blockquote>
+<p>break the table into components like convex hulls, cubes, cylinders, etc. T</p>
+</blockquote>
+</aside>
+<p>Thanks for the advise. I would try that if the SetFPS does not work for me. To break up the model is more effort for me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1929_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">guk_alex</div>
+          <div class="post_content">
+<p>You can also use information from node collision for visualising forces that affects the ball.</p>
+<p>In the setup function:</p>
+<pre><code>    float lineHeightMultiplier = 0.1f; // depends on mass
+    int maxLines = 1000; // = physics fps * seconds to display lines
+    SubscribeToEvent(ballNode_, E_NODECOLLISION, [=](auto eventType, auto&amp; eventData) {            
+
+        using namespace NodeCollision;
+
+        MemoryBuffer contacts(eventData[P_CONTACTS].GetBuffer());
+
+        while (!contacts.IsEof()) {
+            Vector3 contactPosition = contacts.ReadVector3();
+            Vector3 contactNormal = contacts.ReadVector3();
+            float contactDistance = contacts.ReadFloat();
+            float contactImpulse = contacts.ReadFloat();
+            
+            lines_.push_back({ contactPosition, contactPosition + contactNormal*contactImpulse*lineHeightMultiplier });
+            if (lines_.size() &gt; maxLines) // erase old lines
+                lines_.pop_front();
+        }
+
+    });
+</code></pre>
+<p>Where <code>lines_</code> is:</p>
+<pre><code>struct DebugLines {
+    Vector3 from;
+    Vector3 to;
+};
+std::deque&lt;DebugLines&gt; lines_;
+</code></pre>
+<p>And add these lines to <code>HandlePostRenderUpdate</code>:</p>
+<pre><code>DebugRenderer* debug = scene_-&gt;GetComponent&lt;DebugRenderer&gt;();
+for (const auto&amp; it : lines_)
+    debug-&gt;AddLine(it.from, it.to, Color::BLUE);
+</code></pre>
+<p>Blue lines will show position of impulses and their strength.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<p>Hi, thanks for the tips. I implemented the logic you suggested with minor modification to fit in the sample program structure. It actually works! I can see the ball force and impact directions visualized with yellow lines in my setup. It is really cool to have this feature handy to help debugging the game.</p>
+<ol>
+<li>The collision update handler:</li>
+</ol>
+<pre><code class="lang-auto">void TableTennisDemo::HandleBallCollisionUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+  using namespace NodeCollision;
+
+  // subscribe to ball collision node data
+  float lineHeightMultiplier = 0.5f; // depends on mass
+  int maxLines = 1000; // = physics fps * seconds to display lines
+
+  MemoryBuffer contacts(eventData[P_CONTACTS].GetBuffer());
+  while (!contacts.IsEof()) {
+    Vector3 contactPosition = contacts.ReadVector3();
+    Vector3 contactNormal = contacts.ReadVector3();
+    float contactDistance = contacts.ReadFloat();
+    float contactImpulse = contacts.ReadFloat();
+    lines_.push_back({ contactPosition, contactPosition + contactNormal * contactImpulse * lineHeightMultiplier });
+    if (lines_.size() &gt; maxLines) // erase old lines
+      lines_.pop_front();
+  }
+}
+</code></pre>
+<ol start="2">
+<li>subscribe the event for each ball instantiated</li>
+</ol>
+<pre><code class="lang-auto">SubscribeToEvent(ballNode, E_NODECOLLISION, URHO3D_HANDLER(TableTennisDemo, HandleBallCollisionUpdate));
+</code></pre>
+<ol start="3">
+<li>Draw the debug geometry</li>
+</ol>
+<pre><code class="lang-auto">void TableTennisDemo::HandlePostRenderUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    // If draw debug mode is enabled, draw physics debug geometry. Use depth test to make the result easier to interpret
+  if (drawDebug_) {
+    DebugRenderer* debug = scene_-&gt;GetComponent&lt;DebugRenderer&gt;();
+    //Blue lines will show position of impulses and their strength.
+    for (const auto&amp; it : lines_) {
+      debug-&gt;AddLine(it.from, it.to, Color::YELLOW);
+    }
+    scene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;DrawDebugGeometry(debug, false);
+  }
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

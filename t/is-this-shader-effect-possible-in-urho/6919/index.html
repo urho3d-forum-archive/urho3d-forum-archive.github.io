@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Is this shader effect possible in urho?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Is this shader effect possible in urho?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3250_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">shifttab</div>
+          <div class="post_content">
+<p>I’m trying to recreate this <a href="https://www.youtube.com/watch?v=iASMFba7GeI" rel="noopener nofollow ugc">fluffy foliage</a> shader. Is this possible to do in urho?</p>
+<p>The effect doesn’t seem to be that complicated and his node tree is fairly small but I just suck at shaders in general <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/2163fe85d10cc0d651a6a2d04efe61d0.png" title=":stuck_out_tongue:"/></p>
+<p>I’m already stuck in the beginning. This is what I tried:</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+#include "Fog.glsl"
+
+varying vec2 vTexCoord;
+varying vec4 vWorldPos;
+#ifdef VERTEXCOLOR
+    varying vec4 vColor;
+#endif
+#
+varying vec4 vUVColor;
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = ((iPos + vec4(iTexCoord, 0, 0))  * modelMatrix).xyz;
+    gl_Position = GetClipPos(worldPos);
+    vWorldPos = vec4(worldPos, GetDepth(gl_Position));
+
+    vUVColor = vec4(iTexCoord, 0.0, 1.0);
+}
+
+void PS()
+{
+    vec4 diffColor = vUVColor;
+
+    // Get fog factor
+    #ifdef HEIGHTFOG
+        float fogFactor = GetHeightFogFactor(vWorldPos.w, vWorldPos.y);
+    #else
+        float fogFactor = GetFogFactor(vWorldPos.w);
+    #endif
+
+    #if defined(PREPASS)
+        // Fill light pre-pass G-Buffer
+        gl_FragData[0] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[1] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #elif defined(DEFERRED)
+        gl_FragData[0] = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+        gl_FragData[1] = vec4(0.0, 0.0, 0.0, 0.0);
+        gl_FragData[2] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[3] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #else
+        gl_FragColor = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+    #endif
+}
+</code></pre>
+<p><img alt="Image" data-base62-sha1="kFRXp87AWD7H3yleu4wHZQ3MLCy" height="323" src="../../../images2/93e2751b4a92931d3fbfdc395aafa212.png" width="690"/></p>
+<p>It’s a round mesh but I’m confused because it is visible from the back but not from the front when I transform the vertices and it looks all wrong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I suspect the model is only visible from one side because of the culling of the triangles (CW or CCW). You don’t yet have the quads facing the camera, I’m pretty sure, so I would expect the faces to be culled when they are facing the wrong way. What are you thinking looks wrong with it? It looks similar to the intermediate results in the video to me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>I suggest you check the debug/console output. And you can use RenderDoc to validate the pipeline -<br/>
+<a class="onebox" href="https://renderdoc.org/" rel="noopener nofollow ugc" target="_blank">https://renderdoc.org/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p><span class="mention">@shifttab</span> will you be sharing the completed port to Urho when you’re finished? It’s fine either way, I just want to know if I should try porting it myself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3250_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">shifttab</div>
+          <div class="post_content">
+<p>I can’t make it look the camera so I ditched it. I’m too noob for it. <img alt=":confused:" class="emoji" src="../../../images2/256f55d6dee778d12c9ee3bb598de2b8.png" title=":confused:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Got it working! Will post a better version of the code later, but for now, the key is basically just adding this displacement to the world position of the LitSolid shader and enabling ALPHAMASK. Note that I cycle through different scales for the displacment so you can see what works for you (between 0 and 1).</p>
+<pre><code class="lang-auto">
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+  
+    // displacement from the UV coordinate
+    vec3 displacement = vec3(iTexCoord.y,iTexCoord.x,0)*2-1;
+	displacement = (vec4(displacement,0) * cViewInv).xyz * fract(cElapsedTime*0.1);  
+    
+    // add displacement to the world position
+    gl_Position = GetClipPos(worldPos + displacement);
+</code></pre>
+<p><strong>Bush after displacment</strong><br/>
+<img alt="image" data-base62-sha1="sllDaWvuCAAlqHceDpGYq7jaNHW" height="251" src="../../../images2/b4e89605bcac56b8415f420e5ea88484.png" width="379"/></p>
+<p><strong>Bush with almost no displacement or alpha masking</strong><br/>
+<img alt="image" data-base62-sha1="kJybpsrDCmjphTfuC246nI0jC6W" height="102" src="../../../images2/ec6fa0b6dccaf5a3b8b44804d61edc1b.png" width="188"/></p>
+<p><strong>Bush in Blender</strong> (orientation and scale may differ)<br/>
+<img alt="image" data-base62-sha1="cFIa6WlvC1P56Ck18ldUB1PIiKQ" height="216" src="../../../images2/1a83090fd5101b241f8c7020f1e82830.png" width="393"/></p>
+<hr/>
+<p><strong>Update 1:</strong><br/>
+Threw it on a large mesh I had that had suitable UV coordinates, though often backwards normals, and even with around 1 million triangles in a model using it I’m getting ~120 FPS, down from 200 FPS with just the bush. Note that this is with a second viewport, though the model isn’t visible in it.<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="17ce8BnR5QghNBTa1nlzRpC41GY"  height="500" src="../../../images2/f0f3998f9d786b03375d9aad6f15acc0.jpeg" width="665"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1021×767 119 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

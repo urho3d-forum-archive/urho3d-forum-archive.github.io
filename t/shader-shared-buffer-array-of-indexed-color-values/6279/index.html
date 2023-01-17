@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Shader - Shared Buffer/Array of Indexed Color Values</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Shader - Shared Buffer/Array of Indexed Color Values</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We are using UrhoSharp.</p>
+<p>We create a lot of quads (that each render an icon).   Each has a color that should be looked up in a table.  I’d like to have each vertex use the “Y” Position component simply as an Index into this Color Table, as shown in this HLSL mock-up:</p>
+<p>uniform float3[] cColorTable;</p>
+<p>void VS(float4 iPos : POSITION)<br/>
+{<br/>
+int colorIndex = int(iPos.Y);<br/>
+oColor = cColorTable[colorIndex];<br/>
+iPos.Y = 0;<br/>
+…<br/>
+}</p>
+<p>How do you fill the cColorTable[] data from Urho?</p>
+<p>I saw an API for “Graphics.SetShaderParameter(StringHash Name, float* data, uint count)” - but this appears to be too “global”.  We’re just wanting to set the cColorTable[] for this one material, similar to what we see with “material.SetShaderParameter(…)” but there are no overloads here for setting an array of values.</p>
+<p>This solution is needed for other shaders as well.</p>
+<p>If we are forced to use the “Graphics.SetShaderParameter(name, float* data, uint count)” interface, it seems like we would need to follow some special method for inserting this logic at the appropriate time before each Batch render call (as the data may render for each batch of renderables).  When we set it on the “Material”, I’m assuming that Urho3D magically handles this timing for us.   So it’s a bit frustrating that Urho3D Material.SetShaderParameter doesn’t permit us to set Array data.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>How about using a ramp <code>Texture</code> instead?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Modanung.  I see.  So I could encode my data into a Texture, and sample it.  For a Color Table, it could just be a Texture that is size  1 x N, and each column of the texture is a different color.  Is that what you are suggesting?  Or something else?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>I am trying the following code where the colors are hard coded into the shader (because I don’t know how to set these values via the Urho API), and this DOES NOT WORK.  It compiles, but all colors turn out to be opaque black.</p>
+<aside class="quote no-group quote-modified" data-post="1" data-topic="6279" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>uniform float4[] cColorTable = { float4(1.0, 0.0, 0.0, 1.0), float4(0.0, 1.0, 0.0, 1.0) };</p>
+<p>void VS(float4 iPos : POSITION)<br/>
+{<br/>
+int colorIndex = int(iPos.Y);<br/>
+oColor = cColorTable[colorIndex];<br/>
+iPos.Y = 0;<br/>
+…<br/>
+}</p>
+</blockquote>
+</aside>
+<p>What am I doing wrong?  It would be “OK” to hard-code these values, if there isn’t a better way to do it dynamically.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="6279" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>Is that what you are suggesting?</p>
+</blockquote>
+</aside>
+<p>Yes, something like that. You could generate the <code>Texture</code> during runtime and reap all the benefits of a <code>Resource</code> and share it among different materials. You could write the colors to the <code>Image</code>, just as you would fill the array. I think it might turn out N x 1.</p>
+<p>Shaders like data to be presented as textures beyond a certain level of complexity, and I think this method would fit Urho’s API more elegantly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="6279" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>What am I doing wrong?</p>
+</blockquote>
+</aside>
+<p>First, all uniforms must be inside uniform buffers.<br/>
+Second, all uniforms must be initialized externally from C++/C# code using <code>Material::SetShaderParameter</code> or equivalents. Whatever values you hard-code in shaders are outright ignored.</p>
+<p>I’d use some unused texture slot of <code>Material</code>, I think you have at least one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Eugene, thanks!  I have resigned myself to using a Texture as the means for storing Vector Array data, although I’d surely prefer to use Uniform buffers, if they were supported in the future.</p>
+<p>Here’s the sample HLSL that I imagine writing for this:</p>
+<p>int colorIndex = iPos.y;<br/>
+float colorIndexNormalized = colorIndex / 256.0;   // assumes the color palette is 256 sized palette.<br/>
+float4 color = Sample2D(Custom1Map, float2(colorIndexNormalized, 0));<br/>
+oColor = color;</p>
+<p>And from the code, to assign this material texture:</p>
+<pre><code>material.SetTexture(TextureUnit.Custom1, colorPaletteTexture);
+</code></pre>
+<p>Does this look right?<br/>
+(NOTE: I assume that inside the shader we use the “{TextureUnitValue}Map” to access the texture, yes?)</p>
+<p>And is there something special I need to do to ensure that my Custom1Map doesn’t employ LOD’s?  (i.e. I always want to be sampling the full resolution LOD0)</p>
+<p>Thanks in advance!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

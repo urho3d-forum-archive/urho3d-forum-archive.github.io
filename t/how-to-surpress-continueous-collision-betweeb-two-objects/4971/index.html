@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to surpress continueous collision betweeb two objects</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to surpress continueous collision betweeb two objects</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<p>Recently resumed to work on my little table tennis game and have some problem regarding how collision detection works. In my game, when a ball stay at rest on the table, I get a continuous stream of collision event triggered on the table.<br/>
+Is there a way to configure the collision so that it only happen once in this case? I tried to set the collision event mode to COLLISION_ACTIVE instead of COLLISION_ALWAYS but it does not make any difference. Thanks ahead for any help!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>It sounds like your bodies are in kinematic mode.</p>
+<p>Dynamic bodies will be pushed away from each other when they intersect.<br/>
+Kinematic bodies remain where they are, and it’s your job to move them.</p>
+<p>The final kind of body in Bullet physics (I am assuming we are in 3D?) is the ghost shape, otherwise known as a trigger volume, or sensor. These guys are effectively kinematic also.</p>
+<p>I’ve only been here a month, so I can’t offer too much advice about debugging physics issues just yet.<br/>
+But have a look at the collision results, try to debug-print some stuff about which guys are colliding, basic trouble-shooting stuff.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>oh - if the ball is in ROLLING contact, then you can expect continual collision… it makes sense to me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<p>Thanks for the input.</p>
+<p>Yes, the ball is in rolling contact and continual collision is exactly what I get. I am just wondering if there is a way to suppress the collision event trigger when the ball is finally at rest on the table.</p>
+<p>Neither the ball nor the table is setup as kinematic body as I need the ball to interact with the paddle base on physics.</p>
+<p>auto* ballBody = ballNode-&gt;CreateComponent();<br/>
+ballBody-&gt;SetMass(0.027f);<br/>
+ballBody-&gt;SetRollingFriction(0.02f);<br/>
+ballBody-&gt;SetRestitution(0.9f);<br/>
+ballBody-&gt;SetLinearDamping(0.1f);<br/>
+ballBody-&gt;SetCollisionEventMode(Urho3D::COLLISION_ACTIVE);</p>
+<p>auto* tableBody = tableNode-&gt;CreateComponent();<br/>
+tableBody-&gt;SetMass(0.0f); // set mass to zero will make it static<br/>
+tableBody-&gt;SetRestitution(0.8f);<br/>
+tableBody-&gt;SetLinearDamping(0.02f);<br/>
+tableBody-&gt;SetCollisionLayer(2);<br/>
+tableBody-&gt;SetCollisionEventMode(Urho3D::COLLISION_ACTIVE);</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>bullet collision objects, by default, will enter a sleep mode in N seconds WHEN AT REST, i think the default is 2 - while asleep, they will stop doing that collision stuff UNLESS you set them as “always awake” (collision always) - “man, I have not moved in ages, in fact i have no momentum at all, I am therefore asleep, and i won’t be used as a source / agitator in collision queries, though I can still be a target in collisions, in which case if I am hit, I will wake up”</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<p>In my case, when the ball stays at rest on the table or on the floor, the collision event triggers keep coming for more than 5 mins. Does not seems like it is going to stop anytime soon.<br/>
+I am thinking to turn off the ball’s collision reporting (Urho3D::COLLISION_NEVER) when its speed comes to zero if no other better way to do it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I suggest you start by enabling physics debug-drawing … the colour of the wireframes will basically tell you if an object is kinematic, dynamic and awake, or dynamic and asleep. If the objects are sleeping (because their angular and linear momentum is close to zero for a couple of seconds) then collision events should not be firing, with the exception of COLLISION_ALWAYS having been set.<br/>
+If you find your bodies are sleeping, but collisions are still occuring (and nothing is “hitting” them to wake them up) then I’d be happy to attempt to reproduce your issue and confirm or deny.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Maybe you’re looking to set linear (and/or angular) rest thresholds? You could also choose to only listen to collision <em>start</em> events.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>The default setup for bullet dynamic objects isn’t bad… objects that are moving generally come to rest and go to sleep (even in the absence of friction! due to drag…) unless you specifically told them not to do so, and there’s a few ways to do that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<p>Thanks for the input from both.<br/>
+I turned on debug trace and indeed confirm the ball sometimes is still spinning even though it stays at the same position. That explains why I keep getting collision event notification as it is still spinning. The collision notification stops when the ball finally stay at rest, no spinning and not rolling!</p>
+<p><img alt="image" height="476" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/3/3edf3413cba0144d80c3ac167a0067bd918735d7.png" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Great! You can apply some angular drag and friction to make sure the ball comes to angular rest <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+<p>Today I solved my physics headache too.<br/>
+I had a missing argument in some raycasts which caused my collision mask for the ray to be set to -1 (everything) so the result of the raycast ignored my mask and always collided with stuff I wanted it to ignore.</p>
+<p>I believe I also found a bug in RigidBody::SetAttributes, when called during scene loading. I’m not going to issue PR on this, but I’ve at least made some posts that could be entirely relevant to the next guy who struggles with collision masking after scene loading.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

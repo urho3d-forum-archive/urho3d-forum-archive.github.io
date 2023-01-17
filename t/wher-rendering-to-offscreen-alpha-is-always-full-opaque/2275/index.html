@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Wher rendering to offscreen alpha is always full opaque</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Wher rendering to offscreen alpha is always full opaque</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bbm</div>
+          <div class="post_content">
+<p>I do something like this</p>
+<pre><code class="lang-auto">            for(int i = 0; i &lt; renderPath-&gt;GetNumCommands(); ++i){
+                RenderPathCommand *command = renderPath-&gt;GetCommand(i);
+                if(command-&gt;type_ == CMD_CLEAR) {
+                    command-&gt;clearColor_ = Color(0, 0, 0, 0);
+                }
+                for(int outputIndex = 0; outputIndex &lt; command-&gt;GetNumOutputs(); ++outputIndex){
+                    if(command-&gt;GetOutputName(outputIndex) == "viewport" || command-&gt;GetOutputName(outputIndex) == "") {
+                        command-&gt;SetOutputName(outputIndex, mViewportTexture-&gt;GetName());
+                    }
+                }
+                static_assert(TU_DIFFUSE == 0, "diffuse is not first texture");
+                for(TextureUnit inputIndex = TU_DIFFUSE; inputIndex &lt; MAX_TEXTURE_UNITS; inputIndex = (TextureUnit)((int)inputIndex+1)){
+                    if(command-&gt;GetTextureName(inputIndex) == "viewport") {
+                        command-&gt;SetTextureName(inputIndex, mViewportTexture-&gt;GetName());
+                    }
+                }
+            }</code></pre>
+<p>to draw everything to mViewportTexture which is created like this</p>
+<pre><code class="lang-auto">            mViewportTexture-&gt;SetSize(
+                width,
+                height,
+                GL_RGBA, TEXTURE_RENDERTARGET);</code></pre>
+<p>this is my final RenderPathCommand which takes the special viewport texture and sends to the viewport which already has the camera background.</p>
+<pre><code class="lang-auto">            command = RenderPathCommand();
+            command.tag_                        = "InterestingCommand";
+            command.enabled_                    = true;
+            command.textureNames_[TU_DIFFUSE]   = mViewportTexture-&gt;GetName();
+            command.type_                       = CMD_QUAD;
+            command.pixelShaderDefines_         = "DIFFMAP";
+            command.vertexShaderDefines_        = "DIFFMAP";
+            command.vertexShaderName_           = "InterestingPass";
+            command.pixelShaderName_            = "InterestingPass";
+            command.SetNumOutputs(1);
+            command.SetOutputName(0, "viewport");
+            command.shaderParameters_["InterestingParam"]      = 3.0f;
+            command.blendMode_ = BLEND_PREMULALPHA;
+            renderPath-&gt;AddCommand(command);</code></pre>
+<p>The problem the background is all black. My issue is that in mViewportTexture alpha is 1.0 (fully opaque) everywhere. I did specify GL_RGBA. I have a background texture that is updated based on camera and want to apply a shader that only applies on the final rendered scene and not the background texture. Checking for black pixels in the shader is no good because then everything has a black bolder as it alpha blends into the background. Is there something I’m missing?</p>
+<p>Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This will need to be checked. It can be a render (blend) state oversight that prevents the alpha being written to properly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bbm</div>
+          <div class="post_content">
+<pre><code class="lang-auto">            // redirect all viewport to this special buffer
+            for(int i = 0; i &lt; renderPath-&gt;GetNumCommands(); ++i){
+                RenderPathCommand *command = renderPath-&gt;GetCommand(i);
+                if(command-&gt;type_ == CMD_CLEAR) {
+                    command-&gt;clearColor_ = Color(0, 0, 0, 0);
+                    command-&gt;clearFlags_ |= CLEAR_COLOR | CLEAR_DEPTH;
+                    command-&gt;useFogColor_ = false;
+                } else {
+                    command-&gt;blendMode_ = BLEND_PREMULALPHA;
+                }
+                for(int outputIndex = 0; outputIndex &lt; command-&gt;GetNumOutputs(); ++outputIndex){
+                    if(command-&gt;GetOutputName(outputIndex) == "viewport" || command-&gt;GetOutputName(outputIndex) == "") {
+                        command-&gt;SetOutputName(outputIndex, mViewportTexture-&gt;GetName());
+                    }
+                }
+                static_assert(TU_DIFFUSE == 0, "diffuse is not first texture");
+                for(TextureUnit inputIndex = TU_DIFFUSE; inputIndex &lt; MAX_TEXTURE_UNITS; inputIndex = (TextureUnit)((int)inputIndex+1)){
+                    if(command-&gt;GetTextureName(inputIndex) == "viewport") {
+                        command-&gt;SetTextureName(inputIndex, mViewportTexture-&gt;GetName());
+                    }
+                }
+            }</code></pre>
+<p>notice the fog color is disabled. I browsed the code and noticed the fog color was used instead of my specified clearcolor. And fog color was black. I don’t think I have specified any fog. Doing above worked.</p>
+<p>Here is code in Urho3D</p>
+<pre><code class="lang-auto">            case CMD_CLEAR:
+                {
+                    URHO3D_PROFILE(ClearRenderTarget);
+
+                    Color clearColor = command.clearColor_;
+                    if (command.useFogColor_)
+                        clearColor = actualView-&gt;farClipZone_-&gt;GetFogColor();
+
+                    SetRenderTargets(command);
+                    graphics_-&gt;Clear(command.clearFlags_, clearColor, command.clearDepth_, command.clearStencil_);
+                }
+                break;
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Where are you getting your renderpath from? Almost all of the preprovided ones in Urho clear to the fog color, so if you’re using &amp; modifying those it’s indeed necessary to set useFogColor_ false manually.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bbm</div>
+          <div class="post_content">
+<p>I’m getting all the renderpaths from the default and just modifying them. Everything is good with Urho3D. Post above was me just showing my process on how I found how to fix my problem.</p>
+<p>Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

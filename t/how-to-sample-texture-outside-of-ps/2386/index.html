@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to sample texture outside of PS()?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to sample texture outside of PS()?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>I’m having a lot of fun porting some Shadertoy shaders to Urho. However, one thing that I run in to quite a bit is that a shader from Shadertoy might have some code like this:</p>
+<p><code>
+float pn(in vec3 x) {
+    vec3 p = floor(x), f = fract(x);
+	f *= f*(3.-f-f);
+	vec2 uv = (p.xy+vec2(37.,17.)*p.z) + f.xy,
+	     rg = texture2D( iChannel0, (uv+.5)/256., -100.).yx;
+	return 2.4*mix(rg.x, rg.y, f.z)-1.;
+}</code></p>
+<p>This is a helper function that computes some kind of noise. It sits outside of either VS() or PS(), to put it into Urho terms. The issue is here:</p>
+<pre><code class="lang-auto">rg = texture2D( iChannel0,....)</code></pre>
+<p>Where the code samples the texture called “iChannel0”. Now, my understanding is that in Urho, we only have access to certain Uniforms (i.e. vTexCoord, cElapsedTimePS,etc). In particular, we can only access textures that are held in the sampler uniforms, i.e. cDiffMap, cNormalMap, etc.</p>
+<p>So, sampling cDiffMap from insider PS() certainly works. However, my question is: how can I sample the texture from outside PS() or VS() like in the code above?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>What error do you have if you place the same code outside PS(), but in the COMPILEPS define scope?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>So, here is a simplified version of the shader with the COMPILEPS def:</p>
+<pre><code class="lang-auto">// Created by inigo quilez - iq/2013
+// License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+
+// Volumetric clouds. It performs level of detail (LOD) for faster rendering
+
+#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+#include "PostProcess.glsl"
+
+varying vec2 vTexCoord;
+varying vec2 vScreenPos;
+
+float time = 10.0;
+
+#ifdef COMPILEPS
+
+float noise( in vec3 x )
+{
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+    f = f*f*(3.0-2.0*f);
+    vec2 uv = (p.xy+vec2(37.0,17.0)*p.z) + f.xy;
+    vec2 rg = texture2D( cDiffMap, (uv+ 0.5)/256.0, -100.0 ).yx;
+    return -1.0+2.0*mix( rg.x, rg.y, f.z );
+}
+
+#endif
+
+void VS()
+{
+
+}
+
+void PS()
+{
+    float n = noise(vec3(0.5, 0.5, 0.5));
+    gl_FragColor = vec4(n,n,n,n);
+}</code></pre>
+<p>and here is the RenderPath:</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;command type="quad" tag="Clouds" vs="CloudsTest" ps="CloudsTest" psdefines="COMPILEPS" output="viewport"&gt;
+        &lt;texture unit="diffuse" name="Textures/noise.bmp" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>In this configuration, I get an error that says: “Undefined variable cDiffMap”. Am I’m putting the <span class="hashtag">#define</span> COMPILEPS in the right spot?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>sDiffMap - sampler (not cDiffMap - constant)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>Oh man…feeling sheeeepish. Totally works though:</p>
+<p><img alt="" height="" src="../../../images2/4ed21e7fd142a605a79980e571ef2986.gif" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

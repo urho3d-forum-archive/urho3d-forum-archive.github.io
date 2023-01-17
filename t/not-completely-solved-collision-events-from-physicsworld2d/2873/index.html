@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Not-Completely-Solved] Collision events from PhysicsWorld2D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Not-Completely-Solved] Collision events from PhysicsWorld2D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Is there any possibilty to get the same collision events from Box2D as from Bullet?<br/>
+I am pretty infamiliar with Box2D physics… In fact, I started to work with it today.</p>
+<p><strong>Upd:</strong> Damn, I somehow missed <code>PhysicsEvents2D</code> /_-<br/>
+Solved.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Huh. How to parse b2Contact at the script side?<br/>
+Shall I write some wrappers for it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>There is no chance to make real Box2D game on scripts currently. For example to make one side platforms I redefine PhysicsWorld2D class and compare pointers to shapes to detect collision player sensors with ground and walls</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Is my PR similar to your changes in Urho2D?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><a href="http://discourse.urho3d.io/t/one-way-platform/2792">One way platform</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I see.<br/>
+IMO, my way is cleaner.<br/>
+However, I still feel a bit uncomfortable about that HashSet of contacts and its cleanup…</p>
+<pre><code>class OneSidePlatform : ScriptObject
+{
+    void Start()
+    {
+        SubscribeToEvent(node, "NodeUpdateContact2D", "HandleNodeUpdateContact2D");
+    }
+
+    void HandleNodeUpdateContact2D(StringHash eventType, VariantMap&amp; eventData)
+    {
+        Node@ otherNode = eventData["OtherNode"].GetPtr();
+        VectorBuffer points = eventData["ContactPoints"].GetBuffer();
+        Vector2 contactPosition = points.ReadVector2();
+        Vector2 contactNormal = points.ReadVector2();
+        if (contactNormal.y &lt; 0.5)
+            eventData["Enabled"] = false;
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Box2D uses own memory allocator for hundreds created/destroy contacts. So I think copying its to own structures/adding to lists destroys the whole idea. I have no idea how to combine speed and convenience. May be using Box2D memory allocator for own purposes.</p>
+<p>EDIT:<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/a1a55d502cfb48c6e661af50edd98b93.png" width="32"/>
+<a href="https://www.codeproject.com/Articles/17060/A-Fast-Efficient-Allocator-for-Small-Blocks-of-Mem" target="_blank">codeproject.com</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail" height="" src="" width=""/>
+<h3><a href="https://www.codeproject.com/Articles/17060/A-Fast-Efficient-Allocator-for-Small-Blocks-of-Mem" target="_blank">A Fast Efficient Allocator for Small Blocks of Memory</a></h3>
+<p>Describes building a fast and efficient small block memory allocator (with full source).</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/3dd69640bc8c41103252b4715b885093.png" width="32"/>
+<a href="https://habr.com/ru/post/274827/" target="_blank">habr.com</a>
+</header>
+<article class="onebox-body">
+<div class="aspect-image" style="--aspect-ratio:690/362;"><img class="thumbnail" height="362" src="../../../images2/e99260e010cd342e5b310ad8812b1483" width="690"/></div>
+<h3><a href="https://habr.com/ru/post/274827/" target="_blank">Альтернативные аллокаторы памяти</a></h3>
+<p>Написал Стивен Тови в 2:29 утра по программированию (шутка юмора Google Translate) Вступление от себя: эта заметка, прорекламированная Алёной C++, предназначена...</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I don’t copy contacts, I just strore pointers.<br/>
+Moreover, I store pointers only for contacts that are disabled on client side.</p>
+<p>My concern is about HashSet clenup. Box2D may skip EndContact in some artificail cases, and such contact will stay in HashSet forever:</p>
+<blockquote>
+<p>Note: if you set the number of contact points to zero, you will not get an EndContact callback</p>
+</blockquote>
+<p>I think I shall do something with it before merging PR…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="8" data-topic="2873" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>I don’t copy contacts, I just strore pointers.</p>
+</blockquote>
+</aside>
+<p>This is even worse: <a href="http://box2d.org/manual.pdf">http://box2d.org/manual.pdf</a></p>
+<blockquote>
+<p>Caution<br/>
+Do not keep a reference to the pointers sent to b2ContactListener. Instead make a<br/>
+deep copy of the contact point data into your own buffer. The example below<br/>
+shows one way of doing this.</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Huh. That sounds bad.<br/>
+Unfortunatelly, they don’t explain why and what will happen if I do.<br/>
+They suggest to copy interesting data from contact, but I have no interest in contact content. I need to somehow identify contact in-between. If Box2D has no way to do it, these callbacks are piece of ship.<br/>
+I shall probably ask on Box2D forum…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I think we should just allow Box2D to re enable contacts every frame. It is documented behavior and used everywhere. Islands and forces also cleared every step.</p>
+<pre><code class="lang-auto">	/// Enable/disable this contact. This can be used inside the pre-solve
+	/// contact listener. The contact is only disabled for the current
+	/// time step (or sub-step in continuous collisions).
+	void SetEnabled(bool flag);
+</code></pre>
+<p>Anyway you can not just disable contact and forget about him. For one side platform you should check conditions every step and enable/disbale collisions. If you want two bodies to never interact, then you better use collision categories and groups</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="11" data-topic="2873">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>I think we should just allow Box2D to re enable contacts every frame. It is documented behavior and used everywhere. Islands and forces also cleared every step.</p>
+</blockquote>
+</aside>
+<p>This sounds reasonable.<br/>
+However, I don’t know how to walk around this malicious re-enabling if I make one-side platform.<br/>
+I can correctly check normal of contact only on the very first step. After that I have no relevant information about the contact.</p>
+<p>Then please help me to rewrite this to something logically equivalent:</p>
+<pre><code>void HandleNodeUpdateContact2D(StringHash eventType, VariantMap&amp; eventData)
+{
+    Node@ otherNode = eventData["OtherNode"].GetPtr();
+    VectorBuffer points = eventData["ContactPoints"].GetBuffer();
+    Vector2 contactPosition = points.ReadVector2();
+    Vector2 contactNormal = points.ReadVector2();
+    if (contactNormal.y &lt; 0.5)
+        eventData["Enabled"] = false;
+}
+</code></pre>
+<p>Note that I don’t know anything about object shapes here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I do not understand why this works. In my tests normal can be directed in opposite directions randomly.</p>
+<blockquote>
+<p>Then please help me to rewrite this to something logically equivalent:</p>
+</blockquote>
+<p>Why not official method? <a href="https://github.com/erincatto/Box2D/blob/master/Box2D/Testbed/Tests/OneSidedPlatform.h">https://github.com/erincatto/Box2D/blob/master/Box2D/Testbed/Tests/OneSidedPlatform.h</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="13" data-topic="2873">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>I do not understand why this works. In my tests normal can be directed in opposite directions randomly.</p>
+</blockquote>
+</aside>
+<p>Wow. Why? Or maybe I just was lucky… But I always had good normals.</p>
+<p>This doesn’t matter, actually. I may check position and it would be really meaningful only on the first iteration.</p>
+<aside class="quote" data-post="13" data-topic="2873">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>Why not official method?</p>
+</blockquote>
+</aside>
+<p>Because</p>
+<p><code>position.y &lt; m_top + m_radius - 3.0f * b2_linearSlop</code></p>
+<p>what’s this piece of shit and how does it work for e.g. rotating box actor?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I was not interested in the case for a rotated box (my character always vertical), but I think there’s no problem in finding out the bottom coordinate of the transformed box.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I want one-way obstacle to work with any simulated object with unknown shape.<br/>
+So… I can’t imagine how to make this code generic enough.</p>
+<p>And anyway… This is so dirty. Real check is trivial - if begin point of the contact is on passable side, ignore this contact forever. I want to make the same (so simple!) logic in Box2D.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<blockquote>
+<p>I want one-way obstacle to work with any simulated object with unknown shape.</p>
+</blockquote>
+<p>if contact exists, you can use AABB to get bottom coord</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<ol>
+<li>Rigid body don’t have AABB in its API.</li>
+<li>What about diagonal platforms?</li>
+</ol>
+<p>Box2D author may get medal of the most awkward architecture.<br/>
+Small bugfeature that breaks ton of possibilities. Great.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<blockquote>
+<p>Rigid body don’t have AABB in its API.</p>
+</blockquote>
+<p>b2Shape::ComputeAABB()</p>
+<blockquote>
+<p>What about diagonal platforms?</p>
+</blockquote>
+<p>I will repeat, I was not interested in this question on practice, and I can not quickly answer this question, how to effectively deal with the situation, if both shapes are transformed</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I understood. I am just trying to find nice solution.</p>
+<p>Do you know how to match BeginContact and EndContact if Box2D recommend not to store pointers on contacts?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>fixtures can contain user data SetUserData (currently it is pointer to Urho3D::CollisionShape2D)<br/>
+but currently has no way to identify urho’s components, so I compare pointers</p>
+<pre><code class="lang-auto">void PlayerLogic::HandleNodeBeginContact2D(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace NodeBeginContact2D;
+    CollisionShape2D* shape = (CollisionShape2D*)eventData[P_SHAPE].GetPtr();
+    CollisionShape2D* otherShape = (CollisionShape2D*)eventData[P_OTHERSHAPE].GetPtr();
+
+    if (shape == bottomSensor_)
+        bottomSensorContacts_.Push(otherShape);
+}
+
+void PlayerLogic::HandleNodeEndContact2D(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace NodeBeginContact2D;
+    CollisionShape2D* shape = (CollisionShape2D*)eventData[P_SHAPE].GetPtr();
+    CollisionShape2D* otherShape = (CollisionShape2D*)eventData[P_OTHERSHAPE].GetPtr();
+
+    if (shape == bottomSensor_)
+        bottomSensorContacts_.Remove(otherShape);
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

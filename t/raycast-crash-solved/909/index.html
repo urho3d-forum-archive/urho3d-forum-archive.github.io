@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Raycast() Crash [Solved]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Raycast() Crash [Solved]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Edit: Solved since merging latest master.</p>
+<p>Hello, I’m calling Raycast() twice, the first time is fine, the second it crashes.  The first time is with one scene, the second with a different scene.  I don’t think the second scene has problems because if I cast the first time with the second scene it doesn’t crash.  Relavent snippets:</p>
+<p>Variable init stuff:</p>
+<pre><code class="lang-auto">...
+
+	//Load scene.
+
+	main_-&gt;cameraNode_-&gt;RemoveAllChildren();
+	main_-&gt;cameraNode_-&gt;RemoveAllComponents();
+	main_-&gt;cameraNode_-&gt;Remove();
+
+	File loadFile(context_,main-&gt;filesystem_-&gt;GetProgramDir()
+			+ "Data/Scenes/solcommCity.xml", FILE_READ);
+	main_-&gt;scene_-&gt;LoadXML(loadFile);
+
+	main_-&gt;cameraNode_ = main_-&gt;scene_-&gt;GetChild("RavenMech")-&gt;GetChild("camera");
+	main_-&gt;viewport_-&gt;SetCamera(main_-&gt;cameraNode_-&gt;GetComponent&lt;Camera&gt;());
+
+	//Load moveButt scene.
+
+	scene_ = new Scene(main_-&gt;GetContext());
+	cameraNode_ = new Node(main_-&gt;GetContext());
+
+	File loadFile2(context_,main-&gt;filesystem_-&gt;GetProgramDir()
+			+ "Data/Scenes/moveButts.xml", FILE_READ);
+	scene_-&gt;LoadXML(loadFile2);
+
+	cameraNode_ = scene_-&gt;GetChild("camera");
+...</code></pre>
+<p>crash happens below:</p>
+<pre><code class="lang-auto">...
+	Ray cameraRay = cameraNode_-&gt;GetComponent&lt;Camera&gt;()-&gt;GetScreenRay(
+			(float) eventData[P_X].GetInt() / main_-&gt;graphics_-&gt;GetWidth(),
+			(float) eventData[P_Y].GetInt() / main_-&gt;graphics_-&gt;GetHeight());
+
+	PODVector&lt;RayQueryResult&gt; results;
+
+	RayOctreeQuery query(results, cameraRay, RAY_TRIANGLE, 1000.0f,
+			DRAWABLE_GEOMETRY);
+
+	scene_-&gt;GetComponent&lt;Octree&gt;()-&gt;Raycast(query);
+...
+results.Clear();
+	cameraRay = main_-&gt;cameraNode_-&gt;GetComponent&lt;Camera&gt;()-&gt;GetScreenRay(
+				(float) eventData[P_X].GetInt() / main_-&gt;graphics_-&gt;GetWidth(),
+				(float) eventData[P_Y].GetInt() / main_-&gt;graphics_-&gt;GetHeight());
+	query.ray_ = cameraRay;
+	main_-&gt;scene_-&gt;GetComponent&lt;Octree&gt;()-&gt;Raycast(query); //CRASH
+...</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Where exactly does it crash? (you may need to run in debug mode)</p>
+<p>Does it still crash if you disable worker threads? (-nothreads command line option, or engine startup parameter WorkerThreads = false)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>engineParameters_[“WorkerThreads”] = false; didn’t work.  It crashes at main_-&gt;scene_-&gt;GetComponent()-&gt;Raycast(query); //CRASH</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Have you created an octree component in the scene root ?</p>
+<p>Like so for example:</p>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Yep.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If that’s the exact point of crash, and not some function inside the Octree class, then I recommend nullchecking the whole chain of objects you’re accessing. Has something caused the Octree to be destroyed at the point when you call Raycast?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>I’m not touching the octree, the only things I’m modifying are on the lines “results.Clear();” , “cameraRay = …” and “query.ray_ = cameraRay;” . gdb backtrace: <a href="http://pastebin.com/NZ7jtp0H" rel="nofollow noopener">pastebin.com/NZ7jtp0H</a></p>
+<pre><code class="lang-auto">Program received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0xb795db40 (LWP 2397)]
+0x08521ffc in Urho3D::Renderer2D::ProcessRayQuery(Urho3D::RayOctreeQuery const&amp;, Urho3D::PODVector&lt;Urho3D::RayQueryResult&gt;&amp;) ()
+(gdb) backtrace
+#0  0x08521ffc in Urho3D::Renderer2D::ProcessRayQuery(Urho3D::RayOctreeQuery const&amp;, Urho3D::PODVector&lt;Urho3D::RayQueryResult&gt;&amp;) ()
+#1  0x08215085 in Urho3D::RaycastDrawablesWork(Urho3D::WorkItem const*, unsigned int) ()
+#2  0x08401350 in Urho3D::WorkQueue::ProcessItems(unsigned int) ()
+#3  0x08402b6f in Urho3D::WorkerThread::ThreadFunction() ()
+#4  0x081f9ecf in Urho3D::ThreadFunctionStatic(void*) ()
+#5  0xb7fa4f70 in start_thread () from /lib/i386-linux-gnu/libpthread.so.0
+#6  0xb7ce8bee in clone () from /lib/i386-linux-gnu/libc.so.6</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Renderer2D is the component that handles the collective rendering and raycasting for Urho2D drawables. Do you have 2D sprites in your scene, and do you manipulate them (disable/enable them, or remove from the scene) before the raycast? There can be issues with managing the drawable list in the Renderer2D code: possible double-addition etc.</p>
+<p>The ideal would be if you can make a reproduction case that uses nothing but Urho built-in assets and submit as a github issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Yes I have a 2d sprite in the middle of the screen (the player).  Disabling before the raycast and re-enabling after the raycast stopped the crash.  This is a problem because I plan on having hundreds of sprites onscreen and can’t be doing that then.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I committed a possible null exception fix in the master branch (Drawable2D material may be null and used in sorting before it’s assigned by frame update.) Check if that fixes the issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Thanks, I don’t know what magical spell you cast but after merging with the latest master, no more crash.  If this issue pops up again, I’ll update the thread.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

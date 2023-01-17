@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>GetKeyPress() in physics update loop doesn&rsquo;t always react</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">GetKeyPress() in physics update loop doesn&rsquo;t always react</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>It seems like the physics update is asynchronous to the normal update - that is, there’s no guarantee on the order in which FixedUpdate() and Update() will be called. Sometimes Update() could be called twice before FixedUpdate() is called and vice-versa.</p>
+<p>This is a problem when using GetKeyPress() inside of FIxedUpdate(). It doesn’t always respond. Some example code:</p>
+<p><code>class Foo : public Urho3D::LogicComponent {
+public:
+    virtual void Update(float timeStep) override {
+        if(input_-&gt;GetKeyPress(KEY_SPACE))
+            puts("key pressed in Update()");
+    }
+    virtual void FixedUpdate(float timeStep) override {
+        if(input_-&gt;GetKeyPress(KEY_SPACE))
+            puts("key pressed in FixedUpdate()");
+    }
+};</code></p>
+<p>Output after pressing space a few times:</p>
+<p><code>key pressed in FixedUpdate()
+key pressed in Update()
+key pressed in FixedUpdate()
+key pressed in Update()
+key pressed in FixedUpdate()
+key pressed in Update()
+key pressed in Update()
+key pressed in Update()
+key pressed in FixedUpdate()
+key pressed in Update()
+key pressed in Update()
+key pressed in FixedUpdate()
+key pressed in Update()
+key pressed in Update()
+key pressed in Update()
+key pressed in FixedUpdate()
+key pressed in Update()
+key pressed in Update()
+key pressed in Update()
+key pressed in FixedUpdate()
+key pressed in Update()
+key pressed in Update()
+key pressed in FixedUpdate()
+key pressed in Update()
+key pressed in FixedUpdate()
+key pressed in Update()</code></p>
+<p>What’s the best way to approach this problem? I suppose you could argue that asking for keypresses in FixedUpdate() is wrong, but I <span class="bbcode-i">have</span> to put my physics code in FixedUpdate().</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>FixedUpdate always calls with fixed rate (60 fps by default). You can independently detect keyressing</p>
+<pre><code class="lang-auto">bool oldKeySpaceDown = false;
+
+void FixedUpdate()
+{
+    if (KeyDown(KEY_SPACE) &amp;&amp; !oldKeySpaceDown)
+    {
+        ReactKeySpacePress();
+    }
+    ...
+    oldKeySpaceDown = KeyDown(KEY_SPACE);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Thanks, that worked!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>GetKeyPress() can be reliably called only in Update() which is called once per engine frame. FixedUpdate() may be called multiple times or not at all on some frame, so the keypress state change may have already happened. The workaround by 1vanK is fine to use, though.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Kinematic character control with Bullet</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Kinematic character control with Bullet</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mazataza</div>
+          <div class="post_content">
+<p>i am trying to implement character control with bullet<br/>
+i use the following code to initialise the ghost object</p>
+<pre><code>const Vector3 &amp;postion = _cameraNode-&gt;GetWorldPosition();
+const Quaternion &amp;rot = _cameraNode-&gt;GetWorldRotation();
+startTransform.setOrigin (ToBtVector3(postion + rot * Vector3::ZERO));
+startTransform.setRotation(ToBtQuaternion(rot));
+physicsWorld_-&gt;GetWorld()-&gt;getPairCache()-&gt;setInternalGhostPairCallback(new btGhostPairCallback());
+ghostObject = new btPairCachingGhostObject();
+ghostObject-&gt;setWorldTransform(startTransform);
+btScalar characterHeight=1;
+btScalar characterWidth =0.5;
+ghostShape = new btCapsuleShape(characterWidth,characterHeight);
+ghostObject-&gt;setCollisionShape (ghostShape);
+ghostObject-&gt;setCollisionFlags (btCollisionObject::CF_CHARACTER_OBJECT);
+
+btScalar stepHeight = btScalar(0.35);
+btVector3 up(0.0,1.0,0.0);
+characterController = new btKinematicCharacterController (ghostObject,ghostShape,stepHeight, up);
+</code></pre>
+<p>but then the ghost has rotation in x-axis which i can’t understand</p>
+<p>i update the node transform like</p>
+<pre><code>btTransform &amp;worldTrans = ghostObject-&gt;getWorldTransform();
+Quaternion newWorldRotation = ToQuaternion(worldTrans.getRotation());
+const Vector3 &amp;rot = newWorldRotation * Vector3::ZERO;
+Vector3 newWorldPosition = ToVector3(worldTrans.getOrigin()) - rot;
+
+_cameraNode-&gt;SetWorldPosition(newWorldPosition);
+_cameraNode-&gt;SetWorldRotation(newWorldRotation);
+</code></pre>
+<p>the rotatotion matrix is<br/>
+w= 0.7<br/>
+x= -0.7<br/>
+y=0<br/>
+z=0</p>
+<p>this what without appling transformation<br/>
+<img alt="urho3d_cc1" height="415" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/f/ffa652bd0e9bad1c2620b7d951179c3e67e16aec.jpg" width="689"/></p>
+<p>and this with transformation<br/>
+<img alt="urho3d_cc2" height="414" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/8/8d58156cde4ac0a768036ddbaa31dd2e705abaf3.jpg" width="690"/></p>
+<p>when i dont set UP vector to (0.0,1.0,0.0) the character fall in x-axis</p>
+<p>i will be happy if someone can guide me what i am doing wrong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>The first thing I notice is:</p>
+<aside class="quote no-group" data-post="1" data-topic="3791" data-username="mazataza">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2b1581678de76786a5abe6088684c240.png" width="20"/> mazataza:</div>
+<blockquote>
+<p><code>startTransform.setOrigin (ToBtVector3(postion + rot * Vector3::ZERO));</code></p>
+</blockquote>
+</aside>
+<p>and</p>
+<aside class="quote no-group" data-post="1" data-topic="3791" data-username="mazataza">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2b1581678de76786a5abe6088684c240.png" width="20"/> mazataza:</div>
+<blockquote>
+<p><code>const Vector3 &amp;rot = newWorldRotation * Vector3::ZERO;</code></p>
+</blockquote>
+</aside>
+<p>Rotating a { 0, 0, 0 } vector (which is what <code>Vector3::ZERO</code> is) will always return a zero vector.<br/>
+You’ll probably want to replace ZERO with FORWARD or BACK.</p>
+<p>Also, what’s the <code>_cameraNode</code>'s rotation at this point?</p>
+<aside class="quote no-group" data-post="1" data-topic="3791" data-username="mazataza">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2b1581678de76786a5abe6088684c240.png" width="20"/> mazataza:</div>
+<blockquote>
+<p><code>const Quaternion &amp;rot = _cameraNode-&gt;GetWorldRotation();</code></p>
+</blockquote>
+</aside>
+<p>…since it’s rotation relies on the ghost object’s rotation.</p>
+<p>I must add I have hardly any experience with directly using <code>bt</code> objects.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mazataza</div>
+          <div class="post_content">
+<aside class="quote" data-post="2" data-topic="3791">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8b9decec7cc30729aa8f8f7015602d32.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Also, what’s the _cameraNode’s rotation at this point?</p>
+</blockquote>
+</aside>
+<p>the rotation is zero (w=1 x=0 y=0 z=0)</p>
+<aside class="quote" data-post="2" data-topic="3791">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8b9decec7cc30729aa8f8f7015602d32.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>I must add I have hardly any experience with directly using bt objects.</p>
+<p>Which does makes me think: Isn’t up { 0, 0, 1 } in Bullet? <img alt=":bulb:" class="emoji" src="../../../images2/ef35fb0b54a650b4d085e8465e20a1c3.png" title=":bulb:"/></p>
+</blockquote>
+</aside>
+<p>no it is {0 1 0} (x y z)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="3791" data-username="mazataza">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2b1581678de76786a5abe6088684c240.png" width="20"/> mazataza:</div>
+<blockquote>
+<p>no it is {0 1 0} (x y z)</p>
+</blockquote>
+</aside>
+<p>Check <img alt=":white_check_mark:" class="emoji" src="../../../images2/25e3273d25e9a324aa69ce5f393e1503.png" title=":white_check_mark:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mazataza</div>
+          <div class="post_content">
+<aside class="quote" data-post="4" data-topic="3791">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8b9decec7cc30729aa8f8f7015602d32.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Check <img alt=":white_check_mark:" class="emoji" src="../../../images2/f7ed2261dfb20eb17696124116da913c.png" title=":white_check_mark:"/></p>
+</blockquote>
+</aside>
+<p>i don’t understand what you mean but here can check the coordinate system on bullet</p>
+<p><a class="onebox" href="http://bulletphysics.org/mediawiki-1.5.8/index.php/Coordinate_system" rel="nofollow noopener" target="_blank">http://bulletphysics.org/mediawiki-1.5.8/index.php/Coordinate_system</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I meant you’re right. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mazataza</div>
+          <div class="post_content">
+<p>the problem i found that when i set</p>
+<pre><code>ghostObject-&gt;setWorldTransform(startTransform);
+</code></pre>
+<p>before the kinematic controller this got rotated because the up vector got changed</p>
+<p>but when i set after creation of kinematic the rotation doesn’t done, and the character can now move, but i have some trouble but i will check if i could solve them by myself</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Glad to hear you’re making progress.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mazataza</div>
+          <div class="post_content">
+<p>I still stuck with the conversion betweeen bullet to urho3d… as i know bullet use right hand coordinate and urho3d use left hand.<br/>
+the following code which i use at first to update ghostobject walking direction</p>
+<pre><code>    btTransform xform;
+    xform = ghostObject-&gt;getWorldTransform ();
+    btVector3 forwardDir = xform.getBasis()[2];
+    forwardDir.normalize ();
+    ....
+    btVector3 walkDirection = btVector3(0.0, 0.0, 0.0);
+    ...
+    if (gForward) {
+        walkDirection += forwardDir;
+    }
+    ...
+    characterController-&gt;setWalkDirection(walkDirection*walkSpeed);
+</code></pre>
+<p>this code works when there is no rotation. if there is a rotation then the object move very strange for me<br/>
+now i use following code and it works but i can’t understands why it works and that what I don’t like - to have a code which i can’t understand totaly.</p>
+<pre><code>  btTransform xform;
+  xform = ghostObject-&gt;getWorldTransform ();
+  Quaternion newWorldRotation = ToQuaternion(xform.getRotation());
+  const Vector3 &amp;forwardDir= newWorldRotation * Vector3::FORWARD;
+  
+  if (gForward) {
+    walkDirection += forwardDir;
+  }
+  ...
+  characterController-&gt;setWalkDirection(walkDirection*walkSpeed);
+</code></pre>
+<p>as you see i use urho3d quaterion and calculate forward direction.</p>
+<p>then i use following code to update character node in urho3d</p>
+<pre><code>btTransform &amp;worldTrans = ghostObject-&gt;getWorldTransform();
+Quaternion newWorldRotation = ToQuaternion(worldTrans.getRotation());
+const Vector3 &amp;rot = newWorldRotation * Vector3::FORWARD;
+Vector3 newWorldPosition = ToVector3(worldTrans.getOrigin()) - rot;
+
+_cameraNode-&gt;SetWorldPosition(newWorldPosition);
+_cameraNode-&gt;SetWorldRotation(newWorldRotation);
+</code></pre>
+<p>if someone can explain me how urho3d handle these differences between bullet and urho3d i will be happy</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><a href="https://discourse.urho3d.io/t/kinematic-character-controllers/3555">Kinematic Character Controllers</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mazataza</div>
+          <div class="post_content">
+<p>thank you for the link…<br/>
+i have some question there  but i will write them there</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

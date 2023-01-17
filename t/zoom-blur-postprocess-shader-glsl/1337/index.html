@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Zoom Blur postprocess shader (GLSL)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Zoom Blur postprocess shader (GLSL)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>A zoom blur postprocess shader with user-defined strength and center.</p>
+<p><a data-bbcode="true" href="http://postimg.org/image/9f2j3ogbh/"><img alt="" height="" src="../../../images2/ae9328b7107741f471a5b97101f4e917.jpg" width=""/></a></p>
+<p>Can produce nausea when animated.  <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/><br/>
+Center is normalized screen coordinates (-0.5 - 0.5)<br/>
+Strength can be negative.<br/>
+The cSamples constant in the shader code controls the amount of sampling.</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+#line 5
+
+varying vec2 vScreenPos;
+
+void VS() {
+  mat4 modelMatrix = iModelMatrix;
+  vec3 worldPos = GetWorldPos(modelMatrix);
+  gl_Position = GetClipPos(worldPos);
+  vScreenPos = GetScreenPosPreDiv(gl_Position);
+}
+
+#if defined(COMPILEPS)
+uniform vec2 cZoomBlurCenter;
+uniform float cZoomBlurStrength;
+const float cSamples = 40.0;
+
+float RandomOffset(vec3 scale, float seed) {
+  return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
+}
+#endif
+
+void PS() {
+  vec4 color = vec4(0.0);
+  float total = 0.0;
+  vec2 toCenter = cZoomBlurCenter - vScreenPos;
+  float offset = RandomOffset(vec3(12.9898, 78.233, 151.7182), 0.0);
+  for(float t = 0.0; t &lt;= cSamples; t++) {
+    float percent = (t + offset) / cSamples;
+    float weight = 4.0 * (percent - percent * percent);
+    vec4 sample = texture2D(sDiffMap, vScreenPos + toCenter * percent * cZoomBlurStrength);
+    sample.rgb *= sample.a;
+    color += sample * weight;
+    total += weight;
+  }
+  gl_FragColor = color / total;
+  gl_FragColor.rgb /= gl_FragColor.a + 0.00001;
+}</code></pre>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+  &lt;command type="quad" enabled="true" tag="ZoomBlur" vs="ZoomBlur" ps="ZoomBlur" output="viewport"&gt;
+    &lt;texture unit="diffuse" name="viewport" /&gt;
+    &lt;parameter name="ZoomBlurStrength" value="0.15" /&gt;
+    &lt;parameter name="ZoomBlurCenter" value="0.5 0.5" /&gt;
+  &lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Nice!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Now feed Z-Buffer as Strength and camera velocity projection as vector, and you will get linear motion blur.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Z-buffer use would be a definite improvement.<br/>
+The screenshot app uses velocity as strength and computes center from direction.</p>
+<p>Even more interesting, per-object motion blur - <a href="http://john-chapman-graphics.blogspot.co.uk/2013/01/per-object-motion-blur.html">john-chapman-graphics.blogspot.c … -blur.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>[quote=“carnalis”]Z-buffer use would be a definite improvement.<br/>
+The screenshot app uses velocity as strength and computes center from direction.</p>
+<p>Even more interesting, per-object motion blur - <a href="http://john-chapman-graphics.blogspot.co.uk/2013/01/per-object-motion-blur.html" rel="nofollow noopener">john-chapman-graphics.blogspot.c … -blur.html</a>[/quote]</p>
+<p>Oh, there actually this project from a year ago:  <a href="http://discourse.urho3d.io/t/motion-blur/438/1">topic433.html</a></p>
+<p>Also, in my opinion, there are very few games, that really need per object motion blur. For racing/flying game, for example, you can just mask out your vehicle and blur linearly the rest of the scene.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Cool carnalis. Thanks for sharing!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

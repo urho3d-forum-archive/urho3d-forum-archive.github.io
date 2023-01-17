@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Troubles Setting attribute for a shader</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Troubles Setting attribute for a shader</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>Hello I cannot seem to set the MASK_OBJECTINDEX attribute for a shader.  I am creating every vertex with this and it works just fine:</p>
+<pre><code class="lang-auto">vertexData.Push(x); vertexData.Push(y); vertexData.Push(z);
+vertexData.Push(0.5f);</code></pre>
+<p>The fourth is some data that I want to be the OBJECTINDEX.</p>
+<p>Here is how I am setting the size of type of my vertex buffer (where VERTEX_SIZE is just 4)</p>
+<pre><code class="lang-auto">vb-&gt;SetSize(vertexData.Size()/VERTEX_SIZE, MASK_POSITION | MASK_OBJECTINDEX);</code></pre>
+<p>Here is a simplified version my shader:</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+
+varying float vObjectIndex;
+
+void VS()
+{
+    vec3 worldPos = GetWorldPos(iModelMatrix);
+    gl_Position = GetClipPos(worldPos);
+
+    vObjectIndex = iObjectIndex / 10000000000.0;
+}
+
+void PS()
+{
+    gl_FragColor = vec4(vObjectIndex, vObjectIndex, vObjectIndex, 1.0);
+}
+</code></pre>
+<p>If I don’t have the 10000000000.0 in there the entire mesh I am rendering is completely white and including it makes the mesh a dark grey.  Thus, even though every vertex should be a 0.5f it ends up being in the 10s of billions instead… there must be something strange I am doing here…</p>
+<p>Is this even what iObjectIndex is meant to be used for? If not, how can I have a single float or 4 byte int (int is preferred) for every vertex?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="1" data-topic="2717">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/cc40270de3be84622a8372cfa1ab8c9a.png" width="20"/> GoogleBot42:</div>
+<blockquote>
+<p>Hello I cannot seem to set the MASK_OBJECTINDEX attribute for a shader.</p>
+</blockquote>
+</aside>
+<p>Are you sure OI is float? More likely it is something interger.<br/>
+To prevent such errors, don’t use masks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="2717" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Are you sure OI is float? More likely it is something interger.</p>
+</blockquote>
+</aside>
+<p>Yes. <img alt=":confused:" class="emoji" src="../../../images2/256f55d6dee778d12c9ee3bb598de2b8.png" title=":confused:"/> In Transform.glsl</p>
+<pre><code class="lang-auto">....
+    attribute vec4 iTexCoord6;
+#endif
+attribute float iObjectIndex;
+
+#ifdef SKINNED
+....</code></pre>
+<aside class="quote no-group" data-post="2" data-topic="2717" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>To prevent such errors, don’t use masks.</p>
+</blockquote>
+</aside>
+<p>Ok…  I guess I would use this instead?</p>
+<pre><code class="lang-auto">bool SetSize(unsigned vertexCount, const PODVector&lt;VertexElement&gt;&amp; elements, bool dynamic = false);</code></pre>
+<p>I really should be able to use the mask just fine though. The strangest thing is in similar code when I was passing UV coords and was using the MASK_TEXCOORD1 mask it was working just fine. <img alt=":unamused:" class="emoji" src="../../../images2/2af753f2483bb40ec48872793c2e1855.png" title=":unamused:"/>   I guess I will look at that tomorrow but it is late where I live.</p>
+<p>Thanks for you input, I didn’t know about the other SetSize function for the vertex buffer objects.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="3" data-topic="2717">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/cc40270de3be84622a8372cfa1ab8c9a.png" width="20"/> GoogleBot42:</div>
+<blockquote>
+<p>Yes. <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/> In Transform.glsl</p>
+</blockquote>
+</aside>
+<p>It may be not enough since mask silently requires all attributes to have specified type and order. Position must be float3 and 1st, UV must be float2, color must be ubyte4… What must be ObjectIndex??<br/>
+If you use VertexElement-s, all this stuff become explicit.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>it looks like uou were right.  it is a 32bit int</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/GraphicsDefs.h#L145</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="135" style="counter-reset: li-counter 134 ;">
+<li>ELEMENT_COLOR,
+</li>
+<li>ELEMENT_TEXCOORD1,
+</li>
+<li>ELEMENT_TEXCOORD2,
+</li>
+<li>ELEMENT_CUBETEXCOORD1,
+</li>
+<li>ELEMENT_CUBETEXCOORD2,
+</li>
+<li>ELEMENT_TANGENT,
+</li>
+<li>ELEMENT_BLENDWEIGHTS,
+</li>
+<li>ELEMENT_BLENDINDICES,
+</li>
+<li>ELEMENT_INSTANCEMATRIX1,
+</li>
+<li>ELEMENT_INSTANCEMATRIX2,
+</li>
+<li class="selected">ELEMENT_INSTANCEMATRIX3,
+</li>
+<li>// Custom 32-bit integer object index. Due to API limitations, not supported on D3D9
+</li>
+<li>ELEMENT_OBJECTINDEX,
+</li>
+<li>MAX_LEGACY_VERTEX_ELEMENTS
+</li>
+<li>};
+</li>
+<li>
+</li>
+<li>/// Arbitrary vertex declaration element datatypes.
+</li>
+<li>enum VertexElementType
+</li>
+<li>{
+</li>
+<li>TYPE_INT = 0,
+</li>
+<li>TYPE_FLOAT,
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>what is very strange about this is that it is a float in transform.glsl is this a bug?<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/bin/CoreData/Shaders/GLSL/Transform.glsl#L24</a></h4>
+<pre class="onebox"><code class="lang-glsl"><ol class="start lines" start="14" style="counter-reset: li-counter 13 ;">
+<li>attribute vec4 iTangent;
+</li>
+<li>attribute vec4 iBlendWeights;
+</li>
+<li>attribute vec4 iBlendIndices;
+</li>
+<li>attribute vec3 iCubeTexCoord;
+</li>
+<li>attribute vec4 iCubeTexCoord1;
+</li>
+<li>#ifdef INSTANCED
+</li>
+<li>attribute vec4 iTexCoord4;
+</li>
+<li>attribute vec4 iTexCoord5;
+</li>
+<li>attribute vec4 iTexCoord6;
+</li>
+<li>#endif
+</li>
+<li class="selected">attribute float iObjectIndex;
+</li>
+<li>
+</li>
+<li>#ifdef SKINNED
+</li>
+<li>mat4 GetSkinMatrix(vec4 blendWeights, vec4 blendIndices)
+</li>
+<li>{
+</li>
+<li>ivec4 idx = ivec4(blendIndices) * 3;
+</li>
+<li>const vec4 lastColumn = vec4(0.0, 0.0, 0.0, 1.0);
+</li>
+<li>return mat4(cSkinMatrices[idx.x], cSkinMatrices[idx.x + 1], cSkinMatrices[idx.x + 2], lastColumn) * blendWeights.x +
+</li>
+<li>    mat4(cSkinMatrices[idx.y], cSkinMatrices[idx.y + 1], cSkinMatrices[idx.y + 2], lastColumn) * blendWeights.y +
+</li>
+<li>    mat4(cSkinMatrices[idx.z], cSkinMatrices[idx.z + 1], cSkinMatrices[idx.z + 2], lastColumn) * blendWeights.z +
+</li>
+<li>    mat4(cSkinMatrices[idx.w], cSkinMatrices[idx.w + 1], cSkinMatrices[idx.w + 2], lastColumn) * blendWeights.w;
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

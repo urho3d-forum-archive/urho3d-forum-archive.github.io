@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Scene Replication - AnimationController</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Scene Replication - AnimationController</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/124_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Aramis</div>
+          <div class="post_content">
+<p>Hello!</p>
+<p>I’m trying to replicatea a scene, everything is fine, except the animated models.<br/>
+I’ve read the Urho’s documentation about Network replication (<a data-bbcode="true" href="http://urho3d.github.io/documentation/1.5/_network.html" rel="nofollow noopener">http://urho3d.github.io/documentation/1.5/_network.html</a>). It basically tells that animations are replicated through AnimationController. I’ve modified the Character example and the Scene replication to try this out.</p>
+<p>I thought  that it would have worked, since in Character example the Jack model uses the animation controller, and it is <span class="bbcode-b">NOT </span>created as local (both Jack and the AnimationController can be replicated).</p>
+<p>This part of the code shows this:</p>
+<p><code>void CreateCharacter()
+{
+    characterNode = scene_.CreateChild("Jack");
+    AnimatedModel@ object = characterNode.CreateComponent("AnimatedModel");
+    object.model = cache.GetResource("Model", "Models/Jack.mdl");
+    object.material = cache.GetResource("Material", "Materials/Jack.xml");
+    [...]
+    characterNode.CreateComponent("AnimationController");
+}</code></p>
+<p>I also tryed to find how it was done in the NinjaSnowWar, I couldn’t find where the animationController was created, it was only referenced in <a href="http://Ninja.as" rel="nofollow noopener">Ninja.as</a>.<br/>
+Also, why it had an index? Is it for the multiple players?</p>
+<pre><code class="lang-auto"></code></pre>
+<p>Here are the two scripts I’m using to test the Animation Replication:</p>
+<p><a href="http://Server.as" rel="nofollow noopener">Server.as</a> (Character example with replication server)</p>
+<p>[spoiler]<span class="hashtag">#include</span> “Scripts/Utilities/Sample.as”<br/>
+<span class="hashtag">#include</span> “Scripts/Utilities/Touch.as”</p>
+<p>const uint SERVER_PORT = 2345;</p>
+<p>const int CTRL_FORWARD = 1;<br/>
+const int CTRL_BACK = 2;<br/>
+const int CTRL_LEFT = 4;<br/>
+const int CTRL_RIGHT = 8;<br/>
+const int CTRL_JUMP = 16;</p>
+<p>const float MOVE_FORCE = 0.8f;<br/>
+const float INAIR_MOVE_FORCE = 0.02f;<br/>
+const float BRAKE_FORCE = 0.2f;<br/>
+const float JUMP_FORCE = 7.0f;<br/>
+const float YAW_SENSITIVITY = 0.1f;<br/>
+const float INAIR_THRESHOLD_TIME = 0.1f;<br/>
+bool firstPerson = false; // First person camera flag</p>
+<p>Node@ characterNode;</p>
+<p>// Record for each connected client<br/>
+class Client<br/>
+{<br/>
+Connection@ connection;<br/>
+Node@ object;<br/>
+}<br/>
+Array clients;</p>
+<p>void Start()<br/>
+{<br/>
+SampleStart();<br/>
+CreateScene();<br/>
+network.StartServer(SERVER_PORT);<br/>
+CreateCharacter();<br/>
+SubscribeToEvents();<br/>
+}</p>
+<p>void CreateScene()<br/>
+{<br/>
+scene_ = Scene();<br/>
+scene_.CreateComponent(“Octree”);<br/>
+scene_.CreateComponent(“PhysicsWorld”);</p>
+<pre><code>cameraNode = scene_.CreateChild("CamCam");
+Camera@ camera = cameraNode.CreateComponent("Camera");
+camera.farClip = 300.0f;
+renderer.viewports[0] = Viewport(scene_, camera);
+
+Node@ zoneNode = scene_.CreateChild("Zone");
+Zone@ zone = zoneNode.CreateComponent("Zone");
+zone.boundingBox = BoundingBox(-1000.0f, 1000.0f);
+zone.ambientColor = Color(0.15f, 0.15f, 0.15f);
+zone.fogColor = Color(0.5f, 0.5f, 0.7f);
+zone.fogStart = 100.0f;
+zone.fogEnd = 300.0f;
+
+Node@ lightNode = scene_.CreateChild("DirectionalLight");
+lightNode.direction = Vector3(0.6f, -1.0f, 0.8f);
+Light@ light = lightNode.CreateComponent("Light");
+light.lightType = LIGHT_DIRECTIONAL;
+light.castShadows = true;
+light.shadowBias = BiasParameters(0.00025f, 0.5f);
+light.shadowCascade = CascadeParameters(10.0f, 50.0f, 200.0f, 0.0f, 0.8f);
+
+// Create the floor object
+Node@ floorNode = scene_.CreateChild("Floor");
+floorNode.position = Vector3(0.0f, -0.5f, 0.0f);
+floorNode.scale = Vector3(200.0f, 1.0f, 200.0f);
+StaticModel@ object = floorNode.CreateComponent("StaticModel");
+object.model = cache.GetResource("Model", "Models/Box.mdl");
+object.material = cache.GetResource("Material", "Materials/Stone.xml");
+
+RigidBody@ body = floorNode.CreateComponent("RigidBody");
+body.collisionLayer = 2;
+CollisionShape@ shape = floorNode.CreateComponent("CollisionShape");
+shape.SetBox(Vector3(1.0f, 1.0f, 1.0f));
+</code></pre>
+<p>}</p>
+<p>void CreateCharacter()<br/>
+{<br/>
+characterNode = scene_.CreateChild(“Jack”);<br/>
+characterNode.position = Vector3(0.0f, 1.0f, 0.0f);</p>
+<pre><code>// Create the rendering component + animation controller
+AnimatedModel@ object = characterNode.CreateComponent("AnimatedModel");
+object.model = cache.GetResource("Model", "Models/Jack.mdl");
+object.material = cache.GetResource("Material", "Materials/Jack.xml");
+object.castShadows = true;
+characterNode.CreateComponent("AnimationController");
+
+// Set the head bone for manual control
+object.skeleton.GetBone("Bip01_Head").animated = false;
+
+// Create rigidbody, and set non-zero mass so that the body becomes dynamic
+RigidBody@ body = characterNode.CreateComponent("RigidBody");
+body.collisionLayer = 1;
+body.mass = 1.0f;
+
+// Set zero angular factor so that physics doesn't turn the character on its own.
+// Instead we will control the character yaw manually
+body.angularFactor = Vector3(0.0f, 0.0f, 0.0f);
+
+// Set the rigidbody to signal collision also when in rest, so that we get ground collisions properly
+body.collisionEventMode = COLLISION_ALWAYS;
+
+// Set a capsule shape for collision
+CollisionShape@ shape = characterNode.CreateComponent("CollisionShape");
+shape.SetCapsule(0.7f, 1.8f, Vector3(0.0f, 0.9f, 0.0f));
+
+// Create the character logic object, which takes care of steering the rigidbody
+characterNode.CreateScriptObject(scriptFile, "Character");
+</code></pre>
+<p>}</p>
+<p>void SubscribeToEvents()<br/>
+{<br/>
+// Subscribe to Update event for setting the character controls before physics simulation<br/>
+SubscribeToEvent(“Update”, “HandleUpdate”);</p>
+<pre><code>// Subscribe to PostUpdate event for updating the camera position after physics simulation
+SubscribeToEvent("PostUpdate", "HandlePostUpdate");
+
+// Unsubscribe the SceneUpdate event from base class as the camera node is being controlled in HandlePostUpdate() in this sample
+UnsubscribeFromEvent("SceneUpdate");
+
+SubscribeToEvent("ClientConnected", "HandleClientConnected");
+SubscribeToEvent("ClientDisconnected", "HandleClientDisconnected");
+</code></pre>
+<p>}</p>
+<p>void HandleUpdate(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+if (characterNode is null)<br/>
+return;</p>
+<pre><code>Character@ character = cast&lt;Character&gt;(characterNode.scriptObject);
+if (character is null)
+    return;
+
+// Clear previous controls
+character.controls.Set(CTRL_FORWARD | CTRL_BACK | CTRL_LEFT | CTRL_RIGHT | CTRL_JUMP, false);
+
+// Update controls using touch utility
+if (touchEnabled)
+    UpdateTouches(character.controls);
+
+// Update controls using keys (desktop)
+if (ui.focusElement is null)
+{
+    if (touchEnabled || !useGyroscope)
+    {
+        character.controls.Set(CTRL_FORWARD, input.keyDown['W']);
+        character.controls.Set(CTRL_BACK, input.keyDown['S']);
+        character.controls.Set(CTRL_LEFT, input.keyDown['A']);
+        character.controls.Set(CTRL_RIGHT, input.keyDown['D']);
+    }
+    character.controls.Set(CTRL_JUMP, input.keyDown[KEY_SPACE]);
+
+    // Add character yaw &amp; pitch from the mouse motion or touch input
+    if (touchEnabled)
+    {
+        for (uint i = 0; i &lt; input.numTouches; ++i)
+        {
+            TouchState@ state = input.touches[i];
+            if (state.touchedElement is null) // Touch on empty space
+            {
+                Camera@ camera = cameraNode.GetComponent("Camera");
+                if (camera is null)
+                    return;
+
+                character.controls.yaw += TOUCH_SENSITIVITY * camera.fov / graphics.height * state.delta.x;
+                character.controls.pitch += TOUCH_SENSITIVITY * camera.fov / graphics.height * state.delta.y;
+            }
+        }
+    }
+    else
+    {
+        character.controls.yaw += input.mouseMoveX * YAW_SENSITIVITY;
+        character.controls.pitch += input.mouseMoveY * YAW_SENSITIVITY;
+    }
+    // Limit pitch
+    character.controls.pitch = Clamp(character.controls.pitch, -80.0f, 80.0f);
+    // Set rotation already here so that it's updated every rendering frame instead of every physics frame
+    characterNode.rotation = Quaternion(character.controls.yaw, Vector3(0.0f, 1.0f, 0.0f));
+
+    // Switch between 1st and 3rd person
+    if (input.keyPress['F'])
+        firstPerson = !firstPerson;
+
+    // Turn on/off gyroscope on mobile platform
+    if (input.keyPress['G'])
+        useGyroscope = !useGyroscope;
+
+    // Check for loading / saving the scene
+    if (input.keyPress[KEY_F5])
+    {
+        File saveFile(fileSystem.programDir + "Data/Scenes/CharacterDemo.xml", FILE_WRITE);
+        scene_.SaveXML(saveFile);
+    }
+    if (input.keyPress[KEY_F7])
+    {
+        File loadFile(fileSystem.programDir + "Data/Scenes/CharacterDemo.xml", FILE_READ);
+        scene_.LoadXML(loadFile);
+        // After loading we have to reacquire the character scene node, as it has been recreated
+        // Simply find by name as there's only one of them
+        characterNode = scene_.GetChild("Jack", true);
+        if (characterNode is null)
+            return;
+    }
+}
+</code></pre>
+<p>}</p>
+<p>void HandlePostUpdate(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+if (characterNode is null)<br/>
+return;</p>
+<pre><code>Character@ character = cast&lt;Character&gt;(characterNode.scriptObject);
+if (character is null)
+    return;
+
+// Get camera lookat dir from character yaw + pitch
+Quaternion rot = characterNode.rotation;
+Quaternion dir = rot * Quaternion(character.controls.pitch, Vector3(1.0f, 0.0f, 0.0f));
+
+// Turn head to camera pitch, but limit to avoid unnatural animation
+Node@ headNode = characterNode.GetChild("Bip01_Head", true);
+float limitPitch = Clamp(character.controls.pitch, -45.0f, 45.0f);
+Quaternion headDir = rot * Quaternion(limitPitch, Vector3(1.0f, 0.0f, 0.0f));
+// This could be expanded to look at an arbitrary target, now just look at a point in front
+Vector3 headWorldTarget = headNode.worldPosition + headDir * Vector3(0.0f, 0.0f, 1.0f);
+headNode.LookAt(headWorldTarget, Vector3(0.0f, 1.0f, 0.0f));
+// Correct head orientation because LookAt assumes Z = forward, but the bone has been authored differently (Y = forward)
+headNode.Rotate(Quaternion(0.0f, 90.0f, 90.0f));
+
+if (firstPerson)
+{
+    // First person camera: position to the head bone + offset slightly forward &amp; up
+    cameraNode.position = headNode.worldPosition + rot * Vector3(0.0f, 0.15f, 0.2f);
+    cameraNode.rotation = dir;
+}
+else
+{
+    // Third person camera: position behind the character
+    Vector3 aimPoint = characterNode.position + rot * Vector3(0.0f, 1.7f, 0.0f); // You can modify x Vector3 value to translate the fixed character position (indicative range[-2;2])
+
+    // Collide camera ray with static physics objects (layer bitmask 2) to ensure we see the character properly
+    Vector3 rayDir = dir * Vector3(0.0f, 0.0f, -1.0f); // For indoor scenes you can use dir * Vector3(0.0, 0.0, -0.5) to prevent camera from crossing the walls
+    float rayDistance = cameraDistance;
+    PhysicsRaycastResult result = scene_.physicsWorld.RaycastSingle(Ray(aimPoint, rayDir), rayDistance, 2);
+    if (result.body !is null)
+        rayDistance = Min(rayDistance, result.distance);
+    rayDistance = Clamp(rayDistance, CAMERA_MIN_DIST, cameraDistance);
+
+    cameraNode.position = aimPoint + rayDir * rayDistance;
+    cameraNode.rotation = dir;
+}
+</code></pre>
+<p>}</p>
+<p>class Character : ScriptObject<br/>
+{<br/>
+// Character controls.<br/>
+Controls controls;<br/>
+// Grounded flag for movement.<br/>
+bool onGround = false;<br/>
+// Jump flag.<br/>
+bool okToJump = true;<br/>
+// In air timer. Due to possible physics inaccuracy, character can be off ground for max. 1/10 second and still be allowed to move.<br/>
+float inAirTimer = 0.0f;</p>
+<pre><code>void Start()
+{
+    SubscribeToEvent(node, "NodeCollision", "HandleNodeCollision");
+}
+
+void Load(Deserializer&amp; deserializer)
+{
+    controls.yaw = deserializer.ReadFloat();
+    controls.pitch = deserializer.ReadFloat();
+}
+
+void Save(Serializer&amp; serializer)
+{
+    serializer.WriteFloat(controls.yaw);
+    serializer.WriteFloat(controls.pitch);
+}
+
+void HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+{
+    VectorBuffer contacts = eventData["Contacts"].GetBuffer();
+
+    while (!contacts.eof)
+    {
+        Vector3 contactPosition = contacts.ReadVector3();
+        Vector3 contactNormal = contacts.ReadVector3();
+        float contactDistance = contacts.ReadFloat();
+        float contactImpulse = contacts.ReadFloat();
+
+        // If contact is below node center and mostly vertical, assume it's a ground contact
+        if (contactPosition.y &lt; (node.position.y + 1.0f))
+        {
+            float level = Abs(contactNormal.y);
+            if (level &gt; 0.75)
+                onGround = true;
+        }
+    }
+}
+
+void FixedUpdate(float timeStep)
+{
+    /// \todo Could cache the components for faster access instead of finding them each frame
+    RigidBody@ body = node.GetComponent("RigidBody");
+    AnimationController@ animCtrl = node.GetComponent("AnimationController");
+
+    // Update the in air timer. Reset if grounded
+    if (!onGround)
+        inAirTimer += timeStep;
+    else
+        inAirTimer = 0.0f;
+    // When character has been in air less than 1/10 second, it's still interpreted as being on ground
+    bool softGrounded = inAirTimer &lt; INAIR_THRESHOLD_TIME;
+
+    // Update movement &amp; animation
+    Quaternion rot = node.rotation;
+    Vector3 moveDir(0.0f, 0.0f, 0.0f);
+    Vector3 velocity = body.linearVelocity;
+    // Velocity on the XZ plane
+    Vector3 planeVelocity(velocity.x, 0.0f, velocity.z);
+
+    if (controls.IsDown(CTRL_FORWARD))
+        moveDir += Vector3(0.0f, 0.0f, 1.0f);
+    if (controls.IsDown(CTRL_BACK))
+        moveDir += Vector3(0.0f, 0.0f, -1.0f);
+    if (controls.IsDown(CTRL_LEFT))
+        moveDir += Vector3(-1.0f, 0.0f, 0.0f);
+    if (controls.IsDown(CTRL_RIGHT))
+        moveDir += Vector3(1.0f, 0.0f, 0.0f);
+
+    // Normalize move vector so that diagonal strafing is not faster
+    if (moveDir.lengthSquared &gt; 0.0f)
+        moveDir.Normalize();
+
+    // If in air, allow control, but slower than when on ground
+    body.ApplyImpulse(rot * moveDir * (softGrounded ? MOVE_FORCE : INAIR_MOVE_FORCE));
+
+    if (softGrounded)
+    {
+        // When on ground, apply a braking force to limit maximum ground velocity
+        Vector3 brakeForce = -planeVelocity * BRAKE_FORCE;
+        body.ApplyImpulse(brakeForce);
+
+        // Jump. Must release jump control inbetween jumps
+        if (controls.IsDown(CTRL_JUMP))
+        {
+            if (okToJump)
+            {
+                body.ApplyImpulse(Vector3(0.0f, 1.0f, 0.0f) * JUMP_FORCE);
+                okToJump = false;
+            }
+        }
+        else
+            okToJump = true;
+    }
+
+    // Play walk animation if moving on ground, otherwise fade it out
+    if (softGrounded &amp;&amp; !moveDir.Equals(Vector3(0.0f, 0.0f, 0.0f)))
+        animCtrl.PlayExclusive("Models/Jack_Walk.ani", 0, true, 0.2f);
+    else
+        animCtrl.Stop("Models/Jack_Walk.ani", 0.2f);
+    // Set walk animation speed proportional to velocity
+    animCtrl.SetSpeed("Models/Jack_Walk.ani", planeVelocity.length * 0.3f);
+
+    // Reset grounded flag for next frame
+    onGround = false;
+}
+</code></pre>
+<p>}</p>
+<p>void HandleClientConnected(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+Connection@ newConnection = eventData[“Connection”].GetPtr();<br/>
+newConnection.scene = scene_;<br/>
+Client newClient;<br/>
+newClient.connection = newConnection;<br/>
+clients.Push(newClient);<br/>
+}</p>
+<p>void HandleClientDisconnected(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+Connection@ connection = eventData[“Connection”].GetPtr();<br/>
+for (uint i = 0; i &lt; clients.length; ++i)<br/>
+{<br/>
+if (clients[i].connection is connection)<br/>
+{<br/>
+clients.Erase(i);<br/>
+break;<br/>
+}<br/>
+}<br/>
+}<br/>
+String patchInstructions = “no.”;[/spoiler]</p>
+<p><a href="http://Client.as" rel="nofollow noopener">Client.as</a> (just replicates the character demo scene)</p>
+<p>[spoiler]<span class="hashtag">#include</span> "Scripts/Utilities/Sample.as"<br/>
+String patchInstructions = “null”;</p>
+<p>const uint SERVER_PORT = 2345;</p>
+<p>class Client<br/>
+{<br/>
+Connection@ connection;<br/>
+}</p>
+<p>void Start()<br/>
+{<br/>
+SampleStart();<br/>
+CreateScene();<br/>
+SetupViewport();<br/>
+SubscribeToEvents();<br/>
+}<br/>
+void CreateScene()<br/>
+{<br/>
+scene_ = Scene();<br/>
+scene_.CreateComponent(“Octree”, LOCAL);<br/>
+scene_.CreateComponent(“PhysicsWorld”, LOCAL);<br/>
+String address;<br/>
+address = “localhost”;<br/>
+network.Connect(address, SERVER_PORT, scene_);<br/>
+cameraNode = Node(“Camera”);<br/>
+Camera@ camera =  cameraNode.CreateComponent(“Camera”);<br/>
+camera.farClip = 300.0f;<br/>
+}<br/>
+void SetupViewport()<br/>
+{<br/>
+// Set up a viewport to the Renderer subsystem so that the 3D scene can be seen<br/>
+Viewport@ viewport = Viewport(scene_, cameraNode.GetComponent(“Camera”));<br/>
+renderer.viewports[0] = viewport;<br/>
+}<br/>
+void SubscribeToEvents()<br/>
+{<br/>
+SubscribeToEvent(“Update”, “HandleUpdate”);<br/>
+}<br/>
+void HandleUpdate(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+cameraNode.set_position(scene_.GetChild(“CamCam”).position);<br/>
+cameraNode.set_rotation(scene_.GetChild(“CamCam”).rotation);<br/>
+}[/spoiler]</p>
+<p>To test the script, you need to start the <a href="http://Server.as" rel="nofollow noopener">Server.as</a> first then the <a href="http://Client.as" rel="nofollow noopener">Client.as</a>. Use this <span class="bbcode-b">.bat</span> to help test.</p>
+<p><span class="spoiler">start Urho3DPlayer.exe <a href="http://Server.as" rel="nofollow noopener">Server.as</a> -w -x 800 -y 600<br/>
+SLEEP 1000<br/>
+start Urho3DPlayer.exe <a href="http://Client.as" rel="nofollow noopener">Client.as</a> -w -x 700 -y 500</span></p>
+<p>If you prefer, I’ve uploaded the entire example (4MB) on my bitbucket. Download it here -&gt;<a href="http://aramis.bitbucket.org/downloads/temp/AnimRep.zip" rel="nofollow noopener">aramis.bitbucket.org/downloads/temp/AnimRep.zip</a></p>
+<p>Best regards,</p>
+<ul>
+<li>Aramis</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Hey Aramis,</p>
+<p>Check out the <span class="bbcode-b">Ninja.xml</span> object under <span class="bbcode-b">/Data/Objects</span>, it is created in that file along with other stuff.</p>
+<p>Ninja.xml</p>
+<pre><code class="lang-auto">...	
+&lt;component type="AnimationController" id="7"&gt;
+  &lt;attribute name="Animations" /&gt;
+&lt;/component&gt;</code></pre>
+<aside class="quote">
+<blockquote>
+<p>Also, why it had an index? Is it for the multiple players? </p>
+</blockquote>
+</aside>
+<p>Yes NSW is multiplayer ready, but this part searches for the animation component starting with node 0. This code is also a good example so your model’s default pose is not displayed and load your preferred idle animation instead, as commented there… <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<pre><code class="lang-auto">// Start playing the idle animation immediately, even before the first physics update
+        AnimationController@ animCtrl = node.children[0].GetComponent("AnimationController");
+        animCtrl.PlayExclusive("Models/NinjaSnowWar/Ninja_Idle3.ani", LAYER_MOVE, true);</code></pre>
+<p>Hope that helps.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Changing the return type of UIElement::LoadChildXML()</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Changing the return type of UIElement::LoadChildXML()</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I have this situation in my code where I’ve subclassed UIElement and am maintaining a child UIElement that gets loaded from XML (a pattern I learned from Qt now that I think about it).</p>
+<p>What I’d like to be able to write is this:</p>
+<p>[code]void MenuScreen::ReloadUI()<br/>
+{<br/>
+ResourceCache* cache = GetSubsystem();</p>
+<pre><code>if(ui_)
+    RemoveChild(ui_);
+ui_ = LoadChildXML(
+    xml_-&gt;GetRoot(),
+    cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml")
+);
+</code></pre>
+<p>}[/code]</p>
+<p>Where:</p>
+<p><code>SharedPtr&lt;XMLFile&gt; xml_;
+SharedPtr&lt;UIElement&gt; ui_;</code></p>
+<p>Except that I can’t, because <span class="bbcode-b">LoadChildXML()</span> returns a bool and not a pointer to the child that was created. There seems to be no easy way to fish out the created child afterwards, because I can’t rely on the name nor can I rely on ui_ being the only child of MenuScreen.</p>
+<p>I propose the function be changed to return the child pointer. No functionality is lost, since you can still check if creation failed by comparing to NULL:</p>
+<p>[code]UIElement* UIElement::LoadChildXML(const XMLElement&amp; childElem, XMLFile* styleFile, bool setInstanceDefault)<br/>
+{<br/>
+bool internalElem = childElem.GetBool(“internal”);<br/>
+if (internalElem)<br/>
+{<br/>
+URHO3D_LOGERROR(“Loading internal child element is not supported”);<br/>
+return NULL;<br/>
+}</p>
+<pre><code>String typeName = childElem.GetAttribute("type");
+if (typeName.Empty())
+    typeName = "UIElement";
+unsigned index = childElem.HasAttribute("index") ? childElem.GetUInt("index") : M_MAX_UNSIGNED;
+UIElement* child = CreateChild(typeName, String::EMPTY, index);
+
+if (child)
+{
+    if (!styleFile)
+        styleFile = GetDefaultStyle();
+    if (!child-&gt;LoadXML(childElem, styleFile, setInstanceDefault))
+        return NULL;
+}
+
+return child;
+</code></pre>
+<p>}[/code]</p>
+<p>This would require changes to the angelscript bindings:</p>
+<p><span class="bbcode-b">APITemplates.h:953</span></p>
+<p>[code]static UIElement* UIElementLoadChildXML(XMLFile* file, XMLFile* styleFile, UIElement* ptr)<br/>
+{<br/>
+if (file == NULL)<br/>
+return NULL;</p>
+<pre><code>XMLElement rootElem = file-&gt;GetRoot("element");
+if (rootElem)
+    return ptr-&gt;LoadChildXML(rootElem, styleFile);
+</code></pre>
+<p>}[/code]</p>
+<p><span class="bbcode-b">APITemplates.h:1055</span></p>
+<p><code>    engine-&gt;RegisterObjectMethod(className, "UIElement@+ LoadChildXML(const XMLElement&amp;in, XMLFile@+ arg1 = null, bool arg2 = false)", asMETHOD(T, LoadChildXML), asCALL_THISCALL);
+    engine-&gt;RegisterObjectMethod(className, "UIElement@+ LoadChildXML(XMLFile@+, XMLFile@+ arg1 = null)", asFUNCTION(UIElementLoadChildXML), asCALL_CDECL_OBJLAST);</code></p>
+<p>As well as in the editor script <span class="bbcode-b"><a href="http://EditorUIElement.as:319" rel="nofollow noopener">EditorUIElement.as:319</a></span></p>
+<pre><code class="lang-auto"></code></pre>
+<p>I can make a PR if you want.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I believe this would make sense. If you want, you can make a PR (it’s not a large change)</p>
+<p>One thing to consider is what to do when the child has been created but load fails. Should the child be destroyed then? Presently it isn’t, but false would be returned regardless in the current implementation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Good point. I’d argue it would make sense to destroy the child if loading fails. It makes little sense to keep an empty child around. If the child isn’t destroyed, it would be kind of deceitful to return NULL.</p>
+<p>Returning the empty child would be the other option, however, that makes it harder to check if loading fails.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you make the PR, you can make it so that the child is destroyed. We can correct later if it turns out other behavior is needed. This error case shouldn’t happen in normal editor use; only in the case of malformed handwritten UI XML, but in that case I don’t think it would even get as far as creating the child.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Here you go: <a data-bbcode="true"  rel="nofollow noopener">https://github.com/urho3d/Urho3D/pull/1649</a></p>
+<p>I made sure the editor works and I tested the behaviour of the function in my own code.</p>
+<p>There appear to be no lua bindings for this function. I didn’t create any because I don’t understand it enough.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

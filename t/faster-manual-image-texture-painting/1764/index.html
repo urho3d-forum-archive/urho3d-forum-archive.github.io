@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Faster manual image&amp;texture painting?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Faster manual image&amp;texture painting?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>I’m trying to draw 2D stuff onto the screen. I used the sample GUI code with the Urho logo as a base and I’m drawing the pixel into an Image and this is then converted into a Texture2D which is used by a Sprite. The problem is the big FPS impact from ~200 to 40-60.</p>
+<pre><code class="lang-auto">// init code
+        _image=new Urho3D::Image(_context);
+        _sprite=_context-&gt;GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetRoot()-&gt;CreateChild&lt;Urho3D::Sprite&gt;();
+        _texture=new Urho3D::Texture2D(_context);
+        _texture-&gt;SetFilterMode(Urho3D::TextureFilterMode::FILTER_NEAREST);
+        _texture-&gt;SetNumLevels(1);
+...
+    void redraw() // this is currently called each update() call
+    {
+        // redraw my image, this does take ~0.003s
+        lfgui::widget::redraw();
+        // only resize if necessary, 0s
+        if(_texture-&gt;GetWidth()!=width()||_texture-&gt;GetHeight()!=height())
+            _texture-&gt;SetSize(width(),height(),Urho3D::Graphics::GetRGBAFormat(),Urho3D::TEXTURE_STATIC);
+        // only resize if necessary, 0s
+        if(_image-&gt;GetWidth()!=width()||_image-&gt;GetHeight()!=height())
+            _image-&gt;SetSize(width(),height(),4);
+
+        // copy pixel from my image to the Urho Image (my image has the pixel in a weird format (separated color channels) so that I have to copy each pixel on it's own. This takes 0.01s.
+        auto h=height();
+        auto w=width();
+        uint32_t* data=(uint32_t*)_image-&gt;GetData();
+        for(int y=0;y&lt;h;y++)
+            for(int x=0;x&lt;w;x++)
+            {
+                lfgui::color p=this-&gt;img.get_pixel(x,y);
+                *data=p.value;    // this is a bit faster as SetPixelInt(...)
+                data++;
+            }
+
+        // fill texture from image, 0.003s
+        _texture-&gt;SetData(_image);
+
+        // only resize if necessary, 0s
+        if(_sprite-&gt;GetWidth()!=_texture-&gt;GetWidth()||_sprite-&gt;GetHeight()!=_texture-&gt;GetHeight())
+            _sprite-&gt;SetSize(_texture-&gt;GetWidth(),_texture-&gt;GetHeight());
+    }</code></pre>
+<p>Is there a more direct way to draw on the screen (over a 3D scene)? Any other optimization idea? The performance impact seems kinda high for such a simple thing. I guess I could redraw my image and copy the pixels in another thread but that seems kinda odd.</p>
+<p>Also these Sprites in the GUI don’t seem to draw semi transparent pixel? (even with _texture-&gt;SetData(_image,true)<img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I think the method with using of two RTT (or more) will be much faster (than manipulating with data on cpu side)</p>
+<p>RTT1 for color (do not clear it every frame with clear command in RenderPath)<br/>
+RTT2 for erase (use it for clear RTT1 when left mouse button released, if pressed and eraser are selected somewhere draw into it white color for example)</p>
+<p>combine RTT1 into Viewport RTT in someway, probably just full direct copy or some small part/area of it (for painting only on some widgets surface ).</p>
+<p>The drawing into RTT1: you just render into this RTT some object(for example : sphere ) in ortho projection by mouse coords when you pressing left mouse button</p>
+<p>also you will needed add some stuff for dynamically control RenderPath.</p>
+<p>I guess you got my POV of this )</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Oh I think I know what you mean. The image I want to draw is not a rendered image like a viewport (no render to texture). It’s actually a drawn image with for example text, or paths, or gradients or other images. So this image is drawn by the CPU not by the GPU.</p>
+<p>I also thought of somehow copying my CPU drawn image to the GPU and use a shader to actually draw it in the proper way with correct colors (without using the CPU to transform the data to an Image and then a Texture2D). The colors are not RGBARGBARGBA…, they are RRR…GGG…BBB…AAA… Can that be done? Applying a shader to a Sprite/Texture2D on screen? The color/texture lookup should be easy. Or would that be also relative expansive but on the GPU side?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>The image I want to draw is not a rendered image like a viewport<br/>
+actually, this is will be similar to 2d Canvas, where you might draw your various textured objects by hand(mouse).</p>
+</blockquote>
+<blockquote>
+<p>they are RRR…GGG…BBB…AAA… Can that be done?<br/>
+I think at first of all you need convert this RRR…GGG… to something loadable as usual texture (on cpu side) and then use it on some textured quad as paint brush (in case painting with RTTs)</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]&gt;The image I want to draw is not a rendered image like a viewport<br/>
+actually, this is will be similar to 2d Canvas, where you might draw your various textured objects by hand(mouse).<br/>
+[/quote]<br/>
+Oh I can draw directly on a texture? How?</p>
+<p>[quote=“codingmonkey”]</p>
+<blockquote>
+<p>they are RRR…GGG…BBB…AAA… Can that be done?<br/>
+I think at first of all you need convert this RRR…GGG… to something loadable as usual texture (on cpu side) and then use it on some textured quad as paint brush (in case painting with RTTs)[/quote]<br/>
+That conversion is done at that part. No idea what you mean with “texture quad as paint brush”. I guess the Sprite is already a texture quad? It has the Texture2D assigned.</p>
+</blockquote>
+<p>Update: I managed to greatly optimize my pixel copy code:</p>
+<pre><code class="lang-auto">...
+// copy pixel from my image to the Urho Image (my image has the pixel in a weird format (separated color channels) so that I have to copy each pixel on it's own
+int h=height();
+int w=width();
+int count=w*h;
+int countx2=count*2;
+int countx3=count*3;
+// due to the channel separation in the first image, the pixel have to be copied byte/color vise
+uint8_t* data_target=_image-&gt;GetData();
+uint8_t* data_source=this-&gt;img.data();
+for(;data_source&lt;data_source_end;)
+{
+    *data_target=*data_source;
+    data_target++;
+    *data_target=*(data_source+count);
+    data_target++;
+    *data_target=*(data_source+countx2);
+    data_target++;
+    *data_target=*(data_source+countx3);
+    data_target++;
+    data_source++;
+}
+
+// fill texture from image, 0.003s
+...</code></pre>
+<p>This is so fast that I can’t really measure it with my usual method. I takes around 0.001 or 0.002 seconds and my FPS are at 90! (I started at 16!)<br/>
+So I got rid of all multiplications, unnecessary operations and object creations. Now only pointer increments, additions and byte movements (the CPU loves that).</p>
+<p>Still any other idea to the rest of the code/approach? The FPS drop is still significant from ~190 to ~90.</p>
+<p>I wrote an article (unpublished) with all the optimization steps I took and the reasons behind. Still no idea where I should publish such things. There could be also an Urho article about this manual painting an Image to get a Texture2D. Is that the proper approach or is there a better one?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OvermindDL1</div>
+          <div class="post_content">
+<p>Are copying the entire thing over every frame, or are you only sending updates to locations that have changed as they change?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="OvermindDL1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/27c7eec9541e095f992a59a34eadafd3.png" width="20"/> OvermindDL1:</div>
+<blockquote>
+<p>Are copying the entire thing over every frame, or are you only sending updates to locations that have changed as they change?</p>
+</blockquote>
+</aside>
+<p>Currently I’m doing all that every frame. Yes that could be optimized as it usually doesn’t have to be running at the full FPS and that is planned.<br/>
+I could also update only regions where stuff has changed and that’s also planned (if you mean that with “sending updates to locations that have changed”).</p>
+<p>My main question now is: Is this drawing into an Urho3D::Image and then telling a Texture2D to use that Image and then using a Sprite to display that data on the screen (over a 3D scene) the best way?<br/>
+Codingmonkey mentioned drawing directly on a texture but I can’t see any way to do that: <a href="http://urho3d.github.io/documentation/1.5/class_urho3_d_1_1_texture2_d.html" rel="noopener nofollow ugc">urho3d.github.io/documentation/1 … re2_d.html</a></p>
+<p>Oh. I just tried replacing Texture2D::SetData (SharedPtr&lt; Image &gt; image, bool useAlpha=false) with Texture2D::SetData(unsigned level, int x, int y, int width, int height, const void *data) and that function is a bit faster. The first took around 0.0043 seconds and the second around 0.0031 seconds (though my time measurement is not that precise for such short periods). My FPS are around 95 (±7) now.</p>
+<p>There’s also this TextureUsage in the SetSize, what does that do? I’m currently using TEXTURE_STATIC but also tried TEXTURE_DYNAMIC which didn’t seem to change anything in my case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Oh I can draw directly on a texture? How?<br/>
+bind Texture as output for some scenepass in RenderPath<br/>
+for example I use “handpaint” scenepass to rendering colored plane onto canvas1 RTT<br/>
+<a href="https://github.com/MonkeyFirst/urho3d-rtt-paint/blob/master/bin/CoreData/RenderPaths/ForwardPaint.xml">github.com/MonkeyFirst/urho3d-r … dPaint.xml</a></p>
+</blockquote>
+<p>there is common example : <a href="https://github.com/MonkeyFirst/urho3d-rtt-paint">github.com/MonkeyFirst/urho3d-rtt-paint</a> with using RTT for painting</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

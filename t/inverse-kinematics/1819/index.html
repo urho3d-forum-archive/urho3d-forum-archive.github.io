@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Inverse Kinematics</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Inverse Kinematics</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>There seems to be some general interest in the addition of an IK solver to Urho3D (such as this <a data-bbcode="true" href="http://discourse.urho3d.io/t/inverse-kinematics/879/1">feature request</a> and of course the need for IK in my own project). I think it would be very cool for Urho3D to have this capability, so I have taken it upon myself to implement this feature request.</p>
+<p>I’d like to clarify a few things before I make any major changes to Urho3D and would be happy if one of the core developers (I’m looking at you cadavar  <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/>) could give me the “good to go” as well as some advice on some of these points.</p>
+<p><span class="bbcode-b">Concept</span></p>
+<p>My current concept for approaching this are 3 new components:</p>
+<p><img alt="" height="314" src="../../../images2/2de1d13e2a7eda50f0c13b7985080693.png" width="571"/></p>
+<p><span class="bbcode-b">IKSolver</span> is attached to the root scene node and - as the name implies - is responsible for solving all IK constraints. I plan on implementing the Jacobian Inverse method and the Jacobian Moore?Penrose method for starters, but will probably also look at implementing a more robust algorithm in the future.</p>
+<p><span class="bbcode-b">IKEffector</span> can be attached to any node in the scene and marks that node as the beginning of an IK chain. The effector has the methods SetTarget() for controlling the target location of the node and SetChainLength() to control how many parent nodes are affected.</p>
+<p><span class="bbcode-b">IKConstraint</span> is attached to nodes part of the IK chain and is used to “fine tune” the behaviour of each node (things such as the “stiffness” and scale factor).</p>
+<p><span class="bbcode-b">Questions</span></p>
+<p><span class="bbcode-b">1) When to apply IK</span><br/>
+The IK solver is capable of solving an entire scene graph in one pass, so it would make sense to have it kick in only once when needed – whenever a node part of any IK chain becomes dirty. As I see it, this should happen after animation states have been applied, meaning in E_SCENEDRAWABLEUPDATEFINISHED. The problem is I can’t just hijack that event for IK because what if the user wants to add their own bone modifications in addition to IK?</p>
+<p>I could insert a new event called something like E_INVERSEKINEMATICUPDATE which is sent just before E_SCENEDRAWABLEUPDATEFINISHED. This begs the question: Do we even need an IK update event? Is this the way I should go, or is there a better way I can insert myself into the engine?</p>
+<p><span class="bbcode-b">2) Build system</span><br/>
+Should I add a CMake option URHO3D_IK to include/exclude the IK solver, or should it be something that is always available?</p>
+<p>That’s all of the questions I have for now. I’ll post updates in this thread as this project evolves. You can test my progress by checking out the branch InverseKinematics from here: <a data-bbcode="true"  rel="nofollow noopener">https://github.com/thecomet93/urho3d/tree/InverseKinematics</a> (currently there’s not much IK functionality).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><a href="http://discourse.urho3d.io/t/solved-ik-foot-placement/1010/1">topic1040.html</a><br/>
+<a href="http://discourse.urho3d.io/t/unity-ikcontrol-script/1229/1">topic1273.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’ve hardly had the time to work on this (uni, exams), but I haven’t given up on this yet!</p>
+<p>Below you can see screenshots of before and after the first iteration of FABRIK, the inverse kinematic algorithm I chose to implement. In this case, the arm consists of 3 rigid joints. The end effector is trying to reach a target located on the right (out of bounds).</p>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/85rTLa0.png" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/dc91c64cf5d0f6a8bddaa96969671a6c.png" width="668"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1016×760</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/ms34I0y.png" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/3578c887a682e23b44a117303dd07127.png" width="668"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1016×760</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>The neat thing about FABRIK as opposed to, say, jacobian based methods, is it requires vastly less iterations to reach a target, a single iteration requires less computing time, and it always converges (i.e. no singularities).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>I also think that FABRIK is the way to go, as most of the things I’ve experimented with gave very unrealistic behavior.<br/>
+Also one advantage of FABRIK is that it splits the tasks instead of handling everything blindly.<br/>
+Keep it up  <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">xalinou</div>
+          <div class="post_content">
+<p><img alt="" height="400" src="../../../images2/0ab2f9cf6f1ad4c975ee97b916ce92aa.jpg" width="640"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Today I implemented initial pose restoring, which allowed me to finally run the algorithm in real-time. Here’s a video.</p>
+<p>[video]<a href="https://www.youtube.com/watch?v=POamRQtPI6c%5B/video%5D" rel="nofollow noopener">https://www.youtube.com/watch?v=POamRQtPI6c[/video]</a></p>
+<p>I think you can see for yourself why FABRIK is superior. Just 10 iterations and the result is almost perfect. Jacobian based methods will often times require up to 1000 iterations to achieve the same tolerance.</p>
+<p>Current issues:</p>
+<ul>
+<li>Removing IKEffector from a node doesn’t update initial pose data</li>
+<li>Negative maxIteration</li>
+</ul>
+<p>Todo:</p>
+<ul>
+<li>Chain objects need to share the same Vector3 objects for base/effector positions to make solving for multiple chains easier.</li>
+<li>Apply angles from chain objects back to scene node (currently only translations are applied)</li>
+<li>Add support for enabling/disabling pose restoring -&gt; will allow support for animations as well as just scene node IK</li>
+<li>Add support for manually updating initial pose.</li>
+<li>Apply bullet constraints</li>
+<li>Optimise</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>You are making exciting progress, great work !</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Well done  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Really cool! <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>The solver now supports multiple end effectors, as long as they share the same base node. Next up: Multiple end effectors with multiple intermediate base nodes. Have a video:</p>
+<p>[video]<a href="https://www.youtube.com/watch?v=P8COz7dZO9Y%5B/video%5D" rel="nofollow noopener">https://www.youtube.com/watch?v=P8COz7dZO9Y[/video]</a></p>
+<p>Current TODO list:</p>
+<p>[code] *  - IKEffector doesn’t save target node name when saving scene in editor</p>
+<ul>
+<li>
+<ul>
+<li>Initial pose is not saved when saving scene in editor. Instead, the</li>
+</ul>
+</li>
+<li>solved state of the chain(s) are saved.</li>
+<li>
+<ul>
+<li>Target angle in addition to target position -&gt; use weighted angles</li>
+</ul>
+</li>
+<li>approach</li>
+<li>
+<ul>
+<li>Add an IKEffector weight parameter, so the user can specify</li>
+</ul>
+</li>
+<li>(between [0…1]) how much influence the solved chains have.</li>
+<li>
+<ul>
+<li>Apply angles from chain objects back to scene nodes (currently only</li>
+</ul>
+</li>
+<li>translations are applied).</li>
+<li>
+<ul>
+<li>Add support for enabling/disabling initial pose to support animated</li>
+</ul>
+</li>
+<li>models as well as scene nodes.</li>
+<li>
+<ul>
+<li>Add support for manually updating initial pose.</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Apply bullet constraints to joints.</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Optimise.[/code]</li>
+</ul>
+</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Looks like excellent work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">namic</div>
+          <div class="post_content">
+<p>So excited to use this!  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>Is it possible to write a grounder with those effectors? e.g: <a href="https://www.youtube.com/watch?v=9MiZiaJorws" rel="nofollow noopener">youtube.com/watch?v=9MiZiaJorws</a></p>
+<p>Also, how are rotation limits setup?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Thanks guys!</p>
+<p>[quote=“namic”]Is it possible to write a grounder with those effectors? e.g: <a href="https://www.youtube.com/watch?v=9MiZiaJorws" rel="nofollow noopener">youtube.com/watch?v=9MiZiaJorws</a></p>
+<p>Also, how are rotation limits setup?[/quote]</p>
+<p>Yes, grounders are the very reason why I started working on this in the first place. My dog model has 3 bones in each leg, so it was no longer a trivial trigonometric problem.</p>
+<p>I’m thinking there are two possibilities to implement feet lifting off.</p>
+<ol>
+<li>Be able to specify a weight from [0…1] on each effector to control how much influence the solved chain will have. This will allow you to specify 0 when the foot should lift off and 1 when the foot touches (and you’ll also be able to blend between, which I think is an important feature).</li>
+<li>It might be easier to just position the IK targets at the same position as the feet when they need to lift off of the ground. That way you won’t need a weight parameter any more and the slight performance impact can be avoided.</li>
+</ol>
+<p>Rotation limits are currently on the to-do list, along with pole targets. I will most likely try re-use the bullet constraint component for this purpose.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">namic</div>
+          <div class="post_content">
+<p>I’m dying to see the integration of this with ragdolls and animation!  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/> <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/> <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/> <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/> <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I like what you’re doing with this. Keep it up!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>The solver now supports arbitrary trees, so if you should feel so inclined, you can solve for something like this (although I wouldn’t know why you’d want to):</p>
+<p><img alt="" height="394" src="../../../images2/b5120ff2baa086129f5659069be095d9.png" width="488"/></p>
+<p>The point is the solver can handle anything you can throw at it.</p>
+<p>Here is an in-editor screen shot of a two-effector one-subbase configuration:</p>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/dxXLy9k.png" rel="nofollow noopener" title=""><img alt="" height="435" src="../../../images2/507a345acd5576782393c692f481f133.png" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">831×524</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>There is currently an issue with applying the solved angles back to the scene nodes correctly. I am working on fixing this.</p>
+<p><img alt="" height="225" src="../../../images2/1053766c9896bb47d6a8ee8628d6f707.gif" width="400"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/12a1dc2eccbee0e3555e7cc3e716f46e.png" width="20"/> TheComet:</div>
+<blockquote>
+<p>The solver now supports arbitrary trees, so if you should feel so inclined, you can solve for something like this (although I wouldn’t know why you’d want to)</p>
+</blockquote>
+</aside>
+<p>For <a data-bbcode="true" href="http://www.gamezone.com/downloads/on-a-rainy-day">On A Rainy Day</a>-likes. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>That is really cool feature for procedural creatures like in spore.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George</div>
+          <div class="post_content">
+<p>Hi,<br/>
+This is the example to update the angle for forward kinematic. You would similarly applied it for every kinematic link on a chain.</p>
+<p>Vector3 shoulderJoint = node_lArm-&gt;GetWorldPosition();<br/>
+Vector3 elbow = node_elbow-&gt;GetWorldPosition();<br/>
+Vector3 v1 = elbow - shoulderJoint;<br/>
+Vector3 v2 = target - shoulderJoint;<br/>
+v1.Normalize();<br/>
+v2.Normalize();<br/>
+Quaternion q;<br/>
+q.FromRotationTo(v1, v2);</p>
+<pre><code>	Quaternion q1 = node_lArm-&gt;GetWorldRotation();
+	Quaternion q2 = Quaternion( node_lArm-&gt;GetParent()-&gt;GetWorldRotation().Inverse());
+</code></pre>
+<p>node_lArm-&gt;SetRotation(q2<em>q</em>q1);</p>
+<hr/>
+<p>You could also reset the rotation before those calculation to avoid drifting of the twist angles on the links using node_lArm-&gt;SetRotation(Quaternion());</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>That looks great! Any updates?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Hi! I really <span class="bbcode-i">want</span> to work on this but college is stopping me. <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+<p>I do require IK in my game project though, so this will eventually be finished!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Glad to hear it.<br/>
+Actually, I have the same situation with my code stuff, but without college.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>“Yes teacher I have a question”</p>
+<p><img height="444" src="../../../images2/989173e1ca14164bca12e0d5307d8c88.jpg" width="476"/></p>
+<p>Progress has been slow, but I’m letting you know I haven’t stopped working on this yet. I’ve moved the solver code to a separate library which can be found here: <a href="https://github.com/thecomet93/ik" rel="nofollow noopener">https://github.com/thecomet93/ik</a></p>
+<p>I’m currently working on calculating the correct segment angles. The current issue is that I’m calculating global angles for each node and not taking into account previous rotations.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Today I finally fixed calculating correct angles when comparing the solved tree to the original tree. As you can see in the following image, the solver is fine with multiple targets on arbitrary trees. The blue segments you see is the original tree (before solving) and the red segments show the solved tree.</p>
+<p><img height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/59ffe6f0a03d8412688a4217f6754dce8b1d9936.png" width="670"/></p>
+<p>The next step now is to support target angles as well as target positions. It would allow rotating the hand correctly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<blockquote>
+<p>So excited to use this!  <img alt=":smiley:" class="emoji" src="../../../images2/709f26ac94a0e531f2b4ec1f4b839a88.png" title=":smiley:"/></p>
+</blockquote>
+<blockquote>
+<p>Is it possible to write a grounder with those effectors? e.g: <a href="http://youtube.com/watch?v=9MiZiaJorws6" rel="nofollow noopener">youtube.com/watch?v=9MiZiaJorws6</a></p>
+</blockquote>
+<p>As promised, here are weighted effectors, which will be useful in providing a smooth transition for grounders. You can specify how much influence an effector should have on the result, ranging from 0.0 to 1.0. I thought about this for a day before the incredibly simple solution struck me: I don’t need to write any elaborate tree interpolation algorithms, I just lerp the effector between original position and target position using its weight and solve for the resulting target position.</p>
+<p><img height="400" src="../../../images2/3cd41a23d23fbbba08428a8e4af7096e.gif" width="500"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Solver now works with animated characters:</p>
+<p><img height="375" src="../../../images2/1179f51ac0edfc337e4c01cf4cd49bf7.gif" width="500"/></p>
+<p>Current TODO:<br/>
+/*<br/>
+*  - Actually implement tolerance.<br/>
+*  - Target angle in addition to target position -&gt; use weighted angles<br/>
+*    approach<br/>
+*  - Nlerp weighted effectors using total chain length + root node as axis<br/>
+*    of rotation (so arm moves in a circle, for example)</p>
+<ul>
+<li>
+<ul>
+<li>Fix rotation issue with shared sub-base nodes -&gt; rotations need to be</li>
+</ul>
+</li>
+<li>averaged.</li>
+<li>
+<ul>
+<li>Add support for manually updating initial pose.</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Pole targets?</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Support for “stretchiness” with min/max lengths.</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Support for “stiffness” factor, describes how well a bone rotates.</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Apply bullet constraints to joints.</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Script bindings.</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Optimise.</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>Profile.<br/>
+*/</li>
+</ul>
+</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Looks really good. For inspiration I would look at Final IK: <a href="http://www.root-motion.com/final-ik.html" rel="nofollow noopener">http://www.root-motion.com/final-ik.html</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’ll take a look!</p>
+<p>The following shows transitioning with and without nlerp when changing the effector weight. This feature makes transitioning look more natural when the original and solved trees are far apart</p>
+<p><img height="400" src="../../../images2/6708603cab07a4e4edcd29e606f20568.gif" width="500"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>We could even do FK/IK animation in the editor <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>That is so amazing! <img alt=":heart_eyes:" class="emoji" src="../../../images2/24eaa9013d1834620175b702208ee38e.png" title=":heart_eyes:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>The cat animation looks really good inside the editor.<br/>
+Thank you for sharing it!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Hi, all!</p>
+<p><span class="mention">@TheComet</span>, could you please provide compiling instructions?</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p><span class="mention">@slapin</span> I have made the proper Urho3D build system changes and am maintaining them in a fork. The easiest thing you can do is clone my fork. For linux, the process is as follows:</p>
+<pre><code class="lang-auto">$ git clone git://github.com/thecomet93/Urho3D.git
+$ git checkout InverseKinematics
+# ik library is not yet part of Urho3D, so you have to clone it 
+# into Source/ThirdParty
+$ git clone git://github.com/thecomet93/ik.git Source/ThirdParty
+# build as normal
+$ mkdir build &amp;&amp; cd build
+$ cmake ..
+$ make
+</code></pre>
+<p>If you have issues, feel free to contact me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Thanks, this works! Will try to figure out how to use from code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’d be happy to know what you think! I’m sorry it’s not that well documented yet, that’s still on my TODO list.</p>
+<p>You have to create an IKSolver component and attach it to the model you want to solve for. Then you create IKEffector components and attach them to the bones you want to control. That should be enough to get you started.</p>
+<p>These components are also available in the editor under Components-&gt;Inverse Kinematics</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>When you plan to merge it into Urho? This looks well written to me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>A small feature request - is it possible to do some special-case IK as part of library?<br/>
+These should be very fast to compute and speed things up a lot.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’m reluctant to say how much more time I need. Currently it feels like I should be done in about 2 more weeks. I’m still working on an acceptable algorithm for calculating target rotations. That’s the last major feature I’ll be adding. Then I’ll write script bindings and write documentation, and fix some known bugs in the library.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Thanks for your hard work! Just do in small steps and that will eventually be done.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Target rotations are implemented and can optionally be enabled:</p>
+<p><img height="400" src="../../../images2/53e199eea18727f0f13efa4c20f022d9.gif" width="500"/></p>
+<p>It’s possible to change the rotation weight and decay parameters on a per-effector basis (not shown). And, like everything else, the rotations are propagated correctly over arbitrary trees.</p>
+<p>My current TODO list is:</p>
+<pre><code class="lang-auto"> * TODO
+ *  - Actually implement tolerance.
+ *  - Fix rotation issue with shared sub-base nodes -&gt; rotations need to be
+ *    averaged.
+ *  - Add support for manually updating initial pose.
+ *  - Script bindings.
+ *  - Optimise.
+ *  - Profile.
+ *  - Documentation.
+ *
+ * FUTURE
+ *  - Support for "stretchiness" with min/max lengths.
+ *  - Support for "stiffness" factor, describes how well a bone rotates.
+ *  - Apply bullet constraints to joints.
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Fixed an issue where nodes with multiple children did not calculate rotations correctly.</p>
+<p><img height="398" src="../../../images2/f5c3d78a5ce3080e4f532d1f9471722d.png" width="675"/></p>
+<p>My TODO list is getting very small. It’s mostly gruntwork from here on out. I’ll be writing the script bindings now and submit my first pull request. I can work on constraints for future versions.</p>
+<pre><code class="lang-auto"> * TODO
+ *  - Add support for manually updating initial pose.
+ *  - Script bindings.
+ *  - Optimise.
+ *  - Profile.
+ *  - Documentation.
+ *
+ * FUTURE
+ *  - Support for "stretchiness" with min/max lengths.
+ *  - Support for "stiffness" factor, describes how well a bone rotates.
+ *  - Apply bullet constraints to joints.
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>I’ve just tested and it works great <img alt=":grinning:" class="emoji" src="../../../images2/993cdd6d5aba3f941b7389fd0b3a1ba1.png" title=":grinning:"/></p>
+<p>For target nodes, I think it would be better to use node ID instead of node name in the Editor, to match every other components (Constraint, Constraint2D, OffmeshConnection…) behavior (and to allow simply dragging the node in the target slot).</p>
+<p>I’ll do some more tests, and report feedback. Let me know if I can help in any way <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>You should setup a patreon so we can all donate for your amazing work. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’m happy to report the first version has been merged into master! All features you’ve seen in this thread are now available.</p>
+<aside class="onebox githubpullrequest">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com/urho3d/Urho3D</a>
+</header>
+<article class="onebox-body">
+<div class="github-row">
+<div class="github-icon-container" title="Pull Request">
+<svg aria-hidden="true" class="github-icon" height="60" viewbox="0 0 12 16" width="60"><path d="M11 11.28V5c-.03-.78-.34-1.47-.94-2.06C9.46 2.35 8.78 2.03 8 2H7V0L4 3l3 3V4h1c.27.02.48.11.69.31.21.2.3.42.31.69v6.28A1.993 1.993 0 0 0 10 15a1.993 1.993 0 0 0 1-3.72zm-1 2.92c-.66 0-1.2-.55-1.2-1.2 0-.65.55-1.2 1.2-1.2.65 0 1.2.55 1.2 1.2 0 .65-.55 1.2-1.2 1.2zM4 3c0-1.11-.89-2-2-2a1.993 1.993 0 0 0-1 3.72v6.56A1.993 1.993 0 0 0 2 15a1.993 1.993 0 0 0 1-3.72V4.72c.59-.34 1-.98 1-1.72zm-.8 10c0 .66-.55 1.2-1.2 1.2-.65 0-1.2-.55-1.2-1.2 0-.65.55-1.2 1.2-1.2.65 0 1.2.55 1.2 1.2zM2 4.2C1.34 4.2.8 3.65.8 3c0-.65.55-1.2 1.2-1.2.65 0 1.2.55 1.2 1.2 0 .65-.55 1.2-1.2 1.2z"></path></svg>
+</div>
+<div class="github-info-container">
+<h4>
+<a  rel="nofollow noopener" target="_blank">Inverse kinematics v1.0</a>
+</h4>
+<div class="branches">
+<code>urho3d:master</code> ← <code>TheComet:InverseKinematics</code>
+</div>
+<div class="github-info">
+<div class="date">
+        opened <span class="discourse-local-date" data-date="2017-03-21" data-format="ll" data-time="15:02:07" data-timezone="UTC">03:02PM - 21 Mar 17 UTC</span>
+</div>
+<div class="user">
+<a href="https://github.com/TheComet" rel="nofollow noopener" target="_blank">
+<img alt="TheComet" class="onebox-avatar-inline" height="20" src="../../../images2/ad63289203d4fc68457b06b0deb4d83a" width="20"/>
+          TheComet
+        </a>
+</div>
+<div class="lines" title="24 commits changed 68 files with 8296 additions and 4 deletions">
+<a  rel="nofollow noopener" target="_blank">
+<span class="added">+8296</span>
+<span class="removed">-4</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>If you have questions, feature suggestions, or bug reports, I look forward to hearing from you. I will be actively maintaining this.</p>
+<p>There is a new sample, <code>45_InverseKinematics</code>, that you can look at. Here’s what it looks like:</p>
+<p><img height="280" src="../../../images2/56541f1cfecfb78c2bec427ff5acd6de.gif" width="350"/></p>
+<p>The next thing I will be working on is <span class="mention">@1vanK</span>’s suggestion to add constraint support.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Congrats! The IK samples in C++, AngelScript, and Lua are also available in Web platform now. <a href="https://urho3d.github.io/samples/">https://urho3d.github.io/samples/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>The papers I’ve found on FABRIK aren’t very clear on how constraints should be implemented. Sometimes they’re even cryptic. Nevertheless, I think I’ve been making some progress.</p>
+<p>My first attempt at implementing constraints failed. I first thought you could apply constraints to the entire tree every iteration, but as you can see, the algorithm no longer converges. (Here, I’m trying to force one of those joints to always be straight no matter what, but it seems he’d rather remain gay).</p>
+<p><img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/0a4e474da16d1857b7c5697956f9c59ff7cc07e3.gif"/></p>
+<p>I’m now working on my second attempt where constraints are applied per node as the tree is being iterated. The math is cumbersome as it involves computing joint rotations and transforming to and from local space.</p>
+<p><img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/406f50e0464dea5678feaa4f4dff821b681803e3.gif"/></p>
+<p>It looks like this could work. I think I have to apply constraints during forwards iteration as well as during backwards iteration (right now it’s only during backwards iteration). Calculating local joint angles is going to be a lot harder in forward iteration, I’m not yet sure how to tackle this.</p>
+<p>The nature of the FABRIK algorithm makes constraint support inherently inefficient, because FABRIK has no need for joint angles and works entirely in global space. Joint constraints require joint angles in local space. There is an unfortunate performance penalty, which is fairly evident by just looking at the code.</p>
+<p><img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/935c44b0bb5044df01244f9e77180ac5ee601ba4.png"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, IK constraints were always different from normal contraints (look at how Blender handles IK).<br/>
+I think you should make universal constraint matrix out of all constraints and apply just that.<br/>
+That will be a bit more efficient in loop. The other approach is to not require constraints to be justified at all times,<br/>
+just get to the point iteratively. Just my $.00002 <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I don’t think one giant constraint matrix is suitable in this situation. The constraints are being applied during iteration, meaning the tree is in a partial state of being solved. But if you want we can discuss it in more detail and I can explain the algorithm more closely to you.</p>
+<p>I tried applying all constraints at once after iterating the tree every time, but it caused the algorithm to diverge.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, I don’t want to disturb you, I’m just passing by.  I just remember all these IK lectures telling that you either<br/>
+solve constraint analytically (all at once) or use Jacobian matrix and solve numerically (iteratively solving<br/>
+differential equation system).<br/>
+But what I wanted to say is that constraints for IK in Blender are different from other constraints<br/>
+and they work independently of constraint system. I think this is way to go. Also I think you’d want only<br/>
+angular constraints at first.</p>
+<p>Also, is it possible to use sparse chains in your IK system, i.e. I want the system to know about a set of bones,<br/>
+but not touch others. I.E.<br/>
+an arm consists of  bones AB-CD-E (fingers omitted). I want A and C to be moved by IK, others should<br/>
+just rotate together with parents not touched by constraint. Will it work?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>There are some good resources here (which you may already checked):<br/>
+<a href="http://wiki.roblox.com/index.php?title=Inverse_kinematics">http://wiki.roblox.com/index.php?title=Inverse_kinematics</a><br/>
+<a href="https://github.com/FedUni/caliko">https://github.com/FedUni/caliko</a> and <a href="https://github.com/lo-th/fullik">https://github.com/lo-th/fullik</a> (with a demo <a href="http://lo-th.github.io/fullik/">here</a>)<br/>
+However I didn’t succeed in implementing them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>Is there an example on how to do aim offsets? Not only a look at constraint, but something like this:</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="rE4nE5tMdnI" data-youtube-title="FINAL IK - Creating a free aiming system with Aim IK"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Seems simple enough. He’s created a number of predefined poses for the different angles the gun could be at and then he’s blending between those poses when crossing a threshold (first part of the video).</p>
+<p>Since you know the target direction, you can slide the gun around on an imaginary sphere depending on the direction, calculate the hand positions and rotations, and use IK to move the hands there.</p>
+<p>I’m still working on constraints whenever I have free time, but this should be possible without them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>Sorry if i’m being too much of a newbie, but do you have a link with an example of pose blending in Urho? I’ve been trying to use pose blending to improve several animation in my game, heavily <a href="http://www.gdcvault.com/play/1020583/Animation-Bootcamp-An-Indie-Approach" rel="nofollow noopener">inspired by this</a>, but i can’t get my head around it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p><span class="mention">@smellymumbler</span> have you looked at IK demo with current Urho? it shows sort of IK + animation blending.</p>
+<p>If you want to blend between animations, look at AnimationController and use layers. For more complicated cases use AnimationState (s). It is very sad there’s no really goood example on these, but if you look at Character demo,<br/>
+you might understand part of it then go back and ask more specific questions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>I did. But, at least in my head, the animation blending idea does not really work for what i’m aiming for. You have two different layers and you have a blending amount between the two. This is nice: you can make a running animation turn into a walking animation, smoothly, based on user input.</p>
+<p>However, what i’m aiming for is a little different: i have two poses: a standing one and another one in full run. My animation clip is the result of an interpolation between those two poses + input from the user. Are those two different layers? Can i blend them normally?</p>
+<p><img height="247" src="../../../images2/cb790dd78792a82e5fdfa4d4a7677243.png" width="501"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>You can blend on the same layer too. You will always use a combination of blending on the same layer and additional layers. I know the system explodes the brain, but I was enlightened after looking some GDC presentation on youtube<br/>
+about layered animation, I dn’t remember title. The idea is that you need to transit from one animation to another on<br/>
+the same layer, so just play new pose animation on the same layer at appropriate time and it will blend into it.<br/>
+Probably not best thing performance-wise, but it should work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>And also, if you really understand presentation you use for inspiration, please share, I was not able to understand their way.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Blending there is just done on arbitrary response curves between frames. (Desmos graphs for a few MKCB curves: <a href="https://www.desmos.com/calculator/bg75j7xv5c" rel="nofollow noopener">https://www.desmos.com/calculator/bg75j7xv5c</a>)</p>
+<p>The “survey wheel” is just circumference vs. distance. Given a distance traveled the degrees turned can be found given the circumference (or diameter/radius -&gt; circ) which drives animation timing.</p>
+<p>The “ticks” in the wheel are a bit of a red-herring that looks more important than it is, they’re just visual helpers for where the timings are, the circumference is the important part. The stroke cycles of each leg are overlayed on top of each other into a final gait cycle in the wheel. (Girard, Computational Modeling for the Computer Animation of Legged Figures goes into the nitty gritty as far as actually simulating but most of the math is still valid for finding cycle timings from existing animation).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, i was trying to achieve this differently by timing lowest leg position and change animation speed to<br/>
+minimize sliding. The problem is that I failed somewhere and could not achieve the goal this way.<br/>
+I don’t want root motion animation, it is too unflexible… Procedural walk loop looks so promising but I was not able to<br/>
+get 60fps as it was too many calculations per frame…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>If your goal is to recreate what the Wolfire people achieved with Overgrowth: Let Urho3D do the heavy lifting for you. You don’t have to implement blending between keyframes, let Urho3D’s animation do that.</p>
+<ol>
+<li>Create a walking animation</li>
+<li>Create a running animation with the same length as the walking animation (important! If they’re the same length you can easily synchronise them)</li>
+</ol>
+<p>Now you can control the speed of both animations depending on stride (the “conveyor wheel” approach) and you can blend between both animations (using layers) depending on the player’s velocity.</p>
+<p>Overgrowth isn’t using IK to prevent foot sliding; they still have that problem, it’s just well corrected. They do use IK to align the foot vertically so it’s always touching the ground.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I just wonder how to do correction to prevent too much of foot sliding…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<blockquote>
+<p>Well, i was trying to achieve this differently by timing lowest leg position and change animation speed to<br/>
+minimize sliding.</p>
+</blockquote>
+<p>You can find the support duration (window in distance of circumferential travel where you can IK pin the foot) as stroke/velocity beginning with the contact frame. Stroke is the distance between the two extremes where the foot is intended to be planted. The actual transfer duration isn’t realistic to find in real-time (have to build a Riemannian manifold or QEF it - either way means diagonalization [though QEF can be done in pre-diagonalized matrix form]), and probably best just left as “it’s everything but the support duration.”</p>
+<p>If your legs are in perfect sequence, then you can use offset sine waves to weight the foot anchor (sin(x*PI) and sin((x+1)*PI)). It’s incredibly wrong but no one is probably going to notice beyond an uncanny feeling where they know something is off but they think everything is right (as speed increases support duration reduces to near zero with at 18mph a human runs as just slapping their foot to the ground).</p>
+<blockquote>
+<p>Procedural walk loop looks so promising but I was not able to<br/>
+get 60fps as it was too many calculations per frame…</p>
+</blockquote>
+<p>Did you do that with the current IK stuff? FABRIK isn’t cut out for walking (neither is CCD), walking is Jacobian-transpose or spring-systems only (the squash-stretch of spring systems is glorious + trivial constraints). Walking also has to be solved from the bind-pose or knees will buckle reliably.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, my idea was - I have linear walk (just classic dull walk cycle of 9 frames) and I selected appropriate frame<br/>
+depending on walk speed, so I just changed speed of animation at real time. Frame drops to about 10fps<br/>
+and correction is absolutely not perfect (visual sliding still present). It looks like I need to make some parts<br/>
+of animation faster and some slower to improve effect and control speed at appropriate points, I can’t<br/>
+just set some speed and hope for best <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/><br/>
+I remember old 3D studio (not max yet) had walk designer, probably that is what I miss most. Blender<br/>
+is so much manual labor… On other hand i could use CMU mocap data and animate walk with<br/>
+actual motion, and then compensate that, but I think there will be too many side effects<br/>
+and animation will be locked to single speed. Also I wonder how this will work with RigidBodies…</p>
+<p>About procedural loop - I thought not about actuall simulation, I thought about creating procedural animation<br/>
+using some formulae and then play that animation. The actual animation might be done offline, like on game start or<br/>
+even at production stage…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I think the biggest problem with these walk loops is that we want walk as linear motion but the actual walk is not linear,<br/>
+as it is sequence of almost-falls. So some trickery is needed to combine linear motion and walk, which I still<br/>
+can’t grasp…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="62" data-topic="1819" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>I just wonder how to do correction to prevent too much of foot sliding…</p>
+</blockquote>
+</aside>
+<p>If you know the length of the walk animation cycle and you know the player’s velocity, you can eliminate foot sliding by adjusting the animation speed. It really is that simple.</p>
+<p>[quote=“Sinoid, post:63, topic:1819”]Did you do that with the current IK stuff? FABRIK isn’t cut out for walking (neither is CCD), walking is Jacobian-transpose or spring-systems only (the squash-stretch of spring systems is glorious + trivial constraints). Walking also has to be solved from the bind-pose or knees will buckle reliably.<br/>
+[/quote]</p>
+<p>Constrained FABRIK with stiffness factors can get you very close to what a Jacobian solver has to offer.</p>
+<p>If it’s a 2 bone problem, then the algorithm is irrelevant, because the only axis of freedom is roll. All solvers (Jacobian, CCD, FABRIK, or even a direct approach using trigonometry) will deliver nearly identical results.</p>
+<p>Overgrowth deals exclusively with 2 bone IK problems.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p><span class="mention">@TheComet</span> could you explain the idea for noobs/stupid people? I read everywhere about this can be done,<br/>
+but I can’t find a way how it can be done.<br/>
+The problem is that adjusting speed doesn’t really work for me for some strange reason <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="67" data-topic="1819" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p><span class="mention">@TheComet</span> could you explain the idea for noobs/stupid people? I read everywhere about this can be done,<br/>
+but I can’t find a way how it can be done.<br/>
+The problem is that adjusting speed doesn’t really work for me for some strange reason <img alt=":frowning:" class="emoji" src="../../../images2/41f1d95c00f6f4a61587f9ead9747a65.png" title=":frowning:"/></p>
+</blockquote>
+</aside>
+<p>I suggest you open a new thread about this so we can discuss it more in detail there. I also suggest you show some of your code so we can see what you’ve tried and where you’re having trouble.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<blockquote>
+<p>Constrained FABRIK with stiffness factors can get you very close to what a Jacobian solver has to offer.</p>
+</blockquote>
+<p>No, it can’t. FABRIK also can’t cope with squash-stretch to sell a motion. I started with porting Caliko to C++ and abandoned it very quickly as spring-systems gave superior results for my needs of remapping animation that was designed for one morphology onto another entirely different morphology.</p>
+<p>Your implementation might have some capability for that, but that would be unique to it.</p>
+<p>Jacobi has the best fitment and greatest constraint support. Springs have the best behaviour and though constraints are slow to solve they’re trivial in implementation (just plot a quadratic or form a plane sequence upstream). When OpenCL’d they can be solved independently without consequence since they’re springs.</p>
+<p>FABRIK is just a bad variation of spring-constraints, unfortunately it loses the desirable qualities of springs. I’m running IK for all animation in SprueKit, which is a Spore-Creature-Creator clone, I’ve been through all IK methods, springs are the only thing you can trust. Even Cholesky methods will fall on their face, despite the fact that they conventionally slaughter Jacobi. Cholesky is so close to right and stable that it’s disgusting that it could be wrong.</p>
+<p>Springs really win when you have to solve 30k constraints per frame. That’s nothing. 240k constraints are still nothing. (OpenCL of course … CPU that’d be death)</p>
+<hr/>
+<p>Calling it a bad variation sounds worse than I mean, it’s good enough for most cases. It is not good enough for “I’m going to IK everything” like I do or “I want solid stability.” FABRIK is basically a tweaker.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>When you mention springs for IK problems, do you mean classical spring and damper system? For a more complex rig how would you choose k and d coefficients? As they would vary with the number of springs in the system.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Yes, I solve for the coeffs from the mass (targeting a 80-120% for the extremes) since I’m able to calculate the volume and assume evenly distributed mass from there (some heavy cheating for arbitrary meshes since I require neither manifold nor closed geometry to merge into the dual-grid).</p>
+<p><a href="http://perso.telecom-paristech.fr/~pelachau/site/allpapers/MIG12_Huang.pdf" rel="nofollow noopener">An Efficient Energy Transfer Inverse Kinematics Solution</a> was the baseline where I started.</p>
+<hr/>
+<p>Before it pops up, when I mention Cholesky, I mean solving it all as one big linear system of equations constraints and all in some large matrices. It was really ideal, except that when it failed it turned into a twisted knot instead of something minor like knee buckling. (same deal as Laplacian handle deformation, just with more elements)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Small update, I added specialised solvers that are optimised for 2 bone and 1 bone problems. This was requested by <span class="mention">@slapin</span>. They currently don’t take target angles or constraints into consideration, but I’ll add that shortly.</p>
+<p><img height="92" src="../../../images2/5e36dff6e32d4a68db502d63bf0cbf8d.png" width="350"/></p>
+<aside class="quote no-group" data-full="true" data-post="71" data-topic="1819" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Yes, I solve for the coeffs from the mass (targeting a 80-120% for the extremes) since I’m able to calculate the volume and assume evenly distributed mass from there (some heavy cheating for arbitrary meshes since I require neither manifold nor closed geometry to merge into the dual-grid).</p>
+<p><a href="http://perso.telecom-paristech.fr/~pelachau/site/allpapers/MIG12_Huang.pdf" rel="noopener nofollow ugc">An Efficient Energy Transfer Inverse Kinematics Solution</a> was the baseline where I started.</p>
+<p>Before it pops up, when I mention Cholesky, I mean solving it all as one big linear system of equations constraints and all in some large matrices. It was really ideal, except that when it failed it turned into a twisted knot instead of something minor like knee buckling. (same deal as Laplacian handle deformation, just with more elements)</p>
+</blockquote>
+</aside>
+<p>That is a neat approach. They don’t go into any details on the physical constants they used (mass, spring constant, or damping factor) so I’m left wondering how you’d go about finding optimal values for those and whether it depends on the system you’re solving or not. Obviously you want the system to reach equilibrium as fast as possible, which means minimising overshoot and minimising oscillation.</p>
+<p>I see a lot of opportunity to apply control theory to solving this. Since it is an LTI system, instead of simulating the system in the time domain it might be faster to transform it into the frequency domain, where it would be a simple system of linear equations, and transform the results back.</p>
+<p>Have you considered contributing your implementation?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p><span class="mention">@TheComet</span><br/>
+do you have plan to PR these changes yet?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p><span class="mention">@TheComet</span></p>
+<p>Hi! What is new about IK?</p>
+<p>Especially I’m interested in sparse chains, where I could switch bones off participation<br/>
+in IK chain. For example my leg consists of 4 bones, 2 for upper leg and 2 for lower leg,<br/>
+which are used in animation in specific way. However for IK I want to just use upper bones<br/>
+for both parts, so to save on solving (and have more realistic result). Do you have plans for this?</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>You’ll have to make an example of what you expect to happen because I don’t understand what you mean.</p>
+<p>It’s a bad idea to use IK for driving animation. You really should only use it for small corrections.</p>
+<p><img height="284" src="../../../images2/6b75f7c975033f71a6a6c938f730c9e8.png" width="286"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>We have cool image board here!</p>
+<p>This is what I struggle with:<br/>
+<img height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/2469704d841e95d1caf6ac26ac1fd49070e6b013.png" width="500"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I think some bone filtering won’t hurt.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Oh OK, I see what you mean now. You want to combine multiple bones into  a single bone and solve for that.</p>
+<p>I can add that to the TODO list, it shouldn’t be a difficult modification to make. I’m just wondering whether this should be part of the IK lib or whether Urho3D should already take care of this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, I don’t think “other Urho” should be doing this. These bones are not useless - they are just not used for IK setups.<br/>
+For some detailed animations (where IK is not used, at least not in all cases) these bones are very useful.<br/>
+I don’t think skeleton changes for every animation are too practical.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I think some method like IgnoreBone(int/String)/UnIgnoreBone(int/String) could be used<br/>
+and just keeping array ignored bones. When travelling chain we just skip it and go for its parent.<br/>
+Should not be too resource consuming…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’ve decided to tie it into the constraint system. There’s a “stiff” constraint you can attach to a node that effectively causes it to get ignored when building the chain tree.</p>
+<p>The performance gain for this optimisation is pretty much negligible, at least in the case of constraintless FABRIK.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Hi, all!</p>
+<p><span class="mention">@TheComet</span> it looks like something fishy is going on, but I can’t understand what.</p>
+<p>Doing the following:</p>
+<pre><code>    Node *head_bone = node_-&gt;GetChild("head", true);
+    Node *root_bone = node_-&gt;GetChild("spine02", true);
+    IKEffector *ike = head_bone-&gt;CreateComponent&lt;IKEffector&gt;();
+    ike-&gt;SetChainLength(2);
+    iks = root_bone-&gt;CreateComponent&lt;IKSolver&gt;();
+    iks-&gt;EnableAutoSolve(false);
+    iks-&gt;EnableUpdatePose(true);
+    SubscribeToEvent(E_SCENEDRAWABLEUPDATEFINISHED, URHO3D_HANDLER(BTBlackboard, HandleSceneDrawableUpdateFinished));
+</code></pre>
+<p>And get crash on creation of IKSolver.</p>
+<pre><code class="lang-auto">#3  0x0000000000b86994 in Urho3D::IKSolver::BuildTreeToEffector (this=0x0, node=0xd946a20) at /home/slapin/Urho3D/Source/Urho3D/IK/IKSolver.cpp:387
+#4  0x0000000000b86ad2 in Urho3D::IKSolver::HandleComponentAdded (this=0xcd2c5b0, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/IK/IKSolver.cpp:423
+#5  0x0000000000b894be in Urho3D::EventHandlerImpl&lt;Urho3D::IKSolver&gt;::Invoke (this=0xa0a11a0, eventData=...) at /home/slapin/Urho3D/Source/Urho3D/IK/../IK/../Scene/../Scene/../Scene/../Core/Object.h:307
+#6  0x0000000000baf801 in Urho3D::Object::OnEvent (this=0xcd2c5b0, sender=0x2f914c0, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:121
+#7  0x0000000000bb0396 in Urho3D::Object::SendEvent (this=0x2f914c0, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:355
+#8  0x00000000009803ea in Urho3D::Node::AddComponent (this=0xd946a20, component=0xd67f8d0, id=16777474, mode=Urho3D::LOCAL) at /home/slapin/Urho3D/Source/Urho3D/Scene/Node.cpp:1851
+#9  0x000000000097c611 in Urho3D::Node::CreateComponent (this=0xd946a20, type=..., mode=Urho3D::LOCAL, id=0) at /home/slapin/Urho3D/Source/Urho3D/Scene/Node.cpp:922
+#10 0x00000000008e1820 in Urho3D::Node::CreateComponent&lt;Urho3D::IKEffector&gt; (this=0xd946a20, mode=Urho3D::REPLICATED, id=0) at /home/slapin/Urho3D/include/Urho3D/IK/../Scene/../Scene/Node.h:706
+#11 0x00000000008dca85 in BTBlackboard::Start (this=0xd67f6c0) at /home/slapin/dungeon/rework/BehaviorTree.cpp:47
+#12 0x0000000000988ef0 in Urho3D::LogicComponent::OnNodeSet (this=0xd67f6c0, node=0xd8eaaa0) at /home/slapin/Urho3D/Source/Urho3D/Scene/LogicComponent.cpp:83
+#13 0x0000000000975e0c in Urho3D::Component::SetNode (this=0xd67f6c0, node=0xd8eaaa0) at /home/slapin/Urho3D/Source/Urho3D/Scene/Component.cpp:259
+#14 0x0000000000980230 in Urho3D::Node::AddComponent (this=0xd8eaaa0, component=0xd67f6c0, id=0, mode=Urho3D::REPLICATED) at /home/slapin/Urho3D/Source/Urho3D/Scene/Node.cpp:1821
+#15 0x000000000097c611 in Urho3D::Node::CreateComponent (this=0xd8eaaa0, type=..., mode=Urho3D::REPLICATED, id=0) at /home/slapin/Urho3D/Source/Urho3D/Scene/Node.cpp:922
+#16 0x00000000012197ee in Urho3D::NodeCreateComponent (typeName=..., mode=Urho3D::REPLICATED, id=0, ptr=0xd8eaaa0) at /home/slapin/Urho3D/Source/Urho3D/AngelScript/../AngelScript/APITemplates.h:517
+#17 0x0000000000fa7d0f in endstack () at /home/slapin/Urho3D/Source/ThirdParty/AngelScript/source/as_callfunc_x64_gcc.cpp:162
+#18 0x0000000000fa8706 in CallSystemFunctionNative (context=0x30d4180, descr=0x2535ed0, obj=0xd8eaaa0, args=0x2f66a98, retPointer=0x0, retQW2=@0x7fffffffd820: 0, secondObject=0x0)
+    at /home/slapin/Urho3D/Source/ThirdParty/AngelScript/source/as_callfunc_x64_gcc.cpp:468
+#19 0x0000000000908037 in CallSystemFunction (id=2367, context=0x30d4180) at /home/slapin/Urho3D/Source/ThirdParty/AngelScript/source/as_callfunc.cpp:712
+#20 0x00000000008eef32 in asCContext::ExecuteNext (this=0x30d4180) at /home/slapin/Urho3D/Source/ThirdParty/AngelScript/source/as_context.cpp:2515
+#21 0x00000000008ec423 in asCContext::Execute (this=0x30d4180) at /home/slapin/Urho3D/Source/ThirdParty/AngelScript/source/as_context.cpp:1297
+#22 0x00000000009cc314 in Urho3D::ScriptFile::Execute (this=0x2f4b790, function=0x30d4a10, parameters=..., unprepare=true) at /home/slapin/Urho3D/Source/Urho3D/AngelScript/ScriptFile.cpp:324
+#23 0x00000000009cf13a in Urho3D::ScriptEventInvoker::HandleScriptEvent (this=0x3103d90, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/AngelScript/ScriptFile.cpp:956
+#24 0x00000000009d30d8 in Urho3D::EventHandlerImpl&lt;Urho3D::ScriptEventInvoker&gt;::Invoke (this=0x2411210, eventData=...) at /home/slapin/Urho3D/Source/Urho3D/AngelScript/../AngelScript/../Core/Object.h:307
+#25 0x0000000000baf801 in Urho3D::Object::OnEvent (this=0x3103d90, sender=0x1cdfdd0, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:121
+#26 0x0000000000bb0396 in Urho3D::Object::SendEvent (this=0x1cdfdd0, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:355
+#27 0x0000000000bcec7e in Urho3D::Engine::Update (this=0x1cdfdd0) at /home/slapin/Urho3D/Source/Urho3D/Engine/Engine.cpp:695
+#28 0x0000000000bce5be in Urho3D::Engine::RunFrame (this=0x1cdfdd0) at /home/slapin/Urho3D/Source/Urho3D/Engine/Engine.cpp:519
+#29 0x0000000000bcb162 in Urho3D::Application::Run (this=0x1cdfc40) at /home/slapin/Urho3D/Source/Urho3D/Engine/Application.cpp:86
+#30 0x00000000008e6301 in RunApplication () at /home/slapin/dungeon/rework/Urho3DPlayer.cpp:47
+#31 0x00000000008e63a8 in main (argc=1, argv=0x7fffffffe248) at /home/slapin/dungeon/rework/Urho3DPlayer.cpp:47
+</code></pre>
+<p>This looks like it failed to generate tree, and fails to find any node thus crashing.<br/>
+I added some debug in the loop to show node name it parses:</p>
+<pre><code class="lang-auto">[Fri May 26 20:44:27 2017] INFO: chain: head
+[Fri May 26 20:44:27 2017] INFO: chain: neck03
+[Fri May 26 20:44:27 2017] INFO: chain: neck02
+[Fri May 26 20:44:27 2017] INFO: chain: neck01
+[Fri May 26 20:44:27 2017] INFO: chain: spine01
+[Fri May 26 20:44:27 2017] INFO: chain: spine02
+[Fri May 26 20:44:27 2017] INFO: chain: spine03
+[Fri May 26 20:44:27 2017] INFO: chain: spine04
+[Fri May 26 20:44:27 2017] INFO: chain: spine05
+[Fri May 26 20:44:27 2017] INFO: chain: root
+[Fri May 26 20:44:27 2017] INFO: chain: AdjNode
+[Fri May 26 20:44:27 2017] INFO: chain: npc1
+[Fri May 26 20:44:27 2017] INFO: chain: 
+</code></pre>
+<p>Which looks like it parses till scene, than gets NULL and crashes.<br/>
+I wonder why it fails building tree completely. I use makehuman model for test.</p>
+<p>I created the bug</p>
+<p><a class="onebox"  rel="nofollow noopener" target="_blank">https://github.com/urho3d/Urho3D/issues/1957</a></p>
+<p>to indicate the issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I wonder why sample works and my code does not, as I’m doing exactly the same thing, only model is different.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>OK, I found the source of a problem - the solver doesn’t work on multiple meshes,<br/>
+it works only on first one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>INFO: IKSolver::SetAlgorithm() is run only once, even though it is run in constructor - probably constructor is not being called too…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Yep, I was right - the constructor is not called for all instances except first one.<br/>
+Is it supposed to be?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>OK, this is related to REPLICATED mode. But even in LOCAL mode I still get crashes.<br/>
+Looks like function is called second time.</p>
+<pre><code class="lang-auto">[Fri May 26 23:09:40 2017] INFO: IKSolver::SetAlgorithm()
+[Fri May 26 23:09:40 2017] INFO: [IK] Creating FABRIK solver
+[Fri May 26 23:09:40 2017] INFO: bone nnode: head
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: neck03
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: neck02
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: neck01
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: spine01
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: node: 1b792270child: 1b70f0e0
+[Fri May 26 23:09:40 2017] INFO: node: 1b70f0e0child: 1b70f1e0
+[Fri May 26 23:09:40 2017] INFO: node: 1b70f1e0child: 1b70f260
+[Fri May 26 23:09:40 2017] INFO: node: 1b70f260child: 1b70f310
+[Fri May 26 23:09:40 2017] INFO: node: 1b70f310child: 1b70f3c0
+[Fri May 26 23:09:40 2017] INFO: bone nnode: head
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: neck03
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: neck02
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: neck01
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: spine01
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: spine02
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: spine03
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: spine04
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: spine05
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: root
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: AdjNode
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: npc1
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+[Fri May 26 23:09:40 2017] INFO: bone nnode: 
+[Fri May 26 23:09:40 2017] INFO: looking in: 1b792270
+
+Program received signal SIGSEGV, Segmentation fault.
+0x0000000000976aa4 in Urho3D::Node::GetID (this=0x0) at /home/slapin/Urho3D/Source/Urho3D/Scene/../Scene/../Scene/Node.h:338
+338	    unsigned GetID() const { return id_; }
+(gdb) bt
+#0  0x0000000000976aa4 in Urho3D::Node::GetID (this=0x0) at /home/slapin/Urho3D/Source/Urho3D/Scene/../Scene/../Scene/Node.h:338
+#1  0x0000000000b86e2e in Urho3D::IKSolver::BuildTreeToEffector (this=0x1b791d20, node=0xd946250) at /home/slapin/Urho3D/Source/Urho3D/IK/IKSolver.cpp:391
+#2  0x0000000000b87140 in Urho3D::IKSolver::HandleComponentAdded (this=0x1b791d20, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/IK/IKSolver.cpp:425
+#3  0x0000000000b89b2c in Urho3D::EventHandlerImpl&lt;Urho3D::IKSolver&gt;::Invoke (this=0x1b792080, eventData=...) at /home/slapin/Urho3D/Source/Urho3D/IK/../IK/../Scene/../Scene/../Scene/../Core/Object.h:307
+#4  0x0000000000bafe6f in Urho3D::Object::OnEvent (this=0x1b791d20, sender=0x3006060, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:121
+#5  0x0000000000bb0a04 in Urho3D::Object::SendEvent (this=0x3006060, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:355
+#6  0x00000000009807de in Urho3D::Node::AddComponent (this=0xd946250, component=0x1b70f7a0, id=16777478, mode=Urho3D::LOCAL) at /home/slapin/Urho3D/Source/Urho3D/Scene/Node.cpp:1851
+#7  0x000000000097ca05 in Urho3D::Node::CreateComponent (this=0xd946250, type=..., mode=Urho3D::LOCAL, id=0) at /home/slapin/Urho3D/Source/Urho3D/Scene/Node.cpp:922
+#8  0x00000000008e1bd0 in Urho3D::Node::CreateComponent&lt;Urho3D::IKEffector&gt; (this=0xd946250, mode=Urho3D::LOCAL, id=0) at /home/slapin/Urho3D/include/Urho3D/IK/../Scene/../Scene/Node.h:706
+#9  0x00000000008dcf43 in BTBlackboard::DelayedStart (this=0xd67eee0) at /home/slapin/dungeon/rework/BehaviorTree.cpp:58
+#10 0x00000000009899f2 in Urho3D::LogicComponent::HandleSceneUpdate (this=0xd67eee0, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Scene/LogicComponent.cpp:178
+#11 0x000000000098a610 in Urho3D::EventHandlerImpl&lt;Urho3D::LogicComponent&gt;::Invoke (this=0xd6641b0, eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Scene/../IO/../Core/Object.h:307
+#12 0x0000000000bafe24 in Urho3D::Object::OnEvent (this=0xd67eee0, sender=0x3006060, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:113
+#13 0x0000000000bb0862 in Urho3D::Object::SendEvent (this=0x3006060, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:325
+#14 0x00000000010f57eb in Urho3D::Scene::Update (this=0x3006060, timeStep=0.0525000021) at /home/slapin/Urho3D/Source/Urho3D/Scene/Scene.cpp:781
+#15 0x00000000010f7287 in Urho3D::Scene::HandleUpdate (this=0x3006060, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Scene/Scene.cpp:1171
+#16 0x00000000010fd1cc in Urho3D::EventHandlerImpl&lt;Urho3D::Scene&gt;::Invoke (this=0x30ad0d0, eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Scene/../Core/../Core/Object.h:307
+#17 0x0000000000bafe6f in Urho3D::Object::OnEvent (this=0x3006060, sender=0x1ce0dd0, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:121
+#18 0x0000000000bb0a04 in Urho3D::Object::SendEvent (this=0x1ce0dd0, eventType=..., eventData=...) at /home/slapin/Urho3D/Source/Urho3D/Core/Object.cpp:355
+#19 0x0000000000bcf2ec in Urho3D::Engine::Update (this=0x1ce0dd0) at /home/slapin/Urho3D/Source/Urho3D/Engine/Engine.cpp:695
+#20 0x0000000000bcec2c in Urho3D::Engine::RunFrame (this=0x1ce0dd0) at /home/slapin/Urho3D/Source/Urho3D/Engine/Engine.cpp:519
+#21 0x0000000000bcb7d0 in Urho3D::Application::Run (this=0x1ce0c40) at /home/slapin/Urho3D/Source/Urho3D/Engine/Application.cpp:86
+#22 0x00000000008e66f5 in RunApplication () at /home/slapin/dungeon/rework/Urho3DPlayer.cpp:47
+#23 0x00000000008e679c in main (argc=1, argv=0x7fffffffe248) at /home/slapin/dungeon/rework/Urho3DPlayer.cpp:47
+</code></pre>
+<p>Well, I give up on this, hope to get some fix from you. Sorry for bother.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Yeah, unfortunately you ran into the crash I wanted to fix for the Urho 1.6 release. I still have not had any time to get around to submitting the PR, I have been buried in exams.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Did you mean 1.7? Any plans? or maybe you have patches, then I could try testing/making PR for you.<br/>
+so the problems I encountered so far:</p>
+<ol>
+<li>Early crash in default REPLICATED mode - as it relies on constructor to initialize, and constructor is not run.</li>
+<li>Even in LOCAL mode there is a crash after a few instances created due to some strange issue,<br/>
+which I did not debug fully yet as I have no time. But this one happens quite a bit later than first one.</li>
+</ol>
+<p>This is what I’m encountered. Hope you will have time soon to fix this. I really would like to use IK for some stuff.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Here are a list of things that I still need to fix for 1.7:</p>
+<ul>
+<li>The interface Urho &lt;-&gt; ik lib needs to use local positions and rotations instead of global positions and rotations. This will fix a major oversight where updating the position of the root node won’t affect the chain positions, effectively “locking” the object in place. I believe this is the root cause of the “0,0,0 effector” issue (<a  rel="nofollow noopener">#2054</a>). The mechanisms for this fix are already in place, it’s just a matter of doing the work.</li>
+<li>IKEffector INHERIT_PARENT_SCOPE isn’t implemented yet.</li>
+<li>Finish writing documentation in Reference.dox</li>
+</ul>
+<p>Here’s a list of changes in the currently pending PR:</p>
+<ul>
+<li>It’s now possible to have IKSolver components that share the same subtrees (<a  rel="nofollow noopener">#2058</a>).</li>
+<li>Urho avoids the call to abort() by not calling ik_solver_solve() if the tree is invalid.</li>
+<li>Fixed a bug in solver_FABRIK_solve() where the root position was incorrectly being set to the original root node position instead of the active root node position. This bug made it impossible to move the root node if USE_ORIGINAL_POSE was disabled.</li>
+<li>Added a chain tree iterator, which allows Urho to iterate over only the nodes that are affected by the solver instead of having to iterate over all nodes in the tree.</li>
+<li>The scripting API for SetFeature()/GetFeature() was changed, such that now you can write <code>solver.FEATURE_NAME = true</code> directly, instead of having to type <code>solver.SetFeature(IKFeature.FEATURE_NAME, true)</code>
+</li>
+<li>Updating/Adding docstrings.</li>
+</ul>
+<p>Things that are still pending or otherwise need investigating (not necessarily for the 1.7 release)</p>
+<ul>
+<li>In <code>chain_tree.h</code>, each chain island holds a list of “transform dependent nodes”. As far as I can tell, this is no longer necessary.</li>
+<li>Bone skipping, as explained by <span class="mention">@slapin</span>
+</li>
+<li>Joint constraints (this is being worked on in the background but isn’t close to being finished yet).</li>
+<li>Is it necessary to save the “original pose” when serializing?</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Thanks for your great work! Looking forward to it!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I was able to get the library to accept positions/rotations in local space now instead of in global space. I’m currently having fun debugging final rotations:</p>
+<p><img alt="cool" height="320" src="../../../images2/2a5ad761e698e014cc2e494394d18329.gif" width="400"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Alright, fixed the joint rotations. Now that the tree is specified in local space rather than global space, it fixes an issue where if you were to move a parent node of the solver’s node, the pose wouldn’t inherit that position (or rotation).</p>
+<p>You can see me moving the base node first, then move a parent node of that base node, and also rotate the base node.</p>
+<p><img alt="cool" height="300" src="../../../images2/992e8f09120b068142fdd72f7bffa350.gif" width="500"/></p>
+<p><span class="mention">@slapin</span> I believe this fixes the 0,0,0 effector issues. I would be happy if you could pull and verify if this is the case or not: <a  rel="nofollow noopener">https://github.com/thecomet93/urho3d/tree/IK1.7</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, IKFeature is gone somewhere… but I don’t see any other changes.</p>
+<p>also setting to TWO_BONE and FABRIK seems irrelevant, looks like setting is ignored.</p>
+<pre><code class="lang-auto">void Init()
+{
+        IKEffector@ leftEffector  = leftFoot.CreateComponent("IKEffector");
+        leftEffector.chainLength = 2;
+        leftEffector.targetPosition = leftFoot.worldPosition;
+        IKEffector@ rightEffector = rightFoot.CreateComponent("IKEffector");
+        rightEffector.targetPosition = rightFoot.worldPosition;
+        rightEffector.chainLength = 2;
+        Node@ spine = node.GetChild("root", true);
+        solver = spine.CreateComponent("IKSolver");
+//        solver.SetFeature(IKFeature::AUTO_SOLVE, false);
+//        solver.SetFeature(IKFeature::UPDATE_ORIGINAL_POSE, true);
+        solver.algorithm = IKAlgorithm::FABRIK;
+}
+...
+    void HandleSceneDrawableUpdateFinished(StringHash eventType, VariantMap&amp; eventData)
+    {
+        Node@ rfoot = node.GetChild("foot.R", true);
+        Node@ lfoot = node.GetChild("foot.L", true);
+        IKEffector@ re = rfoot.GetComponent("IKEffector");
+        IKEffector@ le = lfoot.GetComponent("IKEffector");
+        re.targetPosition = Vector3(100.0f, 0.0f, 100);
+        le.targetPosition = Vector3(100.0f, 0.0f, -100);
+        // solver.SetFeature(IKFeature::UPDATE_ORIGINAL_POSE, true);
+        solver.Solve();
+    }
+
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>And visual representation is the same as with my video on the bug - legs are directed to global (0, 0, 0)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>That is so strange. Is your project available online? Can I download and debug it?</p>
+<p>Yeah I should have told you: I removed IKFeature for the script bindings to make it easier. Now you can type:</p>
+<pre><code>    solver = spine.CreateComponent("IKSolver");
+    solver.AUTO_SOLVE = false;
+    solver.UPDATE_ORIGINAL_POSE = true;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>It is not that small thing to share, If you send me your email via PM I can send you a link.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I sent you a PM.</p>
+<p>I’m really baffled at what’s causing this, because I don’t see any way that the target position <em>cannot</em> be set. The two relevant functions are these:</p>
+<pre><code>void IKEffector::SetTargetPosition(const Vector3&amp; targetPosition)
+{
+    targetPosition_ = targetPosition;
+    if (ikEffectorNode_ != NULL)
+        ikEffectorNode_-&gt;effector-&gt;target_position = Vec3Urho2IK(targetPosition);
+}
+
+void IKEffector::SetIKEffectorNode(ik_node_t* effectorNode)
+{
+    ikEffectorNode_ = effectorNode;
+    if (effectorNode)
+    {
+        ikEffectorNode_-&gt;effector-&gt;target_position = Vec3Urho2IK(targetPosition_);
+        ikEffectorNode_-&gt;effector-&gt;target_rotation = QuatUrho2IK(targetRotation_);
+        /* setting other properties here, omitted for clarity */
+    }
+}
+</code></pre>
+<p>The two situations you can be in:</p>
+<ul>
+<li>If you set the target position <em>before</em> the tree is built, then <code>ikEffectorNode_</code> will be NULL, and the target position is stored in <code>targetPosition_</code>. Then, when you call Solve(), the tree is first built and <code>SetIKEffectorNode()</code> is called. The target position is copied correctly from <code>targetPosition_</code> into <code>effectorNode-&gt;effector-&gt;target_position</code>.</li>
+<li>If you set the target position <em>after</em> the tree is built, then <code>SetIKEffectorNode()</code> will already have been called, thus, <code>ikEffectorNode_</code> is not NULL and therefore the target position is correctly copied into <code>effectorNode-&gt;effector-&gt;target_position</code>.</li>
+</ul>
+<p>The only thing that could be causing the target position to be something else would be if you set a target node via <code>IKEffector.SetTargetNode()</code> or if you set a target name via <code>IKEffector.SetTargetName()</code>. You’re not doing this in the code you’ve posted so far, so I assume that’s not the issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Oooh, shit. I think it just dawned on me what’s causing it (as I was typing that last sentence). Solve() calls the following code:</p>
+<pre><code>void IKEffector::UpdateTargetNodePosition()
+{
+    if (targetNode_ == NULL)
+    {
+        SetTargetNode(node_-&gt;GetScene()-&gt;GetChild(targetName_, true));
+        if (targetNode_ == NULL)
+            return;
+    }
+
+    SetTargetPosition(targetNode_-&gt;GetWorldPosition());
+    SetTargetRotation(targetNode_-&gt;GetWorldRotation());
+}
+</code></pre>
+<p>This looks wrong. I’m calling <code>GetChild("", true)</code> with an empty string. If this returns a valid Node* then we now know what the root of the problem is.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Looking good.<br/>
+Have you start looking at constraint?</p>
+<p>You could check for constraint satisfaction after the two passes (F. B.) once goal has been reached. Otherwise just check between each pass will also work. You have to manage the case of singularity and maximum reach.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’ve found that applying constraints after each pass (or at the end) causes the solution to diverge. You have to apply constraints at every step during forwards and backwards iteration for it to work.</p>
+<p>I was trying to figure out a way to avoid having to transform the tree from global space into local space, then back again every time I have to constrain a joint. That’s where I’m stuck at the moment.</p>
+<p>A naive implementation would be to just do those transforms and be done with it. There are more optimal ways, though, like only partially transforming the tree, or an approach where you “ping-pong” between two tree instances (one in global space, the other in local space).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>I’m not sure when you update the pose so I can’t comment on why the constraint doesn’t work after F B pass.</p>
+<p>For multiple links with connecting base, Maybe solving from branch to local root and from root to parent root.</p>
+<p>There is no other way, you have to do that for checking for joint angles constraint.</p>
+<p>One more thing. Last time I looked at your code, you are using your own quaternion implementation. Why don’t you use Urho Quaternion, it works fine the last time I used it for my fabrik code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>why not keep both?<br/>
+but anyway would you add more details?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>The reason I’m using my own vector/quaternion implementations is because I wrote an <a href="https://github.com/thecomet93/ik" rel="nofollow noopener">IK library</a> which I then tied into Urho3D (primarily for testing the library, but also to fill a feature gap in Urho).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p><span class="mention">@TheComet</span></p>
+<p>Hi,<br/>
+As it is hard to get to you by PM, I will ask here.</p>
+<p>Are the following commits actual or should be removed?<br/>
+Thanks!</p>
+<p>commit ab4f9174c422d66996e4f6a23a1693c924baf4aa<br/>
+Author: TheComet <a href="mailto:alex.murray@gmx.ch">alex.murray@gmx.ch</a><br/>
+Date:   Sun Aug 6 23:25:53 2017 +0200</p>
+<pre><code>Tree interface now works in local space rather than global space.
+</code></pre>
+<p>commit a2abe01672f7fcdd29f81fc21e9463a7f6118db3<br/>
+Author: TheComet <a href="mailto:alex.murray@gmx.ch">alex.murray@gmx.ch</a><br/>
+Date:   Sun Aug 6 21:07:20 2017 +0200</p>
+<pre><code>IK library's tree is now interfaced in local space instead of in global space
+</code></pre>
+<p>commit 606903040bf8dc067fb8176ae4542ad2b7969f18<br/>
+Author: TheComet <a href="mailto:alex.murray@gmx.ch">alex.murray@gmx.ch</a><br/>
+Date:   Sun Aug 6 17:30:27 2017 +0200</p>
+<pre><code>Removing transform_dependent_nodes, as it's not being used and isn't required</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>There are more of those in my <a  rel="nofollow noopener">IK branch</a>. It’s WIP.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p><span class="mention">@Sinoid</span><br/>
+I’ve looked a little closer into the Mass-Spring-Damper approach as presented in <a href="http://perso.telecom-paristech.fr/~pelachau/site/allpapers/MIG12_Huang.pdf" rel="nofollow noopener">that paper you linked</a>, and I’ve found their model doesn’t ever reach equilibrium due to torque. Most of the potential energy introduced into the system is converted into rotational energy and there’s nothing to dampen that, so it just rotates forever. Here is my simulation showing this behaviour:</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="l3afzeXRvQw" data-youtube-title="Mass-Spring-Damper system"></div>
+<p>What are you doing to fix this in your implementation? Are you introducing some kind of global “viscosity” to slow down the masses over time? Another idea I had was to introduce rotational springs which would apply a force to each joint if they deviate from their desired angles (determined based on the initial pose).</p>
+<p>If you dampen velocities (i.e. viscosity) the results are nearly identical to what FABRIK has to offer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AironCheung</div>
+          <div class="post_content">
+<p>After filling in the name of the target node of the effector node in the editor, it is still impossible to let the effector node follow in real time by moving the target node as in your demos. I wonder if the editor version in your demo videos is an editor in  Urho3D 1.7 in Github.﻿<br/>
+<img height="354" src="../../../images2/eb1320ff5361fad9608d23d0b260bfbb.gif" width="530"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Strange, could you upload that scene so I can take  a look at it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AironCheung</div>
+          <div class="post_content">
+<p>Ok, It’s a simple scene named as test_ik0.xml<br/>
+<a href="https://pan.baidu.com/s/1w7r6EUWTlEUR_0POAWHIdg" rel="nofollow noopener">test_ik0.xml</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AironCheung</div>
+          <div class="post_content">
+<p>I found that I couldn’t do many of these cool things in my editor(Version1.7 of Urho3D in Github)， I don’t know whether it’s the cause of the IK algorithm or the reason for the editor. It made me sad. Can you give me an editor that you used here?<br/>
+<a class="onebox"  rel="nofollow noopener" target="_blank">
+<img height="300" src="../../../images2/992e8f09120b068142fdd72f7bffa350.gif" width="500"/>
+</a>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>Are you planning to get your branch PR’ed into master anytime soon?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p><span class="mention">@AironCheung</span> Just to let you know I am investigating, but I don’t have much time at the moment.</p>
+<p><span class="mention">@smellymumbler</span> Soon™</p>
+<p>I’ve refactored the IK library and am slowly implementing the actual constraints. I had an idea on how to very efficiently implement constraints without having to transform the tree (as a whole) between local and global space every iteration, but it’s very difficult.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AironCheung</div>
+          <div class="post_content">
+<p>All right, Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>Is this implementation compatible with the physics engine? I mean, can an IK structure be “activated” by collision with another physics object?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>It’s a generic solver, how you choose to use it is up to you. See the sample application 45_InverseKinematics. So short answer: “yes”</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

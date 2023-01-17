@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Vertex Shader can&rsquo;t read Uniforms&hellip;?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Vertex Shader can&rsquo;t read Uniforms&hellip;?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We have a simple custom shader for drawing lines on a flat map.  Each line layer has a different fixed Y value, so that it’ll appear “on top” of other layers (this is how we z-order).  So we want to set the “Y” position value inside of a Uniform value.</p>
+<p>The Uniform Value can be read just fine from the Pixel Shader, but from the Vertex Shader, it’s treated the value as “always default/zero”.</p>
+<p>Here is our HLSL:</p>
+<p><span class="hashtag">#include</span> “Uniforms.hlsl”<br/>
+<span class="hashtag">#include</span> “Transform.hlsl”</p>
+<p>uniform float cYPos;</p>
+<p>void VS(float4 iPos : POSITION,<br/>
+out float4 oPos : OUTPOSITION)<br/>
+{<br/>
+iPos.y = cYPos; // &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; THIS IS ALWAYS ZERO!!!</p>
+<pre><code>float4x3 modelMatrix = iModelMatrix;
+float3 worldPos = GetWorldPos(modelMatrix);
+oPos = GetClipPos(worldPos);
+</code></pre>
+<p>}</p>
+<p>void PS(<br/>
+out float4 oColor : OUTCOLOR0)<br/>
+{<br/>
+float color = 0.05 * cYPos; // &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; Here it reads YPos just fine<br/>
+oColor = float4(color, color, color, 1.0);<br/>
+}</p>
+<p>==<br/>
+We are using UrhoSharp, to set the Shader parameter as follows:</p>
+<pre><code>		float yPos = 1f;
+		foreach (var layer in _lineLayers.Values)
+		{
+			layer.Material.SetShaderParameter("YPos", yPos);
+			yPos += 1f;
+		}
+</code></pre>
+<p>I have tried reading the YPos, and it is always Zero within the VertexShader, while works fine for the PixelShader.</p>
+<p>The Urho Samples do not have any examples where a Vertex Shader accesses the Uniforms (that I can find), to prove that this works.</p>
+<p>Help would be greatly appreciated here.  Has anyone else gotten Vertex Shaders to access the Uniform values?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I recommend using constant (aka uniform) buffers for DX11 API.<br/>
+Orphan parameters were never really tested and, looking at the code, I don’t see how they can work (so they probably cannot).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>So we have 10 line layers, each uses the same shader, but with a different Uniform setting for YPos, so that each layer will draw to a different Y-positioned flat/horizontal plane (they are stacked).   So I add these as 10 instances of dynamic Geometry.</p>
+<p>If I use a Constant DX buffer to store an array of YPos[], then how does each layer know it’s “layer index”?   I need a way to tell ALL VERTICES for a single layer “You are Index 1” or “Your YPosition is 1.0”.    I’m trying to avoid passing in “YPos = 1.0” to all N vertices.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>In order to take advantage of this efficiency, it looks like I’ll have yet another hurdle to clear, in that “POSITION” always comes in as “float4”, but I’m wanting to ONLY pass in the XZ coordinates (per vertex), and skip the “Y” component.</p>
+<p>Will Urho permit me to define Position as a “Vector2” in the Vertex Buffer? (saving 4 bytes per vertex).</p>
+<p>I’m also wanting to pack in ONLY the “U” coordinate (of a UV TEXCOORD), and omit the “V” coordinate, so that each vertex will instead only be 12 bytes total:    X, Z, and U.</p>
+<p>(we don’t need “Y” or “V”, assuming I can read the fixed-Y value from the Uniform values)</p>
+<p>Before this optimization, we’ve got 20-bytes per vertex;  we’re trying to reduce this to 12 bytes.   It technically could be 8 bytes + 1 bit (65 bits).   The “U” coordinate is EITHER 0 or 1, nothing in between.</p>
+<p>We could encode the “U” coordinate into a single bit of the X or Z coordinates and make this be 8 bytes per vertex.</p>
+<p>For our next step, we’d be happy just to reduce 20 bytes to 12 bytes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>BTW, although the issue remains that Vertex Shaders can’t see Uniforms (a big bug, IMO), I am going to resolve our specific problem simply by changing the Node Position Y value for each layer, which works just fine.  And to keep it simple (yet kludgy), we’re going to pack the “U” value into the Vertex “Y” value, so that we’ll achieve our 12 bytes per vertex goal.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

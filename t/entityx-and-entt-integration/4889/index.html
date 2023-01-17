@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>EntityX (and EnTT) Integration</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">EntityX (and EnTT) Integration</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<p>Just for the heck of learning about ECS and how it works, I have been trying to integrate <a href="https://github.com/alecthomas/entityx" rel="nofollow noopener">EntityX</a> with Urho3D.</p>
+<p>I’m presenting <a href="https://github.com/ViteFalcon/ecstest" rel="nofollow noopener">my work</a> here as a way to learn, improve, and hopefully help others with the work.</p>
+<p>The Github repo that I’m sharing is supposed to duplicate (and extend) the <a  rel="nofollow noopener">First Project</a>.</p>
+<p>With the ECS integration, creating a box looks like so:</p>
+<pre><code class="lang-cpp">auto box = CreateRenderableEntity("Box");
+box.assign&lt;StaticModel&gt;("Models/Box.mdl", "Materials/Stone.xml");
+box.assign&lt;Position&gt;(0, 2, 15);
+box.assign&lt;Direction&gt;(); // So that we can apply angular velocity
+box.assign&lt;Scale&gt;(3, 3, 3);
+box.assign&lt;AngularVelocity&gt;(10, 20, 0); // Rotates the box
+</code></pre>
+<p>The full Demo scene setup code can be seen <a href="https://github.com/ViteFalcon/ecstest/blob/master/src/state/DemoState.cpp" rel="nofollow noopener">here</a>.</p>
+<p>I’m not fully happy with the structure of how things are glued, and I’m looking into how to refactor the code so that it’s cleaner. Let me know if you have any suggestions around that.</p>
+<p>Constructive criticism is always welcome! Let me know what you think.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Nice to see someone else has an interest in ECS <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/><br/>
+Urho3D already has an ‘entity component system’, if we accept that a new node is an empty entity.<br/>
+But neither urho nor entityx are DOD-ECS. Data oriented design ECS stores components of the same type in contiguous arrays in memory, in an effort to avoid CPU cache misses. They use Placement-New in an effort to avoid allocating small blocks of memory at runtime. DOD components have no code, they are Plain Old Data structs, the code for them lives in a Subsystem, and there is a Subsystem for every kind of Component, so quite different to what we see here in Urho, or Unity for that matter.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<p>From what I can tell (and I could be wrong), EntityX is built to be cache-coherent because the components are created from a contiguous <a href="https://github.com/alecthomas/entityx/blob/master/entityx/Entity.cc#L49" rel="nofollow noopener">memory pool</a>, which is used to <a href="https://github.com/alecthomas/entityx/blob/master/entityx/Entity.h#L633-L657" rel="nofollow noopener">do placement new allocation of components when the component gets assigned to the entity</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>That may be so - it’s been a while since I looked closely at entityx sourcecode.<br/>
+Still, entityx has a concept of components being attached to entities, while a pure dod-ecs does not need entities to exist at all - an entity can be simply an ID, not an object, and so the components that are associated with an entity are tagged with the same ID, no pointers involved. The main difference between classic ecs and dod-ecs is the way we update. In a classic ecs, we evaluate the scene hierarchy, updating components in the order we find them, while a dod-ecs updates the Subsystems in the order they are registered, and each Subsystem updates its Components as a flat array, irrespective of which entity owns them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<blockquote>
+<p>Still, entityx has a concept of components being attached to entities, while a pure dod-ecs does not need entities to exist at all - an entity can be simply an ID, not an object, and so the components that are associated with an entity are tagged with the same ID, no pointers inolved.</p>
+</blockquote>
+<p>I belive, EntityX’s <a href="https://github.com/alecthomas/entityx/blob/master/entityx/Entity.h#L59-L79" rel="nofollow noopener"><code>Entity</code></a> class is just a wrapper around a <a href="https://github.com/alecthomas/entityx/blob/master/entityx/Entity.h#L61-L79" rel="nofollow noopener"><code>uint64_t</code> id</a> and <a href="https://github.com/alecthomas/entityx/blob/master/entityx/Entity.h#L59-L79" rel="nofollow noopener">has a pointer to the manager</a> not the components. I believe, that the <code>Entity</code> class is simply a helper non-reference class.</p>
+<p>To illustrate an example of an interaction; to find entities that has a specific set of components you would <a href="https://github.com/ViteFalcon/ecstest/blob/master/src/systems/MovementSystem.cpp#L34-L40" rel="nofollow noopener">query the manager</a>.</p>
+<p>Any operation of adding components to an entity happens <a href="https://github.com/alecthomas/entityx/blob/master/entityx/Entity.h#L946-L950" rel="nofollow noopener">through the EntityManager</a>.</p>
+<p>But in effect, that class is just a wrapper of how you would otherwise do directly with <code>EntityManager</code> to associate components to an entity identified by a <code>uint64_t</code> ID.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Sounds like there’s been some changes in the design and implementation that bring entityx much closer to Data Oriented Design <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/> Nice! I’m tempted to post my firestorm engine docs, which describe a close to the metal approach to DOD-ECS that I implemented, it runs blazingly fast, and deals with multithreading and rendering in the days when we still had to cope with opengl context issues, which is the current state of this engine, to the best of my knowledge</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>What about this <a href="https://github.com/skypjack/entt" rel="nofollow noopener">entt</a>?<br/>
+Looks like an improvement over EntityX…</p>
+<p>EDIT: whoa, it changed a lot since last time I used it…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<p>Let me give EnTT a spin. I will duplicate this project for that, probably different branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/783_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alan</div>
+          <div class="post_content">
+<p>This is great! <img alt=":+1:" class="emoji" src="../../../images2/0850595d032cf0aaee6402139a1ec97b.png" title=":+1:"/> for EnTT!<br/>
+I disagree that Urho has an ECS, it has “Components”, an ECS implies in components being data without logic, otherwise the “S” doesn’t make sense, but that’s just semantics.<br/>
+In any case this sounds awesome I’m going to take a look at the code. EnTT is very high perf and very actively developed… This could really be the start of the modernization Urho needs so badly at this point!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/783_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alan</div>
+          <div class="post_content">
+<p>After taking a look at the code, I just realized that you’re not actually replacing the Nodes/Components/Internal Logic for their ECS counterparts but just adding ECS on top of the existing model (wrapping the Urho objects in EntityX components). That’s not what I was expecting tbh, and I see little point in doing that.<br/>
+Do you plan to actually do away with the Urho Nodes/Components in favor of a real ECS for the code logic? That will certainly require a major revamp of Urho’s code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<p>Like I said, it was purely for learning how ECS works. I want to first learn different aspects of ECS before I jump into anything more involved like revamping Urho3D to be powered by ECS.</p>
+<p>Let me preface by saying that I’m not going to commit to anything that I’m going say, but I am definitely interested to see if I can change Urho3D to be using pure ECS. Once I get a better grasp of how ECS works, I will probably try making small changes to Urho3D to prove the concept.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I had a brief look at the “proper” ECS like EntityX and entt as well, but my feeling is that it’s only very useful if you have a game with lots of objects all of the same type and you end up with a few components and a few systems that update a lot of entities.</p>
+<p>A screen shot of my test project (1000 ships: 100 X-wings vs 900 Tie fighters, all with basic AI and shooting in real time, no physics though, only basic shape collisions):<br/>
+<img alt="Play%203A" height="408" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/4/438f9787b998a25cf009ca77aa2c5ffd48bb13d7.jpeg" width="690"/></p>
+<p>However when you do a game (adventure, survival, etc) where you have a lot of different type of objects, with small numbers of each in the level, then you end up with a lot of components, a big stack of systems, each of which only updates one or a few entities. So I think for this kind of games the current Urho/Unity ECS implementation is easier to work with.<br/>
+Ideal the engine should have both and you can used whichever you want based on the type of game you are making.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<p>So, I got the demo modified and working for <a href="https://github.com/skypjack/entt" rel="nofollow noopener">EnTT</a>. You can check it out here: <a href="https://github.com/ViteFalcon/ecstest/tree/entt" rel="nofollow noopener">ECS Test / entt branch</a>.</p>
+<p>The usage looks very similar but a bit involved:</p>
+<pre><code class="lang-cpp">auto box = CreateRenderableEntity("Box");
+mRegistry.assign&lt;Position&gt;(box, x, -3, z);
+mRegistry.assign&lt;Scale&gt;(box, 2, 2, 2);
+mRegistry.assign&lt;StaticModel&gt;(box, "Models/Box.mdl", "Materials/Stone.xml");
+</code></pre>
+<p>Iterating the entities with specific components looks like this:</p>
+<pre><code class="lang-cpp">auto rotatingEntities = registry.view&lt;Direction, AngularVelocity&gt;();
+for (auto entity : rotatingEntities) {
+  auto &amp;velocity = registry.get&lt;AngularVelocity&gt;(entity).value;
+  Urho3D::Quaternion deltaRotation = Urho3D::Quaternion(
+      velocity.x_ * dt, velocity.y_ * dt, velocity.z_ * dt);
+  registry.get&lt;Direction&gt;(entity).Rotate(deltaRotation);
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>I agree about having such a system is for games with really lots of objects. Basicly, you may want to put it, for instance, at the base of a server side system which manages a mmorpg or something like that… worlds, lots of rooms, lots of players…<br/>
+Add to it that its inner working is not easily grasped by novices… you have to have a bit of a data-thinking mind; it easier to think in term of “players, non-players…”</p>
+<p>BTW: I still have the fork I did in the beginning of it, when it was a simple plain ECS system, without the full bells and whistles as it is now… <a href="https://github.com/kabukunz/entt" rel="nofollow noopener">here</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>If you have something that fits the academic ECS pattern better than others there’s nothing stopping you from including an appropriate <em>system</em> component to do that workload …</p>
+<p>… that’s how the DetourCrowd and physics stuff works.</p>
+<p>Urho runs a bit of middle ground.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I recently asked for a clean definition of what a subsystem is, but in urho, subsystems dont own stuff, which shocked me, they are just there for eventing, and not specific - this I found to be quite distant to dod-ecs and took me some time to absorb<br/>
+The best answer I got, was that subsystems are just singleton objects that are registered with the engine, and the only point of doing so is that we can access them, rather than making singletons be static and so shared.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>ResourceCache owns stuff, but in general - subsystems don’t.</p>
+<p>Scene <em>system-style</em> components do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I asked about resourcecache recently too, and got no answer about managing resource memory footprints, but so far its not a big issue, just a looming issue</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>PM me the links to those posts if you could, you’ve got a ton of posts in a narrow timespan so tracking them down could be hard. Might have insight depending on the questions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>yeah I am new here, but I am an old hand at game dev, and have a lot to learn and a lot to say, I agree I am posting a lot, but it’s during my learn curve, so please give me some slack while i find my feet on this ship. My teachers worked on games, and I spent years to learn my craft. I just wasted a year using Unity, and it made me worse at my craft, so I needed to find an engine that did not make me a worse coder. I am here now, and in this environment, I can give my fixes, not sell them.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

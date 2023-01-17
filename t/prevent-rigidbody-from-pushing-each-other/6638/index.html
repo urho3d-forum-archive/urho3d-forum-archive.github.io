@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Prevent RigidBody from pushing each other</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Prevent RigidBody from pushing each other</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>A common scenario: there are many different characters, we don’t want them:</p>
+<ol>
+<li>walk through each other (so we added rigid body with collision shape);</li>
+<li>push away each other (this is a tricky one).</li>
+</ol>
+<p>I searched a little bit and found (2) is quite a popular question around. I didn’t see any straightforward solution but there are some workaround hack. For example, <a href="https://forum.unity.com/threads/how-to-disable-push-force-between-two-rigidbodies.486138/#post-5648188" rel="noopener nofollow ugc">this one</a>.</p>
+<p>The basic idea is to have a parent-child nodes pair, and two rigid body with collision shape one slightly larger than the other. One set to kinematic while the other non-kinematic.</p>
+<p><strong>But we need to disable the collision between those two rigid body.</strong> However, we cannot directly use two different layer since rigidbody1 in character A would collide with rigidbody2 in character B.<br/>
+In Unity3D,  we can use <code>Physics.IgnoreCollision(rigidbody1, rigidbody2)</code> as mentioned in previous <a href="https://forum.unity.com/threads/character-pushing-each-other-arg.410324/#post-2676397" rel="noopener nofollow ugc">link</a>.</p>
+<p>I did not find anything like that in Urho3D PhysicsWorld. I found someone mentioned a similar problem <a href="https://discourse.urho3d.io/t/rigidbodies-ignore-collisionshapes-of-child-nodes/3648/2">here</a> that adding ‘ignore pairs’ into PhysicsWorld. But I don’t know any easy way to do that without making my own version of Urho3D.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>You can add a <strong>btOverlapFilterCallback</strong> to the pair-cache in the broadphase.</p>
+<p>The <code>m_clientObject</code> in the broadphase-proxy is a btCollisionObject* (most likely a btRigidBody*, but check CollisionObjectTypes enum against <code>getInternalType()</code>), so you can get the Urho3D RigidBody* from the <code>getUserPointer()</code>.</p>
+<p>You can then add an ignore-list to Urho3D::RigidBody ( <code>bool IgnoreBody(WeakPtr&lt;RigidBody&gt; otherBody) const { return ignoreList_.Contains(otherBody); }</code>).</p>
+<p>You’re probably going to want only do that test on bodies that are flagged as <strong>CF_CHARACTER_OBJECT</strong> which is a built-in flag that Bullet doesn’t use (currently).</p>
+<p>It’s a janky filter (you have to force clear things, here and there) but for this sort of fire-and-forget-never-gonna-touch-it thing it’ll be fine.</p>
+<p>Edit: so yes, you have to make C++ changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Eventually, I hacked it this way:<br/>
+make an outer collider only collide with the same type from other character, and set to be trigger; Then in the event handler function, I manually calculate characters nearby and deviates current velocity direction so that the perpendicular part is zero…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Depending on your goals, crowd agents might work better. The CrowdNavigation sample is great. There are avoidance parameters which will keep them apart. You say you dont want them to be pushed away, but I’m not sure exactly what. Like, no contact at all, or just not interfering with how the characters walk.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>crowd algo can only deals with NPCs, this is mostly for Player-NPCs interaction. e.g. either NPC could push away Player or vice versa.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Well the player can be an agent too. And the NPCs will treat them as set. So if the player walks in a crowd the crowd will go around them. Kind of like Assassin’s creed, but you’ll have to polish it yourself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>didn’t know the AC crowd moving is using crowd agent, will definitely take a look from this aspect! <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Followup: Crowd Agent is good for NPC-NPC avoidance and NPC-Player avoidance if the player is added as one agent. But for Player to NPC avoidance, it’s tricky since I need to manually control the Player’s movement, the player’s freedom of degree is higher than the NPC, e.g. jump, fall off walls, which is impossible in the framework of NavMesh. So you have to do some customization anyway.</p>
+<p>(I’d like NPC to do all the jump, fall off walls actions too, but it’s much more complicated when using together with NavMesh. Both physics with RigidBody and NavMesh for navigation are not quite compatible with each other)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Oh yeah good point. My use case was simple npcs walking/running on a flat plane only. A more robust navmesh that could work with obstacles would be useful but I guess that’d need to be self-implemented.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

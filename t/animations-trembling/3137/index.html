@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Animation&rsquo;s trembling</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Animation&rsquo;s trembling</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I have some problem with animation synchronization: it is sligthly trembling.<br/>
+I can’t reproduce it in examples, probably this trembling is just too small.<br/>
+Consider the following scene: Character is moving forward (in X+ direction) with walk animation (with e.g. Period=1), camera is static.<br/>
+<strong>Chrarcter is moving forward during fixed update</strong><br/>
+It is obvious that animation time and character position are connected: <code>time = fract(X/speed)</code></p>
+<p>Let’s take a look on timing:<br/>
+FixedUpdate times are incremented every 1/60 second:<br/>
+<code>[0; 0.0166; 0.0333; 0.05; 0.0666; 0.0833; ...]</code><br/>
+Chrarcter’s X positions are incremented every 1/60 second too:<br/>
+<code>[0; 0.1; 0.2; 0.3; 0.4; 0.5; ...]</code><br/>
+Example frame times:<br/>
+<code>[0; 0.021; 0.04; 0.059; 0.082; ...]</code></p>
+<p>Frame at 0.04 is rendered in the following way:<br/>
+Character is at X=0.2 (this position was set during fixed update at 0.0333)<br/>
+So, character’s “true” animation time is 0.0333 (see formula above).<br/>
+But animtion is updated during non-fixed update, so real animation time is 0.04.</p>
+<p>So, animation gets non-synchronized, and small trembling is visible when foot is grounded.</p>
+<p>Any ideas how to synchronize animations? Let’s suppose that I can’t make updates non-fixed.<br/>
+I’ve temporarily made animation update during fixed update too, but it is not the best solution IMO.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Fixed update is where you should update physics (apply forces and the like). If you’re not using physics to move your nodes, you’re best off using the ordinary update since it’s synchronous with the graphical update.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Example characters are driven by physics, so I emulated the same situation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Update might make fun of you if you don’t use physics but would like to do something spread at regular intervals, if you run on slow or loaded device. So for continuous process I’d stick to FixedUpdate,<br/>
+but do not abuse it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Please show your motion code. I think it is the source of a problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p><em>My</em> code doesn’t have anything interesting:</p>
+<pre><code>void FixedUpdate(float timeStep)
+{
+    const float walkSpeed = 1.5;
+    node.worldPosition = node.worldPosition + Vector3(1, 0, 0) * timeStep * walkSpeed;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Exactly: This is <em>not</em> using physics and should be handled within <code>Update</code>, not <code>FixedUpdate</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="7" data-topic="3137">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8b9decec7cc30729aa8f8f7015602d32.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>This is not using physics</p>
+</blockquote>
+</aside>
+<p>Why? It <em>is</em>, actually, very limited physics.<br/>
+If I add gravity and acceleration later, I won’t be able to use Update instead of FixedUpdate because I want stable computation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Let me explain with more words…</p>
+<p>You are not using the Physics Subsystem with accompanying PhysicsWorld and RigidBody, which update with a fixed interval. In a situation where you <em>would</em> be using these built-in Bullet physics the node transform is interpolated based on the physics simulation. So even there the node position would be updated every frame to avoid this trembling, while saving resources by updating the physics simulating with a fixed interval.</p>
+<p>Also…<br/>
+Physics: M’ass <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<blockquote>
+<p><strong>F = m * a</strong></p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Actually, I didn’t thought that way… Somewhy I thought that physics<br/>
+itself doesn’t do any interpolation between steps.<br/>
+Great, thank you!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>You can also set body to kinematic when you want to ‘manually’ update node position instead of moving it through physics simulation.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

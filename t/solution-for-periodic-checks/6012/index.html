@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Solution for periodic checks</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Solution for periodic checks</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So I’m having trouble deciding the best way for my npc’s to check if the player is within a bounding radius for deciding to melee the player.</p>
+<pre><code>void AIMelee::boundingSphere(StringHash eventType, VariantMap&amp; eventData)
+{
+	Sphere boundingRadius(node_-&gt;GetWorldPosition() + Vector3(0, 1.0f, 0), 1.5f);
+	debug = scene_-&gt;GetComponent&lt;DebugRenderer&gt;();
+
+	i = boundingRadius.IsInside(scene_-&gt;GetChild("AdjNode", true)-&gt;GetWorldPosition());
+
+	if (i == INSIDE)
+	{
+		oktoMelee_ = true;
+	}
+}
+</code></pre>
+<p>I’m looking for something with the best performance. No need to constantly check. My ideas turned into crap.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<pre><code class="lang-auto">boundingRadius.IsInside()
+</code></pre>
+<p>is very cheap. If you don’t have thousands of NPCs, I don’t see there is need to optimize.</p>
+<p>You can cache the values you use in <code>boundingSphere</code>, update them and reuse, so it would be a little faster.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>What event are you subscribing to?<br/>
+Using <code>FixedUpdate</code> instead of <code>Update</code> for artificial thoughts should be more performant.</p>
+<p>Also note there’s an <code>IsInsideFast</code> function which skips the <em>intersects</em> check.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So this is what I am doing. What can I improve?</p>
+<pre><code>//AIMelee.cpp
+void AIMelee::FixedUpdate(float timeStep)
+{
+	CrowdAgent* agent = node_-&gt;GetComponent&lt;CrowdAgent&gt;();
+
+	if (health &lt;= 0 &amp;&amp; dead_ == false)
+	{
+		PlaySound("Sounds/death_mjr.ogg",1.5f,50.0f,70.0f);
+		idle-&gt;PlayExclusive("Models/hunter_combat_landing_dead.ani", 0, false, 0.3f); .
+
+		if (node_-&gt;HasComponent&lt;CrowdAgent&gt;())
+		{
+			agent-&gt;Remove();
+		}
+		shape-&gt;SetCapsule(10.0f, 5.0f, Vector3(0.0f, 5.0f, 0.0f));
+		body-&gt;SetMass(0);
+		dead_ = true;
+	}
+    // This is our check to see if player is within radius to attack
+	boundingSphere();
+}
+
+
+
+    // AIMelee.h
+	/// Handle scene update. Called by LogicComponent base class.
+	void Update(float timeStep)
+	{
+
+		elapsedTime_ += timeStep;
+
+
+
+		// Disappear when duration expired
+		if (duration_ &gt;= 0 &amp;&amp; dead_ == true)
+		{
+			duration_ -= timeStep;
+			if (duration_ &lt;= 0)
+			{
+				node_-&gt;Remove();
+			}
+		}
+
+		if (oktoMelee_ == true)
+		{
+                 // If melee is true from boundingSphere(); 
+			melee();
+		}
+	}
+
+
+
+
+//AIMelee.cpp
+void AIMelee::melee()
+{
+
+	debug = scene_-&gt;GetComponent&lt;DebugRenderer&gt;();
+
+	CollisionShape* shape_ = handboneNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+	shape_-&gt;SetCapsule(2.0f, 2.0f, Vector3::ZERO, Quaternion::IDENTITY);
+
+	PhysicsRaycastResult raycResult;
+	auto* physicsWorld = scene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+
+	const Vector3 start = handboneNode-&gt;GetWorldPosition();
+	const Vector3 end = start + (Vector3::FORWARD * 100.0f);
+
+	idle-&gt;Play("Models/hunter_combat_melee%1.ani", 0, false, 0.2f);
+
+	physicsWorld-&gt;ConvexCast(raycResult, shape_, start, Quaternion::IDENTITY, end, Quaternion::IDENTITY);
+
+	RigidBody* resultBody{ raycResult.body_ };
+	Character* _Node;
+	int damage = 15;
+
+	if (resultBody)
+	{
+
+		Node* resultNode{ resultBody-&gt;GetNode() };
+
+		if (_Node = resultNode-&gt;GetDerivedComponent&lt;Character&gt;())
+		{
+			_Node-&gt;setHealth(_Node-&gt;getHealth() - damage);
+			resultBody-&gt;ApplyImpulse(Vector3(1.0f, 1.0f, 1.0f)* 1.0f);
+		}
+
+	}
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>If you have one player and lots of enemies, there may be one optimization you can do (a technique I use in my game “Planetoid Escape”). Instead of having each enemy query the world state to see if the player is in range, have the player query the world, (i.e. do the bounding sphere check) and broadcast its location to all enemies within range. This way you reduce the possible 10s or 100s of bounding sphere checks per frame to just one.</p>
+<p>If different enemies have different ranges, just do the bounds with the largest radius and then each enemy still has to check if the the player is in range when getting the position message from the player, but avoids doing the bounds check (which should be more expensive).</p>
+<p>I haven’t done thorough performance gain investigation of this technique, but in theory it should be an improvement.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>If you have two player or 10 players then it will be different.</p>
+<p>The implementation then be different.   Each Mob need to keep a list of sorted distance so that he can chase the closest player.   The mob can be more intelligent.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

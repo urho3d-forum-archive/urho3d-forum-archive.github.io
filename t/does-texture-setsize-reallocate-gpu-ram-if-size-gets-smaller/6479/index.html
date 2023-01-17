@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Does Texture.SetSize(&hellip;) ReAllocate GPU RAM if size gets smaller?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Does Texture.SetSize(&hellip;) ReAllocate GPU RAM if size gets smaller?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Most of our App renders dynamically created textures and meshes.</p>
+<p>Currently we’ve modified our Raster map rendering shader to incorporate the “Height Map”, so that it can highlight various parts of the raster map because on contour lines.</p>
+<p>The issue we have is that our raster tiles are not aligned to our height map (and can’t be).  Each part of the world employs slightly different tile sizes (due to Mercator projection math).</p>
+<p>Therefore, dynamically, we’re calling two methods repeatedly on the same “heightmap” texture.</p>
+<p>_elevTexture.SetSize(newSize…)<br/>
+_elevTexture.SetData(newdata…)</p>
+<p>If SetSize changes the <span class="hashtag">#pixels</span> by a few pixels (e.g. from 200x200 to 199x198), what happens in GPU memory (or CPU RAM)?  Does it keep the previous memory allocation for the 200x200, and simply make it work as a 199x198?  (wasting the extra pixels)…   Or does it discard the 200x200 texture allocation and allocate a whole new block sized at 199x198?</p>
+<p>We hope it’s not re-allocating the whole texture in GPU RAM unless the SetSize <em>increases</em> the size required (above the last Maximum).</p>
+<p>If it re-allocates all new GPU RAM each time for the resized texture (even if shrunk), then we’re going to instead create our own “larger than needed texture” to start with, and then just set up the UV coordinates to ignore the unused pixels.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>There is no such thing as “texture working area” for GPU.<br/>
+GPU always maps allocated texture dimensions onto 0-1 UV range in shader, unconditionally.<br/>
+So, Urho has no way to reuse bigger texture when you request smaller one – there’s no way to separate valid data from invalid padding.</p>
+<p>However, you can implement it as user if you adjust UV properly in your shader</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Eugene, thanks!  To make sure you understand my question,  what does the following code do:</p>
+<p>_texture.SetSize(200, 200 size…)<br/>
+_texture.SetSize(199, 198 size…)</p>
+<p>Does this cause any issues with GPU RAM thrashing for that texture (does it end up doing two allocations)?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Yes, Urho will allocate new texture after each size change, due to inability of “partial use” on GPU side.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Thanks!   Then we’ll just hard code the size to largest size, and dynamically set the UV coordinates to make it only use the portion of the texture that has data.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Just to confirm one more thing.   I assume that Texture.SetData(…) does NOT create an new texture, but simply overwrites the old texture data with new data, “in place”.  (No memory allocation/deallocation thrashing.)</p>
+<p>Our scheme is to have a single RAM memory block to where we write our Pixel data for the texture, and once complete, we call Texture.SetData(…) so that this data is transmitted to the GPU.</p>
+<p>Our assumption is that since we have consistent buffer sizes from start to finish, we are doing one allocation up front, and then re-using from then on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>SetData doesn’t do any reallocation, only data copy.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

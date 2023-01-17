@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Multithreading</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Multithreading</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi folks! Today I tried to deal with multithreading.<br/>
+I have something has been done and it works.<br/>
+for the test, I concluded numbers to the console from another thread.<br/>
+Here are the basic pieces of code.</p>
+<p>[pastebin]fidfpQKQ[/pastebin]</p>
+<p>But I have some questions.</p>
+<p>for what purpose is WorkItem-&gt; aux_ ?<br/>
+and what is the difference of aux from item-&gt; start_ or item-&gt; end_?<br/>
+is they can not be assigned the same thing ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You can use the variables like you want, they’re only for the worker function and are not touched by anything else. Typically a worker function would process a range of items from start_ to end_ and maybe use some auxiliary data structure (aux_). A future improvement would perhaps be to simply subclass the worker task and remove those hardcoded variables.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>And how many of these work items user can create ?</p>
+<p>Let’s say if I write a component that prepares the dynamic geometry in a work item (thread) on the current frame and on the next frame if the data is ready, they are copied into the main thread into the vertex buffer.</p>
+<p>And if such components in the scene will be 100, it will create 100 threads at same time or still have 1 - 4 threads ?<br/>
+I mean these workers are create really new thread or they push all new-incoming works into some already existed threads ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>They are pushed into a queue from which the worker threads take work to execute. New threads will not be spawned per item, so you can use as many work items as you want. By default the engine creates as many worker threads as there are physical CPU cores.</p>
+<p>One thing you want to note is the work item priority. The rendering system uses work items of priority 0xffffffff (maximum) to execute work it needs to complete immediately, but split onto several cores. For example culling. So if you want to make tasks that can take several frames to update, use lower priority.</p>
+<p>One more thing, that is easy to trip over: Urho’s shared pointers (or more accurately, the reference counter inside) are not thread-safe, so make sure you’re not manipulating them from the work functions and main thread simultaneously. Copying a shared pointer changes the ref count and counts as manipulation as well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><a href="https://urho3d.github.io/documentation/1.6/_multithreading.html">urho3d.github.io/documentation/ … ading.html</a></p>
+<p>[quote]<br/>
+When making your own work functions or threads, observe that the following things are unsafe and will result in undefined behavior and crashes, if done outside the main thread:</p>
+<p>Modifying scene or UI content[/quote]</p>
+<p>As far as I understand, this means a depreciation of creating and deleting of nodes. But it is allowed nodes transformation in a background thread?</p>
+<p>EDIT: Is the event system thread-safe? If I add tag to Node in bacground thread it call SendEvent. Does it problems?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

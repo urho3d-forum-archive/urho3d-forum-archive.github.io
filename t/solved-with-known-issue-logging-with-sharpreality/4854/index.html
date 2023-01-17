@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved, with known issue] Logging with SharpReality</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved, with known issue] Logging with SharpReality</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>In the samples provided by <span class="mention">@Egorbo</span> he<a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/HoloLens/02_HelloWorldAdvanced/Program.cs#L41" rel="nofollow noopener">adds an event handler for logging in one sample</a>.</p>
+<p>When I try to use this, no output ever appears if I write a logging statement.</p>
+<p>So these lines of code produce this output:</p>
+<pre><code class="lang-auto">Log.LogMessage += l =&gt; { Debug.WriteLine(l.Level + ":  " + l.Message); };
+Debug.WriteLine(LogLevel.Warning, "MS debug logger.");
+Urho.IO.Log.Write(LogLevel.Warning, "Urho3d logger");
+</code></pre>
+<pre><code class="lang-auto">MS debug logger.: Warning
+</code></pre>
+<p>Now, every now and then, Visual Studio’s output window will show a message that does appear to have come from the Urho.dll, typically some error message that must have used the Urho log. I assume that because the format is the same as the event handler.</p>
+<p>My question is how to use it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I think the right answer is that logging is disabled by default<br/>
+You can try this to make it work.</p>
+<pre><code class="lang-auto">#define URHO3D_LOGGING 1
+#include "Urho3D/IO/Log.h"</code></pre>
+<p>If this is insufficient, and no better answer is forthcoming, I will jump onto Windows and find out whats going on <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+<p>I have Windows, but I tend not to ever boot into it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>I’m working with the SharpReality binding for Urho.dll.</p>
+<p>It’s all c#.</p>
+<p><a href="https://github.com/xamarin/urho/issues/355" rel="nofollow noopener">Maybe it’s related to this</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Got it working, but it’s a bet messed up.</p>
+<p>In the start method, added this code:</p>
+<pre><code class="lang-auto">Log.Level = (int)LogLevel.Error;
+Log.LogMessage += l =&gt; { Debug.WriteLine(l.Level + ":)  " + l.Message); };
+</code></pre>
+<p>Then to log something, here’s an example</p>
+<pre><code class="lang-auto">Urho.IO.Log.Write(LogLevel.Error, "This is the start finished message using urho logging via handler");
+</code></pre>
+<p>This will output</p>
+<pre><code class="lang-auto">[Fri Jan 25 15:00:25 2019] WARNING: This is the start finished message using urho logging via handler
+</code></pre>
+<p>To show how messed up it is, wrote this code:</p>
+<pre><code class="lang-auto">Log.Level = (int)LogLevel.Debug;
+Urho.IO.Log.Write(LogLevel.Raw, "Set to debug. This is the the raw message");
+Urho.IO.Log.Write(LogLevel.Debug, "This is the debug message");
+Urho.IO.Log.Write(LogLevel.Info, "This is the info message");
+Urho.IO.Log.Write(LogLevel.Warning, "This is the warning message");
+Urho.IO.Log.Write(LogLevel.Error, "This is the error message");
+Urho.IO.Log.Write(LogLevel.None, "This is the none message");
+
+Log.Level = (int)LogLevel.None;
+Urho.IO.Log.Write(LogLevel.Raw, "Set to none. This is the the raw message");
+Urho.IO.Log.Write(LogLevel.Debug, "This is the debug message");
+Urho.IO.Log.Write(LogLevel.Info, "This is the info message");
+Urho.IO.Log.Write(LogLevel.Warning, "This is the warning message");
+Urho.IO.Log.Write(LogLevel.Error, "This is the error message");
+Urho.IO.Log.Write(LogLevel.None, "This is the none message");
+</code></pre>
+<p>Which outputs this:</p>
+<pre><code class="lang-auto">2:)  Set to debug. This is the the raw message
+0:)  [Fri Jan 25 15:15:06 2019] TRACE: This is the debug message
+1:)  [Fri Jan 25 15:15:06 2019] DEBUG: This is the info message
+2:)  [Fri Jan 25 15:15:06 2019] INFO: This is the warning message
+3:)  [Fri Jan 25 15:15:06 2019] WARNING: This is the error message
+This is the none message. You can omit this exception by subscribing to Urho.Application.UnhandledException event and set Handled property to True.
+ApplicationOptions: args -w -nolimit -x 1268 -y 720 -p "CoreData;Data" -touch -hd -landscape -portrait :Error
+4:)  [Fri Jan 25 15:15:06 2019] ERROR: This is the none message
+2:)  Set to none. This is the the raw message
+This is the none message. You can omit this exception by subscribing to Urho.Application.UnhandledException event and set Handled property to True.
+ApplicationOptions: args -w -nolimit -x 1268 -y 720 -p "CoreData;Data" -touch -hd -landscape -portrait :Error
+4:)  [Fri Jan 25 15:15:06 2019] ERROR: This is the none message
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

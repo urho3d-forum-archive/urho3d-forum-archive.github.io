@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Creating a hole in navmesh at build time (not dynamic)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Creating a hole in navmesh at build time (not dynamic)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/783_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alan</div>
+          <div class="post_content">
+<p>Hello there.</p>
+<p>I’m looking for a way to create a ‘hole’ in the generated navmesh, say for example I have some boulders on the terrain and want them to inhibit navmesh generation but I also don’t want navmesh to generate on top of them. I know about Obstacle, but afaik that is intended for dynamic carving and it’s not an arbitrary shape, it’s an axis-aligned capsule.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>A NavArea with 0 or &gt;63 for the area-id should mark out a hole. Only world-aligned box shapes are presently supported. You could implement convex poly support if needed by following what NavArea does, <code>rcMarkConvexPolyArea</code> instead of <code>rcMarkBoxArea</code>.</p>
+<p>A 0 id is the null marker in Recast and any value greater than 63 is outside the legal walkable area range.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/783_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alan</div>
+          <div class="post_content">
+<p>Thanks <span class="mention">@Sinoid</span>, so that’s currently not possible? I mean, in that use case boxes aren’t very appropriate. I think it would be better to simple place a wall around the boulders for the navmesh generation, it won’t be ideal because the insides would still be navigable but it’s certainly better than an axis-aligned rectangle. Perhaps it’s possible to ‘remove’ the inner navmesh island posteriorly? Maybe even from the navmesh data directly?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Refer to recast for that. Messing with the navmesh itself would be a bad idea.</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Navigation/NavigationMesh.cpp#L384</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="374" style="counter-reset: li-counter 373 ;">
+<li>{
+</li>
+<li>    using namespace NavigationMeshRebuilt;
+</li>
+<li>    VariantMap&amp; buildEventParams = GetContext()-&gt;GetEventDataMap();
+</li>
+<li>    buildEventParams[P_NODE] = node_;
+</li>
+<li>    buildEventParams[P_MESH] = this;
+</li>
+<li>    SendEvent(E_NAVIGATION_MESH_REBUILT, buildEventParams);
+</li>
+<li>}
+</li>
+<li>return true;
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li class="selected">bool NavigationMesh::Build()
+</li>
+<li>{
+</li>
+<li>URHO3D_PROFILE(BuildNavigationMesh);
+</li>
+<li>
+</li>
+<li>// Release existing navigation data and zero the bounding box
+</li>
+<li>ReleaseNavigationMesh();
+</li>
+<li>
+</li>
+<li>if (!node_)
+</li>
+<li>    return false;
+</li>
+<li>
+</li>
+<li>if (!node_-&gt;GetWorldScale().Equals(Vector3::ONE))
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Instead, you can filter out triangles before they reach recast, before rcRasterizeTriangles, or editing the cells of the compact heightfield.</p>
+<p>If you have static maps you could use a bitmap to wipe out whole columns of the compact heightfields. That’d be relatively little work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>When I was using Irrlicht.<br/>
+What I did was merging mesh buffers together and pass it through recast to generate the navmesh.</p>
+<p>What you could do is mark navigatabe ID for meshes (Terrain, tunnel, dungeon, hole etc.). Then on loading use CSQ library to merge the mesh buffers together and then pass it through the recast to obtain new navmesh.</p>
+<p>If the world is too large you need to use tilecache with some help from lod technique.</p>
+<p>Best regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p><span class="mention">@Alan</span>, I use convex prune object to specify tiles as untraversable (or holes) using bit mask when building it then save my navmesh to a file to avoid constructing it at runtime, as shown here: <a href="https://discourse.urho3d.io/t/navigationmesh-convexpruneobject/3613">NavigationMesh - ConvexPruneObject</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/783_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alan</div>
+          <div class="post_content">
+<p>Thanks Lumak! That seems to be the best approach.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>It might be easier to create a simple tile editor using a raycast and placing a sphere to gather tiles to mark them to whatever bit flag, instead of convex prune object.  Didn’t you write the terrain editor for Atomic? Maybe it was Darrlyn, anyway, it’ll be easier than writing that.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

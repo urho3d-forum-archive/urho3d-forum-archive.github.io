@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Is there a bug with d3d11 + notexture?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Is there a bug with d3d11 + notexture?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>I booted to windows10 and was trying out the d3d11, and I noticed that for some reasons some of the objects were completely invisible + there are some weird graphic glitches with d3d11. It adds some weird polygons close to 0,0,0.</p>
+<p>Glitched d3d11:<br/>
+<a data-bbcode="true" href="http://i.imgur.com/9P16nXG.png" rel="nofollow noopener">http://i.imgur.com/9P16nXG.png</a></p>
+<p>Correct d3d9, opengl2 and opengl3:<br/>
+<a data-bbcode="true" href="http://i.imgur.com/j3VPjcS.png" rel="nofollow noopener">http://i.imgur.com/j3VPjcS.png</a></p>
+<p>I kind of think that it has something to do with the notexture material, because also the ground is completely unvisible. Here is the material file for the red attack tiles:</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/NoTextureUnlit.xml" /&gt;
+    &lt;parameter name="MatDiffColor" value="1 0 0 1" /&gt;
+&lt;/material&gt;</code></pre>
+<p>And this is the green grass tile material:</p>
+<pre><code class="lang-auto">&lt;?xml version="1.0"?&gt;
+&lt;material&gt;
+	&lt;technique name="Techniques/NoTexture.xml" /&gt;
+	&lt;parameter name="MatDiffColor" value="0.0110063 0.0660488 0 1" /&gt;
+&lt;/material&gt;</code></pre>
+<p>For creating the tiles I use following code, which basically just creates planes next to each other:</p>
+<pre><code class="lang-auto">void MainGame::createAttackGrid()
+{
+    LOGINFO("Creates attack grid!");
+    attackSquaresNode_-&gt;RemoveAllChildren();
+
+    if( selectedUnit_ )
+    {
+        Urho3D::Vector2 pos;
+
+        unsigned int mapSize = selectedUnit_-&gt;getAttackTiles().Size();
+
+        for( unsigned int i = 0; i &lt; mapSize; ++i )
+        {
+            pos = selectedUnit_-&gt;getAttackTiles()[i]-&gt;getMapPos();
+            createActionTile( attackSquaresNode_, "AttackTile", pos, "Materials/attackTile.xml" );
+        }
+    }
+}
+
+void MainGame::createActionTile( Urho3D::Node* actionNode, const Urho3D::String&amp; tileName, Urho3D::Vector2 pos, const Urho3D::String&amp; matName )
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    Urho3D::Node* planeNode = actionNode-&gt;CreateChild( tileName + "_" + String(pos.x_) + "_" + String(pos.y_) );
+
+    planeNode-&gt;SetScale(Urho3D::Vector3(SQUARE_SIZE.x_, 1.0f, SQUARE_SIZE.y_));
+    Urho3D::StaticModel* planeObject = planeNode-&gt;CreateComponent&lt;Urho3D::StaticModel&gt;();
+    planeObject-&gt;SetModel(cache-&gt;GetResource&lt;Urho3D::Model&gt;("Models/Plane.mdl"));
+    planeObject-&gt;SetMaterial(cache-&gt;GetResource&lt;Urho3D::Material&gt;(matName));
+    planeNode-&gt;SetPosition( Urho3D::Vector3( (pos.x_ + 0.5f ) * SQUARE_SIZE.x_, 0.025f, ( pos.y_ + 0.5f ) * SQUARE_SIZE.y_ ) );
+
+}</code></pre>
+<p>So basically I am just creating planes side by side without trying to combine the geometry.</p>
+<p>I tried deleting the cache-folder from bin/coredata/shaders/hlsl</p>
+<p>Also on the middle of a map there are suppose to be few random weird “grass” polygons, but they also seem to be oddly streched out. I guess it could be because of not importing stuff correctly from blender.</p>
+<p>Any ideas what could cause this kind of phenomenom or could it just be my gpu / windows10 / gpu drivers acting weird?</p>
+<p>Edit: The moment I wrote something I figured out what was causing the weird graphical glitch with the red squares. The problem is that I create models for outlines and use a certain material for outlines. The problem is that there is HLSL shader for the outline, only GLSL one, and thus it doesn’t really have any kind of material to use. So when the instancing is on, it kind of messes up the whole outline thing, and if I turn the instancing off, it creates the model with the previous material I think, but at least the model itself looks correct. On the other hand on d3d9, the instancing completely removes the whole character when the material is wrong, but if I turn off instancing even on d3d9, the character acts the same as on d3d11.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Check if you are getting errors to the log. D3D11 will refuse to render (or basically, refuse to create an input layout) if the model does not supply all the vertex elements the shader needs. I will check the requirements of notexture / notexture-unlit shaders, in theory they should not need eg. texcoords or normals, but these may be hard to untangle from the shader code, as it uses some generic helper functions to do the setup work in the vertex shader.</p>
+<p>You should be safe if your vertex data always specifies positions, normals and texcoords (UVs can be just 0,0 for each vertex if you’re using notexture)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The UV coordinate requirement should now be eliminated from LitSolid, LitParticle &amp; Unlit shaders, when using the corresponding notexture techniques.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>Thank you, seems that this does fix the problem with the map. The map is now visible with d3d11. Even the water-color with the specularity value works. So this seems to be solved now.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

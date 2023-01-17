@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Resizing Drawable batches</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Resizing Drawable batches</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I have a component that inherits from Drawable. I have added methods to resize the batch count, but it doesn’t seem to work correctly. For example if I create two components and resize the batches accordingly and set the index of the first to 0 and the second to 1 if I apply a different material on both the second overwrites the first. What would be the correct way of doing this?</p>
+<pre><code>batches_.Resize(batchCount_);
+batches_[batchIndex_].geometry_ = geometry_;
+batches_[batchIndex_].material_ = material;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>That’s pretty strange… StaticModel works just fine with multiple materials.<br/>
+More code?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>My code is almost the same as the RibbonTrail, with the difference I am trying to change the batches.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>I had the same problem with the RichText3D component…and it took me a week to work around.</p>
+<p>The only place you can modify the Drawable::batches_ without getting exceptions is in Drawable::GetUpdateGeometryType(), although it doesn’t seem to be the right place. If you follow View.cpp line 1112 you’ll see :</p>
+<pre><code class="lang-auto">Drawable* drawable = *k;
+// If drawable is not in actual view frustum, mark it in view here and check its geometry update type
+if (!drawable-&gt;IsInView(frame_, true))
+{
+    drawable-&gt;MarkInView(frame_.frameNumber_);
+    UpdateGeometryType type = drawable-&gt;GetUpdateGeometryType();
+    if (type == UPDATE_MAIN_THREAD)
+        nonThreadedGeometries_.Push(drawable);
+    else if (type == UPDATE_WORKER_THREAD)
+        threadedGeometries_.Push(drawable);
+}
+
+const Vector&lt;SourceBatch&gt;&amp; batches = drawable-&gt;GetBatches();
+...</code></pre>
+<p>If you modify the batch count after Drawable::GetUpdateGeometryType() you’ll end up with a big mess.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks ,but I am confused. Does it mean I cannot resize batches in the constructor of component? Are these batches global for all the instances of the component inheriting from Drawable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>You can resize the batches in the constructor. Batches are not global and shared between instances, every instance has its own list of batches. Maybe you are facing another problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I just noticed that if I create new instance of a component even if the batch was set to <code>batches_[0]</code> it still creates a new batch. Is the batch index only local to the class? Can we share batches between components?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

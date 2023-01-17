@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Problem with query.EvaluateToString</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Problem with query.EvaluateToString</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/704_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sirop</div>
+          <div class="post_content">
+<p>Hallo,</p>
+<p>I have a pretty simple XML file for configuration:</p>
+<pre><code class="lang-auto">&lt;sliders&gt;
+    &lt;xyzFactor&gt;0.5&lt;/xyzFactor&gt;
+    &lt;email&gt;someone_at_mail.com&lt;/email&gt;
+&lt;/sliders&gt;
+</code></pre>
+<p>Then when trying to do:</p>
+<pre><code class="lang-auto">        XMLFile* file = cache-&gt;GetResource&lt;XMLFile&gt;("Config/sliders.xml");
+        //String emailStr;
+        if (file)
+        {
+            XMLElement rootElem = file-&gt;GetRoot("sliders");
+            XPathQuery    query;
+
+            if( query.SetQuery("email", "String")) {
+                String emailStr = query.EvaluateToString(rootElem);
+                URHO3D_LOGINFO("emailStr: " + emailStr);
+
+            }
+
+            if( query.SetQuery("xyzFactor", "Float")) {
+                float xyzfactor = query.EvaluateToFloat(rootElem);
+                URHO3D_LOGINFO("xyzfactor: " + String(xyzfactor));
+            }
+
+            query.Clear();
+           }
+</code></pre>
+<p>I see my log yield:</p>
+<pre><code class="lang-auto">[Thu Aug  2 18:05:17 2018] INFO: emailStr: 
+[Thu Aug  2 18:05:17 2018] INFO: xyzfactor: 0.5
+</code></pre>
+<p>as if <em>emailStr</em> were empty.</p>
+<p>So what’s wrong with <em>query.EvaluateToString</em> ?<br/>
+<em>query.EvaluateToFloat</em> works as one can see above.</p>
+<p>Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/704_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sirop</div>
+          <div class="post_content">
+<p>This way it works however:</p>
+<pre><code class="lang-auto">emailStr=rootElem.GetChild("email").GetValue();
+URHO3D_LOGINFO("emailStr2: " + emailStr);
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I don’t think you have used the XPath query class correctly. Its usage is quite similar to SQL. You perform the select action by using a query. See <code>XMLElement::Select()</code>. Normally the select would return a result set. But if you know beforehand that the query would result in a single XMLElement then you can use <code>XMLElement::SelectSingle()</code>. When the same query is being used repeatedly then you can consider to prepare the query only once and reuse the prepared query instead. See <code>XMLElement::SelectPrepeared()</code> variants. After you get the result from the select then you can call EvaluateToSomething, if you don’t want to deal with it as XMLElement directly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/704_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sirop</div>
+          <div class="post_content">
+<p>I do believe your explanations, and this “bug” is not a showstopper for me.<br/>
+However, it is still strange that</p>
+<pre><code class="lang-auto"> if( query.SetQuery("xyzFactor", "Float")) {
+                float xyzfactor = query.EvaluateToFloat(rootElem);
+                URHO3D_LOGINFO("xyzfactor: " + String(xyzfactor));
+ }
+</code></pre>
+<p>works, but</p>
+<pre><code class="lang-auto">if( query.SetQuery("email", "String")) {
+                String emailStr = query.EvaluateToString(rootElem);
+                URHO3D_LOGINFO("emailStr: " + emailStr);
+ }
+</code></pre>
+<p>does not yield any string.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Try reverse your elements order in the XML and see if your observation remains the same. This part of the code was contributed by me but it was long time ago. So, I could be wrong too. See the sample usage in the UIElement class. In fact I believe that the only place it is being used by the engine directly, not counting the script binding.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/704_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sirop</div>
+          <div class="post_content">
+<p>No, reversing the order of elements in the XML file does not change anything.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>In any case that not how I remember it would work.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

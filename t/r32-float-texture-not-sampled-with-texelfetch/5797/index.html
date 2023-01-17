@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>R32_FLOAT texture not sampled with texelFetch</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">R32_FLOAT texture not sampled with texelFetch</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>I am wanting to use a texture to pass some data to my vertex shader.  As a proof of concept, I am constructing a simple 64x64 GL_R32F texture where all pixels have the exact as value as follows:</p>
+<pre><code class="lang-auto">Urho3D::PODVector&lt;float&gt; heightData( 64u * 64u, 50.f );
+
+Urho3D::Texture *texture = new Urho3D::Texture( context_ );
+texture-&gt;SetFilterMode( Urho3D::FILTER_NEAREST );
+texture-&gt;SetAddressMode( Urho3D::COORD_U, Urho3D::ADDRESS_CLAMP );
+texture-&gt;SetAddressMode( Urho3D::COORD_V, Urho3D::ADDRESS_CLAMP );
+texture-&gt;SetSize( 64u, 64u, Urho3D::Graphics::GetFloat32Format() );
+texture-&gt;SetData( 0u, 0u, 0u, 64u, 64u, heightData.Buffer() );
+</code></pre>
+<p>I then bind this texture to my material:</p>
+<pre><code class="lang-auto">material-&gt;SetTexture( Urho3D::TU_SPECULAR, texture );
+</code></pre>
+<p>Inside my Vertex Shader:</p>
+<pre><code class="lang-auto">// all the normal includes
+
+varying vec2 vTexCoord;
+varying vec4 vWorldPos;
+varying float vHeight; // added here to see value in renderdoc
+
+#ifdef COMPILEVS
+uniform sampler2D sSpecMap;
+#endif
+
+void VS()
+{
+  // Simply pull the r-channel value from the 0,0 index in the float array
+  float height = texelFetch( sSpecMap, ivec2( 0, 0 ), 0 ).r;
+  vHeight = height;
+
+  mat4 modelMatrix = iModelMatrix;
+  vec3 worldPos = GetWorldPos( modelMatrix );
+  worldPos.y = height;
+
+  gl_Position = GetClipPos( worldPos );
+  vTexCoord = GetTexCoord( iTexCoord );
+  vWorldPos = vec4( worldPos, GetDepth( gl_Position ) );
+}
+</code></pre>
+<p>When I double check the output from the VS inside RenderDoc, I find that <code>texelFetch</code> always returns 0.  I’ve even checked the actual full vec4 returned from <code>texelFetch</code> and its always <code>0,0,0,1</code>.</p>
+<p>Now if I define <code>uniform sampler2D sDiffMap</code> inside the <code>COMPILEVS</code> macro and then swap using the <code>sDiffMap</code> uniform rather than the <code>sSpecMap</code> uniform then i get non-zero values, but these are the expected [0…1] range values for my base diffuse layer texture.</p>
+<p>I’ve checked the float array texture in RenderDoc, its a 64x64 texture, R32_FLOAT format, where all pixels return a value of 50 when I query the texture.</p>
+<p>So at this point I’m not sure what exactly I’ve done incorrectly.  On all accounts it would appear that I have created my float-array texture correctly, its bound to the vertex shader adequately, but for whatever reason <em>texelFetch</em> refuses to return the expected value.</p>
+<p>Any thoughts on what I’ve likely done incorrectly?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

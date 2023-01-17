@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Node.Remove is very slow compared to Node.CreateChild</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Node.Remove is very slow compared to Node.CreateChild</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/998_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">stark7</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>The use case is within HugeObjectCount example to remove the huge amount of nodes created by adding this as line 154</p>
+<blockquote>
+<p>for (int i = 0; i &lt; boxNodes_.Size(); i++)<br/>
+{<br/>
+boxNodes_[i]-&gt;Remove();<br/>
+}</p>
+</blockquote>
+<p>I am observing a significant amount of time to remove those nodes. I also tried disabling the nodes first.</p>
+<p>If I create an intermediary parent node to which I add all these nodes, and then remove the parent, then the operation is instantaneous.</p>
+<p>Can someone please explain the reason behind this behavior?</p>
+<p>My real use case is a pseudo-destructible environment in which my world elements also consist of a significant number of nodes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="1" data-topic="3626">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5112b645a2f2878903d5daa846570f2f.png" width="20"/> stark7:</div>
+<blockquote>
+<p>Can someone please explain the reason behind this behavior?</p>
+</blockquote>
+</aside>
+<p>Every <code>Remove</code> call performs linear search over all siblings and then performs linear element removing from vector, so you have O(n^2) complexity when removing nodes one-by-one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>In general, my understanding has always been that new/delete operations can be slow overall, so avoiding them is always best. I’m not quite sure why Remove is slower, however, my guess is that it has to do a lot more checks to remove a child (who owns the child, traverse any children it may have, etc), than it does for when it’s adding the child. That doesn’t mean there isn’t room for improvement, just that it (possibly) has more checks along the way.</p>
+<p><strong>Possible Solution</strong><br/>
+Lumak has a Foliage example which handles updating a lot of foliage nodes at once. One particular issue he addresses is how to quickly update all of them without slowing down the process. If I remember correctly, the solution was to update a set number of nodes each ‘Update’ frame until you’ve updated them all, and then repeat the process.</p>
+<p>With that in mind, one solution you can do is to set the Visibility of all nodes you want to delete to “false” while sending them to a “Delete Queue”. On each ‘PostUpdate’, delete a set number inside the queue to prevent the heavy delete operation from slowing down your app. Or, if you can (and if it makes sense in your application), create a ‘pool’ so you can reuse the nodes later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ext1</div>
+          <div class="post_content">
+<p>I have very little experience with Urho3D, but maybe the performance is also being affect due to also having to send change events: <a  rel="nofollow noopener">Remove()</a> &gt;&gt; <a  rel="nofollow noopener">RemoveChild()</a>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/998_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">stark7</div>
+          <div class="post_content">
+<p>Thank you <span class="mention">@Victor</span> and <span class="mention">@ext1</span> - I think you both have valid points, and all of that is compounded by what <span class="mention">@Eugene</span> is saying about the O(n*n) complexity which explains my observations.</p>
+<p>If i were to choose between fast create and fast destroy, I would always want fast create/recreate.</p>
+<p>I think I will be making extensive use of nodes with the StaticModelGroup component moving forward so my problem is not really a problem anymore.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

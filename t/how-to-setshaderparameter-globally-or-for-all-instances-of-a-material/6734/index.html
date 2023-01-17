@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to SetShaderParameter globally (or for all instances of a material)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to SetShaderParameter globally (or for all instances of a material)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Our app uses a tiled map presentation, where we define “danger” colors for the terrain based upon a dynamic elevation setting.  (e.g. everything above 2000’ will show RED, but this 2000’ is a global setting that changes rapidly at run-time).</p>
+<p>We’re trying to avoid the load of rapidly setting this Shader parameter for every instance of the Material in our scene.   Ideally, we set it ONCE and all of the materials just see it automatically.</p>
+<p>Is this possible with Urho3D?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>In the most minimal sense that isn’t possible as Materials don’t manage constant state. During the batch loop they pump their parameters into the constant-buffers that <code>Graphics</code> manages.</p>
+<p>You could add a bulk set like <code>static void Material::SetShaderParameterInBulk(const Vector&lt;SharedPtr&lt;Material&gt; &gt;&amp; materials, const String&amp; name, const Variant&amp; value)</code> to tightly loop through them first to set the value directly and again to do the parameter-hash and memory size updates on each of them. C++ side that probably won’t have any major wins, but from script (be it As, Lua, or C#) it’ll be more significant because of less marshaling.</p>
+<p>That’s as close as you could there without the larger amount of work required to to add cbuffer management into materials. Since they’d be working with their own private custom-params cbuffer in that case there wouldn’t be any wins to be had that way anyways as you couldn’t really “inherit” that in a fashion that wouldn’t just trigger a heap of calls in another fashion (like an event).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Yes, its trivial! You just add a new uniform. Check how other uniforms are set in View.cpp. PSP_DELTATIME for example.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>There are caveats with that because the batch loop is going to steam roll over a lot of that (it won’t steamroll over stuff you’ve crammed into odd places that aren’t per draw) while it sources parameters from the materials.</p>
+<p>It does apply though if you’re doing explicit rendering from an event in the renderpath though.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

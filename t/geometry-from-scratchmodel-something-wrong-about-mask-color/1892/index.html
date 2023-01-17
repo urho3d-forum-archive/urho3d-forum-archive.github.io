@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Geometry from ScratchModel,something wrong about MASK_COLOR</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Geometry from ScratchModel,something wrong about MASK_COLOR</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elemusic</div>
+          <div class="post_content">
+<p>i have read 34_DynamicGeometry example,trying to learn how to write a custom LineRender with only position and vertex color.<br/>
+somehow it didn’t work as expected.<br/>
+i want to draw a triangle with alpha color(1,0,0,0.5f)<br/>
+the result is some triangle with wrong direction,front to back,guess there maybe some vertex format mistake,i can’t figure out</p>
+<pre><code class="lang-auto">float vertexData[] = {
+		// Position     Color
+		-5, 5, 0,		1,0,0,0.5f,
+		5, 5, 0,		1,0,0,0.5f,
+		-5, -5, 0,		1,0,0,0.5f
+	};//clock wise
+
+	const unsigned short indexData[] = {
+		0, 1, 2
+	};
+
+	const unsigned numVertices = 3;
+
+	SharedPtr&lt;Model&gt; fromScratchModel(new Model(context_));
+	SharedPtr&lt;VertexBuffer&gt; vb(new VertexBuffer(context_));
+	SharedPtr&lt;IndexBuffer&gt; ib(new IndexBuffer(context_));
+	SharedPtr&lt;Geometry&gt; geom(new Geometry(context_));
+
+	vb-&gt;SetShadowed(true);
+	vb-&gt;SetSize(numVertices, MASK_POSITION | MASK_COLOR);
+	vb-&gt;SetData(vertexData);
+
+	ib-&gt;SetSize(numVertices, false);
+	ib-&gt;SetData(indexData);
+
+	geom-&gt;SetVertexBuffer(0, vb, MASK_POSITION | MASK_COLOR);
+	geom-&gt;SetIndexBuffer(ib);
+	geom-&gt;SetDrawRange(TRIANGLE_LIST, 0, numVertices);
+
+	fromScratchModel-&gt;SetNumGeometries(1);
+	fromScratchModel-&gt;SetGeometry(0, 0, geom);
+
+	Node* node = scene_-&gt;CreateChild("FromScratchObject");
+	node-&gt;SetPosition(Vector3(3.0f, 0.0f, 0.0f));
+
+	StaticModel* sModel = node-&gt;CreateComponent&lt;StaticModel&gt;();
+	sModel-&gt;SetModel(fromScratchModel);
+	sModel-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/MyConstColor.xml"));</code></pre>
+<p>and here is the MyConstColor.xml,just call BasicVColUnlitAlpha</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/BasicVColUnlitAlpha.xml" /&gt;
+&lt;/material&gt;</code></pre>
+<p>the problem is the color vertex format does not work as expected.</p>
+<p>if i change for just position,it’s ok.</p>
+<pre><code class="lang-auto">float vertexData[] = {
+		// Position
+		-5, 5, 5,
+		5, 5, 5,
+		-5, -5, 5
+	};
+...
+vb-&gt;SetSize(numVertices, MASK_POSITION);
+geom-&gt;SetVertexBuffer(0, vb, MASK_POSITION);
+...</code></pre>
+<p>if i use the 34_DynamicGeometry example with position and nomal,it works as well.</p>
+<pre><code class="lang-auto">float vertexData[] = {
+            // Position             Normal
+            0.0f, 0.5f, 0.0f,       0.0f, 0.0f, 0.0f,
+            0.5f, -0.5f, 0.5f,      0.0f, 0.0f, 0.0f,
+            0.5f, -0.5f, -0.5f,     0.0f, 0.0f, 0.0f
+}
+vb-&gt;SetSize(numVertices, MASK_POSITION|MASK_NORMAL);
+geom-&gt;SetVertexBuffer(0, vb, MASK_POSITION | MASK_NORMAL);</code></pre>
+<p>If add color,then everything goes wrong… <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/><br/>
+what the problem with color?<br/>
+how can i make it right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi, you better looking into code to clarify what is color format in vertex<br/>
+So open VS studio and Urho3d project, press Ctrl+F - type “CustomGeometry” and you got this:</p>
+<pre><code class="lang-auto">/// Custom geometry vertex.
+struct CustomGeometryVertex
+{
+    /// Position.
+    Vector3 position_;
+    /// Normal.
+    Vector3 normal_;
+    /// Color.
+    unsigned color_;
+    /// Texture coordinates.
+    Vector2 texCoord_;
+    /// Tangent.
+    Vector4 tangent_;
+};</code></pre>
+<p>and then you probably may see this also:</p>
+<pre><code class="lang-auto">void CustomGeometry::DefineColor(const Color&amp; color)
+{
+    if (vertices_.Size() &lt; geometryIndex_ || vertices_[geometryIndex_].Empty())
+        return;
+
+    vertices_[geometryIndex_].Back().color_ = color.ToUInt();
+    elementMask_ |= MASK_COLOR;
+}</code></pre>
+<p>So use or keep code near with you for seeing struct format and how methods are working.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elemusic</div>
+          <div class="post_content">
+<p>thanks codingmonkey,never thought color use unsigned int,now everything go well.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

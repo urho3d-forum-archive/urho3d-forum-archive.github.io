@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Background resource loading events</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Background resource loading events</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>So I have been looking into using the background resource loading semantics in <code>ResourceCache</code>, but I’ve ran into something I’d like to understand if there is a better solution for.</p>
+<p>Lets say there are 10 objects that have subscribed to <code>E_RESOURCEBACKGROUNDLOADED</code>, and each of these objects have requested different files to be loaded.  In the event callback function, I’m having to write something like this:</p>
+<pre><code class="lang-auto">void Tile::OnResourceLoaded(Urho3D::StsringHash eventType, Urho3D::VariantMap &amp;eventData)
+{
+  using namespace Urho3D;
+  using namespace Urho3D::ResourceBackgroundLoaded;
+  if ( eventData[ P_SUCCESS ].GetBool() )
+  {
+    auto resource = reinterpret_cast&lt;Resource*&gt;( eventDAta[ P_RESOURCE ].GetPtr() );
+    if ( resource-&gt;GetName().Compare( queuedResourceName ) == 0 )
+    {
+      // handle it here
+    }
+  }  
+}
+</code></pre>
+<p>Is there anyway to actually do it more along the lines of this:</p>
+<pre><code class="lang-auto">void Tile::OnResourceLoaded(Urho3D::StsringHash eventType, Urho3D::VariantMap &amp;eventData)
+{
+  using namespace Urho3D;
+  using namespace Urho3D::ResourceBackgroundLoaded;
+  if ( eventData[ P_USERDATA ].GetPtr() == this &amp;&amp; eventData[ P_SUCCESS ].GetBool() )
+  {
+    // do logic
+  }
+}
+</code></pre>
+<p>I can certainly modify the source of the engine or re-implement this in a custom way, but before I go down either of those paths, I was curious if there was any sort of way of actually indicating that only a single recipient is interested in a specific event.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>It’s not an answer to your question, but if it’s just about the speed of the string compassion you could use GetNameHash() instead for the name comparison.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>Thank <span class="mention">@SirNate0</span>, that would definitely be an optimization for sure, but the basis for my question is to better understand if what I am after is outside the scope/usage of the event system.</p>
+<p>From what I’ve gathered, this simply isn’t something the system provides out of the box.  I understand in the general sense that multiple recipients may be interested in being notified when the same resource becomes loaded, e.g. multiple objects that share a texture.</p>
+<p>When its explicitly known up front that a single Object is only ever interested in being informed when a resource has been loaded, wouldn’t it make sense to offer a way to short-circuit the dispatch of the handlers somehow?</p>
+<p>I have considered overloading <code>BackgroundLoadResource</code> that accepts a <code>Urho3D::Object</code> pointer that the caller can use to provide an intended recipient and when its not-null, that object will be used to masquerade the event dispatch.  This would allow an object to subscribe to the event on itself for my use case and therefore only its event handler would be informed when the resource is loaded.</p>
+<p>While that would work, is there a better way as I’d prefer to avoid engine changes where possible to keep upgrade paths easy and clean where possible.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

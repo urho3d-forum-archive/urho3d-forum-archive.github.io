@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>TerrainPatch</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">TerrainPatch</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>Hi, is there any explanation somewhere about TerrainPatch? I don’t get it with just the API. Looks like a Terrain should be composed of linked TerrainPatches. And only TerrainPatch is Drawable. But still the examples use only Terrain, and it can be rendered without the patches.</p>
+<p>Also, is there any way to change the height without reloading a full heightmap image?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Hi jorbuedo,</p>
+<p>TerrainPatch is indeed part of Terrain. If I remember correctly, the older versions of the Editor used to display the TerrainPatch node but I think it’s not necessary anymore. You can check out or manipulate it by code though. <a href="http://urho3d.github.io/documentation/a00352.html" rel="nofollow noopener">urho3d.github.io/documentation/a00352.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>That doesn’t help much  <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/><br/>
+Why is there? What can it do that normal Terrain can’t? How do I use it?</p>
+<p>From the API I deduce that it’s there to create larger terrains using small portions linked together. But then it doesn’t make sense that you can simply skip them and render Terrain directly. Terrain is not even Drawable and thus can’t be hit by raycast (don’t know why it can be rendered however).</p>
+<p>[code]    – Create heightmap terrain<br/>
+terrainNode = scene_:CreateChild(“Terrain”)<br/>
+terrainNode.position = Vector3(0.0, 0.0, 0.0)<br/>
+local terrain = terrainNode:CreateComponent(“Terrain”)<br/>
+terrain.patchSize = 64<br/>
+terrain.spacing = Vector3(2.0, 0.5, 2.0) – Spacing between vertices and vertical resolution of the height map<br/>
+terrain.smoothing = true<br/>
+terrain.heightMap = cache:GetResource(“Image”, “Textures/HeightMap.png”)<br/>
+terrain.material = cache:GetResource(“Material”, “Materials/Terrain.xml”)<br/>
+– The terrain consists of large triangles, which fits well for occlusion rendering, as a hill can occlude all<br/>
+– terrain patches and other objects behind it<br/>
+terrain.occluder = true</p>
+<pre><code>local body = terrainNode:CreateComponent("RigidBody")
+body.collisionLayer = 2 -- Use layer bitmask 2 for static geometry
+local shape = terrainNode:CreateComponent("CollisionShape")
+shape:SetTerrain()
+
+
+local terrainPatchNode = scene_:CreateChild("TerrainPatch")
+terrainPatchNode.position = Vector3(0.0, 0.0, 0.0)
+local terrainPatch = terrainNode:CreateComponent("TerrainPatch")
+terrainPatch.coordinates = IntVector2(0,0)
+terrainPatch.owner = terrain
+terrainPatch.material = cache:GetResource("Material", "Materials/StoneTiled.xml")
+terrainPatch.boundingBox = BoundingBox(-10000.0, 10000.0)[/code]
+</code></pre>
+<p>That code gives the following ERROR: Null index buffer and no raw index data, can not define indexed draw range</p>
+<p>What’s wrong with it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Have you tried running the Lua demos first?</p>
+<p>I have not tested the Lua code version, but in angelscript and c++ samples it works fine (Water/Vehicle demo)</p>
+<ul>
+<li>comparing your code with the sample, try putting “local” in your first line so it reads <code>local terrainNode = scene_:CreateChild("Terrain")</code>
+</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>The problem isn’t with Terrain, that works fine. What doesn’t work is with TerrainPatch, and non of the examples uses it.<br/>
+In lua ‘local’ just refers to the scope of the variable, it’s not relevant in the code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Ok I see where you’re getting at but apparently the engine takes care of the terrain patch and this component has been rarely discussed.</p>
+<p>So you can refer to the old forum post (Lasse’s reply) which coincidentally I have asked before:</p>
+<aside class="quote">
+<blockquote>
+<p>Terrain is the “master” component, which isn’t a drawable component by itself, instead it creates child nodes with TerrainPatch components which actually are drawable, and which can change LOD individually (but while still obeying certain stitching rules to avoid holes). TerrainPatches contain no editable attributes and should be generally be left alone, as the Terrain component manages them.</p>
+</blockquote>
+</aside>
+<p><span class="bbcode-b">Original Google group forums message link:</span></p>
+<p><a  rel="nofollow noopener">groups.google.com/d/msg/urho3d/ … copsSfkDYJ</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>Ok, that makes sense.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

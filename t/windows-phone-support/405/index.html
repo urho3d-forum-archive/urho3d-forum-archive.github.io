@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Windows Phone support?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Windows Phone support?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JeriX</div>
+          <div class="post_content">
+<p>Is there any chance developers would implement basic support of WP platform in future?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>SDL does support WinRT nowadays, so it’s not an impossibility, but it would be a large undertaking, as it practically needs implementing a D3D11 renderer first.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>A DX11 renderer would be nice to have at some point, especially if we can take advantage of the many new features not present in DX9. The way the project is organized so far, it wouldn’t be too disruptive to begin adding support for it. Though we would need someone familiar enough with DX11 to make something solid.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JeriX</div>
+          <div class="post_content">
+<p>I’ve had some experience with dx11 in wp8: I think it’s just some wrapper about dx9 hardware with disabled features of dx11 and enabled complexity of dx11 <img alt=":angry:" class="emoji" src="../../../images2/dda96664c6d9e61674679e7c70394270.png" title=":angry:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There are at least two ways to go implementing a D3D11 renderer.</p>
+<ol>
+<li>
+<p>The API &amp; compatibility-disrupting, efficient way. We change our whole low-level rendering API to benefit from D3D11 concepts, like the immutable state objects. Materials use uniform buffer objects instead of individual uniforms. OpenGL2 and D3D9 backends are rewritten to emulate D3D11 concepts. This breaks Urho programs which rely on the old low-level rendering API.</p>
+</li>
+<li>
+<p>The minimal hack way: we write a D3D11 backend which emulates D3D9/OpenGL2 concepts like the individual renderstates and individual uniforms, and maps them to D3D11 concepts. This will not break compatibility, but it doesn’t realize D3D11’s full potential for performance gains.</p>
+</li>
+</ol>
+<p>Also, unless some magic is performed, D3D11 requires writing a third version of every shader. One possibility would be to ditch D3D9 at that point in which case we’d be back to just two versions: GLSL and D3D11 HLSL.</p>
+<p>EDIT: somewhat related to the discussion at hand, I’ve started an experimental toy engine project which will explore modern graphics API’s, different scene representation (basically merging the concept of “child node” and “component” into one, as well as unifying scene and UI) and radical lack of reliance on 3rd party libraries. I’m not quite up to the rendering part yet, but I’ll start from D3D11. With some luck the knowledge gained from this will benefit Urho3D as well, and can in time be “transplanted” back:</p>
+<p><a href="http://code.google.com/p/turso3d">code.google.com/p/turso3d</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>That toy project sounds like a great way to test concepts. I love how you specify multithreading in your “to do” list for the project, that’s something that Urho3D could definitely use.</p>
+<p>I propose a different way of implementing D3D11: Separate the Graphics subsystem. We can keep the original Graphics subsystem for OpenGL/D3D9 support, then add a Graphics_D3D11 subsystem which utilizes all the new awesome stuff that D3D11 has to offer. That way we don’t need to ensure compatible between the various graphics modes.</p>
+<p>I say this because the entire concept of implementing D3D11 being coupled with the implementation of OpenGL or D3D9 runs in the opposite direction of the existing Component-based structure.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The thing is, however, that a lot of classes in Urho rely on the Graphics subsystem API. Materials, the high-level view rendering, even UI. Having a different Graphics for D3D11 would mean also creating two versions of these classes, or a lot of <span class="hashtag">#ifdef</span> blocks inside them, and the differences could likely leak to the outside API, for example Material class exposing individual uniforms vs. constant buffers.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Material class is part of the Graphics subsystem, there should be no problem separating it. UI is one of those things that will probably either need several <span class="hashtag">#ifdef</span> blocks or its own separate UI_D3D11 subsystem.</p>
+<p>It sounds to me like it’s time for some potential refactoring. It seems that the entire point of the subsystem-based approach is so that developers can mix-and-match just the systems they need. If we’re going to run into these problems because some systems are too tightly coupled, then we need to decouple them and rethink our approach.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JeriX</div>
+          <div class="post_content">
+<p>Maybe there is a small point to try to use <a data-bbcode="true" href="https://github.com/MSOpenTech/angle" rel="nofollow noopener">ANGLE WP8 port</a>? Just for basic support for this platform?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I don’t think there’s a refactoring possibility that can help to avoid coupling to Graphics, if we want to keep the idea that you write multiple rendering backends, but only need to write the higher-level rendering (meshes, lights, materials, UI) once. Compare to Ogre’s RenderSystem interface, to which all Ogre’s higher level classes talk to. The optional subsystems (Physics, Navigation, Network, Script…) on the other hand are very easy to keep decoupled. However, there may be a possibility to do adjustments to the Graphics API that accounts for both the old API’s and new, for example make a SetShaders() call that accepts geometry / hull shader pointers, but practically those will always be null on OGL2 / D3D9.</p>
+<p>Yes, ANGLE would be the fastest shortcut. Though considering that a phone is always slower than a PC, running extra code to function as a realtime graphics API call translator doesn’t sound like it would get stellar performance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In the Turso3D engine (<a href="http://code.google.com/p/turso3d">code.google.com/p/turso3d</a>) I’ve now basically completed a D3D11 renderer. From this experience it should be doable to also implement D3D11 rendering in Urho. There are many options how to proceed but keeping the old Graphics API just as it is should result in reasonable performance, though obviously without any D3D11 extra features. Basically we’d create D3D11 state objects on the fly as needed from the Urho renderstates.</p>
+<p>However, in Turso I wrote shaders from scratch using the SM4 profile, while in Urho it wouldn’t be nice to have to write shaders three times (D3D11, D3D9, OpenGL). If we want to retain Urho as a viable engine for old Windows computers, dropping D3D9 means only choice is OpenGL, which may potentially have very bad drivers. SM2 could be dropped at any time though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>From this experience it should be doable to also implement D3D11 rendering in Urho<br/>
+cool! yes it’s time )</p>
+</blockquote>
+<blockquote>
+<p>dropping D3D9<br/>
+it’s nice idea (I always was interested only in open gl), but mb better make option for this then you build urho3d (use dx9 or dx11 )</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Yes, I think there was a discussion topic quite sometime ago about supporting the “plugins” mechanism similar to Ogre’s RenderSystem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">boberfly</div>
+          <div class="post_content">
+<p>Very cool Cadaver! I like the design of Turso3D’s graphics, serialising render states like this lends itself well to a Mantle/DX12 or GL-next approach, from seeing the NV_command_list extension. The multiple shaders situation is still painful though, not really sold on bgfx’s approach or Unreal4’s non-free HLSL cross-compiler either.</p>
+<p>I think DX9 is still viable for all those Windows XP machines in China, it all depends what state the OpenGL driver is for these said machines, the Intel driver especially. Nvidia would expose stable enough drivers with perhaps GL3 or GL4 even.</p>
+<p><a href="http://store.steampowered.com/hwsurvey" rel="nofollow noopener">store.steampowered.com/hwsurvey</a><br/>
+<a href="http://stats.unity3d.com/pc/" rel="nofollow noopener">stats.unity3d.com/pc/</a></p>
+<p>From memory I don’t think China is listed in the steam hardware survey (one of their steam dev days mentioned this that DOTA2 was deployed outside of steam in China). The Unity3D stats are more reflective of this, having the unsupported Windows XP at 39.1% (!)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Hello Cadaver,</p>
+<p>I think you could drop DX9 support and keep OpenGL but maybe switch to OpenGL 3.x ?</p>
+<p>OpenGL support need to be keeped of course <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]In the Turso3D engine (<a href="http://code.google.com/p/turso3d" rel="nofollow noopener">code.google.com/p/turso3d</a>) I’ve now basically completed a D3D11 renderer. From this experience it should be doable to also implement D3D11 rendering in Urho. There are many options how to proceed but keeping the old Graphics API just as it is should result in reasonable performance, though obviously without any D3D11 extra features. Basically we’d create D3D11 state objects on the fly as needed from the Urho renderstates.</p>
+<p>However, in Turso I wrote shaders from scratch using the SM4 profile, while in Urho it wouldn’t be nice to have to write shaders three times (D3D11, D3D9, OpenGL). If we want to retain Urho as a viable engine for old Windows computers, dropping D3D9 means only choice is OpenGL, which may potentially have very bad drivers. SM2 could be dropped at any time though.[/quote]</p>
+<p>I am personally sick of transpilers from work.  Given all of the possibilities though the transpiler option, bgfx shaderc + glsl optimizer isn’t a bad one.  There is also the angle approach for old intel hardware.  If we had opengl/dx11 and angle for old windows intel cards it would open up things like nanovg.</p>
+<p>I would like to hear your more on what you learned from writing another renderer.  Did you find any oportunities for optimizations for urho cpu side?  The legendary, tyrannical king among fish will be more fierce then ever!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>I see the earlier comments about dx11 indicate that maybe it could get messy as far as graphics classes are concerned-- but otherwise I think having duplicate shaders wouldn’t be too big of an issue as we already have the dx9 shaders ready. Future shader additions is extra work on contributors, but there’s nothing that requires an engine-user to write shaders/offer every graphics API option.</p>
+<p>From an overall value perspective, I think having dx9-level support is a plus on Urho’s side. Dx11 would be a great addition too.</p>
+<p>The original topic is about getting windows phone support, so I’m not sure if it’s on the table-- but would tessellation and geometry shaders be on the table with this proposed change?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>D3D11 is a prerequisite for Windows Phone support. Obviously it would need work elsewhere too, but the render API is probably the biggest hurdle. Realistically speaking it will need a contributor who is interested and has hardware, to finalize the work once D3D11 support is in place, and also to keep maintaining the port.</p>
+<p>By adopting newer rendering API’s things like geometry shaders and tessellation become possible, that said I don’t have experience of them so that too will probably require someone who has an idea of how they should be used and what the API should look like, but they should be easy enough to contribute once the newer API itself is in place.</p>
+<p>For optimization: I did find some opportunities, for example simplifying the Drawable virtual function interface for updating objects in frustum, ensuring that we don’t go through all the visible objects unnecessary times, and updating render state settings only just before the draw call, from a cached state that the Graphics class stores. Nothing major though, as Urho is already fairly good in its CPU &amp; API use effectiveness.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">boberfly</div>
+          <div class="post_content">
+<p>I’d like to help with GL4/DX11 code where possible. When do you plan on integrating Turso3D things to Urho3D Cadaver? Or would you perhaps reshape Urho3D to be more in line with modern hardware and treat DX9/GL2 as a fallback?</p>
+<p>But yeah it would just be some experiments on the side from me due to lack of time, OpenSubdiv is a nice codebase to look and see how they do tessellation in a practical way (despite the massive draw call overhead). This reminds me I got Oculus on the backburner once I get my DK2 back again too…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I will not commit to any firm promises but it looks like I’ll be working on it during the first half of 2015. Will still need to make some final experiments related to shader language and perhaps implementing a quick &amp; dirty fallback D3D9 renderer in Turso to see what it would look like before I start gutting Urho.</p>
+<p>With current perspective it looks like the only major change would be the use of constant buffers. In Turso I have a pretty heavy-handed approach where I assume nothing of the uniforms, and actually require users (as well as the high-level rendering system) to craft properly ordered constant buffers. I’m not sure if this is the way to go, as it would make Urho somewhat less friendly to use. The alternative is to have the shader tell its constant buffer layout, and go always through that layout mapping when updating uniforms (like before). This seems to also be the approach used by bgfx.</p>
+<p>Other things like tessellation, geometry shaders would be just additions that don’t disrupt the existing API.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>I will not commit to any firm promises but it looks like I’ll be working on it during the first half of 2015. Will still need to make some final experiments related to shader language and perhaps implementing a quick &amp; dirty fallback D3D9 renderer in Turso to see what it would look like before I start gutting Urho.</p>
+</blockquote>
+</aside>
+<p>It looks like Urho3D v2.0 is in the pipeline. I am looking forward to it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>Ill admit that having OpenGL 2/DX9 is good to keep compatibility with old PCs, but I wouldnt mind if you upgrade Urho to Opengl 3 and Dx 11. Having tessellation is a must in today’s engines.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">devrich</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="rogerdv">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/e2f206c60df7108f1ca5174dcfdb5368.png" width="20"/> rogerdv:</div>
+<blockquote>
+<p>Ill admit that having OpenGL 2/DX9 is good to keep compatibility with old PCs, but I wouldnt mind if you upgrade Urho to Opengl 3 and Dx 11. Having tessellation is a must in today’s engines.</p>
+</blockquote>
+</aside>
+<p>I believe OpenGL 4.3 is when they started allowing tessellation shaders.  As a side note; AMD in Dec 2014 released propritary Linux drivers that make Radeon cards even as old as 5000 HD series line support OpenGL 4.4 and OpenCL 2.0 ( in case anyone working on linux has a Radeon card )</p>
+<p>I +1 for OpenGL 4.3+ support  <img alt=":smiley:" class="emoji" src="../../../images2/7014497b1c97c810791a011290bda7f5.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>Accroding to wikipedia, 4.0 supports tessellation via ARB_tessellation_shader. Anyway, Im not an expert in graphics. But if team decides to support Dx11 and OpenGL 3, I vote. And for an integrated editor too. And for free beers and girls.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">devrich</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="rogerdv">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/e2f206c60df7108f1ca5174dcfdb5368.png" width="20"/> rogerdv:</div>
+<blockquote>
+<p>…And for an integrated editor too…</p>
+</blockquote>
+</aside>
+<p>Do you mean a C++ Editor or ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>Scene editor. Like Unity3d, or Unreal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>While Urho3D does take some cues from Unity, I think one strong point that Urho3D has is its flexibility. The main issue with an integrated scene editor is that the more powerful you make it, the more specific it becomes. An open-source scene editor is definitely worth looking into, and <a>I have a simple, barebones demo here</a>.</p>
+<p>Consider detailing what features you want in a scene editor that the current scene editor does not have.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>I dont see how Unity3d or Unreal are specific. They have been used to create all kind of games.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Unity… have been used to create all kind of games.<br/>
+and even if you gonna make your RTS or like “Total War” game with biggest map and many little objects, and with many details ?)</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>On the subject of an integrated or more advanced editor: note that Unity and Unreal both have much larger development teams. It is unrealistic to expect the same from Urho3D, at least from the core team.</p>
+<p>IMO the included editor is somewhere halfway between a production-usable editor, and an example that says “hey, you can code an editor using the Urho3D runtime.”</p>
+<p>The idea of an external open source project for an Urho3D editor is excellent. It would be its team’s call to which degree they’d support eg. integrated “test-in-editor”. This requires some kind of higher level concept and structure (= more limitations) for the game code, that Urho3D itself doesn’t define, as it’s more like a library with a collection of subsystems that you can use like you wish.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1422_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">amerkoleci</div>
+          <div class="post_content">
+<p>I’ve tried the latest turso3d repo and its very good, I found HEAP MEMORY DETECTION when parsing json that has an array of values,<br/>
+I saw your using your own JSON parser, can you give a look?</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You mean heap corruption? If you have a (short) reproduction case you could submit it to the turso3d project as an issue. Though the project is not really meant for public consumption or support yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1422_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">amerkoleci</div>
+          <div class="post_content">
+<p>Yeap, Try to parse something like this:</p>
+<pre><code class="lang-auto">{
+	"data" : ["one", "two", "three"]
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I tried parsing that from a file and calling MSVC debug heap check before and after. (VS2013 32bit and 64bit debug builds). No corruption detected in that case. I’m going to need more information (the code you used, compiler, build type.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1422_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">amerkoleci</div>
+          <div class="post_content">
+<p>I’m using Vs 2013 and platform is Windows, seams that the copy constructor is causing problem, I’ll prepare some simple stuff to showcase the issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1422_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">amerkoleci</div>
+          <div class="post_content">
+<p>With the upon json i’m getting:<br/>
+HEAP CORRUPTION DETECTED: after Normal block (<span class="hashtag">#960</span>) at 0x007F7AB8.<br/>
+CRT detected that application wrote to memory after end of heap buffer.</p>
+<p>Memory allocated:<br/>
+Vector.cpp(23)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You didn’t put any example code in that post, neither I do see anything in the turso3d project’s issues. If you’re not going to share the code you’re using to interact with the JSON classes I most probably cannot help you, with just the debug message you’ve given.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">devrich</div>
+          <div class="post_content">
+<p>[quote=“amerkoleci”]With the upon json i’m getting:<br/>
+HEAP CORRUPTION DETECTED: after Normal block (<span class="hashtag">#960</span>) at 0x007F7AB8.<br/>
+CRT detected that application wrote to memory after end of heap buffer.</p>
+<p>Memory allocated:<br/>
+Vector.cpp(23)[/quote]</p>
+<p>It may not even be Urho3D causing the issue; try looking here <a data-bbcode="true" href="http://stackoverflow.com/questions/19203604/heap-corruption-detected-after-normal-block" rel="nofollow noopener">http://stackoverflow.com/questions/19203604/heap-corruption-detected-after-normal-block</a></p>
+<p>If you wrote something somewhere that overrides somehting in Vector.cpp from line 1 ~ 23 ( for example redefining the Vector class Urho3D uses )  then that may be the problem.</p>
+<p>but as cadaver said; without the source code that’s generating those errors then there is no way to actually narrow down the problem for you <em>other-than-guessing</em> as I just did.</p>
+<p>I hope that link i found helps as it’s the closest thing I could find on your issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Note that we’re talking about Turso3D codebase so this is actually off-topic strictly speaking. Urho itself doesn’t have those same JSON classes. (Though the low-level container classes like Vector are extremely similar in the two.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1422_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">amerkoleci</div>
+          <div class="post_content">
+<p>The issue was related to my changes, I’ve made some changes with String class that caused the issue, sorry for the inconvenience.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The pull request related to D3D11 &amp; GL3 functionality is now online. <a >github.com/urho3d/Urho3D/pull/680</a></p>
+<p>Feel free to test and comment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>It’s not yet merged into master, but i’m check render-refactor brunch and it’s compile fine on vc2013 without any errors.<br/>
+But in Cmake setup window i’m not found any opengl 3.2 force option, It’s used automatically when we choose GL-renderer ?<br/>
+I’m already looked into new dx11 shaders code. they almost exact same as dx9 in most cases. And in this case i’m curious is they still have the same problem with VFT or not ? On old GL-renderer VFT works fine. after some hack to add engine-ability to create RGB(A)16F textures from RGB(A).</p>
+<p>In previous shaders we could remap sampler with add number to the end of sampler name<br/>
+example: sSomeSuperMap3 = use texture unit 3 (in material inspector)<br/>
+is this still works for dx11 shaders? or now we have new rules to create or remap own samplers?</p>
+<p>the newer SamplerState: they need to be configured by engine or in shader code ?<br/>
+Sorry for noobiest questions, but i’m not worked with dx11 before.</p>
+<p>And of course thank for all’s of this <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> Supporting the DX11-Renderer is great step for engine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>GL3 &lt;-&gt; GL2 choice is dynamic during runtime, so it doesn’t need a CMake option.</p>
+<p>I haven’t touched vertex texture fetch at all, actually D3D11 could set the same textures for both VS &amp; PS so it would work like OpenGL. D3D9 is the problematic one in that respect.</p>
+<p>The shaders do some macro trickery to work with both D3D9 / D3D11 and GL2 / GL3. Making custom samplers and assigning them to texture units works exactly like before (on D3D you choose the register, on OpenGL you postfix the unit number to the sampler name)</p>
+<p>D3D11 sampler states are automatically created from the texture parameters, matching OpenGL &amp; D3D9 functionality. In shader you just have to refer to the texture unit and sampler. The convention is that both the texture and sampler for a given texture unit must go to the same numbered register, so for example</p>
+<pre><code class="lang-auto">Texture2D tDiffMap : register(t0);
+SamplerState sDiffMap : register(s0);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>on D3D you choose the register, on OpenGL you postfix the unit number to the sampler name<br/>
+Oh yes, i’m just mixed these things that DX uses registers for samplers and GL don’t needed this. I’m in last time just work with GL-render and forgot about this.</p>
+</blockquote>
+<blockquote>
+<p>so for example<br/>
+I got it. thanks</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]The pull request related to D3D11 &amp; GL3 functionality is now online. <a  rel="nofollow noopener">github.com/urho3d/Urho3D/pull/680</a></p>
+<p>Feel free to test and comment.[/quote]</p>
+<p>I probably did something wrong, but I tried to compile it with linux and the 3d looks kinda distorted.</p>
+<p>Here is a picture of the ninja wars:<br/>
+<a data-bbcode="true" href="http://i.imgur.com/JGDaHkn.png" rel="nofollow noopener">http://i.imgur.com/JGDaHkn.png</a></p>
+<p>Basically it looks kinda like fish eye I guess?</p>
+<p>On my android everything seemed to be working.</p>
+<p>I guess this doesn’t support opengles 3.0 on android tho?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>[quote=“TikariSakari”][quote=“cadaver”]The pull request related to D3D11 &amp; GL3 functionality is now online. <a  rel="nofollow noopener">github.com/urho3d/Urho3D/pull/680</a></p>
+<p>Feel free to test and comment.[/quote]</p>
+<p>I probably did something wrong, but I tried to compile it with linux and the 3d looks kinda distorted.</p>
+<p>Here is a picture of the ninja wars:<br/>
+<a data-bbcode="true" href="http://i.imgur.com/JGDaHkn.png" rel="nofollow noopener">http://i.imgur.com/JGDaHkn.png</a></p>
+<p>Basically it looks kinda like fish eye I guess?</p>
+<p>On my android everything seemed to be working.</p>
+<p>I guess this doesn’t support opengles 3.0 on android tho?[/quote]</p>
+<p>What graphics do you have? Intel, AMD, or NVIDIA?  And what driver are you using? open source or proprietary?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Did you replace the old shaders with the new ones?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ hd_:</div>
+<blockquote>
+<p>Did you replace the old shaders with the new ones?</p>
+</blockquote>
+</aside>
+<p>ah, it was still linking the old glsl shader files. After changing the shaders to new ones, it seems to come up correctly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>GLES 3.0 support is not in; I have no hardware to test so likely someone else will have to contribute it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I’m doing some tests of my FH on DX11 Renderer<br/>
+and I have a little problem with my skysphere - is not visible now <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/><br/>
+my skysphere is an simple sphere model with vertexes format: pos(vec3) + uv(vec2)<br/>
+it use simple flat texture RGB (2028*2048) (not cube map)<br/>
+my own shader for it (it work very well on dx9)<br/>
+and for dx11 I do some fixes:<br/>
+change tex2d to  Sample2D<br/>
+add OUTPOSITION to oPos in VS<br/>
+add  OUTCOLOR0 to oColor in PS</p>
+<p>[code]<span class="hashtag">#include</span> “Uniforms.hlsl”<br/>
+<span class="hashtag">#include</span> “Samplers.hlsl”<br/>
+<span class="hashtag">#include</span> “Transform.hlsl”</p>
+<p>void VS( float4 iPos : POSITION,<br/>
+float2 iTexCoord: TEXCOORD0,<br/>
+out float4 oPos : OUTPOSITION,<br/>
+out float2 oTexCoord : TEXCOORD0)<br/>
+{<br/>
+float4x3 modelMatrix = iModelMatrix;<br/>
+float3 worldPos = GetWorldPos(modelMatrix);<br/>
+oPos = GetClipPos(worldPos);</p>
+<pre><code>oPos.z = oPos.w;
+oTexCoord = iTexCoord;
+</code></pre>
+<p>}</p>
+<p>void PS(float2 iTexCoord : TEXCOORD0,<br/>
+out float4 oColor : OUTCOLOR0)<br/>
+{<br/>
+oColor = cMatDiffColor * Sample2D(DiffMap, iTexCoord);<br/>
+}<br/>
+[/code]</p>
+<p>maybe there is something else that I forgot to change ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Try putting the OUTPOSITION last, and check the log that you’re not getting an input layout creation error. Input layout refuses to create on D3D11 if the shader is accessing vertex elements that are not present in the vertex data.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>I noticed quite a performance drop on linux mint for my setup. I am using Ati radeon hd 5870 + amd x6 t1050 processor. I am using these drivers:<br/>
+<a data-bbcode="true" href="http://support.amd.com/en-us/kb-articles/Pages/AMDCatalystOmegaLINReleaseNotes.aspx" rel="nofollow noopener">http://support.amd.com/en-us/kb-articles/Pages/AMDCatalystOmegaLINReleaseNotes.aspx</a></p>
+<p>I tried restarting computer in case it makes a difference, but there was none. I am using custom outline shader, but even if I disable it, it doesn’t really make much impact on fps.</p>
+<p>It looks like there is huge difference in light rendering for some reason. I tried using those remove specular, etc from the hud, but it had almost no impact either.</p>
+<p>I am using same code base for both, so if something would needed to be changed with the light system or something else, that would explain the difference.</p>
+<p>Old gl2, 140fps:<br/>
+<a data-bbcode="true" href="http://i.imgur.com/La1rGVy.png" rel="nofollow noopener">http://i.imgur.com/La1rGVy.png</a></p>
+<p>Gl3, ~40fps:<br/>
+<a data-bbcode="true" href="http://i.imgur.com/svPupdh.png" rel="nofollow noopener">http://i.imgur.com/svPupdh.png</a></p>
+<p>For why the house is less visible in the gl2, I was testing out day-night cycle, where I rotate the node that has directional light attached to it in update method. Maybe this could be something that slows down gl3, when I adjust the lights rotation on every frame, or I am doing it in wrong place.</p>
+<p>The code is as simple as this:</p>
+<pre><code class="lang-auto">    lightRot_ += dt * 10.0f;
+    while( lightRot_ &gt; 360.0f )
+        lightRot_ -= 360.0f;
+
+    lightNode_-&gt;SetRotation(Quaternion(lightRot_, 0.0f, 0.0f));</code></pre>
+<p>Maybe there is better lighting system with gl3 than gl2, which would cause the drop in frame amount, or possibly the linux doesn’t hw accelerate gl3 for my gpu.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It’s possible your driver falls back into some degree of software mode for GL3. It’s hard to predict though when that will happen. You can use the -gl2 commandline switch or the “ForceGL2” engine startup option to force always to use GL2.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>[code]<span class="hashtag">#include</span> “Uniforms.hlsl”<br/>
+<span class="hashtag">#include</span> “Samplers.hlsl”<br/>
+<span class="hashtag">#include</span> “Transform.hlsl”</p>
+<p>void VS(float4 iPos : POSITION,<br/>
+float2 iTexCoord: TEXCOORD0,<br/>
+out float2 oTexCoord : TEXCOORD0,<br/>
+out float4 oPos : OUTPOSITION)<br/>
+{<br/>
+float4x3 modelMatrix = iModelMatrix;<br/>
+float3 worldPos = GetWorldPos(modelMatrix);<br/>
+oPos = GetClipPos(worldPos);</p>
+<pre><code>oPos.z = oPos.w;
+oTexCoord = iTexCoord;
+</code></pre>
+<p>}</p>
+<p>void PS(float2 iTexCoord : TEXCOORD0,<br/>
+out float4 oColor : OUTCOLOR0)<br/>
+{<br/>
+oColor = cMatDiffColor * Sample2D(DiffMap, iTexCoord);<br/>
+}[/code]</p>
+<p>Yes, making the OUTPOSITION as last - helps, now SphereSky  is visible. Thanks<br/>
+i don’t remember but in dx9 shader this order (of outputs) is also been important or not ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It’s a D3D11 only phenomenon. It’s rather odd that it happens, particularly when the shader compiler doesn’t warn of it in any way. Has also happened if the interpolators have been in “wrong” order. Possibly the preferred way on D3D11 is to define your shader inputs and outputs as structs, for example like seen in <a href="https://github.com/cadaver/turso3d/blob/master/Bin/Data/Diffuse.vs">github.com/cadaver/turso3d/blob … Diffuse.vs</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Possibly the preferred way on D3D11 is to define your shader inputs and outputs<br/>
+Probably<br/>
+i trying to use this structs but fail. Got an error something about mul (bla bla…) and few time about not defined cModel (from cbuffer). Anyway is the custom output of VS or PS is supported by engine parser ? i think that the using input/output parameters is enough for me.</p>
+</blockquote>
+<p>after the sky problem has been solved.<br/>
+I still have an other problem with bot’s laser fx.<br/>
+There is using std tech DiffAddAlpha.xml with one diffuse texture. And it absolutely invisible now, but in material inspector in preview it looked very well. i guess that it’s again some problem with input data (geometry) for shader. Now i’m try to figure out that wrong with it.</p>
+<p>Well now laserFx is visible<br/>
+<a data-bbcode="true" href="http://savepic.su/5478352.htm"><img alt="" height="" src="../../../images2/bfb7a939a4d020ffb7dd982961d5d890.png" width=""/></a><br/>
+I’m change the Unlit.hlsl with modifying an input parameters - add to VS input iNormal because model have a normals, when I doing export I choose options: pos + normal + uv.<br/>
+But there have some errors in console.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I’m not completely sure what you’re asking, but the COMPILEVS &amp; COMPILEPS macros are defined depending on the shader being compiled from the shared source file, so you can use that to mask away code or definitions that would produce errors in the “other” shader. Other than that, you’re free to feed whatever HLSL you want into the compiler and Urho is simply doing some things in its own way in the inbuilt shaders to ensure that the same shaders work for D3D9 &amp; D3D11 with minimal changes. But if you wanted, you could rewrite the shaders in full D3D11 style.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>but the COMPILEVS &amp; COMPILEPS macros are defined depending on the shader being compiled from the shared source file, so you can use that to mask away code or definitions that would produce errors in the “other” shader<br/>
+I know, but cbuffer with cModel was defineted in VS and in VS I’m got an error with cModel undefinited )</p>
+</blockquote>
+<p>I solved previous problem with console errors.</p>
+<ol>
+<li>copy Shader / Unlit.hlsl</li>
+<li>name copy as Shader / UnlitWithNormalsInGeometry.hlsl <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/>
+</li>
+<li>add iNormal to VS  input parameters</li>
+<li>copy Tech / DiffAddAlpha.xml and name copy as DifAddAlphaGwN.xml (+GeometryWithNormals)</li>
+<li>open DiffAddAlphaGwN.xml and change unlit to UnlitWithNormalsInGeometry</li>
+<li>change the tech for laser materials with this new tech</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NiteLordz</div>
+          <div class="post_content">
+<p>AngelScripy does not run on the Windows Phone device as well. It will run on the emulator, as it compiles with the x86 but the arm version does not support native calling on WP. I have been working with the author of AngelScript, but we are currently stuck.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

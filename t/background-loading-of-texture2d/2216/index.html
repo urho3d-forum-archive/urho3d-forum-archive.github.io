@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Background loading of Texture2D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Background loading of Texture2D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alexander</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>We are using Urho3D on a raspberry pi to animate planes with textures. As the pi has limited graphics memory we use the resource cache to load the textures in the background before they are needed, and unload them after they are used.<br/>
+This works mostly fine.</p>
+<p>We just noticed that even if the loading part is done in the background, it finishes with an <code>Texture2D::EndLoad()</code>, that is performed in the main thread.<br/>
+In EndLoad, the function <code>bool success = SetData(loadImage_);</code> is called, and on our platform that call takes between 20 ms to 50 ms. In our compilation on the PI, the code from <code>OGLTexture2D.cpp</code> is used.<br/>
+As this is done in the main thread, we currently struggel to come under the 16.66 ms per frame we need to rech a 60 fps target. Actually we can not even reach a 30 fps target when the texture loading behaves like this. The texture we use is about 1920*1080, and in RGBA.</p>
+<p>Therefore i wonder what is done during this face of the process, and what we can do to make it faster. Can we use other picture formats? Currently we use PNG. Or is the time spent copying raw image data from memory to graphics memory?<br/>
+Does this process really need to be in the main thread?</p>
+<p>I guess this is something that is unique to the raspberry pi, or at least not a commom problem on other platforms. Or do we miss something basic in how we work with textures and texture loading?</p>
+<p>Sincerely,<br/>
+Alexander</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Yes, the OpenGL call to upload texture data (glTexImage2D) needs to be on the main thread, as OpenGL contexts can only exist attached to one thread at a time. Even if it was on another thread, the upload would have to complete before the next frame can render correctly (assuming the image will be used on the next frame)</p>
+<p>This is somewhat of a problem on all platforms, but more so on Raspberry Pi as it’s so underpowered.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alexander</div>
+          <div class="post_content">
+<p>Hi there,</p>
+<p>Thanks for the quick reply!</p>
+<p>You mention that the data needs to be there before the next frame, as one can imagine <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/><br/>
+But the fact is tha we load the textures many frames ahead of there usage, so for us it would be no broblem to spread this proces over multiple frames. That would be much prefered to the current situation where the engine halts.</p>
+<p>Can this behaviour be acheved  by parameter configuration of the engine, or can we reprogram the engine to work like this?</p>
+<p>Is there something else we can do to shorten the time used in SetData()?</p>
+<p>Sincerely<br/>
+Alexander</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>No, it’s rather the behavior of the graphics driver and there’s no direct control over it. Practically, what the driver offers to the application is “call glTexImage2D() to upload a texture” and it will take as long time as it needs. If the driver is smart then the function itself could complete fast (the graphics driver just stashes it to memory waiting for GPU upload) and avoid a graphics pipeline stall and a long frame in case you would not actually use the texture on the next frame. However the driver can just as well decide to not be that smart.</p>
+<p>One thing you could try would be to load the Image (CPU-side copy only) first, then SetData() it to the Texture2D in small pieces, and see whether that is faster.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alexander</div>
+          <div class="post_content">
+<p>Ok.</p>
+<p>We will se if we can chop the work in smaller peices, and perhaps even spread them out over multiple frames using multiple textures instead.</p>
+<p>Can you give a short explenation of the variable levels_? Or tell me where i can read more about its usage?<br/>
+I can se that my texture comes in 11 levels, but i dont understand why, and how that matters.</p>
+<p>I se that levels_ are important in the loop:</p>
+<p>[code]for (unsigned i = 0; i &lt; levels_; ++i)<br/>
+{<br/>
+SetData(i, 0, 0, levelWidth, levelHeight, levelData);<br/>
+memoryUse += levelWidth * levelHeight * components;</p>
+<pre><code>        if (i &lt; levels_ - 1)
+        {
+            image = image-&gt;GetNextLevel();
+            levelData = image-&gt;GetData();
+            levelWidth = image-&gt;GetWidth();
+            levelHeight = image-&gt;GetHeight();
+        }
+    };[/code]
+</code></pre>
+<p>Would it be faster if the image had more or fever levels?<br/>
+Forgive me for this question, as i am sure it is a stupid one… <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Amount of mip levels. If you don’t need them set amount of levels to 1, which means there’s just one image at the full resolution. By default textures have mip levels down to 1x1.</p>
+<p>Actually you could try disabling mips as a first step if you don’t need them, this could already speed up the upload. When ResourceCache is used to load textures, the texture configuration is specified by an accompanying .xml file, see for example bin\Data\Textures\UI.xml (accompanying UI.png)</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

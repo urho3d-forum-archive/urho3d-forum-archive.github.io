@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Need a bit of clarification on how Model&rsquo;s VertexBuffers and Geometries organized</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Need a bit of clarification on how Model&rsquo;s VertexBuffers and Geometries organized</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">restless</div>
+          <div class="post_content">
+<p>In my project I generate geometry programmatically, and I simply fill the VertexBuffer and IndexBuffer, then supply them to the Model and it works.</p>
+<p>I read this <a href="https://urho3d.github.io/documentation/1.7.1/_vertex_buffers.html" rel="nofollow noopener">https://urho3d.github.io/documentation/1.7.1/_vertex_buffers.html</a> and sometime ago I seen code from somewhere on how to create Model manually… It ended up something like this in my code (unnecessary details are omitted):</p>
+<pre><code>SharedPtr&lt;Model&gt; model (new Model(pContext));
+
+model-&gt;SetNumGeometries(2);
+Vector&lt;SharedPtr&lt;IndexBuffer&gt;&gt; model_index_buffers;
+Vector&lt;SharedPtr&lt;VertexBuffer&gt;&gt; model_vertex_buffers;
+
+//// first pair of buffers goes to geom1
+
+SharedPtr&lt;Geometry&gt; geom1(new Geometry(pContext));
+SharedPtr&lt;VertexBuffer&gt; vb1(new VertexBuffer(pContext, false));
+SharedPtr&lt;IndexBuffer&gt; ib1(new IndexBuffer(pContext, false));
+
+// pass your generated data
+vb1-&gt;SetShadowed(true);
+vb1-&gt;SetSize(...); 
+vb1-&gt;SetData(...);
+
+ib1-&gt;SetShadowed(true);
+ib1-&gt;SetSize(...);
+ib1-&gt;SetData(...);
+
+geom1-&gt;SetVertexBuffer(0, vb1);
+geom1-&gt;SetIndexBuffer(ib1);
+geom1-&gt;SetDrawRange(Urho3D::TRIANGLE_LIST, 0, ...);
+
+model-&gt;SetGeometry(/*0th Geometry*/0, /*0th LOD*/0, geom1);
+model_vertex_buffers.Push(vb1);
+model_index_buffers.Push(ib1);
+
+//  I don't know why, but afaik this part is required?
+Vector&lt;unsigned&gt; morphRangeStarts;
+Vector&lt;unsigned&gt; morphRangeCounts;
+morphRangeStarts.push_back(0);
+morphRangeCounts.push_back(0);
+
+//// repeat everything with second geometry ...
+
+// Questionable part: this two calls are not necessery to render the model,
+// but are required for Model::SaveFile to work
+model-&gt;SetIndexBuffers(model_index_buffers);
+model-&gt;SetVertexBuffers(model_vertexRangeStarts, morphRangeCounts);
+</code></pre>
+<p>It’s pretty dense and elaborate, but the essense is that we set up multiple Geometry classes each containing vertex/index buffers pair, and then pass them into Model <strong>then again</strong> we pass all of the vertex/index buffers to the Model.</p>
+<p>Structure roughly looks like this:</p>
+<pre><code>Model {
+    Vector&lt;IndexBuffer&gt;;
+    Vector&lt;VertexBuffer&gt;;
+
+    Geometry1 {
+        IndexBuffer;
+        VertexBuffer;
+    }
+
+    Geometry2 {
+        IndexBuffer;
+        VertexBuffer;
+    }
+}
+</code></pre>
+<p>So, is it only me not totally understanding the logic here, or do we have an inconsistency in the engine? What I see as illogical is having 2 ways to contain the Vertex/Index buffers (through Model and through containing Geometries).</p>
+<p>The thing is, I can get away with passing vertex/index buffers through Geometries only, but then Model::SaveFile saves  nothing.</p>
+<p>Thanks for reading it to the end <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/> Will be thankful for any leads on this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Tentatively I think the vertexBuffers_ and indexBuffers_ are never actually used - based off a quick search none of the code actually calls <code>Model::GetIndexBuffers</code>, for example.</p>
+<p>Others more familiar with engine may be able to answer better, though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<pre><code class="lang-auto">Model { Vector&lt;IndexBuffer&gt;; Vector&lt;VertexBuffer&gt;;
+</code></pre>
+<p>If I remember it right, logically this is storage for all buffers because different geometries can use same buffers, so we avoid duplication when saving to file</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>See <a href="https://urho3d.github.io/documentation/HEAD/_file_formats.html">https://urho3d.github.io/documentation/HEAD/_file_formats.html</a>. Is this what you are looking for?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">restless</div>
+          <div class="post_content">
+<p>The file format description and the Model::SaveFile kinda confirms that the primary place to store buffers is Model. So then, when we refer to them in Geometry, we could use indexes, just as we do in .mdl file format.</p>
+<p>So I take it as if Geometry::Set*Buffer() taking pointer to buffer is a convenience/shortcut? I think it would help a lot if we put some note into Geometry API that each supplied Buffer pointer should also be stored in Model directly… I donno, I am still confused a bit <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Okay, so it seems to me that Model stores the “complete” list of Vertex/Index Buffers, at least in terms of saving and loading. Each Geometry also stores a list of Vertex/Index buffers, to be used at a given LOD and with a given material (I believe the different Geometries within a given Model each get their own material in StaticModel). When saving, rather than having duplicate buffers, the index in the “complete” list is used, but in general within the engine only the specific entries for a given Geometry are used at one time, and by having multiple pointers to it rather than an index into the global list performance is likely increased a bit.</p>
+<p>It seems to me that we should either do as you suggest, add some comments in the Geomtry API that each buffer should also be added to the Model, or add an additional parameter to <code>bool SetGeometry(unsigned index, unsigned lodLevel, Geometry* geometry);</code> along the lines of <code>bool addNewBuffers = false</code> that will add the Vertex/Index Buffers to the Model from their pointers in the Geometry if they are not already present in the Model’s vector’s. Personally, I would prefer the default to be true for this, but false would preserve the existing behavior.</p>
+<p>Personally, I’m not certain why it’s not possible to just add a VertexBuffer to the model without setting a new vector for all of them. Perhaps more importantly, I think a warning message should be added to <code>LookupVertexBuffer</code> and <code>LookupIndexBuffer</code> to warn that the appropriate buffer was not found when saving, otherwise it appears that all should be well. (I suspect that some code I have from earlier actually behaves improperly in this regard, though I only now have any idea why)</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

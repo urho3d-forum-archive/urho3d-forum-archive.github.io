@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Changing cursors</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Changing cursors</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taqer</div>
+          <div class="post_content">
+<p>Hi, I have a problems with switching multiple cursors in game.</p>
+<p>When I change cursor, it flickers for a moment with default OS cursor, it’s a small thing but I want to remove it.</p>
+<p>I have 6 cursors graphics, defined in style .xml file, and a method to change cursors:</p>
+<pre><code>void GameMode::ChangeCursor(GameCursorType type)
+{
+	if (currentCursorType == type) return;
+	currentCursorType = type;
+
+	//this will crash \/ \/ \/
+	//UI* ui = GetSubsystem&lt;UI&gt;();
+	//Cursor * cursor = ui-&gt;GetCursor();
+	//cursor-&gt;SetShape(cursorNames[type]);
+	//ui-&gt;SetCursor(cursor);
+
+	//this will flicker cursor \/ \/ \/
+	UI* ui = GetSubsystem&lt;UI&gt;();
+	SharedPtr&lt;Cursor&gt; cursor = SharedPtr&lt;Cursor&gt;(new Cursor(context_));
+	cursor-&gt;SetStyleAuto(ui-&gt;GetRoot()-&gt;GetDefaultStyle());
+	cursor-&gt;SetShape(cursorNames[type]);
+	ui-&gt;SetCursor(cursor);
+}
+</code></pre>
+<p>I tried to change cursor at the end of the frame but that didn’t help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Have you tried the first method without the last call to <code>SetCursor</code>?</p>
+<p>It might be an unexpected/unhandled situation and should be unnecessary in this case. I believe <code>SetCursor</code> may remove the only counted reference of the cursor you’re holding a pointer to. If so, the function could use an <code>if (cursor == cursor_) return;</code> at the beginning.</p>
+<details>
+<summary>
+UI::SetCursor</summary>
+<pre><code class="lang-auto">void UI::SetCursor(Cursor* cursor)
+{
+    // Remove old cursor (if any) and set new
+    if (cursor_)
+    {
+        rootElement_-&gt;RemoveChild(cursor_);
+        cursor_.Reset();
+    }
+    if (cursor)
+    {
+        rootElement_-&gt;AddChild(cursor);
+        cursor_ = cursor;
+
+        IntVector2 pos = cursor_-&gt;GetPosition();
+        const IntVector2&amp; rootSize = rootElement_-&gt;GetSize();
+        const IntVector2&amp; rootPos = rootElement_-&gt;GetPosition();
+        pos.x_ = Clamp(pos.x_, rootPos.x_, rootPos.x_ + rootSize.x_ - 1);
+        pos.y_ = Clamp(pos.y_, rootPos.y_, rootPos.y_ + rootSize.y_ - 1);
+        cursor_-&gt;SetPosition(pos);
+    }
+}
+</code></pre>
+</details>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Indeed this causes a segmentation fault:</p>
+<div class="spoiler">
+<pre><code class="lang-auto">UI* ui{ GetSubsystem&lt;UI&gt;() };
+ui-&gt;SetCursor(new Cursor(context_));
+</code></pre>
+</div>
+<p><strong><code>ui-&gt;SetCursor(ui-&gt;GetCursor());</code></strong></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taqer</div>
+          <div class="post_content">
+<p>Works, thanks <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/><br/>
+Also its important to first set cursor in UI.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Nice!</p>
+<p>PR made:<br/>
+<aside class="onebox githubpullrequest">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com/urho3d/Urho3D</a>
+</header>
+<article class="onebox-body">
+<a href="https://github.com/Modanung" rel="nofollow noopener" target="_blank">
+<img alt="Modanung" class="thumbnail onebox-avatar" height="90" src="../../../images2/d5c04057e2b166b3dca648e0bf2b7fba" width="90"/>
+</a>
+<h4>
+<a  rel="nofollow noopener" target="_blank">Added check for setting cursor to current</a>
+</h4>
+<div class="date">
+  by <a href="https://github.com/Modanung" rel="nofollow noopener" target="_blank">Modanung</a>
+  on <a  rel="nofollow noopener" target="_blank">05:24PM - 15 Sep 19 UTC</a>
+</div>
+<div class="github-commit-stats">
+<strong>1 commits</strong>
+  changed <strong>1 files</strong>
+  with <strong>13 additions</strong>
+  and <strong>10 deletions</strong>.
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

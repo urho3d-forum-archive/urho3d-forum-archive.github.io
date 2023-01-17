@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Physics ConvexCast</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Physics ConvexCast</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So i found a post on ConvexCast, but I’m not sure how to use this properly. I am trying to use it for handling melee detection. Does convexcast help with the swiping motion, and make the ray casting more accurate?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Just to answer your last questions, the idea is that you can use a single convex cast to represent the attack (or whatever) rather than a series of <em>ray</em> casts (which are infinitely thin). Consider a baseball example - if you wanted to represent swinging the bat with raycasts you would have to use a raycasts spaced by at most the spacing of the baseball and could still miss some if you had a situation like (ball): where the colon dots are the raycasts. So it’s a combination of accuracy and performance that causes the convex cast to be preferable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<pre><code class="lang-auto">/// Perform a physics world swept convex test using a user-supplied
+/// collision shape and return the first hit.
+void ConvexCast(PhysicsRaycastResult&amp; result, CollisionShape* shape,
+                const Vector3&amp; startPos, const Quaternion&amp; startRot,
+                const Vector3&amp; endPos, const Quaternion&amp; endRot,
+                unsigned collisionMask = M_MAX_UNSIGNED);
+</code></pre>
+<p><span class="mention">@GodMan</span> Could you be more specific concerning your uncertainties?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Is the collision shape suppose to be the sword? Or does it want a bullet physics shape like the capsule or box shape?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Either will do, but keep it low-poly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>The built-in shapes are typically faster, and after that low vertex convex hulls, but if there aren’t too many of these casts happening you probably shouldn’t worry about it. I believe a capsule or box would be the fastest shape that could give you a sword-like shape, and unless you’re specifically simulating sword battles probably give you a good enough effect. You could go even further and use two objects for the casts - one is the sharp edge that cuts, the other can be a dull edge that doesn’t on a single edged sword.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<pre><code>void AIMelee::melee(StringHash eventType, VariantMap&amp; eventData)
+{
+	scene_ = node_-&gt;GetScene();
+
+	CollisionShape* shape_ = handboneNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+	shape_-&gt;SetCapsule(2.0f, 2.0f, Vector3::ZERO, Quaternion::IDENTITY);
+
+	PhysicsRaycastResult raycResult;
+	auto* physicsWorld = scene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+
+	const Vector3 start = body-&gt;GetPosition();
+	const Vector3 end = start + (Vector3::DOWN * 100.0f);
+
+	physicsWorld-&gt;ConvexCast(raycResult, shape_, start, Quaternion::IDENTITY, end, Quaternion::IDENTITY);
+}
+</code></pre>
+<p>I have this, but I have no idea what I’m doing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>You could use the “animation - timestep” as the starting transform and the bone’s current state as end transform for the swipe. Does that make sense?<br/>
+Also I don’t think you’ll want to create a component every time the sword is swept, it doesn’t even have to be part of the scene. Just keep a reference somewhere. Something like:</p>
+<pre><code class="lang-auto">swordShape_ = MakeShared&lt;CollisionShape&gt;()
+</code></pre>
+<p>I must add I never walked this path, so take these instructions with a grain of salt. Maybe someone else could provide more detailed steps.</p>
+<p>As a side note: Appending underscores tends to be reserved for member variables, and is used for discerning them from local variables.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>It’s ok, then you need the check if the cast has any result</p>
+<pre><code>// result.body_ is the other body of the collision
+if (result.body_)
+{
+     // check others properties of cast result 
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Thanks for the post everyone. <span class="mention">@Modanung</span> I though about using the animation trigger similar to the way sounds are handled for footsteps. I was not sure how to go about that. Also I will remove it from the events.</p>
+<p>I will post back later thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Is there a way to visualize what is going on, for the ConvexCast? I feel like I’m taking shots in the dark. If I could see whats going on I would probably understand this more.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><code>DebugRenderer::AddTriangleMesh(...)</code> should be able to help you with that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Okay thanks man as usual</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>…or maybe a cylinder will do. <code>DebugRenderer::AddCylinder(...)</code></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

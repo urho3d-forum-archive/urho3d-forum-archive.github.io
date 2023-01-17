@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Fail to load image larger than 250M</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Fail to load image larger than 250M</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>I was loading a big terrain heightmap data through png image ~270M.</p>
+<p>I got the error</p>
+<blockquote>
+<p>Could not load image XXXXX: too large</p>
+</blockquote>
+<p>I traced down the issue found it’s related to <code>stb</code> image lib that Urho3D is using, see <a href="https://github.com/nothings/stb/issues/672#issuecomment-580041441" rel="nofollow noopener">github issue</a>.<br/>
+Generally,</p>
+<blockquote>
+<p>stb_image uses ints pervasively, including for offset calculations.<br/>
+so MAX_IMAGE_SIZE ~256MB max.</p>
+</blockquote>
+<p>I tried a smaller image ~200M but there is still other issue I haven’t figured out yet.</p>
+<p><strong>This is unfortunate and I was wondering if there is a quick workaround, e.g. use a different image type?</strong></p>
+<p>Otherwise, I might need to write my own image loader purely for large files.</p>
+<p><em>I could separate source image into smaller ones and load them one by one, but this would make things nasty given I am going to upload this heightmap to GPU. I don’t want to implement “selecting images according to coordinates” nasty logic in the shader.</em></p>
+<p><strong>Update:</strong> I also have error when using texture image ~200M for opengl</p>
+<blockquote>
+<p>Failed to create texture.</p>
+</blockquote>
+<p>There should be a max size (width, ram) for GPU to resolve too <img alt=":frowning:" class="emoji" src="../../../images2/c383444e3b50f1554d2f21c7c206ca52.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Max size of the image is limited, check your GPU specs to find out exact limits. It’s usually varies from 2k to 16k.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>…or <a href="https://imagemagick.org/script/command-line-options.php#crop">ImageMagick</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Thanks.</p>
+<p>I did not notice CDLOD cuts large texture into smaller ones. At least it’s not obvious from the paper. But I am a little bit disappointed about those papers (CDLDO, geoclipmapping). CDLOD paper mentioned about streamable blocks of terrain data but that’s for StreamingCDLOD. I would not expect the author is cutting textures for the BasicCDLOD one.<br/>
+I tried to read the source code for that paper, but it’s very un-readable as all the academia codes.</p>
+<p>If I have to use smaller texture images, things would get tricky.<br/>
+For my case, I need to show the full terrain in low resolution when the camera zooms out enough. So I might need different LOD texture anyway, and decide which one to use in real time. The idea is simple but would be a pain to implement.<br/>
+I am not sure how the BasicCDLOD dealing with those exchanging texture images realtime since there is no single word about it in the paper. I probably going to spend sometime reading through that source code no matter how un-readable it is.<br/>
+If you happened to be familiar with that source code, could you point me where is the code for the shaders to choose the correct smaller texture images?</p>
+<p>As for cutting images, I am not worried about it. Since I have my own tool based on GDAL for Geographic terrain data manipulation. I made my terrain with it.</p>
+<p>I thought I was close for this implementation but looks like lots of things need to be done if the program is for real application other than a demo.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>I could make different images for different LODs, but for my case, I have LODs from 0 ~ 8. For example, I could make a low resolution image for the whole map (lod = 8), then maybe 4 with lod = 7. That’s the minimum number of images I need but <strong>that would occupy 5 texture units already!</strong> IIUC, we have only 16 texture units for certain. But I still needs other textures (e.g. normal, spec, several terrain details). If we have different images for different lod, we need the same number of image for normal, spec etc too.<br/>
+I am not sure what’s the good solution for this.</p>
+<p><strong>Anyway, I tried to cut my source image into 4 pieces.</strong><br/>
+Looks like my computer is okay to load texture image with size &lt;= 8192.<br/>
+My texture image size is about two times larger. So I divided my image into 4 pieces. A very rough demo code:</p>
+<pre><code class="lang-auto">  const int kMaxSupportedSingleHeightMapSize = 8192;
+  for (int i = 0; i &lt; 4; ++i) {
+    auto texture = SharedPtr&lt;Texture2D&gt;(new Texture2D(context_));
+    int index_x = i % 2;
+    int index_y = i / 2;
+    int x0 = std::max(0, index_x * kMaxSupportedSingleHeightMapSize);
+    int x1 = std::min(heightmap_image_-&gt;GetWidth() - 1, (index_x + 1) * kMaxSupportedSingleHeightMapSize);
+    int y0 = std::max(0, index_y * kMaxSupportedSingleHeightMapSize);
+    int y1 = std::min(heightmap_image_-&gt;GetHeight() - 1, (index_y + 1) * kMaxSupportedSingleHeightMapSize);
+    SharedPtr&lt;Image&gt; heightmap_test = SharedPtr&lt;Image&gt;(heightmap_image_-&gt;GetSubimage(IntRect(x0, y0, x1, y1)));
+    texture-&gt;SetFilterMode(FILTER_NEAREST);
+    texture-&gt;SetData(heightmap_test, false);
+
+    // I also changed those values, but does not make difference for my case.
+    std::vector&lt;TextureUnit&gt; units{TU_DIFFUSE, TU_NORMAL, TU_SPECULAR, TU_EMISSIVE,};
+    batches_[0].material_-&gt;SetTexture(/*texture unit*/units[i], texture);
+  }
+</code></pre>
+<p>And then I get different texture image for vertex displacement in the shader:</p>
+<pre><code class="lang-auto">float GetHeight(vec2 pos) {
+    vec2 texCoord;
+    vec2 heights;
+    if (pos.x &lt;= cMapSize.x &amp;&amp; pos.y &lt;= cMapSize.y) {
+        texCoord = vec2(pos.x / cMapSize.x, pos.y / cMapSize.y);
+        heights = texture(sHeightMap0, texCoord).rg;
+    } else if (pos.x &gt; cMapSize.x &amp;&amp; pos.y &lt;= cMapSize.y) {
+        texCoord = vec2(pos.x / cMapSize.x - 1.0, pos.y / cMapSize.y);
+        heights = texture(sHeightMap1, texCoord).rg;
+    } else if (pos.x &lt;= cMapSize.x &amp;&amp; pos.y &gt; cMapSize.y) {
+        texCoord = vec2(pos.x / cMapSize.x, pos.y / cMapSize.y - 1.0);
+        heights = texture(sHeightMap2, texCoord).rg;
+    } else if (pos.x &gt; cMapSize.x &amp;&amp; pos.y &gt; cMapSize.y) {
+        texCoord = vec2(pos.x / cMapSize.x - 1.0, pos.y / cMapSize.y - 1.0);
+        heights = texture(sHeightMap3, texCoord).rg;
+    }
+    ...
+}
+</code></pre>
+<p>with the material definition</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/CdlodTerrain.xml" /&gt;
+    // units 0 ~ 3 reserved for heightmap images.
+    &lt;texture unit="0" name="" /&gt;
+    &lt;texture unit="1" name="" /&gt;
+    &lt;texture unit="2" name="" /&gt;
+    &lt;texture unit="3" name="" /&gt;
+    &lt;texture unit="4" name="HeightMapsTest/DEM_print.png" /&gt;
+    &lt;texture unit="5" name="Textures/TerrainDetail1.dds" /&gt;
+    ...
+&lt;/material&gt;
+</code></pre>
+<p>This cutting-image method works fine for a smaller heightmap.<br/>
+<strong>But for my case, some textures do not show. It looks like they are unloaded automatically somehow.</strong></p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="kuGKNKvovQr0NvVExoDZzhFQjOa"  height="500" src="../../../images2/614bcfc71d0b007a42d06887894f57dc.jpeg"  width="676"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2044×1510 609 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>If I randomly exchange the order of heightmap in shader, for example:</p>
+<pre><code class="lang-auto">float GetHeight(vec2 pos) {
+   ...
+        heights = texture(sHeightMap3, texCoord).rg;
+   ...
+        heights = texture(sHeightMap2, texCoord).rg;
+    ...
+        heights = texture(sHeightMap1, texCoord).rg;
+   ...
+        heights = texture(sHeightMap0, texCoord).rg;
+    ...
+}
+</code></pre>
+<p><strong>Different texture images will be remained.</strong> The bottom-left is a different one.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="x18EcONxSp3rAnIO8VBEn8Je4CV"  height="500" src="../../../images2/1a7158cd0153e9922c6032fa62776967.jpeg"  width="675"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2042×1512 572 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+<em>(don’t mind the edges, it’s not there yet)</em></p>
+<p><strong>So I think it’s the OpenGL automatically unloading texture if they are taking too much memory?</strong> BTW: my source heightmap texture image is ~170MB in png (size ~ 16k pixels).<br/>
+But how can I verify that and is there any way from Urho3D API to query which texture is loaded/unloaded in real time?<br/>
+Or what other way should I address this problem overall?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Notice there are two stages for “loading texture images”:</p>
+<ol>
+<li>Load image from disk to memory via Urho3D engine;</li>
+<li>Load image in GPU video card memory for shader calculations.</li>
+</ol>
+<p>I believe all those DEBUG LOGGING is about the 1st stage, while my problem is related to the 2nd stage.<br/>
+And I can verify the <code>[...] DEBUG: Loading resource XXXX.png</code> is done successfully. Also, I cannot build QuadTree if the 1st stage is not successful <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>As you can see from my first piece of code, I then cut the image into 4 pieces. When I set the material texture, that’s the 2nd stage.</p>
+<p><strong>As for compression</strong></p>
+<blockquote>
+<p>PNG can be compressed (like jpeg) I see 9 compression levels.</p>
+</blockquote>
+<p>If I would like to compromise to lossy compression, I probably would not need those high resolution texture images anyway <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p><strong>Good question about</strong></p>
+<blockquote>
+<p>How big is your landscape?<br/>
+Maybe it makes sense not to render it entirely?</p>
+</blockquote>
+<p>I wish I could. Unfortunately, the answer is no.<br/>
+You are the first replier for my original post about <a href="https://discourse.urho3d.io/t/anyone-tried-to-implement-geo-clipmapping-for-super-large-terrain/6238/2">geo clipmapping</a>. But I did not describe why I need this at that time. I can elaborate a little bit here. Think about it as a strategy game so play can zoom-out to see the whole map while zoom-in to see state/county level.</p>
+<blockquote>
+<p>My game needs a terrain, the requirements are:</p>
+<ol>
+<li>Freely Zoom in &amp; zoom out, like GoogleEarth. Max resolution when zooming in ~100 meter, Max range when zooming out ~2000km (a whole country scale).</li>
+<li>Freely fly over to any direction with any height; Freely rotate camera;</li>
+<li>Support large heightmap data, e.g. real world elevation data from NASA , around 20k * 20k for a whole country.</li>
+</ol>
+</blockquote>
+<p><strong>Now back to the problem</strong><br/>
+As I mentioned in that <a href="https://discourse.urho3d.io/t/anyone-tried-to-implement-geo-clipmapping-for-super-large-terrain/6238/2">geo clipmapping post</a></p>
+<blockquote>
+<p>It uses 200k * 100k heightmap (40G compressed to 300M), stores it in video card memory. Very good frame rate even in 2004! 16 years ago! They used the whole US heightmap (1arc resolution, ~30meter).</p>
+</blockquote>
+<p><strong>The paper did not mention any cutting-image techniques.</strong> It claims “pre-load all 300M heightmap data in the GPU”. <strong>So if a video card in 2004 can do that, why not now (in 2020)?</strong></p>
+<p>As for <a href="https://github.com/fstrugar/CDLOD/blob/master/cdlod_paper_latest.pdf" rel="nofollow noopener">Fstrugar’s paper,</a> <strong>I could not find any cutting-image techniques either in paper or BasicCDLOD source code.</strong><br/>
+If I check the <a href="https://github.com/fstrugar/CDLOD/blob/master/source/BasicCDLOD/Shaders/CDLODTerrain.vsh" rel="nofollow noopener">shader source code</a>, I could only find one texture sampler for the heightmap (variable name <code>g_terrainHMVertexTexture</code>). It is used in the <code>sampleHeightmap()</code> function.<br/>
+It’s a pity I don’t have a windows pc so I cannot run Fstrugar’s source code myself to verify everything.</p>
+<p>I am not questioning your comment above, but I might miss something important in those papers/projects.</p>
+<p><em>Of course we can have different work-around or hack solutions to make things just work.</em><br/>
+<strong>But the key question here is:</strong><br/>
+If in 2004 we can preload 200k * 100k heightmap (compressed to 300M) into video card memory,<br/>
+<strong>or</strong> preload</p>
+<blockquote>
+<p>carlifmtns_large: 48897 x 30465 heightmap with a normal map and a simple texture splatting technique;</p>
+</blockquote>
+<p>in 2010.</p>
+<p><strong>Why is it not even a piece of cake to do the same thing in 2020 ten years later?</strong> <img alt=":thinking:" class="emoji" src="../../../images2/95fb74f06c03358715b7b493b96f1e60.png" title=":thinking:"/> <img alt=":thinking:" class="emoji" src="../../../images2/95fb74f06c03358715b7b493b96f1e60.png" title=":thinking:"/> <img alt=":thinking:" class="emoji" src="../../../images2/95fb74f06c03358715b7b493b96f1e60.png" title=":thinking:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>PNG was intended to be lossless and this is true for most encoders+options but I see not all. Compression speed and ratios vary a lot with the encoding and heuristics, where a huge image can be “compressed small, quickly” or “crushed to a crystal, with CPU in flames for a week”.</p>
+<p>A guide to PNG optimization also covering a variety of programs including the newer <code>optipng</code>: <a href="http://optipng.sourceforge.net/pngtech/optipng.html">http://optipng.sourceforge.net/pngtech/optipng.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>FYI, I haven’t fully solved my problem but had a temporary workaround.</p>
+<p>For reading large png into memory, I use a very lightweighted <a href="https://lodev.org/lodepng/" rel="nofollow noopener">lodepng</a> lib. It uses <code>std::vector&lt;unsigned char&gt;</code> to represent image so the length is &gt; <code>int_max</code>. Luckily, Urho3D Image API is flexible enough I can directly use the vector data to construct a new image.</p>
+<p>For processing the whole heightmap in GPU, I did split it into 4 pieces. But this time I use <code>TEXTURE_DYNAMIC</code> instead of <code>TEXTURE_STATIC</code>. Now it seems work, although I don’t know why static does not work.</p>
+<p>The code &amp; shader is a mess with this hack, it’s definitely not a scalable solution. But I would take a deeper look later. I am going to move forward to deal with shadow etc.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

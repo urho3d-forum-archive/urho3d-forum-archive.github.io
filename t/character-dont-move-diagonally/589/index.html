@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Character don&rsquo;t move diagonally</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Character don&rsquo;t move diagonally</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pellucas</div>
+          <div class="post_content">
+<p>Cannot move my FPS character diagonally.</p>
+<p>Code(AngelScript), Update and FixedUpdate functions</p>
+<pre><code class="lang-auto">void HandleUpdate(StringHash eventType, VariantMap&amp; eventData) {
+    controls.Set(CTRL_FORWARD | CTRL_BACK | CTRL_LEFT | CTRL_RIGHT | CTRL_JUMP, false);
+
+    controls.Set(CTRL_FORWARD, input.keyDown['W']);
+    controls.Set(CTRL_BACK, input.keyDown['S']);
+    controls.Set(CTRL_LEFT, input.keyDown['A']);
+    controls.Set(CTRL_RIGHT, input.keyDown['D']);
+    controls.Set(CTRL_JUMP, input.keyDown[KEY_SPACE]);
+}
+
+void FixedUpdate(float delta) {
+	RigidBody@ body = node.GetComponent("RigidBody");
+	if(body is null) {    
+		body = node.CreateComponent("RigidBody");
+		body.mass = 1.0f;
+	}
+
+	if(!grounded)
+		inAirTime += delta;
+	else
+		inAirTime = 0.0f;
+
+	bool softGrounded = inAirTime &lt; SOFT_TIME;
+
+	Quaternion rot = node.rotation;
+	Vector3 moveDir(0.0f, 0.0f, 0.0f);
+	Vector3 velocity = body.linearVelocity;
+	Vector3 planeVelocity(velocity.x, 0.0f, velocity.z);
+
+
+    if (controls.IsDown(CTRL_FORWARD))
+        moveDir += Vector3(0.0f, 0.0f, 1.0f);
+    if (controls.IsDown(CTRL_BACK))
+        moveDir += Vector3(0.0f, 0.0f, -1.0f);
+    if (controls.IsDown(CTRL_LEFT))
+        moveDir += Vector3(-0.1f, 0.0f, 0.0f);
+    if (controls.IsDown(CTRL_RIGHT))
+        moveDir += Vector3(0.1f, 0.0f, 0.0f);
+
+
+    if (moveDir.lengthSquared &gt; 0.0f)
+       moveDir.Normalize();
+
+
+    body.ApplyImpulse(rot * moveDir * (softGrounded ? moveForce : airMoveForce));
+
+    
+    if (softGrounded)
+    {
+        Vector3 t_brakeForce = -planeVelocity * brakeForce;
+        body.ApplyImpulse(t_brakeForce);
+
+        if (controls.IsDown(CTRL_JUMP))
+        {
+            if (okToJump)
+            {
+                body.ApplyImpulse(Vector3(0.0f, 1.0f, 0.0f) * jumpForce);
+                okToJump = false;
+            }
+        }
+        else
+            okToJump = true;
+
+    }
+    grounded = true;
+}</code></pre>
+<p>The player only can move forward, backward, left and right but not diagonally.<br/>
+I think the problem is <span class="bbcode-b">ApplyImpulse</span> because it works perfectly when I use the Translate function.</p>
+<p>What’s the problem baby?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pellucas</div>
+          <div class="post_content">
+<p>I still can’t solve the problem  <img alt=":cry:" class="emoji" src="../../../images2/c49dd3f49418024d1f7a2b845f88a7bf.png" title=":cry:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p><code>if (controls.IsDown(CTRL_LEFT))
+        moveDir += Vector3(-0.1f, 0.0f, 0.0f);
+    if (controls.IsDown(CTRL_RIGHT))
+        moveDir += Vector3(0.1f, 0.0f, 0.0f);
+</code></p>
+<p>Notice you have 0.1f, instead of 1.0f. When you normalize the moveDir vector for a diagonal, the forward/backwards 1.0 will have a huge weighting over the left/right 0.1.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pellucas</div>
+          <div class="post_content">
+<p>[quote=“hd_”]<code>if (controls.IsDown(CTRL_LEFT))
+        moveDir += Vector3(-0.1f, 0.0f, 0.0f);
+    if (controls.IsDown(CTRL_RIGHT))
+        moveDir += Vector3(0.1f, 0.0f, 0.0f);
+</code></p>
+<p>Notice you have 0.1f, instead of 1.0f. When you normalize the moveDir vector for a diagonal, the forward/backwards 1.0 will have a huge weighting over the left/right 0.1.[/quote]</p>
+<p>oooooooooh my bad!!  <img alt=":laughing:" class="emoji" src="../../../images2/f1b3f4dd9f845d1069864c322071dffe.png" title=":laughing:"/>  thank you so much hd_</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

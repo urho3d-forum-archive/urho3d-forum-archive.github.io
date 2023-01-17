@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Highlighting an Object</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Highlighting an Object</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JulyForToday</div>
+          <div class="post_content">
+<p>Okay, so I initially thought this would be something quick/easy to get working, but I keep running into problems.</p>
+<p>What I want to do is have an object be highlighted while I mouse over it, like this:<br/>
+<img alt="" height="364" src="../../../images2/ca069e85fd767afca4fff6c5ca7cc027.jpg" width="424"/><img alt="" height="364" src="../../../images2/5ace79b9a76499a754e88bf96a1d70ac.jpg" width="424"/></p>
+<p>The teapot is an instance of a Clickable class I created that derives from ScriptObject. When the cursor hovers over the teapot it shows text, and I want to modify the material to be noticeably highlighted. Once the cursor is no longer hovering over the object, the highlight should turn off, and the material return to it’s original state.</p>
+<p>I eventually want to do this with a shader, but I’m not that familiar with Urho’s shader configuration (which is a little confusing), and can’t quite figure out how to set that up (any suggestions on that would be appreciated). So in the meantime I thought I would just modify the material’s color <a data-bbcode="true" href="http://urho3d.wikia.com/wiki/Customize_materials_(via_code)_%26_different_materials_per_model" rel="nofollow noopener">like is done on the unofficial wiki</a>.</p>
+<p>I can access the teapot’s StaticModel, and I figured I would just get a reference to it’s material using GetMaterial(), and then use GetShaderParamter() to get it’s original diffuse color, save it to a variable, and then use SetShaderParameter() to modify the color. Then when the cursor stops hovering on the object I would use SetShaderParameter() again to restore the original color.</p>
+<p><span class="bbcode-b">The <a data-bbcode="true" href="http://urho3d.github.io/documentation/1.32/class_urho3_d_1_1_static_model.html#a2d417ab736ce45d119f02cf997c5289c" rel="nofollow noopener">documentation for StaticModel</a> clearly has a GetMaterial(), but I cannot seem to get it to work. I get an error message saying "No Matching Signatures to ‘StaticModel::GetMaterial(const int)’. I’m passing a 0 as the index. I’ve tried declaring and passing it as a uint, and passing no argument (in case there was a default value). Same issue, not such function signature. I’m probably missing something simple here (like usual) but I can’t see what it is.</span></p>
+<p>Edit: And I am using Angelscript, which might have some bearing on this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>There is a script api reference in the Docs folder.</p>
+<p><a  rel="nofollow noopener">github.com/urho3d/Urho3D/blob/m … dox#L10883</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JulyForToday</div>
+          <div class="post_content">
+<p>Ah yes, it’s been a while since I’ve worked with Urho in angelscript, and forgot about those differences in the ScriptAPI. I don’t have the best memory in the world.  <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+<p>So I’ve been able to get it to work:</p>
+<pre><code class="lang-auto">class Clickable : ScriptObject
+{
+	private Color originalColor;
+
+	void EnableHighlight()
+	{
+		StaticModel@ model = node.GetComponent("StaticModel");
+		Material@ mat = model.materials[0];			
+		originalColor = mat.shaderParameters["MatDiffColor"].GetColor();
+		Color col = Color(originalColor);
+		col.r -= 0.5;
+		col.g -= 0.1;
+		col.b -= 0.5;
+		mat.shaderParameters["MatDiffColor"] = Variant(col);
+	}
+
+	void DisableHighlightl()
+	{
+		StaticModel@ model = node.GetComponent("StaticModel");
+		Material@ mat = model.materials[0];			
+		mat.shaderParameters["MatDiffColor"] = Variant(originalColor);
+	}
+}</code></pre>
+<p>I should have realized before, but doing it this way applies the change to the material, so every object that has the material will reflect the change. So had to tweak it like this:</p>
+<pre><code class="lang-auto">class Clickable : ScriptObject
+{
+	private Material@ originalMaterial;
+
+	void EnableHighlight()
+	{
+		StaticModel@ model = node.GetComponent("StaticModel");
+		originalMaterial = model.materials[0];
+		Material@ copyMaterial = originalMaterial.Clone();
+		Color col = copyMaterial.shaderParameters["MatDiffColor"].GetColor();
+		col.r -= 0.2;
+		col.g -= 0.5;
+		col.b -= 0.2;
+		copyMaterial.shaderParameters["MatDiffColor"] = Variant(col);
+		model.material = copyMaterial;
+	}
+
+	void DisableHighlightl()
+	{
+		StaticModel@ model = node.GetComponent("StaticModel");
+		model.material = originalMaterial;
+	}
+}</code></pre>
+<p>So any thoughts on how you would set up a shader to do this same sort of thing? I original thought it would be a matter of adding a second (custom) technique that does the highlighting to a material when EnableHightlight() is called, and then remove the technique when DisableHighlight() is called. But <a data-bbcode="true" href="http://urho3d.github.io/documentation/1.32/_materials.html" rel="nofollow noopener">the documentation</a> says multiple techniques are for LOD/quality purposes. So I’m not sure my idea is the best approach/proper way to do this.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

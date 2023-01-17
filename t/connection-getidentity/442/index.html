@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Connection::GetIdentity</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Connection::GetIdentity</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>So I’m not sure of the “proper” way to handle a connection’s identity using the following:</p>
+<pre><code class="lang-auto">// Connection::GetIdentity
+const VariantMap&amp; GetIdentity() const { return identity_; }</code></pre>
+<p>What I want to do:</p>
+<pre><code class="lang-auto">const Urho3D::VariantMap&amp; identity = connection.GetIdentity();
+
+Urho3D::String user = identity["username"].GetString(); // Both lines will throw an error
+Urho3D::String authToken = identity["token"].GetString();</code></pre>
+<p>Since “identity” is constant, I cannot use the operator[] with it. Instead I’m forced to use:</p>
+<pre><code class="lang-auto">Urho3D::VariantMap&amp; identity = const_cast&lt;Urho3D::VariantMap&amp;&gt;(connection.GetIdentity());
+
+Urho3D::String user = identity["username"].GetString(); // Now works
+Urho3D::String authToken = identity["token"].GetString();</code></pre>
+<p>IMO it seems more that we need to add a “const operator[]” function to the VariantMap class. Alternatives would be to not declare it as const in GetIdentity, or simply use identity-&gt;find() instead. What would be the best way to do this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Const operator[] for VariantMap could be confusing when compared to STL, it would need to return a ref to an empty Variant somewhere in memory if the lookup fails, which I don’t particularly like.</p>
+<p>That said, there shouldn’t be a reason for the identity map to be const. The server is The Man, so there’s no problem for it also modifying the values or inserting extra metadata if it wants to. In fact the map is already non-const accessible in AngelScript. I’ll push a change shortly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Awesome, thanks for the quick update.</p>
+<p>I ran into this while trying to implement my login server scheme, and it really threw me off for a bit about its intended use.</p>
+<p>I’ll go ahead and use const_cast for now, and I’ll update my code when I pull the new changes later on.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

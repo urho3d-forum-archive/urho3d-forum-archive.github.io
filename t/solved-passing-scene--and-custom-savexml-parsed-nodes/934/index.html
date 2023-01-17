@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Passing Scene_ and custom SaveXML(parsed nodes)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Passing Scene_ and custom SaveXML(parsed nodes)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hi</p>
+<p>Is this valid ? In the Manager class headerI created a SharedPtr &lt;Scene). I attempted clearing it then directly pointing the pointer to the pass pointer but I don’t think that is working.</p>
+<p>Viv</p>
+<p>[code]/// Set Scene<br/>
+int Manager::SetScene(SharedPtr scene)<br/>
+{</p>
+<pre><code>/// point
+scene_ = new Scene(context_);
+
+scene_ = scene;
+
+/// Node
+Node * parentnode = scene_ -&gt; GetParent();
+
+String  nodename = parentnode -&gt;GetName();
+
+cout &lt;&lt; nodename.CString() &lt;&lt;endl;
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1508150f71fcef53ebe1d65b4e91fa85.png" width="20"/> vivienneanthony:</div>
+<blockquote>
+<p>int Manager::SetScene(SharedPtr scene)<br/>
+{</p>
+<pre><code>/// point
+scene_ = new Scene(context_);
+</code></pre>
+</blockquote>
+</aside>
+<p>The above creates a new scene and stores it in the pointer scene_</p>
+<aside class="quote">
+<blockquote>
+<pre><code>scene_ = scene;
+</code></pre>
+</blockquote>
+</aside>
+<p>The above overwrites the newly created pointer above with the value of whatever is in scene, passed to the method. If scene is an empty pointer, scene_ is now empty. If scene is an existing Scene, then scene_ is now pointing to that existing scene. The newly created scene_ allocated above is gone.</p>
+<aside class="quote">
+<blockquote>
+<pre><code>/// Node
+Node * parentnode = scene_ -&gt; GetParent();
+</code></pre>
+</blockquote>
+</aside>
+<p>The above tries to get the parent of scene_, but a Scene is a root-level Node be default. A newly constructed scene is going to have a null parent.</p>
+<aside class="quote">
+<blockquote>
+<pre><code>String  nodename = parentnode -&gt;GetName();
+</code></pre>
+</blockquote>
+</aside>
+<p>The above tries to dereference the null parent of the scene to obtain its name. Dereferencing a null pointer is, of course, an error.</p>
+<p>I honestly can’t even begin to imagine what it is you are trying to accomplish here, but I suspect that 24+ hours without sleep might be a part of the reason for that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Lol. yea. It’s late and I’m tired.</p>
+<p>After making that note. It works. I think it’s bed time for me.</p>
+<p>Ultimately.  I want to recursively look through the Scene and save all nodes not generated including the components(Manual(Editor or in-client addition) or Automatic (NPC’S, spawn points, etc)). Then also be able to do the opposite like load.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fa8323cd130f703ad0982cec8eee46b7.png" width="20"/> JTippetts:</div>
+<blockquote>
+<p>A newly constructed scene is going to have a null parent.</p>
+</blockquote>
+</aside>
+<p>I would add that in normal use a scene is always going to have a null parent. Or, Urho will not specifically stop you from adding a scene as a child to another scene or another node, but it does not make sense and you can expect errors (eg. node/component ID allocation clashes) or even outright crashes to result from that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>The new code is this. Any recommendations??</p>
+<p>[code]</p>
+<p>/// Main Save scene<br/>
+int Manager::SaveScene(int mode)<br/>
+{</p>
+<pre><code>/// Check if scene exist
+
+if(scene_==NULL)
+{
+    return 1;
+}
+
+/// point
+unsigned int childrencount=scene_-&gt;GetNumChildren();
+cout &lt;&lt;  childrencount &lt;&lt; endl;
+
+children_ = scene_-&gt;GetChildren();
+
+/// loop each child
+for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::Iterator i = children_.Begin(); i != children_.End(); ++i)
+{
+    /// Create a new child instance
+    Node* childnode = *i;
+
+    /// Get node infomration, check for children, and check components
+    if(childnode-&gt;GetName().Find("Generated",0,false)==String::NPOS)
+    {
+        cout &lt;&lt; "Node :" &lt;&lt; childnode-&gt;GetName().CString() &lt;&lt;endl;
+
+        /// GET ALL NODE INFORMATION
+
+        if(childnode-&gt;GetNumChildren())
+        {
+            SaveSceneNode(childnode);
+        }
+        else
+        {
+            SaveSceneNodeComponents(childnode);
+        }
+
+    }
+
+}
+</code></pre>
+<p>}</p>
+<p>/// Recursive<br/>
+int Manager::SaveSceneNode(Node * node)<br/>
+{<br/>
+/// Define a temporary pointer<br/>
+Vector&lt;SharedPtr &gt; subchildren_;</p>
+<pre><code>/// Get children node
+subchildren_ = node-&gt;GetChildren();
+
+///IF no child exist get all components
+///ELSE
+for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::Iterator i = subchildren_.Begin(); i != subchildren_.End(); ++i)
+{
+    /// Create a new child instance
+    Node* childnode = *i;
+
+    /// Get node infomration, check for children, and check components
+    if(childnode-&gt;GetName().Find("Generated",0,false)==String::NPOS)
+    {
+        cout &lt;&lt; "Node :" &lt;&lt; childnode-&gt;GetName().CString() &lt;&lt;endl;
+
+        // set virtual const
+        const Vector&lt;AttributeInfo&gt;* attributes = childnode-&gt;GetAttributes();
+
+        /// loop through attributes
+        for (Vector&lt;AttributeInfo&gt;::ConstIterator i = attributes-&gt;Begin(); i != attributes-&gt;End(); ++i)
+        {
+            /// output info
+            cout &lt;&lt; i -&gt; name_.CString() &lt;&lt; " type " &lt;&lt; i -&gt; defaultValue_. GetTypeName ().CString() &lt;&lt;" value" &lt;&lt; i -&gt; defaultValue_.ToString().CString()&lt;&lt; endl;
+        }
+
+
+        if(childnode-&gt;GetNumChildren())
+        {
+            SaveSceneNode(childnode);
+        }
+        else
+        {
+            SaveSceneNodeComponents(childnode);
+        }
+    }
+}
+</code></pre>
+<p>}<br/>
+int Manager::SaveSceneNodeComponents(Node *node)<br/>
+{<br/>
+/// Define temporary pointer for components<br/>
+Vector&lt; SharedPtr&lt; Component &gt; &gt; 	subcomponents_;</p>
+<pre><code>/// If node has no components
+if(node-&gt;	GetNumComponents ()==0)
+{
+    cout &lt;&lt; " Node has no components" &lt;&lt; endl;
+
+    return 1;
+}
+
+/// Get children node
+subcomponents_ = node-&gt;GetComponents();
+
+/// Loop through components
+for (Vector&lt;SharedPtr&lt;Component&gt; &gt;::Iterator i = subcomponents_.Begin(); i != subcomponents_.End(); ++i)
+{
+    Component * subcomponent = *i;
+
+    cout &lt;&lt; subcomponent-&gt;GetTypeName().CString() &lt;&lt;endl;
+
+
+    /// READ EACH COMPONENT AND GET ATTRIBUTES
+    if(subcomponent-&gt;GetNumAttributes ())
+    {
+        /// set virtual const
+        const Vector&lt;AttributeInfo&gt;* attributes = subcomponent-&gt;GetAttributes();
+
+        /// loop through attributes
+        for (Vector&lt;AttributeInfo&gt;::ConstIterator i = attributes-&gt;Begin(); i != attributes-&gt;End(); ++i)
+        {
+            /// output info
+            cout &lt;&lt; i -&gt; name_.CString() &lt;&lt; " type " &lt;&lt; i -&gt; defaultValue_. GetTypeName ().CString() &lt;&lt;" value" &lt;&lt; i -&gt; defaultValue_.ToString().CString()&lt;&lt; endl;
+        }
+
+    }
+}
+
+
+return 1;
+</code></pre>
+<p>}[/code]</p>
+<p>The result is okay but I think I have to differentiate a subchild because the output looks like one long list</p>
+<pre><code class="lang-auto">Node :Mushroom
+Is Enabled type Bool valuetrue
+Name type String value
+Position type Vector3 value0 0 0
+Rotation type Quaternion value1 0 0 0
+Scale type Vector3 value1 1 1
+Variables type VariantMap value
+Network Position type Vector3 value0 0 0
+Network Rotation type Buffer value
+Network Parent Node type Buffer value
+StaticModel
+Is Enabled type Bool valuetrue
+Model type ResourceRef value
+Material type ResourceRefList value
+Is Occluder type Bool valuefalse
+Can Be Occluded type Bool valuetrue
+Cast Shadows type Bool valuefalse
+Draw Distance type Float value0
+Shadow Distance type Float value0
+LOD Bias type Float value1
+Max Lights type Int value0
+View Mask type Int value-1
+Light Mask type Int value-1
+Shadow Mask type Int value-1
+Zone Mask type Int value-1
+Occlusion LOD Level type Int value-1
+GameObject
+Game Lifetime type Float value-1
+
+
+Node :Character
+Is Enabled type Bool valuetrue
+Name type String value
+Position type Vector3 value0 0 0
+Rotation type Quaternion value1 0 0 0
+Scale type Vector3 value1 1 1
+Variables type VariantMap value
+Network Position type Vector3 value0 0 0
+Network Rotation type Buffer value
+Network Parent Node type Buffer value
+SubNode :hips
+SubNode :thigh.L
+SubNode :shin.L
+SubNode :foot.L
+SubNode :toe.L
+ Node has no components
+SubNode :thigh.R
+SubNode :shin.R
+SubNode :foot.R
+SubNode :toe.R
+ Node has no components
+SubNode :spine
+SubNode :chest
+SubNode :clavicle.R
+SubNode :upper_arm.R
+SubNode :forearm.R
+SubNode :hand.R
+SubNode :thumb.02.R
+SubNode :thumb.03.R
+ Node has no components
+SubNode :f_ring.01.R
+ Node has no components
+SubNode :f_index.01.R
+ Node has no components
+SubNode :clavicle.L
+SubNode :upper_arm.L
+SubNode :forearm.L
+SubNode :hand.L
+SubNode :thumb.02.L
+SubNode :thumb.03.L
+ Node has no components
+SubNode :f_ring.01.L
+ Node has no components
+SubNode :f_index.01.L
+ Node has no components
+SubNode :neck
+SubNode :head
+SubNode :jaw
+ Node has no components
+SubNode :eye.R
+ Node has no components
+SubNode :eye.L
+ Node has no components
+SubNode :CameraFirstPerson
+Camera
+Is Enabled type Bool valuetrue
+Near Clip type Float value0.1
+Far Clip type Float value1000
+FOV type Float value45
+Aspect Ratio type Float value1
+Fill Mode type Int value0
+Auto Aspect Ratio type Bool valuetrue
+Orthographic type Bool valuefalse
+Orthographic Size type Float value20
+Zoom type Float value1
+LOD Bias type Float value1
+View Mask type Int value-1
+View Override Flags type Int value0
+Projection Offset type Vector2 value0 0
+Reflection Plane type Vector4 value0 1 0 0
+Clip Plane type Vector4 value0 1 0 0
+Use Reflection type Bool valuefalse
+Use Clipping type Bool valuefalse
+SubNode :CrossBox
+StaticModel
+Is Enabled type Bool valuetrue
+Model type ResourceRef value
+Material type ResourceRefList value
+Is Occluder type Bool valuefalse
+Can Be Occluded type Bool valuetrue
+Cast Shadows type Bool valuefalse
+Draw Distance type Float value0
+Shadow Distance type Float value0
+LOD Bias type Float value1
+Max Lights type Int value0
+View Mask type Int value-1
+Light Mask type Int value-1
+Shadow Mask type Int value-1
+Zone Mask type Int value-1
+Occlusion LOD Level type Int value-1
+
+
+Node :Camera
+Is Enabled type Bool valuetrue
+Name type String value
+Position type Vector3 value0 0 0
+Rotation type Quaternion value1 0 0 0
+Scale type Vector3 value1 1 1
+Variables type VariantMap value
+Network Position type Vector3 value0 0 0
+Network Rotation type Buffer value
+Network Parent Node type Buffer value
+Camera
+Is Enabled type Bool valuetrue
+Near Clip type Float value0.1
+Far Clip type Float value1000
+FOV type Float value45
+Aspect Ratio type Float value1
+Fill Mode type Int value0
+Auto Aspect Ratio type Bool valuetrue
+Orthographic type Bool valuefalse
+Orthographic Size type Float value20
+Zoom type Float value1
+LOD Bias type Float value1
+View Mask type Int value-1
+View Override Flags type Int value0
+Projection Offset type Vector2 value0 0
+Reflection Plane type Vector4 value0 1 0 0
+Clip Plane type Vector4 value0 1 0 0
+Use Reflection type Bool valuefalse
+Use Clipping type Bool valuefalse
+GameObject
+Game Lifetime type Float value-1</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>What is wring with using Scene::SaveXML()?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fa8323cd130f703ad0982cec8eee46b7.png" width="20"/> JTippetts:</div>
+<blockquote>
+<p>What is wring with using Scene::SaveXML()?</p>
+</blockquote>
+</aside>
+<p>I have to manually go through the node structure and not save Generated and a few other types of components(like camera and others that will throw off everything). I really don’t want to modify the base Scene.cpp code to do so.</p>
+<p>I want output that can be imported into the <a href="http://Editor.as" rel="nofollow noopener">Editor.as</a> or another Editor. I put the latest semi-close code on github.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>I made some code to try to replace the Export Node or SaveXML parsing through a scene. So far the output is as follows.</p>
+<p>Any help is appreciated? I should be able to loadXML with the output since <a href="http://Editor.as" rel="nofollow noopener">Editor.as</a> is written in Angelscript directly linking the Save XML(Differiental) will not happen soon unless a c/c++ editor becomes available.</p>
+<p>Source code in <a href="https://github.com/vivienneanthony/Existence/tree/development/Source/ExistenceApps/ExistenceClient" rel="nofollow noopener">github.com/vivienneanthony/Exis … enceClient</a> as manager.cpp and manager.cpp</p>
+<p>[code]/// Main Save scene<br/>
+int Manager::SaveScene(int mode)<br/>
+{</p>
+<pre><code>/// Check if scene exist
+
+if(scene_==NULL)
+{
+    return 1;
+}
+
+
+String savesceneexport;
+
+ResourceCache * cache = GetSubsystem&lt;ResourceCache&gt;();
+FileSystem * filesystem = GetSubsystem&lt;FileSystem&gt;();
+
+savesceneexport.Append(filesystem-&gt;GetProgramDir().CString());
+savesceneexport.Append("CoreData/");
+savesceneexport.Append("testing.xml");
+
+File saveFile(context_, savesceneexport.CString(), FILE_WRITE);
+
+/// Check if the account file information exist
+if(!filesystem-&gt;FileExists(savesceneexport.CString()))
+{
+    //cout &lt;&lt; "\r\nAccount file ("&lt;&lt; savesceneexport.CString() &lt;&lt; ") does not exist.";
+}
+
+XMLFile * savesceneexportxml= new XMLFile(context_);
+
+XMLElement configElem = savesceneexportxml-&gt; CreateRoot("node");
+
+/// point
+unsigned int childrencount=scene_-&gt;GetNumChildren();
+cout &lt;&lt;  childrencount &lt;&lt; endl;
+
+children_ = scene_-&gt;GetChildren();
+
+/// loop each child
+for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::Iterator i = children_.Begin(); i != children_.End(); ++i)
+{
+    /// Create a new child instance
+    Node* childnode = *i;
+
+    /// Get node infomration, check for children, and check components
+    if((childnode-&gt;GetName().Find("Generated",0,false)==String::NPOS)
+        &amp;&amp;(childnode-&gt;GetName().Find("Character",0,false)==String::NPOS)
+        &amp;&amp;(childnode-&gt;GetName().Find("Camera",0,false)==String::NPOS))
+    {
+        XMLElement NodeElement = configElem. CreateChild ("node");
+
+        // set virtual const
+        const Vector&lt;AttributeInfo&gt;* attributes = childnode-&gt;GetAttributes();
+
+        /// loop through attributes
+        for (Vector&lt;AttributeInfo&gt;::ConstIterator i = attributes-&gt;Begin(); i != attributes-&gt;End(); ++i)
+        {
+            XMLElement AttributeElement = NodeElement. CreateChild ("attribute");
+            AttributeElement.SetAttribute ("name", i -&gt; name_);
+            AttributeElement.SetAttribute ("value", i -&gt; defaultValue_.ToString());
+
+        }
+
+        if(childnode-&gt;GetNumChildren())
+        {
+            SaveSceneNode(childnode);
+        }
+        else
+        {
+            SaveSceneNodeComponents(childnode);
+        }
+
+    }
+}
+  savesceneexportxml-&gt;Save(saveFile);
+</code></pre>
+<p>}</p>
+<p>/// Recursive<br/>
+int Manager::SaveSceneNode(Node * node)<br/>
+{<br/>
+/// Define a temporary pointer<br/>
+Vector&lt;SharedPtr &gt; subchildren_;</p>
+<pre><code>/// Get children node
+subchildren_ = node-&gt;GetChildren();
+
+for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::Iterator i = subchildren_.Begin(); i != subchildren_.End(); ++i)
+{
+    /// Create a new child instance
+    Node* childnode = *i;
+
+    /// Get node infomration, check for children, and check components
+    if(childnode-&gt;GetName().Find("Generated",0,false)==String::NPOS)
+    {
+        ///cout &lt;&lt; "SubNode :" &lt;&lt; childnode-&gt;GetName().CString() &lt;&lt;endl;
+        XMLElement NodeElement = configElem. CreateChild ("node");
+
+        if(childnode-&gt;GetNumChildren())
+        {
+            SaveSceneNode(childnode);
+        }
+        else
+        {
+            SaveSceneNodeComponents(childnode);
+        }
+    }
+}
+</code></pre>
+<p>}<br/>
+int Manager::SaveSceneNodeComponents(Node *node)<br/>
+{<br/>
+/// Define temporary pointer for components<br/>
+Vector&lt; SharedPtr&lt; Component &gt; &gt; 	subcomponents_;</p>
+<pre><code>/// If node has no components
+if(node-&gt;	GetNumComponents ()==0)
+{
+    cout &lt;&lt; " Node has no components" &lt;&lt; endl;
+
+    return 1;
+}
+
+/// Get children node
+subcomponents_ = node-&gt;GetComponents();
+
+/// Loop through components
+for (Vector&lt;SharedPtr&lt;Component&gt; &gt;::Iterator i = subcomponents_.Begin(); i != subcomponents_.End(); ++i)
+{
+    Component * subcomponent = *i;
+
+  	XMLElement componentElement = configElem.CreateChild ("component");
+  	componentElement.SetAttribute("Type", subcomponent-&gt;GetTypeName());
+
+    /// READ EACH COMPONENT AND GET ATTRIBUTES
+    if(subcomponent-&gt;GetNumAttributes ())
+    {
+        /// set virtual const
+        const Vector&lt;AttributeInfo&gt;* attributes = subcomponent-&gt;GetAttributes();
+
+        /// loop through attributes
+        for (Vector&lt;AttributeInfo&gt;::ConstIterator i = attributes-&gt;Begin(); i != attributes-&gt;End(); ++i)
+        {
+            /// output info
+            ///cout &lt;&lt; i -&gt; name_.CString() &lt;&lt; " type " &lt;&lt; i -&gt; defaultValue_. GetTypeName ().CString() &lt;&lt;" value " &lt;&lt; i -&gt; defaultValue_.ToString().CString()&lt;&lt; endl;
+            XMLElement AttributeElement = configElem. CreateChild ("attribute");
+            AttributeElement.SetAttribute ("name", i -&gt; name_);
+            AttributeElement.SetAttribute ("value", i -&gt; defaultValue_.ToString());
+        }
+
+    }
+}
+
+return 1;
+</code></pre>
+<p>}[/code]</p>
+<p>The output is</p>
+<p><code>&lt;?xml version="1.0"?&gt;
+&lt;node&gt;
+	&lt;node&gt;
+		&lt;attribute name="Is Enabled" value="true" /&gt;
+		&lt;attribute name="Name" value="" /&gt;
+		&lt;attribute name="Position" value="0 0 0" /&gt;
+		&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+		&lt;attribute name="Scale" value="1 1 1" /&gt;
+		&lt;attribute name="Variables" value="" /&gt;
+		&lt;attribute name="Network Position" value="0 0 0" /&gt;
+		&lt;attribute name="Network Rotation" value="" /&gt;
+		&lt;attribute name="Network Parent Node" value="" /&gt;
+	&lt;/node&gt;
+	&lt;node&gt;
+		&lt;attribute name="Is Enabled" value="true" /&gt;
+		&lt;attribute name="Name" value="" /&gt;
+		&lt;attribute name="Position" value="0 0 0" /&gt;
+		&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+		&lt;attribute name="Scale" value="1 1 1" /&gt;
+		&lt;attribute name="Variables" value="" /&gt;
+		&lt;attribute name="Network Position" value="0 0 0" /&gt;
+		&lt;attribute name="Network Rotation" value="" /&gt;
+		&lt;attribute name="Network Parent Node" value="" /&gt;
+	&lt;/node&gt;
+&lt;/node&gt;</code></p>
+<p>I’m trying to get output similiar to</p>
+<p><code>&lt;?xml version="1.0"?&gt;
+&lt;node id="16777249"&gt;
+	&lt;attribute name="Is Enabled" value="true" /&gt;
+	&lt;attribute name="Name" value="" /&gt;
+	&lt;attribute name="Position" value="-0.012422 0.460372 0.00271687" /&gt;
+	&lt;attribute name="Rotation" value="1 1.30976e-06 0.000361086 6.60281e-07" /&gt;
+	&lt;attribute name="Scale" value="1 1 1" /&gt;
+	&lt;attribute name="Variables" /&gt;
+	&lt;component type="RigidBody" id="16777277"&gt;
+		&lt;attribute name="Physics Rotation" value="1 1.30991e-06 0.000361086 6.34012e-07" /&gt;
+		&lt;attribute name="Physics Position" value="-0.012422 0.460372 0.00271687" /&gt;
+	&lt;/component&gt;
+	&lt;component type="CollisionShape" id="16777278"&gt;
+		&lt;attribute name="Size" value="1.1 1.3 3.95" /&gt;
+		&lt;attribute name="Offset Position" value="0 0.13 0.3" /&gt;
+	&lt;/component&gt;
+	&lt;node id="16777236"&gt;
+		&lt;attribute name="Is Enabled" value="true" /&gt;
+		&lt;attribute name="Name" value="" /&gt;
+		&lt;attribute name="Position" value="0 0 0" /&gt;
+		&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+		&lt;attribute name="Scale" value="1 1 1" /&gt;
+		&lt;attribute name="Variables" /&gt;
+		&lt;component type="StaticModel" id="16777257"&gt;
+			&lt;attribute name="Model" value="Model;Models/airbikefoils.mdl" /&gt;
+			&lt;attribute name="Material" value="Material;Materials/airbike.colorbase.xml" /&gt;
+			&lt;attribute name="Cast Shadows" value="true" /&gt;
+		&lt;/component&gt;
+	&lt;/node&gt;
+&lt;/node&gt;
+</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>The new code produces results about 50% there. I have not figure out why the first node don’t get the right attributes. I also not sure how to get the texture information and id’s so it’s clearer.</p>
+<pre><code class="lang-auto">/// Main Save scene
+int Manager::SaveScene(int mode)
+{
+
+    /// Check if scene exist
+
+    if(scene_==NULL)
+    {
+        return 1;
+    }
+
+
+    String savesceneexport;
+
+    ResourceCache * cache = GetSubsystem&lt;ResourceCache&gt;();
+    FileSystem * filesystem = GetSubsystem&lt;FileSystem&gt;();
+
+    savesceneexport.Append(filesystem-&gt;GetProgramDir().CString());
+    savesceneexport.Append("CoreData/");
+    savesceneexport.Append("testing.xml");
+
+    File saveFile(context_, savesceneexport.CString(), FILE_WRITE);
+
+    /// Check if the account file information exist
+    if(!filesystem-&gt;FileExists(savesceneexport.CString()))
+    {
+        //cout &lt;&lt; "\r\nAccount file ("&lt;&lt; savesceneexport.CString() &lt;&lt; ") does not exist.";
+    }
+
+    XMLFile * savesceneexportxml= new XMLFile(context_);
+
+    XMLElement configElem = savesceneexportxml-&gt; CreateRoot("node");
+
+    /// point
+    unsigned int childrencount=scene_-&gt;GetNumChildren();
+
+    /// Weak Pointer children
+    Vector&lt;SharedPtr&lt;Node&gt; &gt; children_;
+
+    children_ = scene_-&gt;GetChildren();
+
+    /// loop each child
+    for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::Iterator i = children_.Begin(); i != children_.End(); ++i)
+    {
+        /// Create a new child instance
+        Node* childnode = *i;
+
+        /// Get node infomration, check for children, and check components
+         if(childnode-&gt;GetName().Find("Generated",0,false)==String::NPOS)
+         {
+        XMLElement NodeElement = configElem. CreateChild ("node");
+
+        const Vector&lt;AttributeInfo&gt;* attributes = childnode-&gt;GetAttributes();
+
+        /// loop through attributes
+        for (Vector&lt;AttributeInfo&gt;::ConstIterator j = attributes-&gt;Begin(); j != attributes-&gt;End(); ++j)
+        {
+            XMLElement AttributeElement;
+
+            AttributeElement = NodeElement. CreateChild ("attribute");
+            AttributeElement.SetAttribute ("name", j -&gt; name_);
+            AttributeElement.SetAttribute ("value", j -&gt; defaultValue_.ToString());
+
+        }
+
+        if(childnode-&gt;GetNumChildren())
+        {
+            SaveSceneNode(childnode, NodeElement);
+        }
+        else
+        {
+            SaveSceneNodeComponents(childnode,NodeElement);
+        }
+
+        }
+    }
+    savesceneexportxml-&gt;Save(saveFile);
+
+}
+
+/// Recursive
+int Manager::SaveSceneNode(Node * node, XMLElement parentelement)
+{
+    /// Define a temporary pointer
+    Vector&lt;SharedPtr&lt;Node&gt; &gt; subchildren_;
+
+    /// Get children node
+    subchildren_ = node-&gt;GetChildren();
+
+    for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::Iterator i = subchildren_.Begin(); i != subchildren_.End(); ++i)
+    {
+        /// Create a new child instance
+        Node* childnode = *i;
+
+        /// Get node infomration, check for children, and check components
+        if(childnode-&gt;GetName().Find("Generated",0,false)==String::NPOS)
+        {
+            ///cout &lt;&lt; "SubNode :" &lt;&lt; childnode-&gt;GetName().CString() &lt;&lt;endl;
+            XMLElement NodeElement = parentelement. CreateChild ("node");
+
+            if(childnode-&gt;GetNumChildren())
+            {
+                SaveSceneNode(childnode, parentelement);
+            }
+            else
+            {
+                SaveSceneNodeComponents(childnode,parentelement);
+            }
+        }
+    }
+}
+int Manager::SaveSceneNodeComponents(Node *node, XMLElement parentelement)
+{
+    /// Define temporary pointer for components
+    Vector&lt; SharedPtr&lt; Component &gt; &gt; 	subcomponents_;
+
+    /// If node has no components
+    if(node-&gt;	GetNumComponents ()==0)
+    {
+        cout &lt;&lt; " Node has no components" &lt;&lt; endl;
+
+        return 1;
+    }
+
+    /// Get children node
+    subcomponents_ = node-&gt;GetComponents();
+
+    /// Loop through components
+    for (Vector&lt;SharedPtr&lt;Component&gt; &gt;::Iterator i = subcomponents_.Begin(); i != subcomponents_.End(); ++i)
+    {
+        Component * subcomponent = *i;
+
+        XMLElement componentElement = parentelement.CreateChild ("component");
+        componentElement.SetAttribute("Type", subcomponent-&gt;GetTypeName());
+
+        /// READ EACH COMPONENT AND GET ATTRIBUTES
+        if(subcomponent-&gt;GetNumAttributes ())
+        {
+            /// set virtual const
+            const Vector&lt;AttributeInfo&gt;* attributes = subcomponent-&gt;GetAttributes();
+
+            /// loop through attributes
+            for (Vector&lt;AttributeInfo&gt;::ConstIterator i = attributes-&gt;Begin(); i != attributes-&gt;End(); ++i)
+            {
+                /// output info
+                ///cout &lt;&lt; i -&gt; name_.CString() &lt;&lt; " type " &lt;&lt; i -&gt; defaultValue_. GetTypeName ().CString() &lt;&lt;" value " &lt;&lt; i -&gt; defaultValue_.ToString().CString()&lt;&lt; endl;
+                XMLElement AttributeElement =  componentElement. CreateChild ("attribute");
+                AttributeElement.SetAttribute ("name", i -&gt; name_);
+                AttributeElement.SetAttribute ("value", i -&gt; defaultValue_.ToString());
+            }
+
+        }
+    }
+
+    return 1;
+}</code></pre>
+<p>Current Results using F12 - Console (/scene file dummy /build setscene /build savescene)<br/>
+<a href="http://pastebin.com/xrgGWxFR" rel="nofollow noopener">pastebin.com/xrgGWxFR</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>I basically  dumped the method I was using.  Changing the code to the below. I need to add more functionality from the console line and maybe a load.</p>
+<p>[code]int Manager::SaveManagedNodes(const char *filename)<br/>
+{<br/>
+/// Grab resources<br/>
+ResourceCache * cache = GetSubsystem();<br/>
+FileSystem * filesystem = GetSubsystem();</p>
+<pre><code>/// Check if scene exist
+if(scene_==NULL)
+{
+    return 1;
+}
+
+/// Check if Node is empty
+if (ManagedNodes.Empty())
+{
+    return 1;
+}
+
+/// Create String
+String savesceneexport;
+
+/// Set directory
+savesceneexport.Append(filesystem-&gt;GetProgramDir().CString());
+savesceneexport.Append("/");
+savesceneexport.Append(filename);
+
+File saveFile(context_, savesceneexport.CString(), FILE_WRITE);
+
+XMLFile * savesceneexportxml= new XMLFile(context_);
+
+XMLElement xmfileelement = savesceneexportxml-&gt; CreateRoot("scene");
+
+/// Loop through components
+for(Vector&lt;Node *&gt;:: Iterator it = ManagedNodes.Begin(); it != ManagedNodes.End(); ++it)
+{
+    (*it) -&gt; SaveXML(xmfileelement);
+}
+
+savesceneexportxml-&gt;Save(saveFile);
+
+return 1;
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

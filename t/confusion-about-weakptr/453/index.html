@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Confusion about WeakPtr</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Confusion about WeakPtr</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>This is really a two-part issue, but I’m more-so focused on the “why” versus the end result at this point.</p>
+<p>Originally what I was trying to do is modify Node.h to change the owner_ from a Connection* to a WeakPtr to make it follow the standards presented throughout Urho3D. This will also prevent issues from attempting to use the Connection retrieved from GetOwner() when someone disconnects (Unless I’m mistaken here?).</p>
+<p>When I made the appropriate changes, I can no longer compile. Instead I get the following errors:</p>
+<pre><code class="lang-auto">error C2027: use of undefined type 'Urho3D::Connection'
+error C2227: left of '-&gt;RefCountPtr' must point to class/struct/union/generic type	</code></pre>
+<p>I’ve spent roughly 2 hours checking similar headers and making sure I’m not making any mistakes, but I can’t seem to figure out what I’m doing wrong here. Other headers similarly forward-declare class names and successfully wrap them with a WeakPtr, so why am I having this problem?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The reason why Connection was originally a raw pointer is maintaining a strict top-down hierarchy of libraries: Network was supposed to depend on Scene and not the other way around. This is also necessary if we want to be able to optionally remove the networking functionality from the library build (similarly like Physics &amp; Navigation can be removed.)</p>
+<p>Look at Scene::CleanupConnection(Connection* connection); it does the owner cleanup from the scene’s all replicated nodes and components on disconnect. So unless you’re assigning an owner to local nodes / components (which should not make sense) you’re already safe.</p>
+<p>I’ve spent substantial time going through similar errors with forward-declared classes. You will need to make sure that the WeakPtr is not manipulated in any way from the header, not even .Get(), or from other files that don’t actually include Connection.h. Compiler-generated functions like destructor, assignment etc. may also cause trouble in this regard.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I suppose that makes sense. It just seems weird to me that we’re relying on manual assignment instead of reference counting like the rest of the engine. IMO it would be preferably that there isn’t a hierarchy of libraries, that Network and Scene both work completely independently of each-other and maintain their own internal state. If one needs access to the other, it would use WeakPtrs and Events to communicate available information. Just a pipe dream I suppose, the engine’s great either way.</p>
+<p>I think I’ve figured out what I need to change in my code to get it working reliably. I was using SetOwner and GetOwner to maintain user-based Nodes instead of SetScene on the Connection, silly me.</p>
+<p>Still haven’t figured out why making the Connection a WeakPtr wasn’t working for me, but I suppose it’s a moot point anyways.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

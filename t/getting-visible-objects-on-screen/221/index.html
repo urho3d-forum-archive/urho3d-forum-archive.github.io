@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Getting visible objects on screen</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Getting visible objects on screen</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I have spent a few hours on this, and I haven’t really came up with a solution.</p>
+<p>Say I have a chest with several objects inside, and I want to know if these objects can be interacted by the player. I want it to be easy for the player to interact with several objects in a small radius around the center of the screen, ordering from nearest to the center to furthest. That way I could have a player grab several items without having to directly look at each one. Sorting the objects is no problem since I can just transform all object to screen space and sort them that way.</p>
+<p>So far, I’ve filtered potential candidates with the following:</p>
+<p><code>Urho3D::PODVector&lt;Urho3D::Node*&gt; results;
+GetScene()-&gt;GetChildrenWithComponent&lt;GameItem&gt;(results, true);
+for(Urho3D::PODVector&lt;Urho3D::Node*&gt;::Iterator itr = results.Begin(); itr != results.End(); itr++)
+{
+	float distance = (_cameraNode-&gt;GetPosition() - (*itr)-&gt;GetPosition()).Length();
+	Urho3D::BoundingBox box = (*itr)-&gt;GetComponent&lt;Urho3D::StaticModel&gt;()-&gt;GetBoundingBox();
+	box.Transform((*itr)-&gt;GetTransform());
+	if( Urho3D::INSIDE == camera-&gt;GetFrustum().IsInsideFast(box) &amp;&amp; distance &lt;= 3.0f)
+	{
+		debugRenderer-&gt;AddBoundingBox((*itr)-&gt;GetComponent&lt;Urho3D::StaticModel&gt;()-&gt;GetBoundingBox(), (*itr)-&gt;GetTransform(), Urho3D::Color::GREEN, false);
+	}
+}</code></p>
+<p>Any ideas?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>That’s kind of how I have been doing a bunch of my distancy/radius maths.  I havn’t tried using a physics based solution.  Something like having a giant cylinder around the character and capturing all collisons per interaction.  A mask could be used.</p>
+<p>I don’t exactly know what kind of camera you are using.  That may be helpful information.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>One of my original ideas was a cone emitting from the cameraNode pointed out at 3 units length. It worked in grabbing all of the items close by, but again it would still detect items that are hidden away. Such that a player wouldn’t have to open a chest to be able to grab everything inside so long as the player was within 3 units of the content.</p>
+<p>For the moment I’ve switched to using a physics-based ray query so that a convex hull at least gives better precision. I’m hoping though that I will be able to make it so that a player could grab items much like in oblivion or skyrim for example.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>This looks promising:</p>
+<h3>Drawable</h3>
+<p>Methods:</p>
+<ul>
+<li>bool IsInView(Camera@) const</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>[quote=“friesencr”]This looks promising:</p>
+<h3>Drawable</h3>
+<p>Methods:</p>
+<ul>
+<li>bool IsInView(Camera@) const[/quote]</li>
+</ul>
+<p>Promising indeed! As a note it only works with occluders and occludees. Here’s a little snippet to easily visualize the effect:</p>
+<p><code>Urho3D::PODVector&lt;Urho3D::Node*&gt; results;
+	_scene-&gt;GetChildrenWithComponent&lt;Urho3D::StaticModel&gt;(results, true);
+	for(Urho3D::PODVector&lt;Urho3D::Node*&gt;::Iterator itr = results.Begin(); itr != results.End(); itr++)
+	{
+		float distance = (_cameraNode-&gt;GetPosition() - (*itr)-&gt;GetPosition()).Length();
+		Urho3D::BoundingBox box = (*itr)-&gt;GetComponent&lt;Urho3D::StaticModel&gt;()-&gt;GetBoundingBox();
+		box.Transform((*itr)-&gt;GetTransform());
+		if( !(*itr)-&gt;GetComponent&lt;Urho3D::StaticModel&gt;()-&gt;IsInView(camera))
+		{
+			debugRenderer-&gt;AddBoundingBox((*itr)-&gt;GetComponent&lt;Urho3D::StaticModel&gt;()-&gt;GetBoundingBox(), (*itr)-&gt;GetTransform(), Urho3D::Color::GREEN, false);
+		}
+	}</code></p>
+<p>This makes it so that only fully hidden objects are debug drawn. Works like a charm as long as I set my occluders correctly!</p>
+<p>I wonder if there may be a better way in the future, though. I can’t complain with this approach, but <span class="bbcode-i"><span class="bbcode-b">it is</span></span> based off frame occlusion information, which is dependent on this such as frame size and the likes. I doubt it’s a real problem though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If your objects have Drawable components, you can use octree queries (box, sphere, frustum etc.) to get the objects within a geometrical volume. See Octree::GetDrawables(). This is the same what the rendering code is using.</p>
+<p>For physics rigidbodies there’s similar but more limited functionality, you can query the physics world by a box or sphere volume. See PhysicsWorld::GetRigidBodies() overloads.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

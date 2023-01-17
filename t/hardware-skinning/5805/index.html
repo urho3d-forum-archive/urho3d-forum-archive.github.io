@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Hardware Skinning</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Hardware Skinning</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I made a hardware skinning shader in hlsl for irrlicht years ago. After reading the urho3d docs. Am I correct that urho3d does the automatically on the gpu?</p>
+<p>Or would a hardware skinning shader improve character performance?</p>
+<p>I’m asking because if I render lets say 10 ai that all use the same model and animations. Framerate drops quite a bit. I solved this in irrlicht with the HS shader.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Skinning is already done on the GPU.</p>
+<p>The bone tree (just the matrices themselves) and morph-targets are done on the CPU (have to be without stream-out for morphs and compute for the bone-tree).</p>
+<p>You really shouldn’t be having trouble with only 10.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Well they are low poly by today’s standards. Maybe it is the crown navigation that is kill the frame rate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>The <code>CrowdAgentReposition</code> / <code>E_CROWD_AGENT_REPOSITION</code> event is generally where crowd performance problems are, and it’s usually really obvious in the profiler.</p>
+<p>Mashing the 39_CrowdNavigation (at 300 agents), 07_Billboards, and 12_PhysicsStressTest samples into one, I still get a stable 30 fps on an old Intel HD4000 @ 720p:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="CrowdPerf"><img alt="CrowdPerf" data-base62-sha1="pBU70OmXNYfHsN7eoEE8BYsasuC"  height="388" src="../../../images2/25a09d3338c39e7a827e510765604d01.png"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">CrowdPerf</span><span class="informations">1280×720 1.14 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Highlighted the region to look at to observe how much time crowd is eating.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screenshot_Sun_Jan_05_11_32_16_2020"><img alt="Screenshot_Sun_Jan_05_11_32_16_2020" data-base62-sha1="vAr4MOLqTeXtQumxEcMJB8MXiIk"  height="291" src="../../../images2/a28de458eae1de9ed6863f7262b1ef56.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot_Sun_Jan_05_11_32_16_2020</span><span class="informations">2560×1080 1.31 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Hmm mine seem to be always Renderquad and RenderScenePass. I can only assume it is because of the HDR PostProcessing. I’m not to sure. When the AI’s get to there destination that is usually when the frame rate starts to drop.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>21:9 aspect ratio is huge. You’ve got a stable 5ms going into <code>Present</code> which is the basically GPU command flush + VSync (if it’s on). Render-doc is your friend here to be sure but I’d think you’re chewing fill-rate.</p>
+<p>A <code>LQ-HDR</code> can be done by copying the PostProcess file and changing the divisors (something other than 2-&gt;4-&gt;8-&gt;16, like 4-&gt;8-&gt;16-&gt;32 or 8-&gt;16-&gt;32-&gt;64). The <span class="hashtag">#ifdefs</span> in that shader are mostly just for using the right auto-uniforms (target size and inv-size). But you shouldn’t save more than a handful of frames from doing that. It’ll get more Oblivion-bloom-hell-esque the more you divide though - it’s easy to check though to see if it makes a meaningful difference. It isn’t that meaningful for me, but 1080p is the largest res I have.</p>
+<hr/>
+<p>3 - 4 ms going to occlusion drawing is probably the upper limit that you want to see. Might want to see if terrain really needs to be an occluder and if maybe an LOD set to an enormous LOD distance for the cliff meshes helps that. Occlusion drawing uses the lowest LOD available for both terrain and meshes, so in the case of a mesh if you set the LOD distance to something like <code>FLT_MAX</code> that will actually pass tests then the LOD will be used solely by the occlusion software renderer.</p>
+<p>See the <a href="https://urho3d.github.io/documentation/1.7/_tools.html" rel="nofollow noopener">asset importer docs</a> on how to use it to merge seperate meshes into 1 with LOD. It can also be done in code with <a href="https://github.com/JSandusky/Urho3DProcGeom/blob/master/ProcGeom/LODGen.cpp" rel="nofollow noopener">something like IGL + Eigen</a> which is more work code-side instead of content-side.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Thanks for the post <span class="mention">@Sinoid</span>. I will try some of your suggestions. I will post back later.</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Okay so I fixed the frame rate drop. I was using the map as an occluder which I’d imagine did not perform well. I also removed some things from always being updated. I also set the screen resolution to 1920x1080 for the fill rate you mentioned. I made some other changes that I can’t remember, but it seems pretty solid.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Not a whole lot you can do about fill-rate costs except work with lower resolution requirements in post-fx, checkerboard, YCoCg if deferred, etc.</p>
+<p>Occluders are a pain to tune. It’s a bit involved but you can write your own <code>Drawable</code> derived component that has no Batches but is still an Occluder that emits Occlusion triangles. It’s kind of odd that there isn’t one already there for even a basic Box shape occluder.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I was thinking of something like portal rendering. Would it be possible to create some simple planes that don’t render, but can be used for occluding?</p>
+<p>I suppose this would not work since the planes do need to be visible.</p>
+<p>Also on the Crowd Navigation once the AI’s reach there destination is there a way to keep them from always check or updating their path? I did not see an option for this. I noticed that once the AI’s that use the navigation mesh reach there target destination. The update stats in the debugger seem to climb alot. I think they may be checking things to often. If this makes sense.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="10" data-topic="5805" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<p>I suppose this would not work since the planes do need to be visible.</p>
+</blockquote>
+</aside>
+<p>You could assign them an invisible material.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>You mean like completely transparent.</p>
+<p>Does urho3d already have a material for this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<pre><code>&lt;material&gt;
+    &lt;technique name="Techniques/NoTextureAlpha.xml" /&gt;
+    &lt;parameter name="MatDiffColor" value="0 0 0 0" /&gt;
+    &lt;parameter name="MatSpecColor" value="0 0 0 0" /&gt;
+&lt;/material&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@Modanung</span> Thanks for the post I will try it out later.</p>
+<p>On using navigation or crowd navigation is there not an option to set how often the ai or agent checks their path? I have noticed that once the ai or agent reaches there destination and they stand around that point. The update stats seem to climb a good amount. I’m thinking maybe because they keep updating something.</p>
+<p>If that makes sense.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>It’s probably more complicated than just standing still.</p>
+<p>It’ll be a pain to hunt down but I’m betting that it’s because the agent’s are in the same polygon as their destination and that causes heavier calculations (regardless of whether they’re on the actual point or not) than the polygon-&gt;polygon routing where they’re just selecting corner points and running their crowd corridor.</p>
+<p>It’s tough to tell but it might be an Urho event raising issue or it might be a DetourCrowd issue. I’m betting that it’s a bit of both where DetourCrowd is eating juice as I described above and Urho is sending events that it has no business sending.</p>
+<p>Crowds really has no business being bound to scripting to begin with … oh it’s just a big mess.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Well that’s unfortunate. What do you suggest? Not using crowd navigation?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Just wondering were you instructing all the agents to move to a single target point, which they cannot reach once one of the agent is already there? Also, may I suggest you to keep on the topic or change the title of the topic or raise a separate topic for your crowd navigation question.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Yes I do send them to the same point. I thought they would all crowd around a point if there is more than one agent. They do not appear to keep trying to reach the exact point. I thought by looking at the code they would just try to achieve a radius close to the point if their is more than one agent. Do you think this is the issue?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Most probably. You can try by having one agent first to see whether it “settled down”; or try to set a group of agents to a target area within a certain radius. I believe the crowd navigation demo does the latter. I could be wrong, not looking at the sample code right now.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

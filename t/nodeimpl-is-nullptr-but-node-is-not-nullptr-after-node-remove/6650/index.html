@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>NodeImpl* is nullptr but Node* is not nullptr after Node::Remove()</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">NodeImpl* is nullptr but Node* is not nullptr after Node::Remove()</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>A weird nullptr problem.</p>
+<p>I have a character node that has two important components, one is AI to find enemy targets, one is character control to handle various things like death.</p>
+<p>In the former AI component Update() function:</p>
+<pre><code class="lang-auto">// just for this debug, it crashed at target_-&gt;GetComponent&lt;CharacterStatus&gt;() below previously.
+  if (target_) {
+    spdlog::trace("{}: Checking target", node_-&gt;GetName().CString());
+    spdlog::trace("{}: Check target: {}", node_-&gt;GetName().CString(), target_-&gt;GetName().CString());
+  }
+// remove dead character target.
+  if (target_ &amp;&amp; target_-&gt;GetComponent&lt;CharacterStatus&gt;()
+      &amp;&amp; target_-&gt;GetComponent&lt;CharacterStatus&gt;()-&gt;IsDead()) {
+    target_ = nullptr;
+  }
+</code></pre>
+<p>In the latter character control component Update() function, I will check if character is death and will trigger:</p>
+<pre><code class="lang-auto">void Character::OnCharacterDeath() {
+  spdlog::debug("{}: Character died.", node_-&gt;GetName().CString());
+  node_-&gt;Remove();
+}
+</code></pre>
+<p>However, when one character died, the program crashes.<br/>
+The crash line is in that AI component Update() function</p>
+<pre><code class="lang-auto">spdlog::trace("{}: Check target: {}", node_-&gt;GetName().CString(), target_-&gt;GetName().CString());
+</code></pre>
+<p>Particularly, the <code>target_-&gt;GetName()</code> operator <code>-&gt;</code> crashes because</p>
+<pre><code class="lang-auto">const String&amp; GetName() const { return impl_-&gt;name_; }
+</code></pre>
+<p>Notice I checked nullptr for <code>target_</code>, so it looks like the impl_ is nullptr here.</p>
+<p><strong>I am super confused. What did I do wrong?</strong><br/>
+I don’t have any strong pointer reference anywhere for the node except the root scene owns it.</p>
+<p>For reference, here is the detailed log dump:</p>
+<pre><code class="lang-auto">[2021-01-03 12:58:39.121] [trace] RandomAI_kBodyTeamTwo_4: Checking target
+[2021-01-03 12:58:39.121] [trace] RandomAI_kBodyTeamTwo_4: Check target: RandomAI_kBodyTeamOne_3
+...
+[2021-01-03 12:58:39.145] [trace] RandomAI_kBodyTeamOne_3: Checking target
+[2021-01-03 12:58:39.145] [trace] RandomAI_kBodyTeamOne_3: Check target: RandomAI_kBodyTeamTwo_5
+[2021-01-03 12:58:39.145] [debug] RandomAI_kBodyTeamOne_3: Character died.
+Assertion failed: (ptr_), function operator-&gt;, file /Users/honghaoli/git_folder/Urho3D/Source/Urho3D/AngelScript/../Core/../Container/Ptr.h, line 605.
+...
+[2021-01-03 12:58:39.153] [trace] RandomAI_kBodyTeamTwo_4: Checking target
+Signal: SIGABRT (signal SIGABRT)
+</code></pre>
+<p>You can see the RandomAI_kBodyTeamTwo_4 first has a target RandomAI_kBodyTeamOne_3. Then, RandomAI_kBodyTeamOne_3 died, then when RandomAI_kBodyTeamTwo_4 AI component Update() again, it crashed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>What does <code>IsDead()</code> do in the <code>AI::Update()</code>, if the node is removed on death?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6650" data-username="CE184">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/dada78fedd225ea67a0521e8916d949e.png" width="20"/> CE184:</div>
+<blockquote>
+<p>Particularly, the <code>target_-&gt;GetName()</code> operator <code>-&gt;</code> crashes because</p>
+</blockquote>
+</aside>
+<p>Maybe dangling pointer to removed node?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Following up on that, is <code>target_</code> a smart pointer (Weak/SharedPtr) or a normal non-smart pointer?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<pre><code class="lang-auto">  inline bool IsDead() const { return health_ &lt;= 0.0f; };
+</code></pre>
+<p>It’s just an inline function for <code>CharacterStatus</code> component, which does not have much logic, only store some data like <code>health_</code>.<br/>
+If the node is removed, the GetComponent for that node should be null, right, then that if condition will not proceed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p><code>target_</code> is just a raw pointer.</p>
+<pre><code class="lang-auto">  Node* target_ = nullptr;
+</code></pre>
+<p>And the only place to set that pointer is in the same Update() function later</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Yes, you both are right! My stupid mistake! <img alt=":disappointed_relieved:" class="emoji" src="../../../images2/b5e74f3f0ae2166d3d1603d5c7299460.png" title=":disappointed_relieved:"/></p>
+<p>I should use <code>WeakPtr&lt;Node&gt; target_</code> instead of  <code>Node* target_</code>.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

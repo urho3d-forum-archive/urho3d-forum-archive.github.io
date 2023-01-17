@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How exactly do scripts in the editor work?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How exactly do scripts in the editor work?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>I’ve noticed that in the editor, you can select a particular file for a node to use as its script. However, I noticed that in Ninja.xml, the script does not point to the <a href="http://Ninja.as" rel="nofollow noopener">Ninja.as</a>, but rather the <a href="http://NinjaSnowWar.as" rel="nofollow noopener">NinjaSnowWar.as</a>.</p>
+<p>Why the discrepancy?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>AngelScript has what they call a ‘Module’ <a href="http://www.angelcode.com/angelscript/sdk/docs/manual/doc_module.html" rel="nofollow noopener">angelcode.com/angelscript/sd … odule.html</a></p>
+<p>A scriptfile is basically a module (or atleast in my mind).</p>
+<p>A module is a chunk of compiled code.  Modules can’t really talk together.  There is a specific mechanism for cross module talking but you don’t have shared global state or anything.</p>
+<p>If the ninja wants to use methods from ninjasnow war it needs to have the same scriptfile.</p>
+<p>Something interesting about urho is its resource reloading.  If you set the cache-&gt;autoReload to true then it will blow out and restart the whole script file.  If you have no other code associated to that ‘scriptfile’ you can get some pretty nice hot swapping.  Urho goes to the trouble of managing the dependency graph.  Lasse did a very simple yet thorough job in that bit.  It will destroy and reload the instance and fire off the start event and so forth.  I cheese this mechanism for doing faster iterations.  Vim + hot swapping code is kind of wonderful.</p>
+<p>I don’t really understand at a deep level whats going on I hope I am not wrong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>In NinjaSnowWars its because the top level script file is including all the dependent ones so it “contains” the function within the same module as friesencr described. It doesn’t have to be done like that especially for script instances.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>The reason why I ask is twofold.</p>
+<p>First, I can’t get the scripts attached to a node. I open the dialog, pick the file, and nothing – the box stays empty.</p>
+<p>Second, we had a script with a class named ‘Missile’. Inside our XML file, the ‘Script File’ attribute of the Script Instance was initially pointed to the actual .as for the Missile, so <a href="http://Missile.as" rel="nofollow noopener">Missile.as</a>. However, when trying to cast the scriptObject of a node instantiated as a missile, we kept getting null. We changed the ‘Script File’ to point to the entry script of our game, or <a href="http://Game.as" rel="nofollow noopener">Game.as</a>, and it worked.</p>
+<p>Is there a reason for these behaviours?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There appears to be a legitimate bug in script file picking in the editor.</p>
+<p>As for not being able to cast, it’s exactly the module thing. <a href="http://Missile.as">Missile.as</a> becomes one module when compiled on its own, your main program including <a href="http://Missile.as">Missile.as</a> becomes another, but to AngelScript the Missile classes in the two modules are not the same thing -&gt; cast returns null. There is no satisfying resolution to this. You can use methods of communication that don’t require explicit knowledge of the Missile class, which are:</p>
+<ul>
+<li>Register an interface for your game object scripts as “shared” and make them inherit from it. <a href="http://angelcode.com/angelscript/sdk/docs/manual/doc_script_shared.html">angelcode.com/angelscript/sdk/do … hared.html</a>
+</li>
+<li>Sending events</li>
+<li>Passing variables in the node’s “vars” property (VariantMap)</li>
+<li>Using the C++ method calling API in ScriptInstance, which is exposed to script as “bool Execute(const String&amp;in, const Array@+)”</li>
+</ul>
+<p>If you think of a very complex game, it’s probably better to organize it that way that the main program doesn’t need to know about every specific game object class. However it’s clear that game object classes need to interact with one another, the 4 methods described above would be useful as well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There was a rather weird case-sensitivity error in the editor which would cause the default Data resource directory getting removed in certain situations. I recommend trying the editor from the latest master branch. Script file picking should now work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Hey Cadaver,</p>
+<p>I just tried to add a script again, and it still doesn’t work. Furthermore, the first time you set the resource path to the folder containing the Data and CoreData folders, no suggested files are listed whenever you try to add a model, apply a texture, etc. Switching it to the Data folder, and then reverting back to the root folder fixes the problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1177_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">f1af</div>
+          <div class="post_content">
+<p>I found it!</p>
+<p>In Urho source, file ScriptInstance.cpp:</p>
+<p><code>ScriptEventListener* GetScriptContextEventListener()
+{
+    // If the context has an object and that object has user data set, try and get the ScriptInstance, otherwise try and get a ScriptFile.
+    asIScriptContext* context = asGetActiveContext();
+    if (context)
+    {
+        asIScriptObject* object = static_cast&lt;asIScriptObject*&gt;(context-&gt;GetThisPointer());
+        if (object &amp;&amp; object-&gt;GetUserData())
+            return GetScriptContextInstance();
+        else
+            return GetScriptContextFile();
+    }
+    else
+        return 0;
+}</code></p>
+<p>It meas, that NOT for each ScriptInstance have Context! Not! If for some <a href="http://qwe.as" rel="nofollow noopener">qwe.as</a> context already created, and two ScriptInstance  linked to <a href="http://qwe.as" rel="nofollow noopener">qwe.as</a> - second ScriptInstance  will have context from the first.</p>
+<p>And I write exaple for illustrate this idia:</p>
+<p>[code]// <a href="http://Main.as" rel="nofollow noopener">Main.as</a></p>
+<p><span class="hashtag">#include</span> “<a href="http://GameLogic.as" rel="nofollow noopener">GameLogic.as</a>”</p>
+<p>Scene@ scene_;</p>
+<p>void Start()<br/>
+{<br/>
+log.Open(“log.txt”);</p>
+<pre><code>scene_ = Scene();
+Node@ nodeLogic;
+
+{
+    nodeLogic = scene_.CreateChild();
+    ScriptInstance@ scriptInstance = nodeLogic.CreateComponent("ScriptInstance");
+    scriptInstance.CreateObject(cache.GetResource("ScriptFile", "Scripts/GameLogic.as"), "GameLogic");
+}
+
+{
+    nodeLogic = scene_.CreateChild();
+    ScriptInstance@ scriptInstance = nodeLogic.CreateComponent("ScriptInstance");
+    scriptInstance.CreateObject(cache.GetResource("ScriptFile", "Scripts/GameLogic.as"), "GameLogic");
+}
+
+{
+    nodeLogic = scene_.CreateChild();
+    ScriptInstance@ scriptInstance = nodeLogic.CreateComponent("ScriptInstance");
+    scriptInstance.CreateObject(cache.GetResource("ScriptFile", "Scripts/Main.as"), "GameLogic");
+}
+
+GameLogic@ gameLogic = cast&lt;GameLogic&gt;(nodeLogic.scriptObject);
+gameLogic.publicString="Yeap :)";
+</code></pre>
+<p>}[/code]</p>
+<p>[code]<br/>
+// <a href="http://GameLogic.as" rel="nofollow noopener">GameLogic.as</a></p>
+<p>int global_int = 0;</p>
+<p>class GameLogic : ScriptObject<br/>
+{<br/>
+String publicString = “Nope :(”;</p>
+<p>GameLogic()<br/>
+{<br/>
+++global_int;<br/>
+}</p>
+<p>void Start()<br/>
+{<br/>
+<a href="http://log.Info" rel="nofollow noopener">log.Info</a>(“GameLogic::Start scriptFile.name=” + <a href="http://scriptFile.name" rel="nofollow noopener">scriptFile.name</a>);<br/>
+<a href="http://log.Info" rel="nofollow noopener">log.Info</a>(“GameLogic::DelayedStart global_int=” + global_int);<br/>
+}</p>
+<p>void DelayedStart()<br/>
+{<br/>
+<a href="http://log.Info" rel="nofollow noopener">log.Info</a>(“GameLogic::DelayedStart publicString=” + publicString);<br/>
+}<br/>
+}[/code]</p>
+<p><code>
+[Sun Dec 18 13:41:00 2016] INFO: Opened log file log.txt
+[Sun Dec 18 13:41:00 2016] INFO: Compiled script module Scripts/GameLogic.as
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::Start scriptFile.name=Scripts/GameLogic.as
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::DelayedStart global_int=1
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::Start scriptFile.name=Scripts/GameLogic.as
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::DelayedStart global_int=2
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::Start scriptFile.name=scripts/Main.as
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::DelayedStart global_int=1
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::DelayedStart publicString=Nope :(
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::DelayedStart publicString=Nope :(
+[Sun Dec 18 13:41:00 2016] INFO: GameLogic::DelayedStart publicString=Yeap :)</code></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

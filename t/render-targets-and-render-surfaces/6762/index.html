@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Render targets and render surfaces</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Render targets and render surfaces</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>I’ve been re-reading documentation and can’t get my head around the difference between the render target and render surface. More precisely, I understand that render surface is a “color or depth-stencil surface that can be rendered into” and since I know a bit of OpenGL, this is clear to me. Also, I use it to render to texture (as shown in the Urho3D samples).</p>
+<p>However, I can’t understand what is exactly the meaning of the render target. Is it the same thing? Is it different from render surface?</p>
+<p>The complementary question would be this: what is the difference between a pass and a renderpath command?</p>
+<p>Thank you!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6762" data-username="Lunarovich">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/567c52b99053c4bf26dbb14ab88ba2b1.png" width="20"/> Lunarovich:</div>
+<blockquote>
+<p>what is exactly the meaning of the render target. Is it the same thing? Is it different from render surface?</p>
+</blockquote>
+</aside>
+<p>RenderSurface is <em>any</em> destination surface, which could be color or depth texture, non-readable depth renderbuffer or framebuffer color/depth.<br/>
+Render Target often means <em>readable</em> render surface, i.e. texture one.</p>
+<aside class="quote no-group" data-post="1" data-topic="6762" data-username="Lunarovich">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/567c52b99053c4bf26dbb14ab88ba2b1.png" width="20"/> Lunarovich:</div>
+<blockquote>
+<p>The complementary question would be this: what is the difference between a pass and a renderpath command?</p>
+</blockquote>
+</aside>
+<p><code>Pass</code> as class aka <code>pass</code> in material is… well… a pass of object rendering. I.e. lit geometry has base pass that renders ambient, light pass that renders per-pixel light from light source, shadow pass that renders object to shadow map, depth pass that renders object w/o color for depth pre-pass.</p>
+<p>“renderpath command” is global sequential stage of scene rendering which may render zero, one or several object “passes”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p><span class="mention">@Eugene</span> thank you! So, to check my understanding, render target is one type of render surface. If yes, I have another dilemma here. Namely, I have this code:</p>
+<pre><code class="lang-auto">    RenderSurface* surface = renderTexture-&gt;GetRenderSurface();
+    Viewport* viewport(new Viewport(context_, scene_, cameraNode_-&gt;GetComponent&lt;Camera&gt;()));
+    surface-&gt;SetViewport(0, viewport);
+
+    SharedPtr&lt;RenderPath&gt; renderPath = viewport-&gt;GetRenderPath()-&gt;Clone();
+    URHO3D_LOGINFOF("%d", renderPath-&gt;GetNumRenderTargets()); // debug
+</code></pre>
+<p>The last line gives me <code>0</code> as if I did not have any render targets attached…</p>
+<p>As to the renderpath command, I see that default render paths from the CoreData refer to some of the passes referred to in techniques. However, there is an added info as to the pass type and there are some types of passes that do not appear in material related techniques. If I understand well, there are passes that happen “outside” of the scene, so to say, or “on top of the scene” and the final render is the result of all these passes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="6762" data-username="Lunarovich">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/567c52b99053c4bf26dbb14ab88ba2b1.png" width="20"/> Lunarovich:</div>
+<blockquote>
+<p>The last line gives me <code>0</code> as if I did not have any render targets attached…</p>
+</blockquote>
+</aside>
+<p><code>surface</code> contains <code>viewport</code>, <code>viewport</code> contains <code>renderPath</code>, <code>renderPath</code> contains auxiliary render surfaces counted by <code>GetNumRenderTargets</code>. <code>renderPath</code> never knows about its destination, it references it by keyword “viewport” but it never owns it.</p>
+<aside class="quote no-group" data-post="3" data-topic="6762" data-username="Lunarovich">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/567c52b99053c4bf26dbb14ab88ba2b1.png" width="20"/> Lunarovich:</div>
+<blockquote>
+<p>If I understand well, there are passes that happen “outside” of the scene, so to say, or “on top of the scene” and the final render is the result of all these passes.</p>
+</blockquote>
+</aside>
+<p>“on top” is good analogy, because non-scene passes are usually some kind of pre- or post-processing done at some point.<br/>
+Note that “post-processing” may happen at any point, not only after all scene passes. I.e. deferred lighting via <code>lightvolumes</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Thank you! Certainly not an easiest of all the topics <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

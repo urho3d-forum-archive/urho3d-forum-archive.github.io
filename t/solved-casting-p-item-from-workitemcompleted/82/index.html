@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[solved] casting P_ITEM from WorkItemCompleted</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[solved] casting P_ITEM from WorkItemCompleted</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>pardon my c++ newbish.</p>
+<p>i am trying to cast the workitem pointer from the completed event.</p>
+<p>my code isn’t working so well:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>here is the source code for the work queue</p>
+<pre><code class="lang-auto">if (i-&gt;sendEvent_)
+{
+    eventData[P_ITEM] = (void*)(&amp;(*i));
+    SendEvent(E_WORKITEMCOMPLETED, eventData);
+}</code></pre>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NemesisFS</div>
+          <div class="post_content">
+<p>It should work if you dont call GetPtr(). eventData[P_ITEM] is a void pointer, you just need to cast it to a WorkItem Pointer (if im not mistaken).</p>
+<p>Also I guess you should use “static_cast&lt;WorkItem*&gt;”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Actually your line should work. Here’s a complete somewhat stupid example, inserted into the StaticScene example.</p>
+<pre><code class="lang-auto">float resultVariable = 0.0f;
+
+void MyWork(const WorkItem* item, unsigned threadIndex)
+{
+    float* result = static_cast&lt;float*&gt;(item-&gt;start_);
+    for (unsigned i = 0; i &lt; 1024 * 1024 * 1024; ++i)
+        *result += sqrtf((float)i);
+}
+
+void StaticScene::Start()
+{
+    WorkItem item;
+    item.priority_ = 0;
+    item.start_ = &amp;resultVariable;
+    item.workFunction_ = MyWork;
+    item.sendEvent_ = true;
+    
+    GetSubsystem&lt;WorkQueue&gt;()-&gt;AddWorkItem(item);
+    SubscribeToEvent(E_WORKITEMCOMPLETED, HANDLER(StaticScene, HandleWorkItemCompleted));
+
+    ...
+}
+
+void StaticScene::HandleWorkItemCompleted(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace WorkItemCompleted;
+    WorkItem* item = static_cast&lt;WorkItem*&gt;(eventData[P_ITEM].GetPtr());
+    // This should also work just as well
+    // const WorkItem* item = (const WorkItem*)eventData[P_ITEM].GetPtr(); 
+    
+    float* result = static_cast&lt;float*&gt;(item-&gt;start_);
+    LOGINFO("Calculation result was " + String(*result));
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>i think i understand what is going on…  this is a very different way of thinking for me.  I think my head exploded.  I was able to cast the WorkItem from the beginning but the pointers didn’t match up.</p>
+<p>I could be way off base.</p>
+<p>I allocated my worker on ‘the stack’</p>
+<pre><code class="lang-auto">	void CreateDungeon()
+	{
+		WorkItem item;
+		item.sendEvent_ = true;
+		item.workFunction_ = GenerateDungeonStart;
+		dungeonWorker = &amp;item;
+		workQueue-&gt;AddWorkItem(item);
+	}</code></pre>
+<p>AddWorkItem doesn’t take a pointer to a work item so it ‘copies’ the variable.  After the scope of the function the dungeonWorker actually gets ‘nullified’.  I have no idea what it is pointing to after the item gets destroyed.  It amuses me that I will utilize allocating variables on stack to make it so i don’t cleanup but now I didn’t think of this inverted scenario.  My main motivation for using the pointer was to make it so i could track a work item and when the work item was completed to use the completed handler to and do some work based on the task that was completed.</p>
+<p>The api seems to be suited for splitting up work to utiltize multiple cores more effectively.  I think everytime i saw threads being used they ended up all blocking using the queue#complete function within the same frame.  I can see that there is some code to try to prevent too many tasks from running long:</p>
+<p>This is in the WorkerThread</p>
+<pre><code class="lang-auto"></code></pre>
+<p>It looks like GetSubsystem is a singleton?  Since complete gets called every frame tasks would never be able to run more then a frame?  If I wanted to have a task run longer would I want to make a new WorkQueue for my game specific code?</p>
+<p>In the dreadful posibility of a single threaded system we might be able to add a WorkItem.current pointer to hold the current position of an iterator and suspend a task to pickup where it left off next frame for a longer running task as though as a sort of hackish coroutine.   maybe we can make the work function return a bool for whether it has been completed or not?</p>
+<p>also a posible improvement to the api would be for the ability to specifify a workitem in the subscribe method:</p>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>A couple of things…</p>
+<ul>
+<li>
+<p>When you submit a task to the WorkQueue, it will get copied like you noticed, so the pointer in the completion event will be different. The WorkQueue has initially been used only for the Renderer’s internal tasks and the completion event facility has been an afterthought, so using them is not as convenient as it should be. If each WorkItem would be an Object it could send its own completion event, however there’s some overhead to that.</p>
+</li>
+<li>
+<p>Tasks will not be suspended, they always run to completion, and I don’t intend to change that. The 1000ms timer is only for the case when there are no worker threads. You should test if whether it makes more sense to you to actually allocate at least 1 worker thread even on a single-core system. You should not make another WorkQueue on your own, as that creates another batch of (number of CPUs) worker threads which may be too much. Instead the existing one can be used to run tasks that are as long as you want, just put a priority that is less than M_MAX_UNSIGNED on them, so that the time-critical renderer tasks (which have priority M_MAX_UNSIGNED) can also run on other free worker threads (or on the main thread) in the meanwhile.</p>
+</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>How about passing in a WorkItem pointer instead and having the ‘keep alive’ list being a list of SharedPtr’s instead.</p>
+<p>That way the complete volatile boolean is usable outside of the WorkQueue and comparisons can be made as long as where the WorkItem was added keeps its own SharedPtr copy so that the memory isn’t freed when the WorkQueue cleanses complete items.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>We can support both forms, submitting SharedPtr’s to work items, and submitting a const reference (where WorkQueue will make a copy, just like before). The Renderer / View do not care of individual tasks after submitting, they only need them all to complete, so they’ll continue to use the latter. When submitting pointers it’s important to check that the item isn’t already in the queue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>Is there a need to support both apart from backward compatibility? Its easy enough to modify the render functions to use the shared pointer method, it reduces the complexity of the WorkQueue only supporting a single method, shouldn’t be much difference in performance either as you’ve got two use cases copying the WorkItem or creating a new SharedPtr.</p>
+<p>Anyway, added a pull request with the single version and Render functions refactored to see whether the single method is suitable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Yes, it’s true that the performance of the methods doesn’t matter once we start using sharedptr’s to track the items, then it’s anyway a new dynamic allocation for each. Previously, as it was a list of items and not pointers, the allocations would be pooled internally like in a Vector.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Took the pull request as-is. It’s better to see outright in the client code that a new work item is being dynamically allocated. And of course it’s possible to reuse the same work item if it’s performed only once per frame <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>That’s my next plan, refactor out all the cases in Octree and View where its based on the number of threads to re-use the pointers to save having them allocated every frame. Might be possible to do the same for render paths but thats slightly more risky as that can change during runtime, but a guard could be put in place to re-allocate if the number of render path commands changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>A thought came to my mind that WorkQueue itself could allocate items into a “free” pool, to reuse them automatically.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>Oh now that’s an interesting idea, just off the top of my head two ways to work it.</p>
+<p>First you could do something like:</p>
+<pre><code class="lang-auto">SharedPtr&lt;WorkItem&gt; item = WorkQueue::GetWorkItem();
+// Do stuff.
+WorkQueue::AddItem(item); //We wouldn't want to add it to the active queue from the available pool till we know its ready.</code></pre>
+<p>Which would be a bit more explicit but also would allow circumvention of the pool. The other method and one which I’m leaning towards could be something like:</p>
+<pre><code class="lang-auto">WorkItem item;
+// Do stuff.
+SharedPtr&lt;WorkItem&gt; reference = WorkQueue::AddItem(item);</code></pre>
+<p>You’d have to do some conversions from the reference to copy the details from the passed reference to a free SharedPtr but it would mean that we could ensure all allocations were part of the pool.</p>
+<p>Of course both would share behind the scenes stuff such as a separate queue for currently queued items and assigned items which wouldn’t change much between the current format. I’ll have a play see what comes out of it, the big question would be on when would it be safe to shrink the queue down, perhaps maintain a delta between frames of the number of used / requested items and if it lasts then shrink down to remove one time or infrequent usage of the WorkQueue.</p>
+<p>Edit:</p>
+<p>So had a play and decided that I prefer the flexibility of the first method where you can use the pool if you want or you can use your own SharedPtr allocation or even your own pool if you need to.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I prefer the first method too for the freedom it gives you.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

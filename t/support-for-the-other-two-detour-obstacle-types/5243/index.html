@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Support for the &ldquo;other two&rdquo; Detour Obstacle Types</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Support for the &ldquo;other two&rdquo; Detour Obstacle Types</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I noticed that our NavMesh implementation only supports one kind of “obstacle shape”… a vertical cylinder. While poking around in the Detour sourcecode, I noticed that two more kinds are supported: AABB, and OBB (ok, it can rotate in the Y axis).</p>
+<p>OBB would be very useful to apply to DOORS, combined with a dynamic (tiled) navmesh, this would mean that a door being opened, or closed, or half open, will automatically block or allow access to AI agents in terms of their ability to pathfind. It’s not a deal breaker, but it would be one less thing to deal with in terms of AI logic.</p>
+<p>Would anyone else be interested in seeing the Obstacle class extended to be closer to CollisionShape - and supporting all three Detour obstacle shapes?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>This sounds like something I could definitely use for several projects.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ll take that as a yes!</p>
+<p>Old Fish did say that this implementation was only meant to serve as an example, but boy did he pick the right example! I mean, using the crowd agent, rather than the raw agent, with all its wonderful canned behaviors… Now we just need a bit more flesh back on those bones.</p>
+<p>I need to restructure my codebase here - I will shadow my work, fork and pull down the lastest master, see what shakes, then push back a more complete obstacle class, following the pattern laid down by collisionshape… no suprises, but like i said, the detour aabb obstacle does not rotate, but might move, and the obb obstacle (say that ten times) can only rotate in the Y axis, like we would expect in most cases in an XZ plane based game, even in a true 3D world, the world UP vector at any moment, usually matters the most</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Since the existing code generates events when obstacles are added or removed, I have two choices.</p>
+<p>I can submit a PR for an obstacle that breaks existing projects, but is optimal and operates just like collisionshape, or, I can define a bunch of new events.</p>
+<p>I would like to hear from the wings, how I should approach a possible PR, and what conventions we have for this. I’m pretty sure there is no document describing procedures for PR.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I think optimal implementation has pretty much always outweighed backwards compatibility.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>That is the answer I wanted to hear…<br/>
+Personally, I don’t like to go around breaking stuff that works perfectly fine as it is…<br/>
+However, to make an omelette, you have to break a few eggs.</p>
+<p>Optimal it is then <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>The new Obstacle class will have three dimensional extents, and will encode cylinders in exactly the same way as collisionshape (basically x is radius, y is height, and z is not used).<br/>
+The event structures for adding and removing obstacles will be adjusted to reflect this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Attached is a proposed patch to support all three obstacle shape types.<br/>
+It has not been properly tested - though I only expect the debugdrawing to be incorrect.<br/>
+These changes don’t appear to break existing code - at least the crowd navigation example still works perfectly.</p>
+<p>Rather than introduce new classes and events, I chose to extend the existing Obstacle class and the related E_NAVIGATION_OBSTACLE_ADDED event.<br/>
+Obstacle class attributes were extended to include obstacle type, plus a few other fields such as length and rotation angle. DynamicNavigationMesh::AddObstacle was adjusted to respect the new data.</p>
+<p>Type 0 indicates vertical cylinder - our traditional obstacle shape.<br/>
+Type 1 indicates an AABB - a box oriented to the world axes.<br/>
+Type 2 indicates an OBB - a box that can rotate (in our case only around Y, a limitation of detour)</p>
+<p>For the box types, the “radius” attribute is treated as “width”, and the box dimensions are generally considered as axial half-widths.</p>
+<p>Finally, there is an option to inherit Y orientation from the parent node, or not - this bool is set to true by default.</p>
+<p>[EDIT]<br/>
+I forgot to update the “RemoveObstacle” event, but for test purposes, it’s probably not important.</p>
+<p><a href="https://www.dropbox.com/s/kgewm0heyahxkw1/Navigation.zip?dl=0" rel="nofollow noopener">https://www.dropbox.com/s/kgewm0heyahxkw1/Navigation.zip?dl=0</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Fixed in Master Branch] Terrain::ApplyHeightMap() glitchy</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Fixed in Master Branch] Terrain::ApplyHeightMap() glitchy</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Sometimes ApplyHeightMap() doesn’t update the terrain at all or just some of the affected chunks:</p>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/vupmRNG.jpg" rel="nofollow noopener" title=""><img alt="" height="403" src="../../../images2/9654745b6b98ac302047d90b13a9bb9d.jpg" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">972×569</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>Sometimes it updates them after doing more changes, other times it keeps stuck in that half-updated-state.</p>
+<p>This is my code:</p>
+<pre><code class="lang-auto">IntVector2 v=terrain-&gt;WorldToHeightMap(cameraNode_-&gt;GetWorldPosition());
+Image* i=terrain-&gt;GetHeightMap();
+for(int x=-10;x&lt;10;x++)
+    for(int y=-10;y&lt;10;y++)
+        i-&gt;SetPixel(v.x_+x,v.y_+y,i-&gt;GetPixel(v.x_+x,v.y_+y)+Color(0.1,0.1,0.1));
+terrain-&gt;ApplyHeightMap();</code></pre>
+<p>I’m using Urho 1.32. Is that an issue with Urho or am I doing something wrong?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The algorithm for determining update region expands it only 1 pixel, so it seems possible the coarser LODs of neighbor patches may not get updated. This should be possible to fix in the master branch.</p>
+<p>EDIT: when I change the whole heightmap with smoothing enabled, I see the update taking rather long (longer than it should) and it will glitch in a diagonal line.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Should be fixed now in the master branch. The worst-case partial update performance was quite atrocious (a stall of several seconds for a 1025x1025 heightmap), now it should be much faster.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>So my code should work with the newest version? Going to check that later and post the result here.<br/>
+Thanks for the quick fix!</p>
+<p>I had smoothing enabled and the update had no noticeable lag.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>I’m getting an error and a warning while generating build files with CMake-GUI (freshly cloned Urho).<br/>
+Update:<br/>
+Whoops my mistake. I had selected the “Source” folder as the source code location inside CMake-GUI. That made really weird stuff. Urho is building now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Wow that was a lot of work…<br/>
+Building the newest Urho from Git wasn’t that difficult, but building my project with that… Wow!<br/>
+Had to change my CMake file because the path to this CMake common file has changed and had to change every include path (the old one were weird but worked somehow). Also had to set more paths manually in CMake-GUI.<br/>
+I also had to add a line to the top of Urho3D/Container/LinkedList.h:</p>
+<pre><code class="lang-auto">#pragma once
+#define URHO3D_API            // &lt;- added (yeah dirty fix)
+namespace Urho3D
+{
+/// Singly-linked list node base class.
+struct URHO3D_API LinkedListNode
+{
+    /// Construct.
+    LinkedListNode() :
+        next_(0)
+    {
+    }
+
+    /// Pointer to next node.
+    LinkedListNode* next_;
+};
+...</code></pre>
+<p>Seems like URHO3D_API wasn’t defined and I got several errors because of that:</p>
+<pre><code class="lang-auto">In file included from S:/dev/git_urho3d/Build/include/Urho3D/Core/../Core/Object.h:25:0,
+                 from S:/dev/git_urho3d/Build/include/Urho3D/Core/CoreEvents.h:25,
+                 from S:\dev\git_sh_urho3d\Source\main.cpp:20:
+S:/dev/git_urho3d/Build/include/Urho3D/Core/../Core/../Container/LinkedList.h:28:19: error: variable 'Urho3D::URHO3D_API Urho3D::LinkedListNode' has initializer but incomplete type
+ struct URHO3D_API LinkedListNode
+                   ^
+S:/dev/git_urho3d/Build/include/Urho3D/Core/../Core/../Container/LinkedList.h:31:22: error: expected '}' before ':' token
+     LinkedListNode() :
+                      ^
+S:/dev/git_urho3d/Build/include/Urho3D/Core/../Core/../Container/LinkedList.h:31:22: error: expected ',' or ';' before ':' token
+S:/dev/git_urho3d/Build/include/Urho3D/Core/../Core/../Container/LinkedList.h:37:5: error: 'LinkedListNode' does not name a type
+     LinkedListNode* next_;
+     ^
+S:/dev/git_urho3d/Build/include/Urho3D/Core/../Core/../Container/LinkedList.h:170:1: error: expected declaration before '}' token
+ }
+ ^</code></pre>
+<p>(I’m using Urho as a static lib so I think it’s defined to empty anyway, if it’s defined)</p>
+<p>But now my project is building and running again.<br/>
+The terrain issues are all gone!<br/>
+No more forgotten or half updates!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>That’s the common pitfall when migrating old codes to the master branch with new build system. See the updated documentation on how the new include statement should look like here. <a href="http://urho3d.github.io/documentation/HEAD/_main_loop.html#MainLoop_ApplicationFramework">urho3d.github.io/documentation/H … nFramework</a>. The first include “<span class="hashtag">#include</span> &lt;Urho3D/Urho3D.h&gt;” is the one responsible for defining the URHO3D_API preprocessor macro.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

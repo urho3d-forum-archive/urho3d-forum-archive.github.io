@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>The right way create billboard for HP bar and problem with rendering (how to?)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">The right way create billboard for HP bar and problem with rendering (how to?)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>I want display HP above object and update texture each frame. I use billboard for that. Are there any another posibilities to display HP bar instead use billboards? Or billboards are the best way?<br/>
+Can I use Sprite in 3D scene instead billboards? With sprite I can use texture directly instead Billboards where are material used.</p>
+<p>Problem with this is, when two or more HP bars are displayed it render only one bar. That means if HP is decreased, hpoints are decrease for all displayed HP bars. I think this is because billboards share same one texture. Or be more precise, material. I think this is problematic: <code>m_material = cache-&gt;GetResource&lt;Material&gt;("Materials/MyEmptyBillboard2.xml");</code> but when I use</p>
+<pre><code>m_material = new Material(ctx); 
+m_material-&gt;SetTexture(TextureUnit::TU_DIFFUSE, m_texture);
+</code></pre>
+<p>it show billboard with gray color.</p>
+<p>This is how I display HP bar above my cubes (each cube have own billboard)</p>
+<pre><code>	m_texture = new Texture2D(ctx);
+	m_texture-&gt;SetFilterMode(Urho3D::TextureFilterMode::FILTER_BILINEAR);
+	m_texture-&gt;SetNumLevels(1);
+	m_texture-&gt;SetSize(m_i_width, m_i_height, Urho3D::Graphics::GetRGBAFormat(), Urho3D::TEXTURE_DYNAMIC);
+	m_texture-&gt;SetData(0, 0, 0, m_i_width, m_i_height, m_idata_converted);
+
+
+	// billboard
+	m_node_billboard = m_node-&gt;CreateChild("HealthBar");
+	m_node_billboard-&gt;SetPosition(Vector3(0, 0.8, 0));
+	m_bs = m_node_billboard-&gt;CreateComponent&lt;BillboardSet&gt;();
+	m_bs-&gt;SetNumBillboards(1);
+
+	m_material = cache-&gt;GetResource&lt;Material&gt;("Materials/MyEmptyBillboard2.xml");
+	m_material-&gt;SetTexture(TextureUnit::TU_DIFFUSE, m_texture);
+	m_bs-&gt;SetMaterial(m_material);
+	
+	m_bs-&gt;SetSorted(true);
+
+	m_bb = m_bs-&gt;GetBillboard(0);
+	float fx = 0.5;
+	float fy = fx / (m_i_width / m_i_height);
+	m_bb-&gt;size_ = Vector2(fx, fy);
+	m_bb-&gt;enabled_ = SHOW_HEALTHBAR;
+
+	m_bs-&gt;Commit();
+</code></pre>
+<p>and how I update billboard</p>
+<pre><code>ArmorHealthBar-&gt;Render((double)m_i_width, (double)m_i_height, m_idata);
+ConvertRGBA();
+m_texture-&gt;SetData(0, 0, 0, m_i_width, m_i_height, m_idata_converted);
+m_material-&gt;SetTexture(TextureUnit::TU_DIFFUSE, m_texture);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Hello / mae govannen,</p>
+<p><span class="mention">@Miegamicis</span>’ <a href="https://discourse.urho3d.io/t/new-project-template/4428">New Project Template</a> has a progress bar (seen later in <a href="https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/master/Screenshots" rel="nofollow noopener">screenshots</a>) which uses Sprites:<br/>
+<a href="https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/master/Source/Levels/Loading.cpp" rel="nofollow noopener">https://github.com/ArnisLielturks/Urho3D-Project-Template/blob/master/Source/Levels/Loading.cpp</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>In an <a href="https://github.com/JTippetts/DungeonBot3000" rel="nofollow noopener">ARPG</a> I did for a game jam recently, I used regular old UI elements for the lifebars. The lifebar widget comprised 2 BorderImage, one for the gray background and one for the green bar, then a <a href="https://github.com/JTippetts/DungeonBot3000/blob/master/src/Components/enemylifebar.cpp" rel="nofollow noopener">custom component</a> attached to the enemy object handles Update, and uses the camera to project the enemy’s location to the screen, adds an offset to put it above the head, and changes the widget’s position to the projected position. Then it queries health and max health to adjust the size of the green BorderImage. It worked pretty well:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image.jpg"><img alt="image" data-base62-sha1="loWMzsIyLVj127oqB6XNLxYmkdG"  height="500" src="../../../images2/3eaa75f3cb3e7b5779e03b6446bbd147.jpeg"  width="666"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image.jpg</span><span class="informations">1024×768 375 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>One characteristic of doing it this way is that the life bar stays a constant size, despite the enemy’s distance from the camera. If that is not desired, you could probably do something with the <a  rel="nofollow noopener">UIComponent</a> component, which can be used to render a UI on a static model in the scene. Check the <a  rel="nofollow noopener">48_Hello3DUI</a> sample for a demonstration of how to set something like that up. You would likely need to include code, perhaps in a custom component attached to the same node, that would re-orient the static model to mimic billboarding behavior. This custom component could listen for Update, calculate the direction to the camera, and adjust the node’s rotation. Be sure to disable shadows on that model so the lifebar wont cast a shadow.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Thanks all for answers.</p>
+<p><a href="https://discourse.urho3d.io/u/JTippetts">JTippetts</a> good idea, Hello3DUI sample helped me what I did wrong with material, now it is displaying correctly, when bullet hit cube and two or more HP bars are displayed.</p>
+<p>I am going to try create UI element inside 3D space.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>I am creating UI element on box but without success. It display texture on UI instead on box. Box are black or transparent (invisible).</p>
+<pre><code>Node * bb = m_node-&gt;CreateChild("HealthBox");
+bb-&gt;SetScale(Vector3(1.2f, 0.6f, 1.2f));
+bb-&gt;SetPosition(Vector3(0.0f, 1.2f, 0.0f));
+StaticModel * sbb = bb-&gt;CreateComponent&lt;StaticModel&gt;();
+sbb-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+
+m_comp = bb-&gt;CreateComponent&lt;UIComponent&gt;();
+m_comp-&gt;GetMaterial()-&gt;SetTechnique(0, cache-&gt;GetResource&lt;Technique&gt;("Techniques/DiffUnlitParticleAlpha.xml"));
+
+m_uie = m_comp-&gt;GetRoot();
+m_uie-&gt;SetSize(100, 50);
+
+m_sprite = m_uie-&gt;CreateChild&lt;Sprite&gt;(); //e-&gt;CreateChild&lt;Sprite&gt;();
+m_sprite-&gt;SetTexture(m_texture);
+m_sprite-&gt;SetSize(m_i_width, m_i_height);
+m_sprite-&gt;SetBlendMode(Urho3D::BlendMode::BLEND_ALPHA);
+m_uie-&gt;SetEnabled(true);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>No idea if this is it or not, but what happens if you remove this line?</p>
+<pre><code class="lang-auto">m_comp-&gt;GetMaterial()-&gt;SetTechnique(0, cache-&gt;GetResource&lt;Technique&gt;("Techniques/DiffUnlitParticleAlpha.xml"))
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Unfortunately nothing. Just boxes are black.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Can you provide full source for a minimal example the demonstrates the issue? It’s possible something else is going on outside what you show.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>I discover a problem. The size of sprite and UIElement must be minimum 64 x 64. That means if I have 100 x 50 it is not working.</p>
+<pre><code>m_uie-&gt;SetSize(128, 64);
+m_sprite-&gt;SetSize(128, 64);
+</code></pre>
+<p>After that it display my sprite on box.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>I found using materials directly is more lighter on render as Sprite on box or plane if 400 boxes are displayed. Maybe there is some technique which increase FPS with lot of object displayed with HP bar?<br/>
+I create my MyCube object same as regular static model.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>One potential issue with using UIComponent is that each one is a render-to-texture, so when you do 400 of them you’re adding a lot of overhead. Might be better to try the trick I suggested initially, or roll your own alternative solution instead.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

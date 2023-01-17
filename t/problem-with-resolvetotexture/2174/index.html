@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Problem with ResolveToTexture</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Problem with ResolveToTexture</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>Hi.<br/>
+I have some problems with getting screenshot from scene using Graphics.ResolveToTexture (Xamarin,Android,Mali400).</p>
+<p>This code work fine in genymotion bad generate bad texture on real hardware</p>
+<pre><code class="lang-auto">				int width = graphics.Width;
+				int height =graphics.Height;
+				
+/////////
+				Urho.Urho2D.Texture2D renderTexture = new Urho.Urho2D.Texture2D();
+				renderTexture.SetSize(width, height, Graphics.RGBAFormat, TextureUsage.Rendertarget);
+				renderTexture.FilterMode = TextureFilterMode.Bilinear;
+				Graphics.ResolveToTexture(renderTexture, new IntRect(0, 0, width, height));
+
+				///adding to sprite to see what getted
+				sprite = new Sprite();
+				Root.AddChild(sprite);
+			         sprite.Texture = texture;
+			sprite.SetSize(256, 256);
+			sprite.BlendMode = BlendMode.Replace;
+			sprite.Position = new IntVector2(0, 0);
+
+//saving to png
+int size = width * height * 4;
+				IntPtr ptr = Marshal.AllocHGlobal(size);
+
+				bool res = renderTexture.GetData(0, ptr);
+		
+					byte[] barr = ptr.ToBytesArray(size);
+
+					Java.Nio.ByteBuffer byteBuffer = Java.Nio.ByteBuffer.Wrap(barr);
+
+					Android.Graphics.Bitmap newBitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
+
+					newBitmap.CopyPixelsFromBuffer(byteBuffer);
+
+					System.IO.FileStream stream = new System.IO.FileStream(filepath, System.IO.FileMode.Create, System.IO.FileAccess.Write);
+					rotatedBitmap.Compress(Android.Graphics.Bitmap.CompressFormat.Png, 100, stream);
+					stream.Close();
+</code></pre>
+<p>///resulting image from real hardware<br/>
+<img alt="" height="" src="../../../images2/f2066a547670856641c2044853ab2d40.png" width=""/></p>
+<p>//genymotion<br/>
+<img alt="" height="" src="../../../images2/8c12b2439be37c231ca209faee154a8b.png" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Have you tried Graphics::TakeScreenshot()? It has less moving parts, since it does just glReadPixels() from the backbuffer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>Yes, i tryed TakeScreenShot it get just black image on real device.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I reproduced the black screenshot issue for TakeScreenshot() on Android device. Should be fixed in the master branch, now it takes the image as RGBA on OpenGL ES. ResolveTexture() I didn’t touch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>Hi, while im waiting for bump version of urho in xamarin, i tryed this code directly from app</p>
+<pre><code class="lang-auto">				int GL_RGBA                           =0x1908;
+				int GL_UNSIGNED_BYTE                  =0x1401;
+			
+					int sizeb = width * height * 4;
+					IntPtr ptri = Marshal.AllocHGlobal(sizeb);
+
+					byte[] barr1 = ptri.ToBytesArray(sizeb);
+
+					Java.Nio.ByteBuffer byteBuffer = Java.Nio.ByteBuffer.Wrap(barr1);
+
+					Android.Opengl.GLES20.GlReadPixels(0, 0, width, height,GL_RGBA, GL_UNSIGNED_BYTE, byteBuffer);
+					int err=Android.Opengl.GLES20.GlGetError();</code></pre>
+<p>Code calls in OnUpdate loop, err return 0, but barr1 is filled with zero. What may be wrong with this code?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

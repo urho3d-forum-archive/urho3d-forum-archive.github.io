@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Enable shadow in the shader for a custom component object</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Enable shadow in the shader for a custom component object</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Sorry there would be lots of questions since I am not familiar with the rendering pipeline of Urho3D.</p>
+<p><strong>Context</strong><br/>
+I have a custom component to support CDLOD terrain. The heightmaps are passed to GPU and used for vertex displacement in shader. Now I want to support <strong>shadow</strong> for this terrain object. There are two parts:</p>
+<ol>
+<li>The terrain surface can receive shadows casted from other objects;</li>
+<li>The terrain (mountains, hills) can cast shadow on the terrain surface itself.</li>
+</ol>
+<p>Let’s focus on the (1) part first.<br/>
+I did some research on the existing Urho3D shaders/techniques/materials, and did some quick demo tests. I found the minimal would be one base pass and one light pass, for example:</p>
+<pre><code class="lang-auto">&lt;technique vs="CdlodTerrainShadow" ps="CdlodTerrainShadow" &gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<p>Also, I need to define <code>PERPIXEL</code> and <code>SHADOW</code> mutation in the shaders, just copy from those examples and it will be very similar. My shaders look like this:</p>
+<pre><code class="lang-auto">void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = (0.02 * iPos* modelMatrix).xyz;
+
+    float morph_k = GetMorphK(worldPos);
+    worldPos.xz = GetMorphVertex((iPos.xz - iTexCoord7.xz), worldPos.xz, morph_k);
+
+    float height = GetHeight(worldPos.xz);
+    worldPos.y = height;
+    gl_Position = GetClipPos(worldPos);
+
+    // normalized to 0 ~ 1
+    float normalized_height = GetNormalizedHeight(worldPos.y);
+    vColor = GetColorFromNormalizedHeight(normalized_height);
+
+    // calculate normals
+    vNormal = GetNormal(worldPos.xz, 0.02);
+
+    vTexCoord = worldPos.xz;
+    vHeight = normalized_height;
+
+    #ifdef PERPIXEL
+    vWorldPos = vec4(worldPos, GetDepth(gl_Position));
+        // Per-pixel forward lighting
+        vec4 projWorldPos = vec4(worldPos, 1.0);
+        #ifdef SHADOW
+            // Shadow projection: transform from world space to shadow space
+            for (int i = 0; i &lt; NUMCASCADES; i++)
+                vShadowPos[i] = GetShadowPos(i, vNormal, projWorldPos);
+        #endif
+    #endif
+}
+
+void PS()
+{
+    vec4 grass = texture(sTextureTerrainDetail10, vTexCoord);
+//    vec4 stone = texture(sTextureTerrainDetail12, vTexCoord);
+//    float weight = max(dot(vNormal, vec3(0, 1, 0)), 0.0);
+//    vec4 final_details = grass * (1.0 - weight) + stone * weight;
+//
+//    vec4 main_texture_color = texture(sTextureMap4, vTexCoord / (cMapSize + cExtraMapSize));
+//    float weight2 = texture(sTextureTerrainWeight11, vTexCoord).r;
+    #if defined(PERPIXEL)
+        vec4 diffColor = vec4(1.0);
+
+        // Get normal
+        vec3 normal = normalize(vNormal);
+
+        // Per-pixel forward lighting
+        vec3 lightColor;
+        vec3 lightDir;
+        vec3 finalColor;
+
+        float diff = GetDiffuse(normal, vWorldPos.xyz, lightDir);
+
+        #ifdef SHADOW
+            diff *= GetShadow(vShadowPos, vWorldPos.w);
+        #endif
+
+        lightColor = cLightColor.rgb;
+        finalColor = diff * lightColor * diffColor.rgb;
+        gl_FragColor = vec4(finalColor, diffColor.a);
+    //    gl_FragColor = (main_texture_color * (1 - weight2) + final_details * weight2 ) * diff * 2.0;
+    //    gl_FragColor = vec4(1,0,0,1) * diff;
+    //    gl_FragColor = vColor * diff;
+    #endif
+}
+</code></pre>
+<p><strong>The shaders are super straightforward but the whole terrain renders nothing! And there is no shader compile error.</strong></p>
+<p>I spent a lot of time to debug this and finally noticed if I comment out</p>
+<pre><code class="lang-auto"> vec4 grass = texture(sTextureTerrainDetail10, vTexCoord);
+</code></pre>
+<p>It would work.</p>
+<p>Then I noticed the <strong>TextureUnit = 10</strong> is for <code>SHADOWMAP</code>, which might conflict with the rendering pipeline.</p>
+<pre><code class="lang-auto">enum TextureUnit
+{
+    TU_DIFFUSE = 0,
+    TU_ALBEDOBUFFER = 0,
+    TU_NORMAL = 1,
+    TU_NORMALBUFFER = 1,
+    TU_SPECULAR = 2,
+    TU_EMISSIVE = 3,
+    TU_ENVIRONMENT = 4,
+...
+    TU_VOLUMEMAP = 5,
+    TU_CUSTOM1 = 6,
+    TU_CUSTOM2 = 7,
+    TU_LIGHTRAMP = 8,
+    TU_LIGHTSHAPE = 9,
+    TU_SHADOWMAP = 10,
+    TU_FACESELECT = 11,
+    TU_INDIRECTION = 12,
+    TU_DEPTHBUFFER = 13,
+    TU_LIGHTBUFFER = 14,
+    TU_ZONE = 15,
+    MAX_MATERIAL_TEXTURE_UNITS = 8,
+    MAX_TEXTURE_UNITS = 16
+...
+};
+</code></pre>
+<p>I also noticed if I use <code>vColor</code> in the PS, the terrain would be empty. Turns out the <code>vColor</code> is derived from a texture unit 9 I passed to shader.</p>
+<p>So<br/>
+<strong>Question 1: Are all those texture unit already reserved for particular use, and we should NOT use them to pass our own textures? like I am doing here:</strong></p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/CdlodTerrain.xml" /&gt;
+&lt;!--    &lt;technique name="Techniques/Diff.xml" /&gt;--&gt;
+    // unit [0, 3] are reserved for heightmap textures.
+    &lt;texture unit="0" name="" /&gt;
+    &lt;texture unit="1" name="" /&gt;
+    &lt;texture unit="2" name="" /&gt;
+    &lt;texture unit="3" name="" /&gt;
+    // unit 4 is reserved for earth vegetation texture map.
+    &lt;texture unit="4" name="" /&gt;
+    &lt;texture unit="5" name="" /&gt;
+    &lt;texture unit="6" name="HeightMapsTest/DEM_print.png" /&gt;
+    &lt;texture unit="7" name="" /&gt;
+    &lt;texture unit="8" name="" /&gt;
+    &lt;texture unit="9" name="" /&gt;
+&lt;!--    &lt;texture unit="10" name="Textures/TerrainDetail1.dds" /&gt;--&gt;
+&lt;!--    &lt;texture unit="10" name="TerrainTextures/forest.jpg" /&gt;--&gt;
+    &lt;texture unit="10" name="Textures/StoneDiffuse.dds" /&gt;
+    &lt;texture unit="11" name="TerrainTextures/aerial_grass_rock_disp_1k.png" /&gt;
+    &lt;texture unit="12" name="Textures/StoneDiffuse.dds" /&gt;
+    &lt;parameter name="MyCameraPos" value = "0 0 0" /&gt;
+    &lt;parameter name="HeightMinMaxScale" value="0 0 0" /&gt;
+    &lt;parameter name="MapSize" value="1 1" /&gt;
+    &lt;parameter name="ExtraMapSize" value="1 1" /&gt;
+&lt;/material&gt;
+</code></pre>
+<p><strong>So we can only use 6 and 7? What if we have more textures?</strong></p>
+<p><strong>Question 2: Should this generator a shader compile error?</strong></p>
+<hr/>
+<p>Now the terrain can receive shadow casted from other objects, although I don’t know how to pass more textures to the shader later.<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screenshot_Sat_Aug__8_22_40_15_2020"><img alt="Screenshot_Sat_Aug__8_22_40_15_2020" data-base62-sha1="ikYyGLswgAojaEirIpXaBUVBTS6"  height="459" src="../../../images2/63c4f003f14eb74e90ccf6f949fdeb63.jpeg"  width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot_Sat_Aug__8_22_40_15_2020</span><span class="informations">2160×1440 768 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+<strong>Question 3: How to enable terrain cast shadow on itself?</strong><br/>
+I set my terrain component (which is inherited from <code>Urho3D::Drawable</code>)</p>
+<pre><code class="lang-auto">  SetCastShadows(true);
+</code></pre>
+<p>I also added another <code>pass</code>:</p>
+<pre><code class="lang-auto">&lt;technique vs="CdlodTerrainShadow" ps="CdlodTerrainShadow" &gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+    &lt;pass name="shadow" vs="Shadow" ps="Shadow" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<p>Those exact setting would work on the native <code>Urho3D::Terrain</code> object, but it does not work on my terrain.<br/>
+<strong>What did I miss?</strong></p>
+<hr/>
+<p>PS:<br/>
+I feel it’s really hard for me to learn through the code given lack of detailed documentation &amp; tutorials.<br/>
+Especially, consider I am even a professional software engineer in one of those big name companies (though I am not a specialist in 3D rendering&amp;gaming). So I guess it would be even harder for people who are self learning those stuff.<br/>
+I recently spent 1~2 weeks studying most the <a href="https://learnopengl.com/Introduction" rel="nofollow noopener">LearnOpenGL Book</a>, which is a <strong>GREAT</strong> tutorial in every aspect. But I still lack the domain knowledge about all those <strong>rendering pass</strong>. I also finished an online 3D graphics course (just read through those slides, lectures).<br/>
+I wish there would be more tutorials and detailed documentation about those topics, especially the Urho3D implementations. The official <a href="https://urho3d.github.io/documentation/1.6/_render_paths.html" rel="nofollow noopener">documentation</a> is still far from enough.<br/>
+For example, for this light pass:</p>
+<pre><code class="lang-auto"> &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+</code></pre>
+<p>Where is the source code to do the real work? where is the code to write shadow map? etc.</p>
+<p><strong>Could someone provide more materials on 3D game engine rendering pipeline? How did you guys become an expert on those topics and know all the nitty details in Urho3D engine?</strong></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>4 posts were split to a new topic: <a href="/t/mysterious-profile/6309">Mysterious profile</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2752_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kannsokusha</div>
+          <div class="post_content">
+<p>I added a lot of texture units and wasted a lot of GPU memory. <img alt=":sweat_smile:" class="emoji" src="../../../images2/35a2d1f1c9f37709afb592048d58e96b.png" title=":sweat_smile:"/></p>
+<pre><code>/// Texture units.
+enum TextureUnit
+{
+    TU_DIFFUSE = 0,
+    TU_ALBEDOBUFFER = 0,
+    TU_NORMAL = 1,
+    TU_NORMALBUFFER = 1,
+    TU_METALLIC = 2,
+    TU_ROUGHNESS = 3,
+    TU_OCCLUSION = 4,
+    TU_EMISSIVE = 5,
+    TU_ENVIRONMENT = 6,
+#ifdef DESKTOP_GRAPHICS
+    TU_VOLUMEMAP = 7,
+    TU_LIGHTRAMP = 8,
+    TU_LIGHTSHAPE = 9,
+    TU_SHADOWMAP = 10,
+    TU_FACESELECT = 11,
+    TU_INDIRECTION = 12,
+    TU_DEPTHBUFFER = 13,
+    TU_LIGHTBUFFER = 14,
+    TU_ZONE = 15,
+    TU_RADIANCE = 16,
+    TU_IRRANIANCE = 17,
+    MAX_MATERIAL_TEXTURE_UNITS = 8,
+    MAX_TEXTURE_UNITS = 18
+#else
+    TU_LIGHTRAMP = 7,
+    TU_LIGHTSHAPE = 8,
+    TU_SHADOWMAP = 9,
+    MAX_MATERIAL_TEXTURE_UNITS = 7,
+    MAX_TEXTURE_UNITS = 10
+#endif
+};</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Please start a fresh topic and keep it on topic.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Reopening the topic (as per requested by OP) after all offending posts being deleted.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>That’s not a scalable solution though, and it needs to modify source code and recompile. Also, are you using those extra textures the way as their semantic names? or whatever you want. My GPU only supports max 16 I think.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2752_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kannsokusha</div>
+          <div class="post_content">
+<p>Yes，I using those as their semantic names. It’s convenient for me to test my shader.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

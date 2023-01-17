@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Animation Trigger only works on one class</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Animation Trigger only works on one class</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So this may seem odd. I tried to give my AI class an animation trigger for movements and such, but for some reason their animation trigger fires on my Character class. So for example my AI class has an animation sound trigger for their footsteps which is a completely different sound for testing purposes. When they move nothing happens. When my character moves it plays their sound. I think I made a mistake in my class somewhere, but not to sure.</p>
+<p>AIMelee.h</p>
+<pre><code>#pragma once
+
+#include &lt;Urho3D/Input/Controls.h&gt;
+#include &lt;Urho3D/Scene/LogicComponent.h&gt;
+#include &lt;Urho3D/Audio/SoundSource3D.h&gt;
+#include &lt;Urho3D/Audio/Sound.h&gt;
+#include &lt;Urho3D/Audio/AudioEvents.h&gt;
+
+using namespace Urho3D;
+
+/// Character component, responsible for physical movement according to controls, as well as animation.
+class AIMelee : public LogicComponent
+{
+	URHO3D_OBJECT(AIMelee, LogicComponent);
+
+public:
+	/// Construct.
+	AIMelee(Context* context):
+	LogicComponent(context),
+	elapsedTime_(0.0f)
+	{
+		SetUpdateEventMask(USE_FIXEDUPDATE);
+		SetUpdateEventMask(USE_UPDATE);
+	}
+
+
+	/// Register object factory and attributes.
+	static void RegisterObject(Context* context);
+
+	/// Handle startup. Called by LogicComponent base class.
+	virtual void Start();
+
+	virtual void DelayedStart();
+
+	/// Handle physics world update. Called by LogicComponent base class.
+	virtual void FixedUpdate(float timestep);
+
+	virtual void Update(float timestep);
+
+	virtual void PlaySound(const String&amp; soundName);
+
+	virtual void HandleAnimationTriggerZombie(StringHash eventType, VariantMap&amp; eventData);
+
+	virtual void loadResources();
+
+	virtual void bigHead(StringHash eventType, VariantMap&amp; eventData);
+
+	virtual void melee(StringHash eventType, VariantMap&amp; eventData);
+
+	virtual void setHealth(int h)
+	{
+		health = h;
+	}
+
+	int getHealth()
+	{
+		return health;
+	}
+	virtual void setDeath(bool d)
+	{
+		dead_ = d;
+	}
+
+	bool getDeath()
+	{
+		return dead_;
+	}
+
+	/// Movement controls. Assigned by the main program each frame.
+	Controls controls_;
+
+	SoundSource3D* soundSrc;
+	ResourceCache* cache;
+	AnimationController* idle;
+	SharedPtr&lt;Node&gt; handboneNode;
+	WeakPtr&lt;Scene&gt; scene_;
+	DebugRenderer* debug;
+	AnimatedModel* swordObject;
+
+private:
+	/// Handle physics collision event.
+	void HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData);
+
+	/// Grounded flag for movement.
+	bool onGround_;
+	/// Grounded flag for movement.
+	bool dead_ = false;
+	/// Jump flag.
+	bool okToJump_;
+	/// In air timer. Due to possible physics inaccuracy, character can be off ground for max. 1/10 second and still be allowed to move.
+	float inAirTimer_;
+	/// elapsed time
+	float elapsedTime_;
+
+	int health;
+	SharedPtr&lt;Node&gt; head;
+	RigidBody* body;
+	CollisionShape* shape;
+
+};
+</code></pre>
+<p>AIMelee.cpp<br/>
+<span class="hashtag">#include</span>    // std::cout<br/>
+<span class="hashtag">#include</span> </p>
+<pre><code>#include &lt;Urho3D/Core/CoreEvents.h&gt;
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Graphics/AnimationController.h&gt;
+#include &lt;Urho3D/Graphics/AnimatedModel.h&gt;
+#include &lt;Urho3D/Graphics/DrawableEvents.h&gt;
+#include &lt;Urho3D/IO/MemoryBuffer.h&gt;
+#include &lt;Urho3D/Physics/PhysicsEvents.h&gt;
+#include &lt;Urho3D/Physics/PhysicsWorld.h&gt;
+#include &lt;Urho3D/Physics/RigidBody.h&gt;
+#include &lt;Urho3D/Physics/CollisionShape.h&gt;
+#include &lt;Urho3D/Scene/Scene.h&gt;
+#include &lt;Urho3D/Scene/SceneEvents.h&gt;
+#include &lt;Urho3D/Input/Input.h&gt;
+#include &lt;Urho3D/Audio/Sound.h&gt;
+#include &lt;Urho3D/Audio/SoundSource3D.h&gt;
+#include &lt;Urho3D/Audio/SoundListener.h&gt;
+#include &lt;Urho3D/Audio/AudioEvents.h&gt;
+#include &lt;Urho3D/Resource/ResourceCache.h&gt;
+#include &lt;Urho3D/Navigation/CrowdAgent.h&gt;
+#include &lt;Urho3D/Graphics/DebugRenderer.h&gt;
+#include &lt;Urho3D/IO/Log.h&gt;
+
+#include "AIMelee.h"
+
+void AIMelee::RegisterObject(Context* context)
+{
+	context-&gt;RegisterFactory&lt;AIMelee&gt;();
+}
+
+void AIMelee::Start()
+{
+	loadResources();
+	// Component has been inserted into its scene node. Subscribe to events now
+	SubscribeToEvent(E_NODECOLLISION, URHO3D_HANDLER(AIMelee, HandleNodeCollision));
+}
+
+void AIMelee::DelayedStart()
+{
+	SubscribeToEvent(E_ANIMATIONTRIGGER, URHO3D_HANDLER(AIMelee, HandleAnimationTriggerZombie));
+	SubscribeToEvent(E_POSTRENDERUPDATE, URHO3D_HANDLER(AIMelee, bigHead));
+
+}
+
+void AIMelee::FixedUpdate(float timeStep)
+{
+}
+
+/// Handle scene update. Called by LogicComponent base class.
+void AIMelee::Update(float timeStep)
+{
+	CrowdAgent* agent = node_-&gt;GetComponent&lt;CrowdAgent&gt;();
+
+	if (health &lt;= 0 &amp;&amp; dead_ == false)
+	{
+		PlaySound("Sounds/death_mjr.ogg");
+		idle-&gt;PlayExclusive("Models/combat_landing_dead.ani", 0, false, 0.5f); // Try tweaking the last value.
+
+		if (node_-&gt;HasComponent&lt;CrowdAgent&gt;())
+		{
+			agent-&gt;Remove();
+		}
+		shape-&gt;SetCapsule(15.0f, 5.0f, Vector3(0.0f, 5.0f, 0.0f));
+		body-&gt;SetMass(1000000.0f);
+		dead_ = true;
+	}
+
+	float duration_ = 2.5f;
+	elapsedTime_ += timeStep;
+
+	if (dead_ == true)
+	{
+		// Disappear when duration expired
+		if (duration_ &gt;= 0)
+		{
+			duration_ -= timeStep;
+			if (duration_ &lt;= 0)
+			{
+				node_-&gt;Remove();
+			}
+		}
+	}
+
+	return;
+}
+
+void AIMelee::loadResources()
+{
+	cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	// Create the rendering component + animation controller
+	AnimatedModel* object = node_-&gt;CreateComponent&lt;AnimatedModel&gt;();
+	object-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/masterchief.mdl"));
+	object-&gt;ApplyMaterialList("Materials/zombie.txt");
+	object-&gt;SetOccludee(true);
+
+	idle = node_-&gt;CreateComponent&lt;AnimationController&gt;();
+
+	handboneNode = node_-&gt;GetChild("right_hand_marker", true);
+
+	swordObject = handboneNode-&gt;CreateComponent&lt;AnimatedModel&gt;();
+	swordObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/plasma_sword.mdl"));
+	swordObject-&gt;ApplyMaterialList("Materials/plasma_sword.txt");
+
+	// Create rigid body, and set non-zero mass so that the body becomes dynamic
+	body = node_-&gt;CreateComponent&lt;RigidBody&gt;();
+	body-&gt;SetCollisionLayer(1);
+	body-&gt;SetMass(1.0f);
+
+	// Set zero angular factor so that physics doesn't turn the character on its own.
+	// Instead we will control the character yaw manually
+	body-&gt;SetAngularFactor(Vector3::ZERO);
+
+	// Set the rigid body to signal collision also when in rest, so that we get ground collisions properly
+	body-&gt;SetCollisionEventMode(COLLISION_ALWAYS);
+
+	// Set a capsule shape for collision
+	shape = node_-&gt;CreateComponent&lt;CollisionShape&gt;();
+	shape-&gt;SetCapsule(40.0f, 70.0f, Vector3(0.0f, 35.0f, 0.0f));
+
+	// Create a CrowdAgent component and set its height and realistic max speed/acceleration. Use default radius
+	auto* agent = node_-&gt;CreateComponent&lt;CrowdAgent&gt;();
+	agent-&gt;SetHeight(1.0f);
+	agent-&gt;SetMaxSpeed(9.0f);
+	agent-&gt;SetMaxAccel(9.0f);
+
+
+
+
+}
+
+void AIMelee::bigHead(StringHash eventType, VariantMap&amp; eventData)
+{
+	head = node_-&gt;GetChild("head", true);
+	head-&gt;SetScale(Vector3(2.5f, 2.5f, 2.5f));
+
+}
+
+void AIMelee::melee(StringHash eventType, VariantMap&amp; eventData)
+{
+	scene_ = node_-&gt;GetScene();
+	debug = scene_-&gt;GetComponent&lt;DebugRenderer&gt;();
+
+	CollisionShape* shape_ = handboneNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+	shape_-&gt;SetCapsule(2.0f, 2.0f, Vector3::ZERO, Quaternion::IDENTITY);
+
+	PhysicsRaycastResult raycResult;
+	auto* physicsWorld = scene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+
+	const Vector3 start = handboneNode-&gt;GetWorldPosition();
+	const Vector3 end = start + (Vector3::FORWARD * 100.0f);
+
+	physicsWorld-&gt;ConvexCast(raycResult, shape_, start, Quaternion::IDENTITY, end, Quaternion::IDENTITY);
+
+	debug-&gt;AddCylinder(handboneNode-&gt;GetWorldPosition(), 0.025f, 0.025f, Color::RED, false);
+
+	RigidBody* resultBody{ raycResult.body_ };
+	AIMelee* _Node;
+	int damage = 100;
+
+	if (resultBody)
+	{
+
+		Node* resultNode{ resultBody-&gt;GetNode() };
+
+		if (_Node = resultNode-&gt;GetDerivedComponent&lt;AIMelee&gt;())
+		{
+			_Node-&gt;setHealth(_Node-&gt;getHealth() - damage);
+			resultBody-&gt;ApplyImpulse(Vector3(1.0f, 1.0f, 1.0f)* 1.0f);
+		}
+
+	}
+}
+
+void AIMelee::HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+{
+	// Check collision contacts and see if character is standing on ground (look for a contact that has near vertical normal)
+	using namespace NodeCollision;
+
+	RigidBody* body = node_-&gt;GetComponent&lt;RigidBody&gt;(true);
+
+	MemoryBuffer contacts(eventData[P_CONTACTS].GetBuffer());
+
+	while (!contacts.IsEof())
+	{
+		Vector3 contactPosition = contacts.ReadVector3();
+		Vector3 contactNormal = contacts.ReadVector3();
+		/*float contactDistance = */contacts.ReadFloat();
+		/*float contactImpulse = */contacts.ReadFloat();
+
+		// If contact is below node center and pointing up, assume it's a ground contact
+		if (contactPosition.y_ &lt; (node_-&gt;GetPosition().y_ + 1.0f))
+		{
+			float level = contactNormal.y_;
+			if (level &gt; 0.75)
+				onGround_ = true;
+		}
+	}
+}
+
+void AIMelee::PlaySound(const String&amp; soundName)
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	Sound* sound = cache-&gt;GetResource&lt;Sound&gt;(soundName);
+
+	soundSrc = node_-&gt;CreateComponent&lt;SoundSource3D&gt;();
+	soundSrc-&gt;SetNearDistance(5.0f);
+	soundSrc-&gt;SetFarDistance(15.0f);
+	soundSrc-&gt;SetGain(1.0f);
+	soundSrc-&gt;SetSoundType(SOUND_EFFECT);  // optional
+	soundSrc-&gt;Play(sound);
+	soundSrc-&gt;SetAutoRemoveMode(REMOVE_COMPONENT);
+}
+
+void AIMelee::HandleAnimationTriggerZombie(StringHash eventType, VariantMap&amp; eventData)
+{
+	using namespace AnimationTrigger;
+	AnimatedModel* model = node_-&gt;GetComponent&lt;AnimatedModel&gt;();
+	if (model)
+	{
+		AnimationState* state = model-&gt;GetAnimationState(eventData[P_NAME].GetString());
+		if (state == NULL)
+			return;
+
+
+		Node* bone = node_-&gt;GetChild(eventData[P_DATA].GetString(), true);
+
+		URHO3D_LOGDEBUG("Made it!");
+
+		if (bone != NULL)
+			PlaySound("Sounds/NutThrow.wav");
+
+	}
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="1" data-topic="6007" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<pre><code class="lang-auto">SubscribeToEvent(E_ANIMATIONTRIGGER, URHO3D_HANDLER(AIMelee, HandleAnimationTriggerZombie)); 
+SubscribeToEvent(E_POSTRENDERUPDATE, URHO3D_HANDLER(AIMelee, bigHead)); 
+SubscribeToEvent(E_ANIMATIONTRIGGER, URHO3D_HANDLER(AIMelee, melee)); 
+</code></pre>
+</blockquote>
+</aside>
+<p>Did you mean to subscribe to the animation trigger event for both <code>HandleAnimationTriggerZombie</code> and <code>melee</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>No. I was testing I removed the melee. I’ll edit the post. Unfortunately it did not fix anything. I wonder if it has anything do with the models being the same. My character and NPC are the same 3d model just a palette swap. I would not think this would be the issue though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I think <code>bone</code> may be null. Could you add a check within the if-statement to be sure it doesn’t fail? Or an <code>assert(bone)</code> instead of the logging line.</p>
+<aside class="quote no-group" data-post="1" data-topic="6007" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<pre><code class="lang-auto">Node* bone = node_-&gt;GetChild(eventData[P_DATA].GetString(), true); 
+
+URHO3D_LOGDEBUG("Made it!");
+
+if (bone != NULL)
+    PlaySound("Sounds/NutThrow.wav");
+</code></pre>
+</blockquote>
+</aside>
+<p>You could probably also reuse some code by making <code>AIMelee</code> inherit from <code>Character</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>bone is not returning NULL. It evens shows that the sound loads when the animation trigger fires.</p>
+<pre><code>	if (bone != NULL)
+	{
+		if (bone == NULL)
+		{
+			URHO3D_LOGDEBUG("Bone is null");
+		}
+
+		PlaySound("Sounds/NutThrow.wav");
+	}
+</code></pre>
+<p>I’m starting to think maybe my 3D Sound setup has a mistake. Is my PlaySound setup correct? I’m trying to tie a 3d sound to my NPC, and have the sound attenuation from their locations. Maybe their is a problem with a listener node or something. I used the wiki and ninja snow wars, but they both do it differently.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So I did some more testing. I removed the event in the Character class, for the animation trigger. I only left the one above. Strangely it still plays the animation trigger from the NPC’s class. I verified that my player node has the separate class Character only, and the NPC’s have the AIMelee class, but for some reason the player keeps using their animation trigger.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Now the assertion is redundant.<br/>
+Don’t forget to wrap the body of your if-statement in accolades… and don’t lose your head. <img alt=":wink:" class="emoji" src="../../../images2/537e3e653d641df5b9858e75faf3862a.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Okay. I just can’t figure this out. I just don’t see how the character class is using another classes animation trigger.</p>
+<p>EDIT: Fixed above post.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Can you post the source for your Character class? It seems likely that is where the problem lies.</p>
+<p>Edit: Also note that if you subscribe to events in this manner:</p>
+<p>SubscribeToEvent(E_ANIMATIONTRIGGER, URHO3D_HANDLER(AIMelee, melee));</p>
+<p>you are subscribing to receive all animation triggers, originating from all sources that raise an animation trigger event. If you want to tighten down control, you need to register to only receive animation triggers from a specific (ie, the player or AI) node or controller.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<pre><code>#pragma once //Character.h 
+
+#include &lt;Urho3D/Input/Controls.h&gt;
+#include &lt;Urho3D/Scene/LogicComponent.h&gt;
+#include &lt;Urho3D/Audio/SoundSource3D.h&gt;
+#include &lt;Urho3D/Audio/Sound.h&gt;
+#include &lt;Urho3D/Audio/AudioEvents.h&gt;
+
+using namespace Urho3D;
+
+const int CTRL_FORWARD = 1;
+const int CTRL_BACK = 2;
+const int CTRL_LEFT = 4;
+const int CTRL_RIGHT = 8;
+const int CTRL_JUMP = 16;
+const int CTRL_MELEE = 32;
+const int CTRL_CROUCH = 64;
+
+const float MOVE_FORCE = 0.8f;
+const float INAIR_MOVE_FORCE = 0.05f;
+const float BRAKE_FORCE = 0.2f;
+const float JUMP_FORCE = 7.0f;
+const float YAW_SENSITIVITY = 0.1f;
+const float INAIR_THRESHOLD_TIME = 0.1f;
+
+const int LAYER_MOVE = 0;
+const int LAYER_ATTACK = 1;
+
+/// Character component, responsible for physical movement according to controls, as well as animation.
+class Character : public LogicComponent
+{
+    URHO3D_OBJECT(Character, LogicComponent);
+
+public:
+    /// Construct.
+    Character(Context* context);
+    
+    /// Register object factory and attributes.
+    static void RegisterObject(Context* context);
+    
+    /// Handle startup. Called by LogicComponent base class.
+    virtual void Start();
+
+	virtual void DelayedStart();
+
+    /// Handle physics world update. Called by LogicComponent base class.
+    virtual void FixedUpdate(float timeStep);
+
+	virtual void PlaySound(const String&amp; soundName);
+
+	virtual void HandleAnimationTrigger(StringHash eventType, VariantMap&amp; eventData);
+
+	virtual void setHealth(int h)
+	{
+		health = h;
+	}
+
+	int getHealth()
+	{
+		return health;
+	}
+	virtual void setDeath(bool d)
+	{
+		dead_ = d;
+	}
+
+	bool getDeath()
+	{
+		return dead_;
+	}
+    
+    /// Movement controls. Assigned by the main program each frame.
+    Controls controls_;
+
+	SoundSource* sound_source;
+    
+private:
+    /// Handle physics collision event.
+    void HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData);
+    
+    /// Grounded flag for movement.
+    bool onGround_;
+	/// Grounded flag for movement.
+	bool dead_ = false;
+    /// Jump flag.
+    bool okToJump_;
+    /// In air timer. Due to possible physics inaccuracy, character can be off ground for max. 1/10 second and still be allowed to move.
+    float inAirTimer_;
+
+	int health;
+	
+};
+
+
+
+
+
+//
+// Copyright (c) 2008-2017 the Urho3D project.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Graphics/AnimationController.h&gt;
+#include &lt;Urho3D/Graphics/AnimatedModel.h&gt;
+#include &lt;Urho3D/Graphics/DrawableEvents.h&gt;
+#include &lt;Urho3D/IO/MemoryBuffer.h&gt;
+#include &lt;Urho3D/Physics/PhysicsEvents.h&gt;
+#include &lt;Urho3D/Physics/PhysicsWorld.h&gt;
+#include &lt;Urho3D/Physics/RigidBody.h&gt;
+#include &lt;Urho3D/Scene/Scene.h&gt;
+#include &lt;Urho3D/Scene/SceneEvents.h&gt;
+#include &lt;Urho3D/Input/Input.h&gt;
+#include &lt;Urho3D/Audio/SoundSource3D.h&gt;
+#include &lt;Urho3D/Audio/Sound.h&gt;
+#include &lt;Urho3D/Audio/AudioEvents.h&gt;
+#include &lt;Urho3D/Resource/ResourceCache.h&gt;
+#include &lt;Urho3D/Navigation/CrowdAgent.h&gt;
+
+#include "Character.h"
+
+Character::Character(Context* context) :
+    LogicComponent(context),
+    onGround_(false),
+    okToJump_(true),
+    inAirTimer_(0.0f)
+{
+    // Only the physics update event is needed: un-subscribe from the rest for optimization
+    SetUpdateEventMask(USE_FIXEDUPDATE);
+}
+
+void Character::RegisterObject(Context* context)
+{
+    context-&gt;RegisterFactory&lt;Character&gt;();
+
+    // These macros register the class attributes to the Context for automatic load / save handling.
+    // We specify the Default attribute mode which means it will be used both for saving into file, and network replication
+    URHO3D_ATTRIBUTE("Controls Yaw", float, controls_.yaw_, 0.0f, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Controls Pitch", float, controls_.pitch_, 0.0f, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("On Ground", bool, onGround_, false, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("OK To Jump", bool, okToJump_, true, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("In Air Timer", float, inAirTimer_, 0.0f, AM_DEFAULT);
+}
+
+void Character::Start()
+{
+    // Component has been inserted into its scene node. Subscribe to events now
+    SubscribeToEvent(GetNode(), E_NODECOLLISION, URHO3D_HANDLER(Character, HandleNodeCollision));
+}
+
+void Character::DelayedStart()
+{
+	//SubscribeToEvent(GetNode()-&gt;GetChild("AdjNode", true), E_ANIMATIONTRIGGER, URHO3D_HANDLER(Character, HandleAnimationTrigger));
+
+}
+
+void Character::FixedUpdate(float timeStep)
+{
+
+    /// \todo Could cache the components for faster access instead of finding them each frame
+    RigidBody* body = GetComponent&lt;RigidBody&gt;();
+    AnimationController* animCtrl = node_-&gt;GetComponent&lt;AnimationController&gt;(true);
+	Input* input = GetSubsystem&lt;Input&gt;();
+	CrowdAgent* agent = node_-&gt;GetComponent&lt;CrowdAgent&gt;(true);
+
+    // Update the in air timer. Reset if grounded
+    if (!onGround_)
+        inAirTimer_ += timeStep;
+    else
+        inAirTimer_ = 0.0f;
+    // When character has been in air less than 1/10 second, it's still interpreted as being on ground
+    bool softGrounded = inAirTimer_ &lt; INAIR_THRESHOLD_TIME;
+
+    // Update movement &amp; animation
+    const Quaternion&amp; rot = node_-&gt;GetRotation();
+    Vector3 moveDir = Vector3::ZERO;
+    const Vector3&amp; velocity = body-&gt;GetLinearVelocity();
+    // Velocity on the XZ plane
+    Vector3 planeVelocity(velocity.x_ * 0.5f, 0.0f, velocity.z_ * 0.5f);
+
+    if (controls_.IsDown(CTRL_FORWARD))
+        moveDir += Vector3::FORWARD;
+    if (controls_.IsDown(CTRL_BACK))
+        moveDir += Vector3::BACK;
+    if (controls_.IsDown(CTRL_LEFT))
+        moveDir += Vector3::LEFT;
+    if (controls_.IsDown(CTRL_RIGHT))
+        moveDir += Vector3::RIGHT;
+
+
+    // Normalize move vector so that diagonal strafing is not faster
+    if (moveDir.LengthSquared() &gt; 0.0f)
+        moveDir.Normalize();
+
+    // If in air, allow control, but slower than when on ground
+    body-&gt;ApplyImpulse(rot * moveDir * (softGrounded ? MOVE_FORCE : INAIR_MOVE_FORCE));
+
+    if (softGrounded)
+    {
+        // When on ground, apply a braking force to limit maximum ground velocity
+        Vector3 brakeForce = -planeVelocity * BRAKE_FORCE;
+        body-&gt;ApplyImpulse(brakeForce);
+
+        // Jump. Must release jump control between jumps
+        if (controls_.IsDown(CTRL_JUMP))
+        {
+            if (okToJump_)
+            {
+                body-&gt;ApplyImpulse(Vector3::UP * JUMP_FORCE);
+                okToJump_ = false;
+				animCtrl-&gt;PlayExclusive("Models/stand_sword_airborne.ani", 0, false, 0.2f);
+            }
+        }
+        else
+            okToJump_ = true;
+    }
+
+	// On air
+	if (!onGround_) 
+	{
+
+		// Falling a lot
+		if (inAirTimer_ &gt; 3.5f)	
+		{		
+			animCtrl-&gt;PlayExclusive("Models/combat_landing_dead.ani", 0, true, 0.2f);
+			static bool initialized;
+			if (!initialized)
+			{
+				PlaySound("Sounds/death_mjr.ogg");
+				initialized = true;
+				
+			}
+			// Falling a bit		
+		}
+		else 
+		{
+			animCtrl-&gt;PlayExclusive("Models/stand_support_high_airborne.ani", 0, true, 0.2f);
+			
+		}
+
+		// On ground
+	}
+	else 
+	{
+
+		// On ground with movement
+		if (softGrounded &amp;&amp; !moveDir.Equals(Vector3::ZERO)) {
+
+			// Moving forward
+			if (softGrounded &amp;&amp; moveDir.Equals(Vector3::FORWARD)) {
+				animCtrl-&gt;PlayExclusive("Models/combat_rifle_move_front.ani", LAYER_MOVE, true, 0.2f);
+				animCtrl-&gt;SetSpeed("Models/combat_rifle_move_front.ani", planeVelocity.Length() * 0.3f);
+				animCtrl-&gt;SetWeight("Models/combat_rifle_idle.ani", 0.0f);
+			}
+
+			// Moving back
+			if (softGrounded &amp;&amp; moveDir.Equals(Vector3::BACK)) {
+				animCtrl-&gt;PlayExclusive("Models/stand_support_high_move_back.ani", LAYER_MOVE, true, 0.2f);
+				animCtrl-&gt;SetSpeed("Models/stand_support_high_move_back.ani", planeVelocity.Length() * 0.3f);
+				animCtrl-&gt;SetWeight("Models/combat_rifle_idle.ani", 0.0f);
+			}
+
+			// Moving left
+			if (softGrounded &amp;&amp; moveDir.Equals(Vector3::LEFT)) {
+				animCtrl-&gt;PlayExclusive("Models/stand_support_high_move_left.ani", LAYER_MOVE, true, 0.2f);
+				animCtrl-&gt;SetSpeed("Models/stand_support_high_move_left.ani", planeVelocity.Length() * 0.3f);
+				animCtrl-&gt;SetWeight("Models/combat_rifle_idle.ani", 0.0f);
+			}
+
+			// Moving right
+			if (softGrounded &amp;&amp; moveDir.Equals(Vector3::RIGHT))	{
+				animCtrl-&gt;PlayExclusive("Models/stand_support_high_move_right.ani", LAYER_MOVE, true, 0.2f);
+				animCtrl-&gt;SetSpeed("Models/stand_support_high_move_right.ani", planeVelocity.Length() * 0.3f);
+				animCtrl-&gt;SetWeight("Models/combat_rifle_idle.ani", 0.0f);
+			}
+
+			// On ground idle
+		}
+		else 
+		{
+			animCtrl-&gt;SetStartBone("Models/combat_rifle_idle.ani", "spine1");
+			animCtrl-&gt;Play("Models/combat_rifle_idle.ani", LAYER_ATTACK, true, 0.1f);
+			animCtrl-&gt;SetWeight("Models/combat_rifle_idle.ani", 0.99f);
+		}
+
+	}
+
+	if (controls_.IsDown(CTRL_MELEE)) 
+	{
+		animCtrl-&gt;PlayExclusive("Models/stand_sword_melee%1.ani", LAYER_MOVE, false, 0.0f); // Try tweaking the last value.
+		animCtrl-&gt;SetSpeed("Models/stand_sword_melee%1.ani", 1.0f); // Try tweaking the last value.
+	}
+	if (controls_.IsDown(CTRL_CROUCH) &amp;&amp; softGrounded) 
+	{
+		animCtrl-&gt;PlayExclusive("Models/crouch_rifle_idle.ani", LAYER_MOVE, false, 0.25f); // Try tweaking the last value.
+		animCtrl-&gt;SetSpeed("Models/crouch_rifle_idle.ani", 0.5f); // Try tweaking the last value.
+	}
+
+    // Reset grounded flag for next frame
+    onGround_ = false;
+
+
+	if (health &lt;= 0 &amp;&amp; dead_ == false &amp;&amp; softGrounded)
+	{
+		PlaySound("Sounds/death_mjr.ogg");
+		animCtrl-&gt;PlayExclusive("Models/combat_landing_dead.ani", LAYER_MOVE, false, 0.0f); // Try tweaking the last value.
+		animCtrl-&gt;StopAll(0);
+
+		if (node_-&gt;HasComponent&lt;CrowdAgent&gt;())
+		{
+			agent-&gt;SetEnabled(false);
+		}
+		
+		dead_ = true;
+		return;
+	}
+
+}
+
+void Character::HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+{
+    // Check collision contacts and see if character is standing on ground (look for a contact that has near vertical normal)
+    using namespace NodeCollision;
+
+	RigidBody* body = node_-&gt;GetComponent&lt;RigidBody&gt;(true);
+
+    MemoryBuffer contacts(eventData[P_CONTACTS].GetBuffer());
+
+    while (!contacts.IsEof())
+    {
+        Vector3 contactPosition = contacts.ReadVector3();
+        Vector3 contactNormal = contacts.ReadVector3();
+        /*float contactDistance = */contacts.ReadFloat();
+        /*float contactImpulse = */contacts.ReadFloat();
+
+        // If contact is below node center and pointing up, assume it's a ground contact
+        if (contactPosition.y_ &lt; (node_-&gt;GetPosition().y_ + 1.0f))
+        {
+            float level = contactNormal.y_;
+            if (level &gt; 0.75)
+                onGround_ = true;
+        }
+    }
+}
+
+void Character::PlaySound(const String&amp; soundName)
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	Sound* sound = cache-&gt;GetResource&lt;Sound&gt;(soundName);
+	// you can use an existing or a new node to append the sound to
+	Node* node = node_-&gt;CreateChild("SoundEffect");
+	sound_source = node-&gt;CreateComponent&lt;SoundSource&gt;();
+	sound_source-&gt;SetSoundType(SOUND_EFFECT);  // optional
+	sound_source-&gt;SetGain(0.2f);
+	sound_source-&gt;Play(sound);
+	sound_source-&gt;SetAutoRemoveMode(REMOVE_COMPONENT);
+}
+
+void Character::HandleAnimationTrigger(StringHash eventType, VariantMap&amp; eventData)
+{
+	using namespace AnimationTrigger;
+	AnimatedModel* model = node_-&gt;GetChild("AdjNode", true)-&gt;GetComponent&lt;AnimatedModel&gt;();
+	if (model)
+	{
+		AnimationState* state = model-&gt;GetAnimationState(eventData[P_NAME].GetString());
+		if (state == NULL)
+			return;
+
+
+		Node* bone = node_-&gt;GetChild(eventData[P_DATA].GetString(), true);
+
+		if (bone != NULL)
+		PlaySound("Sounds/MasterchiefFootSteps.ogg");
+
+	}
+
+}
+</code></pre>
+<p>This is really just the Character class that comes with Urho3d. Just some small changes.</p>
+<p><span class="mention">@JTippetts</span> That makes sense. I removed that part about the melee trigger already though.<br/>
+So if I have this: <code>SubscribeToEvent(E_ANIMATIONTRIGGER, URHO3D_HANDLER(AIMelee, HandleAnimationTriggerZombie));</code><br/>
+This will pickup all animation trigger events?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Yes, if you subscribe to E_ANIMATIONTRIGGER in that fashion, then it will receive triggers from any and every object that ever sends an animation trigger event. You can see in Character::Start in your code, how it calls SubscribeToEvent(GetNode(), E_NODECOLLISION, …) which means it will then only receive node collision events generated by it’s own Node, and not from all the other potential sources of node collision out there.</p>
+<p>In your AIMelee:::Start, you subscribe to E_NODECOLLISION events without specifying they should come from only the component’s owning Node. Similarly, in DelayedStart you subscribe to E_ANIMATIONTRIGGER events without qualifying them as coming from it’s own node. This means that each of those AIMelee objects will respond to trigger and collision events originating from every object in the game that sends those events, and not just from their own nodes.</p>
+<p>You should always be very clear on the flow of events through your game, and on who can respond to a given event, as this can cause hard-to-find issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>Two side notes:</p>
+<aside class="quote no-group" data-post="1" data-topic="6007" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<p>SetUpdateEventMask(USE_FIXEDUPDATE);<br/>
+SetUpdateEventMask(USE_UPDATE);</p>
+</blockquote>
+</aside>
+<p>This way You’ll end up only with update event, You should use SetUpdateEventMask(USE_FIXEDUPDATE | USE_UPDATE)</p>
+<aside class="quote no-group" data-post="1" data-topic="6007" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<p>body-&gt;SetMass(1000000.0f);</p>
+</blockquote>
+</aside>
+<p>Setting mass to 0 will make body static.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@JTippetts</span> Thanks very informative. I have been studying what resources I could find. <span class="mention">@lezak</span> Thanks for the suggestions. I have made the new changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Okay everything seems to be working now. I also found out one of the animation trigger xml files for that animation the npcs where using has an issue. I may have fixed it before not realizing this. <span class="mention">@JTippetts</span> I hade called<code> GetNode()</code>  in my debugging steps, but nothing worked and I assumed that was wrong. Their were most likely a few issues.</p>
+<p>One thing I never got working is the<code> node-&gt;Remove();</code> when the NPC dies and gets removed after a certain amount of time. I got it from NinjaSnowWars. Oddly I repurposed it for my custom projectile class and it works great.</p>
+<p><strong>EDIT:</strong> You guys are not going to believe this, but the animation xml file had a small space before the .xml. This may have been working the whole time. Thanks everyone for the informative information. This help me improve my class.</p>
+<p>I just need to figure out why the duration counter for node removal is not working.</p>
+<p><strong>EDIT2</strong> I fixed my Update issue. NPCs are now removed by the class after being dead for a certain amout of time. I also fixed the 3d sound issue. I was not using the player as the listener node. Now attenuation works great.</p>
+<p>Thanks everyone</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

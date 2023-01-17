@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Raspberry pi 3 - vertex error with samples</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Raspberry pi 3 - vertex error with samples</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PerfectSlayer</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I am quite new to the project and I try to compile and run the sample on my raspberry pi 3.</p>
+<p>I successfully compiled the engine and the sample using the dockerized build environment (DBE) using <code>RPI_ABI=RPI3 script/dockerized.sh rpi rake build install</code> then scp the build to my pi.</p>
+<p>But when I try to run a sample, I always get a shader related error. Here is the error I get from running 01_HelloWorld:</p>
+<pre><code class="lang-auto">ERROR: Failed to link vertex shader Basic(DIFFMAP VERTEXCOLOR) and pixel shader Basic(DIFFMAP VERTEXCOLOR):
+error: too many vertex shader inputs (max 8)
+ERROR: Failed to link vertex shader Basic(DIFFMAP VERTEXCOLOR) and pixel shader Basic(ALPHAMAP VERTEXCOLOR):
+error: too many vertex shader inputs (max 8)
+</code></pre>
+<p>I wonder:</p>
+<ul>
+<li>If the raspberry pi is able to run the samples. It should be able to run them as I saw posts of people that make them work,</li>
+<li>If there is something wrong with my build or my pi OS.</li>
+</ul>
+<p>I am using the Raspberry PI OS 64 bits beta (<a href="https://www.raspberrypi.org/forums/viewtopic.php?t=275370" rel="noopener nofollow ugc">source here</a>) that has some issues with graphics libraries (check the first port for all details). I choose to use this beta because the build from DBE was using armv8 architecture (64 bits) where the default raspbian os is using armv7 (32 bits).</p>
+<p>If you have any recommended OS for the Raspberry PI 3 to make the engine work or if you know how to build the project for the PI 3 using armv7, please let me know.</p>
+<p>Thanks for your help<br/>
+Regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I guess it is my fault. There is a missing information in the DBE Quick Start online documentation. It is unfortunate that I was forced to leave the project (at least for a short while) before documenting all critical information why they were still fresh in my mind at the time. Anyway, your issue has brought a fragment of  my memory back <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/> and I will amend the documentation soon.</p>
+<p>With the exception of Web DBE image, all the other DBE images actually support both 32-bit and 64-bit (default) compiler toolchains. You would have to set the <code>ARCH=32</code> environment variable when running DBE in order to switch to the alternate compiler toolchain. Thus, for the RPI platform the command should actually read:</p>
+<pre><code class="lang-auto">ARCH=32 script/dockerized.sh rpi rake build install
+</code></pre>
+<p>About the OGL error, I am not sure it was caused by the 64-bit Raspbian OS, which is still in beta, or caused by the new Mesa driver. I hope it was the former. The old posts you saw in the forum were most probably taken on RPI3 or older running on the “legacy” but proprietary VideoCore driver.</p>
+<p>Personally, I have not tested the RPI build on the actual 64-bit Raspian OS nor on the 32-bit Raspbian with new Mesa driver yet. I am looking forward for your experiment result though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PerfectSlayer</div>
+          <div class="post_content">
+<p>Thanks for the heads up and the documentation udpate!</p>
+<p>I found it few hours later when I start reading the source code of the DBE… I saw <a  rel="noopener nofollow ugc">the following lines</a> and try it. The build binaries are well for armv7. Thanks!</p>
+<hr/>
+<p><em>Quick question:</em> does it mean DBE only supports RPI 3 and 4 only? (no more 1 or 2, but I guess I can still build them myself using CMake)</p>
+<hr/>
+<p>So I tested the build using DBE and ARCH=32 parameter but it does not seem to start neither… I always got the following message:</p>
+<pre><code class="lang-auto">Bus error
+</code></pre>
+<p>Then the sample stops with error code 135.</p>
+<p><s>I checked at the source code and it seems to be related to <code>Tracy</code>, the engine profiler: <a  rel="noopener nofollow ugc">related source</a>.</s> It look like the sample is receiving a <a href="https://en.wikipedia.org/wiki/Bus_error" rel="noopener nofollow ugc">SIG_BUS</a>.</p>
+<p>As I just reflash a new raspbian, I increase the video memory to 128mo and even 256mo but I still get the issue. I also tried the three GL Driver options (1. <code>Legacy-Original non-GL desktop driver</code>, 2. <code>GL (Fake KMS)-OpenGL desktop driver with fake KMS</code> and 3. <code>GL (Full KMS)-Open GL desktop driver with full KMS</code>) from <code>raspi-config</code> but the samples keep crashing with the same error.</p>
+<p>My next step will be to find a way to disable profiling at all and check if sample works. I saw <code>URHO3D_PROFILING </code> from the documentation and <code>TRACY_ENABLE</code> from source code. I just need to find a way to use them!</p>
+<p>If you have any better idea for the <code>Bus error</code>, I am all ears opened! Thanks again</p>
+<p><em>EDIT:</em> I checked at the build log and Tracy is not enabled so the error might come from the binary itself.<br/>
+I can see from <code>cat /proc/cpu/alignment</code> the <code>User</code> count increases for each call to the sample… So there should be <a href="https://www.kernel.org/doc/Documentation/arm/mem_alignment" rel="noopener nofollow ugc">a memory alignment issue</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="6960" data-username="PerfectSlayer">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/08e2073e430966d2ccebb25d9a0443a5.png" width="20"/> PerfectSlayer:</div>
+<blockquote>
+<p>I found it few hours later when I start reading the source code of the DBE… I saw <a >the following lines</a> and try it. The build binaries are well for armv7. Thanks!</p>
+<p><em>Quick question:</em> does it mean DBE only supports RPI 3 and 4 only? (no more 1 or 2, but I guess I can still build them myself using CMake)</p>
+</blockquote>
+</aside>
+<p>Last night when I looked at those lines and I also realized that those lines are a mistake. The lines should have left the <code>RPI_ABI</code> build option alone. I am in the process of upgrading the DBE images as a whole. I can promise you that the next RPI DBE image will fix that issue. I think my original intention is to set it as the default when it is not yet set.</p>
+<p>It has been awhile since I last tried and played on the actual RPI device. I may give it a try later after I have all the DBE images upgraded or when the new RPI DBE image is ready.</p>
+<p>If you have looked at my Dockerfile for RPI DBE image then you should see that I actually have to build the cross-compiler toolchain myself. If I recall correctly, I did that because the other prebuilt RPI cross-compiler were too old for me. I use crosstool-ng and the steps are pretty much tried and tested. I had to make a few configuration tweaked though, so there might be a tiny possibility that the SIG_BUS error was caused by bad cross-compiler. Perhaps you can try to build a simple hello world program with it and see if it runs fine or not. I must admit that I didn’t done that myself. I had wanted to test it with RPI4 at the time but it was out of stock and my order was delayed. By the time it arrived, I had already moved on to do other thing. <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

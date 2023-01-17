@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Call to `GetTypeInfoStatic` is ambiguous in class Texture3D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Call to `GetTypeInfoStatic` is ambiguous in class Texture3D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1041_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">haolly</div>
+          <div class="post_content">
+<p>The macro <code>URHO3D_OBJECT</code> in class <code>Texture3D</code> complains <strong>Call to GetTypeInfoStatic is ambiguous</strong> when I open the project in Clion, but it compiles well on VS2017.</p>
+<p>So I find the generated preprocessed file use the method described on <a href="https://stackoverflow.com/questions/1389838/how-to-debug-macros-efficiently-in-vs" rel="nofollow noopener">SO here</a> and replace the macro,</p>
+<pre><code>public:
+		using ClassName = Texture3D;
+		using BaseClassName = Texture;
+		virtual Urho3D::StringHash GetType() const override { return GetTypeInfoStatic()-&gt;GetType(); }
+		virtual const Urho3D::String&amp; GetTypeName() const override { return GetTypeInfoStatic()-&gt;GetTypeName(); }
+		virtual const Urho3D::TypeInfo* GetTypeInfo() const override { return GetTypeInfoStatic(); }
+		static Urho3D::StringHash GetTypeStatic() { return GetTypeInfoStatic()-&gt;GetType(); }
+		static const Urho3D::String&amp; GetTypeNameStatic() { return GetTypeInfoStatic()-&gt;GetTypeName(); }
+		static const Urho3D::TypeInfo* GetTypeInfoStatic()
+		{
+			static const Urho3D::TypeInfo typeInfoStatic("Texture3D",BaseClassName::GetTypeInfoStatic());
+			return &amp;typeInfoStatic;
+		};
+</code></pre>
+<p>It turned out  the code <code>BaseClassName::GetTypeInfoStatic()</code> cause this.</p>
+<p>seems like Texture class does not define it’s owne GetTypeInfoStatic function, but inherit from Object/Resource/ResourceWithMetadata class, so it is ambigusou ??</p>
+<p>It’s weird that VS does not report this issue<br/>
+The same happens in class Texture2D</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="1" data-topic="3952">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2d6d65ec62907af1642d120a24f9766a.png" width="20"/> haolly:</div>
+<blockquote>
+<p>URHO3D_OBJECT</p>
+</blockquote>
+</aside>
+<p>Does it fix the problem if you add <code>URHO3D_OBJECT</code> to <code>Texture</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1041_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">haolly</div>
+          <div class="post_content">
+<p><code>URHO3D_OBJECT(Texture, ResourceWithMetadata);</code><br/>
+yes, it does</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1041_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">haolly</div>
+          <div class="post_content">
+<p>May I ask one more question?<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/Direct3D11/D3D11Texture2D.cpp#L416</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="406" style="counter-reset: li-counter 405 ;">
+<li>if (usage_ == TEXTURE_RENDERTARGET)</li>
+<li>    textureDesc.BindFlags |= D3D11_BIND_RENDER_TARGET;</li>
+<li>else if (usage_ == TEXTURE_DEPTHSTENCIL)</li>
+<li>    textureDesc.BindFlags |= D3D11_BIND_DEPTH_STENCIL;</li>
+<li>textureDesc.CPUAccessFlags = usage_ == TEXTURE_DYNAMIC ? D3D11_CPU_ACCESS_WRITE : 0;</li>
+<li>
+</li>
+<li>// D3D feature level 10.0 or below does not support readable depth when multisampled</li>
+<li>if (usage_ == TEXTURE_DEPTHSTENCIL &amp;&amp; multiSample_ &gt; 1 &amp;&amp; graphics_-&gt;GetImpl()-&gt;GetDevice()-&gt;GetFeatureLevel() &lt; D3D_FEATURE_LEVEL_10_1)</li>
+<li>    textureDesc.BindFlags &amp;= ~D3D11_BIND_SHADER_RESOURCE;</li>
+<li>
+</li>
+<li class="selected">HRESULT hr = graphics_-&gt;GetImpl()-&gt;GetDevice()-&gt;CreateTexture2D(&amp;textureDesc, nullptr, (ID3D11Texture2D**)&amp;object_);</li>
+<li>if (FAILED(hr))</li>
+<li>{</li>
+<li>    URHO3D_LOGD3DERROR("Failed to create texture", hr);</li>
+<li>    URHO3D_SAFE_RELEASE(object_.ptr_);</li>
+<li>    return false;</li>
+<li>}</li>
+<li>
+</li>
+<li>// Create resolve texture for multisampling if necessary</li>
+<li>if (multiSample_ &gt; 1 &amp;&amp; autoResolve_)</li>
+<li>{</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>Does the line 416 use <code>CreateTexture2D(&amp;textureDesc, nullptr, (ID3D11Texture2D**)&amp;object_);</code>  not <code>CreateTexture2D(&amp;textureDesc, nullptr, (ID3D11Texture2D**)&amp;object_.ptr_);</code> for a particular purpose ?<br/>
+I see the latter was used in class <code>Texture3D</code> and <code>TextureCube</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Non-functional typo, I think</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1041_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">haolly</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="5" data-topic="3952" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Non-functional typo, I think</p>
+</blockquote>
+</aside>
+<p>Because <code>object_</code> is an union,  all share the same address memory <img alt=":thinking:" class="emoji" src="../../../images2/55f843bcce3ebfe382bc1b86f606ea62.png" title=":thinking:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

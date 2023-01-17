@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>SpriteSheet Reader</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">SpriteSheet Reader</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>Based on SpriteSheet2D class in Urho3D. I have made this simple SpriteSheet Reader where you can query the offsets in different formats. Credits for animating the spritesheets to 1vanK and ghidra.<br/>
+The format is compatable with Leshy SpriteSheet Tool: <a data-bbcode="true" href="https://www.leshylabs.com/apps/sstool/" rel="nofollow noopener">https://www.leshylabs.com/apps/sstool/</a>. This is an example spritesheet for testing where you can generate the offsets using Leshy’s tool:<a data-bbcode="true" href="http://i.imgur.com/HRuK0iD.png" rel="nofollow noopener">http://i.imgur.com/HRuK0iD.png</a>.</p>
+<p><span class="bbcode-b">SpriteSheet.h</span></p>
+<p>[code]//<br/>
+// Copyright © 2008-2016 the Urho3D project.<br/>
+//<br/>
+// Permission is hereby granted, free of charge, to any person obtaining a copy<br/>
+// of this software and associated documentation files (the “Software”), to deal<br/>
+// in the Software without restriction, including without limitation the rights<br/>
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell<br/>
+// copies of the Software, and to permit persons to whom the Software is<br/>
+// furnished to do so, subject to the following conditions:<br/>
+//<br/>
+// The above copyright notice and this permission notice shall be included in<br/>
+// all copies or substantial portions of the Software.<br/>
+//<br/>
+// THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR<br/>
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,<br/>
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE<br/>
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER<br/>
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,<br/>
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN<br/>
+// THE SOFTWARE.<br/>
+//</p>
+<p><span class="hashtag">#pragma</span> once</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/Resource/Resource.h&gt;</p>
+<p>namespace Urho3D<br/>
+{</p>
+<p>class Texture2D;<br/>
+class XMLFile;</p>
+<p>/// Sprite sheet.<br/>
+class URHO3D_API SpriteSheet : public Resource<br/>
+{<br/>
+URHO3D_OBJECT(SpriteSheet, Resource);</p>
+<p>public:<br/>
+/// Construct.<br/>
+SpriteSheet(Context* context);<br/>
+/// Destruct.<br/>
+virtual ~SpriteSheet();<br/>
+/// Register object factory.<br/>
+static void RegisterObject(Context* context);</p>
+<pre><code>/// Load resource from stream. May be called from a worker thread. Return true if successful.
+virtual bool BeginLoad(Deserializer&amp; source);
+/// Finish resource loading. Always called from the main thread. Return true if successful.
+virtual bool EndLoad();
+
+/// Set texture.
+void SetTexture(Texture2D* texture);
+
+/// Return texture.
+Texture2D* GetTexture() const { return texture_; }
+
+/// Return offsets at index
+const IntVector2&amp; GetOffset(int index) const { return offsets_.At(index); }
+const IntRect&amp; GetRectangle(int index) const { return rectangles_.At(index); }
+const Rect&amp; GetTextureRectangle(int index) const { return textureRectangles_.At(index); }
+unsigned GetOffsetsCount() const { return offsetsCount_; }
+</code></pre>
+<p>private:<br/>
+/// Begin load from XML file.<br/>
+bool BeginLoadFromXMLFile(Deserializer&amp; source);<br/>
+/// End load from XML file.<br/>
+bool EndLoadFromXMLFile();</p>
+<pre><code>/// Texture.
+SharedPtr&lt;Texture2D&gt; texture_;
+/// Sprite mapping.
+HashMap&lt;String, SharedPtr&lt;Sprite2D&gt; &gt; spriteMapping_;
+/// XML file used while loading.
+SharedPtr&lt;XMLFile&gt; loadXMLFile_;
+/// Texture name used while loading.
+String loadTextureName_;
+
+/// Cache
+void CacheOffsets(int x, int y, int width, int height);
+
+PODVector&lt;IntVector2&gt; offsets_;
+PODVector&lt;IntRect&gt; rectangles_;
+PODVector&lt;Rect&gt; textureRectangles_;
+
+unsigned offsetsCount_;
+</code></pre>
+<p>};</p>
+<p>}[/code]</p>
+<p><span class="bbcode-b">SpriteSheet.cpp</span></p>
+<p>[code]//<br/>
+// Copyright © 2008-2016 the Urho3D project.<br/>
+//<br/>
+// Permission is hereby granted, free of charge, to any person obtaining a copy<br/>
+// of this software and associated documentation files (the “Software”), to deal<br/>
+// in the Software without restriction, including without limitation the rights<br/>
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell<br/>
+// copies of the Software, and to permit persons to whom the Software is<br/>
+// furnished to do so, subject to the following conditions:<br/>
+//<br/>
+// The above copyright notice and this permission notice shall be included in<br/>
+// all copies or substantial portions of the Software.<br/>
+//<br/>
+// THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR<br/>
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,<br/>
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE<br/>
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER<br/>
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,<br/>
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN<br/>
+// THE SOFTWARE.<br/>
+//</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/Core/Context.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/Texture2D.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/IO/Deserializer.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/IO/FileSystem.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/IO/Log.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Resource/PListFile.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Resource/ResourceCache.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Resource/XMLFile.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Resource/JSONFile.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Urho2D/Sprite2D.h&gt;</p>
+<p><span class="hashtag">#include</span> “SpriteSheet.h”</p>
+<p>using namespace std;</p>
+<p>namespace Urho3D<br/>
+{</p>
+<p>SpriteSheet::SpriteSheet(Context* context) :<br/>
+Resource(context),<br/>
+offsetsCount_(0)<br/>
+{<br/>
+}</p>
+<p>SpriteSheet::~SpriteSheet()<br/>
+{<br/>
+}</p>
+<p>void SpriteSheet::RegisterObject(Context* context)<br/>
+{<br/>
+context-&gt;RegisterFactory();<br/>
+}</p>
+<p>bool SpriteSheet::BeginLoad(Deserializer&amp; source)<br/>
+{<br/>
+if (GetName().Empty())<br/>
+SetName(source.GetName());</p>
+<pre><code>loadTextureName_.Clear();
+spriteMapping_.Clear();
+
+/// clear cache
+offsets_.Clear();
+rectangles_.Clear();
+textureRectangles_.Clear();
+
+
+String extension = GetExtension(source.GetName());
+
+if (extension == ".xml")
+    return BeginLoadFromXMLFile(source);
+
+URHO3D_LOGERROR("Unsupported file type");
+return false;
+</code></pre>
+<p>}</p>
+<p>bool SpriteSheet::EndLoad()<br/>
+{</p>
+<pre><code>if (loadXMLFile_)
+    return EndLoadFromXMLFile();
+
+
+return false;
+</code></pre>
+<p>}</p>
+<p>void SpriteSheet::SetTexture(Texture2D* texture)<br/>
+{<br/>
+loadTextureName_.Clear();<br/>
+texture_ = texture;</p>
+<p>}</p>
+<p>/// Cache<br/>
+void SpriteSheet::CacheOffsets(int x, int y, int width, int height)<br/>
+{</p>
+<pre><code>/// Cache offsets
+offsets_.Push(IntVector2(x,y));
+
+IntRect rectangle(x, y, (x + width), (y + height));
+
+/// Cache rectangles
+rectangles_.Push(rectangle);
+
+int textureWidth = texture_-&gt;GetWidth();
+int textureHeight = texture_-&gt;GetHeight();
+float invWidth = 1.0f / textureWidth;
+float invHeight = 1.0f / textureHeight;
+
+Rect rect;
+rect.min_.x_ = ((float)rectangle.left_) * invWidth;
+rect.max_.x_ = ((float)rectangle.right_) * invWidth;
+
+rect.min_.y_ = ((float)rectangle.bottom_) * invHeight;
+rect.max_.y_ = ((float)rectangle.top_) * invHeight;
+
+/// Cache texture rectangles
+textureRectangles_.Push(rect);
+</code></pre>
+<p>}</p>
+<p>bool SpriteSheet::BeginLoadFromXMLFile(Deserializer&amp; source)<br/>
+{<br/>
+loadXMLFile_ = new XMLFile(context_);<br/>
+if (!loadXMLFile_-&gt;Load(source))<br/>
+{<br/>
+URHO3D_LOGERROR(“Could not load sprite sheet”);<br/>
+loadXMLFile_.Reset();<br/>
+return false;<br/>
+}</p>
+<pre><code>SetMemoryUse(source.GetSize());
+
+XMLElement rootElem = loadXMLFile_-&gt;GetRoot("textureatlas");
+if (!rootElem)
+{
+    URHO3D_LOGERROR("Invalid sprite sheet");
+    loadXMLFile_.Reset();
+    return false;
+}
+
+// If we're async loading, request the texture now. Finish during EndLoad().
+loadTextureName_ = GetParentPath(GetName()) + rootElem.GetAttribute("imagepath");
+if (GetAsyncLoadState() == ASYNC_LOADING)
+    GetSubsystem&lt;ResourceCache&gt;()-&gt;BackgroundLoadResource&lt;Texture2D&gt;(loadTextureName_, true, this);
+
+return true;
+</code></pre>
+<p>}</p>
+<p>bool SpriteSheet::EndLoadFromXMLFile()<br/>
+{<br/>
+ResourceCache* cache = GetSubsystem();<br/>
+texture_ = cache-&gt;GetResource(loadTextureName_);<br/>
+if (!texture_)<br/>
+{<br/>
+URHO3D_LOGERROR("Could not load texture " + loadTextureName_);<br/>
+loadXMLFile_.Reset();<br/>
+loadTextureName_.Clear();<br/>
+return false;<br/>
+}</p>
+<pre><code>XMLElement rootElem = loadXMLFile_-&gt;GetRoot("textureatlas");
+XMLElement subTextureElem = rootElem.GetChild("subtexture");
+
+while (subTextureElem)
+{
+    String name = subTextureElem.GetAttribute("name");
+
+    int x = subTextureElem.GetInt("x");
+    int y = subTextureElem.GetInt("y");
+
+    int width = subTextureElem.GetInt("width");
+    int height = subTextureElem.GetInt("height");
+
+    /// Cache offsets
+    CacheOffsets(x, y, width, height);
+
+    subTextureElem = subTextureElem.GetNext("subtexture");
+}
+
+offsetsCount_ = offsets_.Size();
+
+loadXMLFile_.Reset();
+loadTextureName_.Clear();
+return true;
+</code></pre>
+<p>}</p>
+<p>}<br/>
+[/code]</p>
+<p>Register the class.</p>
+<pre><code class="lang-auto"></code></pre>
+<p>Basic usage.</p>
+<p>[code]void App::Init()<br/>
+{<br/>
+ResourceCache* cache = GetSubsystem();<br/>
+spritesheet_ = cache-&gt;GetResource(“Particles/text.xml”);<br/>
+}</p>
+<p>void App::Update(float timeStep)<br/>
+{<br/>
+Time* time_ = GetSubsystem();<br/>
+float elapsedTime = time_-&gt;GetElapsedTime();<br/>
+float fps = 30.0;<br/>
+float frames = spritesheet-&gt;GetOffsetsCount();<br/>
+float frame = std::fmod(std::floor((elapsedTime*fps)),frames);</p>
+<pre><code> const IntRect&amp; rect = spritesheet-&gt;GetRectangle(frame);
+ sprite_-&gt;SetRectangle(rect);
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Thanks for this!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>thanks, it may be usefull later for my particles works.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

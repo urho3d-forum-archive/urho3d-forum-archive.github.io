@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[solved] how to detect whether A collide B or B collide A?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[solved] how to detect whether A collide B or B collide A?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hualin</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I am using E_PHYSICSCOLLISIONSTART for a physic listener in class derived from Application, and now no matter whether node A collide node B or B collide A, the eventData is the same, the NodeA is A and NodeB is B, this confusing me.<br/>
+Is there any way to distinguish which node collide with the other?<br/>
+Thank you!</p>
+<p>Edit:<br/>
+Because my goal is detect whether back car collide with front car, the solution that the function RaycastSingle or Raycast is a perfect way to solve the problem.<br/>
+Thank you all very much!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>If you look at the code which sending this event, you will find a logic that sort the bodyA and bodyB, which in turns should make nodeA and nodeB always appear in the event data in a similar order when the pair collides with each other.<br/>
+<a >github.com/urho3d/Urho3D/blob/m … #L650-L654</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hualin</div>
+          <div class="post_content">
+<p>Thank you for your reply, weitjong.<br/>
+But I can’t catch you.<br/>
+My game has two car, the node A and node B, I can’t distinguish which one collide with the other. The event data is the same, no matter A collide B or B collide A.<br/>
+My meaning is that, if A collide B, then the event data will contains NodeA is A, and NodeB is B, and if B collide A, the event data would contains NodeA is B, and NodeB is A. Or is there any way to distinguish the two nodes?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>From the point of the physics simulation (Bullet library) collision is interaction of two objects, so the question whether A collides with B or B collides with A is not relevant, or actually, both happen.</p>
+<p>Collisions are hard to handle from that global collision event, as it’s fired for every colliding pair of objects. It’s possible that the “node A” or “node B” might swap between simulation steps (especially if the collision is broken off and then starts again) so you can’t rely on which is which.</p>
+<p>Typically a game might be running a car logic script or component in the same node as the car rigidbody/collisionshape, and each such car logic object would listen to its own node’s collision events only: the NodeCollision category of events. Those events are easier to use as they have an “other node” parameter. Like this:</p>
+<pre><code class="lang-auto">SubscribeToEvent(GetNode(), E_NODECOLLISIONSTART, HANDLER(MyLogicObject, HandleNodeCollisionStart));
+
+void MyLogicObject::HandleNodeCollisionStart(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace NodeCollisionStart;
+    Node* collidedWith = eventData[P_OTHERNODE].GetPtr();
+    ...
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hualin</div>
+          <div class="post_content">
+<p>Thank you, cadaver.</p>
+<p>I digg into the source code of PhysicsWorld, the event E_NODECOLLISIONSTART is triggered  same as  E_PHYSICSCOLLISIONSTART, in other words, the nodeA and nodeB would receive the event NODECOLLISIONSTART too and in nodeA, the other body is B, and in nodeB, the other body is A, so I can’t distinguish which is which.</p>
+<p>What I need is to know whether A is active to collide with B , or B is active. Because if A collide with B, the B will get speed UP, and A get speed DOWN. Conversely, the B will get speed DOWN and the A get speed UP.</p>
+<p>Is there any way to do this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Collision events include the world position &amp; normal vector of the contact points, and the force those contact points exert, so try if you can work it out from those. Otherwise there’s no other information that physics collisions carry. Reading the contact points is slightly convoluted, as they’re in a byte array which you must interpret; for an example you can take a look at Character::HandleNodeCollision() function in Source/Samples/18_CharacterDemo/Character.cpp.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

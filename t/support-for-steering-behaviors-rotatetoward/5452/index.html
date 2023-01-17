@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Support for Steering Behaviors (RotateToward)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Support for Steering Behaviors (RotateToward)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>In order to implement intelligent steering behaviours, we need a way to know which way to turn.<br/>
+I used this code as the basis for steering,</p>
+<pre><code class="lang-auto">    /// Calculate signed angle between two vectors - needed for AI steering behaviours!
+    float SignedAngle(Vector3 from, Vector3 to, Vector3 upVector)
+    {
+        float unsignedAngle = from.Angle(to);
+        float sign = upVector.DotProduct(from.CrossProduct(to));
+        if(sign&lt;0)
+            unsignedAngle = -unsignedAngle;
+        return unsignedAngle;
+    }</code></pre>
+<p>Yell if it dont werk, I’ll fix the post, it will be so.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Why not use <code>abs</code> instead of conditional? It guarantees that it won’t return <code>-0</code> in some edge cases</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Maybe name the thread title to be something related to steering <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/><br/>
+I would create a gif and link it here to show the point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I don’t think an up vector belongs in a <code>Vector3::SignedAngle</code> method, given that <code>Vector3::Angle</code> doesn’t have one either. It would however be nice to have a signed angle method:</p>
+<pre><code class="lang-cpp">float Vector3::SignedAngle(const Vector3&amp; rhs)
+{
+    return Angle(rhs) * Urho3D::Sign(DotProduct(CrossProduct(rhs)));
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>TheComet - Its not really an up vector, its a vector we expect to be “relatively” orthonormal to the other two, which acts as a reference for discerning the sign. It’s an arbitrary axis for comparing against. I couldn’t think of a way to entirely eliminate it, given we want to effectively perform a planar partitioning (the dot product versus some normal)<br/>
+We are making a + or - decision about the state of a 3D spatial system… a binary decision. The sign of a dot product is a binary result of a 3D comparison of two vectors.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>George1 - Done <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>throwawayerino - the entire point is to determine the unknown sign of a known but unsigned angle - abs eliminates sign, we want to discover it <img alt=":wink:" class="emoji" src="../../../images2/537e3e653d641df5b9858e75faf3862a.png" title=":wink:"/> The result of the dot product is a value between -1 and +1 , and we just want to know the sign, and then apply it to the unsigned angle, so we are returning a signed angle.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Example implementation:</p>
+<pre><code class="lang-auto">                // Compute the angle between current and new directions
+                float angle = SignedAngle(currentDir, newDir, Vector3::UP);
+
+                // Apply angular velocity
+                angle *= 5 * timeStep;
+
+                // Rotate character toward target direction
+                characterNode_-&gt;Rotate( Quaternion(angle, Vector3::UP));</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="onebox stackexchange">
+<header class="source">
+<a href="https://stackoverflow.com/questions/10133957/signed-angle-between-two-vectors-without-a-reference-plane" rel="nofollow noopener" target="_blank">stackoverflow.com</a>
+</header>
+<article class="onebox-body">
+<a href="https://stackoverflow.com/users/355916/metatheorem" rel="nofollow noopener" target="_blank">
+<img alt="metatheorem" class="thumbnail onebox-avatar" height="128" src="https://www.gravatar.com/avatar/190029c77d1727ab0d58e0d85ac2671d?s=128&amp;d=identicon&amp;r=PG" width="128"/>
+</a>
+<h4>
+<a href="https://stackoverflow.com/questions/10133957/signed-angle-between-two-vectors-without-a-reference-plane" rel="nofollow noopener" target="_blank">Signed angle between two vectors without a reference plane</a>
+</h4>
+<div class="tags">
+<strong>math, vector, 3d, geometry</strong>
+</div>
+<div class="date">
+  asked by
+  
+  <a href="https://stackoverflow.com/users/355916/metatheorem" rel="nofollow noopener" target="_blank">
+    metatheorem
+  </a>
+  on <a href="https://stackoverflow.com/questions/10133957/signed-angle-between-two-vectors-without-a-reference-plane" rel="nofollow noopener" target="_blank">01:00AM - 13 Apr 12 UTC</a>
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>TheComet - I’ll check it out, thanks for taking your time to look</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p><span class="mention">@TheComet</span> - Comments indicate what I already suspected - there appears to be no reliable way to discern sign without a reference vector, and especially if our other two vectors are moving.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

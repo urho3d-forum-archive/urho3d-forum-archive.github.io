@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ScriptInstance memory leak</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ScriptInstance memory leak</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<p>We develop custom editor for game, where we need to override component’s virtual LoadXML/SaveXML methods in order to create custom data serialization into/from XML file. Before everything was good, but with ScriptInstance became problem. So we created new class with name ScriptComponent that inherits from ScriptInstance. After ScriptComponent was attached to the node, we called ScriptComponent’s method CreateObject(), which simply call base class (“ScrriptInstance”) method <span class="bbcode-b">CreateObject</span> with necessary parameters. Look,</p>
+<p><code>void ScriptComponent::CreateScriptObjects()
+{
+	const String&amp; className = this-&gt;GetClassName();
+	if (className != m_ClassName)
+	{
+		if (!m_ScriptFilePath.Empty())
+		{
+			ScriptFile* scriptFile = g_pApp-&gt;GetConstantResCache()-&gt;GetResource&lt;ScriptFile&gt;(m_ScriptFilePath);
+			if (scriptFile)
+			{
+				this-&gt;CreateObject(scriptFile, m_ClassName);
+			}
+		}
+	}
+}</code></p>
+<p>And there is ScriptComponent class declaration</p>
+<p>[code]class ScriptComponent : public ScriptInstance<br/>
+{<br/>
+URHO3D_OBJECT(ScriptComponent, ScriptInstance)</p>
+<p>public:<br/>
+ScriptComponent(Context* context);<br/>
+virtual ~ScriptComponent();<br/>
+static void RegisterObject(Context* context);</p>
+<pre><code>/// Save as XML data. Return true if successful.
+virtual bool SaveXML(XMLElement&amp; dest) const;
+
+/// Load from XML data. When setInstanceDefault is set to true, after setting the attribute value, store the value as instance's default value. Return true if successful.
+virtual bool LoadXML(const XMLElement&amp; source, bool setInstanceDefault = false);
+
+void CreateScriptObjects();
+</code></pre>
+<p>protected:<br/>
+String m_ScriptFilePath;<br/>
+String m_ClassName;<br/>
+};[/code]</p>
+<p>In the result i get the memory leak, when exit from the program.<br/>
+The dump about memory leak - <a data-bbcode="true" href="http://pastebin.com/TpJ7n6tz" rel="nofollow noopener">http://pastebin.com/TpJ7n6tz</a>. There you can see that in asCScriptObject::SetUserData() (457 line) was allocated memory and was not released then.<br/>
+Here is image, which show the place, where happens memory allocation (457 line) <a data-bbcode="true" href="http://imgur.com/a/xz0ar" rel="nofollow noopener">http://imgur.com/a/xz0ar</a><br/>
+In other words this code raises the memory leak.</p>
+<p><code>if( !extra )
+extra = asNEW(SExtra);</code></p>
+<p>I suppose another 4 leaks were raised by the same code.</p>
+<p>At once want to ask, is it safely to override ScriptInstance’s LoadXML/SaveXML method ?</p>
+<p>Someone has idea why the memory leak happens and how can fix it ?</p>
+<p>We use urho3d 1.5 release version.</p>
+<p>Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<p>It seems that i have solved the memory leek problem, but i do not know is it good solution.</p>
+<p>In ScriptComponent’s destructor i have added following lines -</p>
+<p><code>ScriptComponent::~ScriptComponent()
+{
+	asIScriptObject* pScriptObject = this-&gt;GetScriptObject();
+	if (pScriptObject)
+	{
+		pScriptObject-&gt;Release();
+	}
+}</code></p>
+<p>May someone explain why i need to call also Release() in ScriptComponent destructor, while ScriptInstance’s destructor already does scriptObject_ releasing ?</p>
+<pre><code class="lang-auto">ScriptInstance::~ScriptInstance()
+{
+    ReleaseObject();
+}
+
+void ScriptInstance::ReleaseObject()
+{
+        ...
+        scriptObject_-&gt;SetUserData(0);
+        scriptObject_-&gt;Release();
+        scriptObject_ = 0;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This looks like somewhere an extra ref is being added to the asIScriptObject, and by releasing twice you ensure correct release. Do you ever see this happening by using just ScriptInstance? If yes, it’s an Urho bug. If not, then it’s likely the culprit is your code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>This looks like somewhere an extra ref is being added to the asIScriptObject, and by releasing twice you ensure correct release. Do you ever see this happening by using just ScriptInstance? If yes, it’s an Urho bug. If not, then it’s likely the culprit is your code.</p>
+</blockquote>
+</aside>
+<p>No, i have never seen this by using just ScriptInstance. Moreover, i have tested AngelScriptIntegration sample project for memory leak. It works without any memory leak. So i suppose the culprit is our code, but it looks very strange that somewhere can be added extra ref. I have no idea where it can be added, because there is one place (it is ScriptComponent class), where we directly deal with ScriptInstance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Double-check any AS bindings that you’ve added; auto handles ( @+ ) mean the script engine handles refcounts automatically when a raw pointer is passed to/from C++. Normal handles ( @ ) assume you will manage the refcount manually in the bound code, as necessary. If you get these wrong there could either be extra refs added, or too early release. I never remember the rules, see <a href="http://www.angelcode.com/angelscript/sdk/docs/manual/doc_obj_handle.html">angelcode.com/angelscript/sd … andle.html</a> for reference.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>Double-check any AS bindings that you’ve added; auto handles ( @+ ) mean the script engine handles refcounts automatically when a raw pointer is passed to/from C++. Normal handles ( @ ) assume you will manage the refcount manually in the bound code, as necessary. If you get these wrong there could either be extra refs added, or too early release. I never remember the rules, see <a href="http://www.angelcode.com/angelscript/sdk/docs/manual/doc_obj_handle.html" rel="nofollow noopener">angelcode.com/angelscript/sd … andle.html</a> for reference.</p>
+</blockquote>
+</aside>
+<p>We did not add any new AS bindings in our code. And if scene is with only one node and i try to add ScriptComponent (inherited from ScriptInstance) to the node with following script</p>
+<p>[code]class Planet : ScriptObject<br/>
+{<br/>
+void Start()<br/>
+{<br/>
+Print(“Hello!”);<br/>
+}</p>
+<pre><code>// Update is called during the variable timestep scene update
+void Update(float timeStep)
+{
+	
+}
+</code></pre>
+<p>}<br/>
+[/code]</p>
+<p>Then i still get the memory leak. (In case if i do not call Release() method in ScriptComponent’s destructor).<br/>
+If you look in the <a data-bbcode="true" href="http://pastebin.com/iQjBNHYy" rel="nofollow noopener">http://pastebin.com/iQjBNHYy</a> dump, where now there are 3 memory leaks.</p>
+<p>First memory leaks happens in as_scriptobject.cpp (457).<br/>
+1)MSVCR120D.dll!malloc()<br/>
+b:\programming\protocolseven\source\github\source\thirdparty\angelscript\source\as_scriptobject.cpp (457):<br/>
+Second,<br/>
+2)MSVCR120D.dll!malloc() b:\programming\protocolseven\source\github\source\thirdparty\angelscript\source\as_builder.cpp<br/>
+(It seems that memory is not released for ScriptFile, which resource cache loads)<br/>
+Third,<br/>
+3)In the same place as first.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

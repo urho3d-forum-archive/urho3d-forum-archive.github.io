@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Script Execution Order</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Script Execution Order</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I try to using Unity3D-style for my project (many small scripts that are attached to their objects). How do I determine the order of the scripts?<br/>
+For example, a hero has a script that moves the character by pressing a keys. And a camera has a script which set its position relative to the hero.<br/>
+How to force to execute the camera script after the hero script?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In general the event handling order is unspecified and you shouldn’t assume anything about it. There isn’t a similar “script execution order” concept as in Unity.</p>
+<p>Instead use different events for things you want to happen in sequence during the frame. NinjaSnowWar follows the principle of updating camera in PostUpdate. Look at the main loop documentation page: <a href="http://urho3d.github.io/documentation/1.4/_main_loop.html">urho3d.github.io/documentation/1 … _loop.html</a></p>
+<p>If necessary, you can invent your own events, and raise them at some point during the frame. For example a “CameraUpdate” event.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Thank you. If someone has a similar task, here’s a small example:</p>
+<p>[spoiler]<a href="http://Game.as">Game.as</a></p>
+<pre><code class="lang-auto">...
+void CreateScene()
+{
+    ...
+    heroNode.CreateScriptObject("Scripts/HeroScript.as", "HeroScript");
+    ...
+    cameraNode.CreateScriptObject("Scripts/CameraScript.as", "CameraScript");
+    ...
+}
+...</code></pre>
+<p><a class="onebox" href="http://HeroScript.as" target="_blank">HeroScript.as</a></p>
+<pre><code class="lang-auto">class HeroScript : ScriptObject
+{
+    void Update(float timeStep)
+    {
+        const float MOVE_SPEED = 20.0f;
+        
+        if (input.keyDown['W'])
+            node.Translate(Vector3(0.0f, 0.0f, 1.0f) * MOVE_SPEED * timeStep);
+        if (input.keyDown['S'])
+            node.Translate(Vector3(0.0f, 0.0f, -1.0f) * MOVE_SPEED * timeStep);
+        if (input.keyDown['A'])
+            node.Translate(Vector3(-1.0f, 0.0f, 0.0f) * MOVE_SPEED * timeStep);
+        if (input.keyDown['D'])
+            node.Translate(Vector3(1.0f, 0.0f, 0.0f) * MOVE_SPEED * timeStep);
+
+        VariantMap eventData;
+        eventData["HeroPosition"] = node.position;
+        SendEvent("UpdateCamera", eventData);
+    }
+}</code></pre>
+<p><a class="onebox" href="http://CameraScript.as" target="_blank">CameraScript.as</a></p>
+<p>[code]<br/>
+class CameraScript : ScriptObject<br/>
+{<br/>
+void Start()<br/>
+{<br/>
+SubscribeToEvent(“UpdateCamera”, “HandleUpdateCamera”);<br/>
+}</p>
+<pre><code>void HandleUpdateCamera(StringHash eventType, VariantMap&amp; eventData)
+{
+    Vector3 heroPosition = eventData["HeroPosition"].GetVector3();
+    node.position = heroPosition + Vector3(10.0f, 10.0f, 10.0f);
+}
+</code></pre>
+<p>}<br/>
+[/code][/spoiler]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

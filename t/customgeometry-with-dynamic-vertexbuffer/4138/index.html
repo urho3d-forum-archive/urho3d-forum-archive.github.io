@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CustomGeometry with dynamic VertexBuffer</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CustomGeometry with dynamic VertexBuffer</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>i have a large amount of vertices to render and want to explore the best way of rendering them. (Around 4 million points). The amount of data is growing in each frame so i add a new  Component each frame. I looked up the DynamicGeometry Example but this does not work in my case.</p>
+<pre><code>        CustomGeometry* localcloud = cloudnode-&gt;CreateComponent&lt;CustomGeometry&gt;();
+        localcloud-&gt;SetMaterial(cloudmat);
+        localcloud-&gt;BeginGeometry(0, POINT_LIST);
+        for (int i = 0; i &lt; vertexValues.size(); i++) {
+            localcloud-&gt;DefineVertex(Vector3(vertexValues[i].position[0],
+                                        vertexValues[i].position[1],
+                                        -vertexValues[i].position[2]));
+            localcloud-&gt;DefineNormal(Vector3(vertexValues[i].normal[0],
+                                        vertexValues[i].normal[1],
+                                        -vertexValues[i].normal[2]));
+            localcloud-&gt;DefineColor(Color(vertexValues[i].color[0],
+                                     vertexValues[i].color[1],
+                                     vertexValues[i].color[2]));
+        }
+        localcloud-&gt;Commit();
+</code></pre>
+<p>The problem i have is that adding the vertices this way is a large overhead. My vertexValues are already in structure which is easy to bind through a normal vbo in opengl. I want to do this as well in Urho3D, so i tryed the VertexElements stuff. In my scene creation i initialize</p>
+<pre><code>model = new Model(context_);
+vertexBuffer = new VertexBuffer(context_);
+geometry = new Geometry(context_);
+elements.Push(VertexElement(TYPE_VECTOR3, SEM_POSITION));
+elements.Push(VertexElement(TYPE_VECTOR3, SEM_NORMAL));
+elements.Push(VertexElement(TYPE_VECTOR3, SEM_COLOR));
+
+Node* node = scene_-&gt;CreateChild("container");
+auto* object = node-&gt;CreateComponent&lt;StaticModel&gt;();
+object-&gt;SetModel(model);
+object-&gt;SetMaterial(cloudmat);
+</code></pre>
+<p>Then i wanted to fill the vertexbuffer with only the actual data in each frame so i added to my frame update</p>
+<pre><code>vertexBuffer-&gt;SetSize(vertexValues.size(), elements, true);
+vertexBuffer-&gt;SetData(vertexValues.data());
+geometry-&gt;SetVertexBuffer(0, vertexBuffer);
+geometry-&gt;SetDrawRange(POINT_LIST, 0, 0, 0, vertexValues.size());
+model-&gt;SetNumGeometries(1);
+model-&gt;SetGeometry(0,0,geometry);
+</code></pre>
+<p>I read out the vertexBuffer and saw that it’s size is allocated correctly, but in the result i don’t see anything rendered. I also don’t get any error message.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>What’s your vertex data struct look like? That Vector3 for color looks sketchy.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Hey,</p>
+<p>the struct looks like this</p>
+<pre><code class="lang-auto">struct VertexData {
+	float position[3];
+	float normal[3];
+	float color[3];
+};
+</code></pre>
+<p>Had my color encoded as uchar before, but converted it now to float.</p>
+<p>I should also say that rendering each pointcloud is working fine with the</p>
+<pre><code class="lang-auto">CustomGeometry* localcloud = cloudnode-&gt;CreateComponent&lt;CustomGeometry&gt;();
+localcloud-&gt;SetMaterial(cloudmat);
+localcloud-&gt;BeginGeometry(0, POINT_LIST);
+for (int i = 0; i &lt; vertexValues.size(); i++) {
+    localcloud-&gt;DefineVertex(Vector3(vertexValues[i].position[0],
+                                     vertexValues[i].position[1],
+                                    -vertexValues[i].position[2]));
+    localcloud-&gt;DefineNormal(Vector3(vertexValues[i].normal[0],
+                                     vertexValues[i].normal[1],
+                                    -vertexValues[i].normal[2]));
+    localcloud-&gt;DefineColor(Color(vertexValues[i].color[0],
+                                     vertexValues[i].color[1],
+                                     vertexValues[i].color[2]));
+}
+localcloud-&gt;Commit();
+</code></pre>
+<p>So i can ensure that all data are present and correct, position, color as well as normals. I just want to be able to use a dynamic vertexbuffer for faster data binding.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Input elements need to match your semantics/attributes. If you’re going to feed a float3 for color instead of a float4 it needs to be a float3 in the shader as well.</p>
+<p>If you’re using DX11 then set the device to debug mode so it’ll print behavioural errors like those (ie. <em>what you’re doing will not do what you think it will</em>).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>So as far as i see it the Constructor of Color has a default value for its alpha value:</p>
+<pre><code class="lang-auto">/// Construct from RGB values and set alpha fully opaque.
+Color(float r, float g, float b) :
+        r_(r),
+        g_(g),
+        b_(b),
+        a_(1.0f)
+    {
+    }
+</code></pre>
+<p>I am using opengl, so my possibilities are limited, is there any example on how to use<br/>
+Model<br/>
+Geometry<br/>
+VertexBuffer<br/>
+VertexElements<br/>
+for rendering dynamic content?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>You just said your VertexData contains <code>float color[3];</code>, that’s not the Color type.</p>
+<p>In the shaders color is defined as <code>attribute vec4 iColor;</code>, DirectX will scream at you for doing that, OpenGL being its usual evil self will probably just use an alpha value of 0.0 since you didn’t give it an alpha.</p>
+<p>Fix your vertex data structure.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Did as you said i changed my struct to color values to</p>
+<pre><code class="lang-auto">float color[4]; 
+</code></pre>
+<p>And my VertexElement</p>
+<pre><code class="lang-auto">elements.Push(VertexElement(TYPE_VECTOR4, SEM_COLOR));
+</code></pre>
+<p>But the result is the same, vertexbuffer gets filled with data but nothing is rendered.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Unless you toss your code onto pastebin/hastebin/github-gist/github you’re going to have to step through it in the debugger and see if your geometry is ever being drawn or break out RenderDoc and see the draw record to check the state.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>I know it is hard to make any qualitive response on my provided information. But maybe i got it working in a most basic way now. I tried using the Dynamic Geometry Sample Code again and found out that this</p>
+<pre><code class="lang-auto">                SharedPtr&lt;Model&gt; fromScratchModel(new Model(context_));
+                SharedPtr&lt;VertexBuffer&gt; vb(new VertexBuffer(context_));
+                SharedPtr&lt;Geometry&gt; geom(new Geometry(context_));
+
+                // We could use the "legacy" element bitmask to define elements for more compact code, but let's demonstrate
+                // defining the vertex elements explicitly to allow any element types and order
+                PODVector&lt;VertexElement&gt; elements;
+                elements.Push(VertexElement(TYPE_VECTOR3, SEM_POSITION));
+                elements.Push(VertexElement(TYPE_VECTOR3, SEM_NORMAL));
+                elements.Push(VertexElement(TYPE_VECTOR4, SEM_COLOR));
+                vb-&gt;SetSize(vertexValues.size(), elements);
+                vb-&gt;SetData(vertexValues.data());
+
+                geom-&gt;SetVertexBuffer(0, vb);
+                geom-&gt;SetDrawRange(POINT_LIST, 0, 0,  0, vertexValues.size());
+
+                fromScratchModel-&gt;SetNumGeometries(1);
+                fromScratchModel-&gt;SetGeometry(0, 0, geom);
+
+                Node* node = scene_-&gt;CreateChild("FromScratchObject");
+                node-&gt;SetPosition(Vector3(0.0f, 0.0f, 0.0f));
+                auto* object = node-&gt;CreateComponent&lt;StaticModel&gt;();
+                object-&gt;SetMaterial(cloudmat);
+                object-&gt;SetModel(fromScratchModel);
+</code></pre>
+<p>renders points on screen with correct position, now the problem i have is that my material seems to be not applied, or loaded. The vertices are just little dots.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<blockquote>
+<p>The vertices are just little dots.</p>
+</blockquote>
+<p>That’s all they can be though. You’re on GL so point-size might be emulatable by the driver but I don’t believe there’s anything anywhere in Urho for setting it since it’s something that hasn’t existed for quite a while.</p>
+<p>Are you trying to do point-sprites? If so then you should be using BillboardSet (either as is or deriving from it).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>I already have a custom shader which sets PointSize, etc… i just want to apply the corresponding material <img alt=":thinking:" class="emoji" src="../../../images2/82a9651f7660764b4331d6a14d303910.png" title=":thinking:"/> that worked before on my CustomGeometry as well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>There’s <a href="https://discourse.urho3d.io/t/spark-particle-engine-renderer/3670/24">Spark</a> too if you wanna go the particles route…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>No i can’t use particles. I have the above code creating me a Geometry based on my data bindings through the vertex buffer. Now i want my ‘already’ working pointcloudshader to be applied to this Geometry.</p>
+<p>For a CustomGeometry i could call ‘SetMaterial’, for a normal Geometry there is no function. So the only possible way to set it is for ‘Static Model’ which still does not apply the material with its shaders to the normal Geometry.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Set the model before the material, you probably have nothing in to set a material on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p><img alt=":see_no_evil:" class="emoji" src="../../../images2/9033e1f0aa9797bbbe3073a42eec9400.png" title=":see_no_evil:"/> Captain Obvious in the most positive sense, didn’t see this logical order yesterday. A lot of thx, it is now working as expected! <img alt=":grin:" class="emoji" src="../../../images2/ec34c8e58665ec32c0e7c847446db86d.png" title=":grin:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

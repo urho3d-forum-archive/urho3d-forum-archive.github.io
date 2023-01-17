@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Post Update Function</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Post Update Function</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I have a logic component derived class. I’m trying to figure out how the PostUpdate(float timestep) works. It works once but doesn’t repeat. Anyone know how to properly set a derived class to call Post Update.</p>
+<p>I tried the both ways. Creating a virtual void PostUpdate function and also SubscribeToEvent E_SCENEPOSTUPDATE.</p>
+<p>Both doesn’t work. It seems to only work on the component creation when its also added to a scene.</p>
+<p>Vivienne</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>This is the code I have .</p>
+<pre><code class="lang-auto">// Initialize
+void ComputerCoreComponent::Initialize() {
+	// Debug
+	ALPHAENGINE_LOGINFO("Initialize Called");
+
+	// Get the Navigation Module
+	m_pNavigationModule = GetComponent&lt;NavigationModuleComponent&gt;();
+
+	//  Bunch of code
+
+	// Subscribe to post update
+	SetUpdateEventMask(USE_POSTUPDATE);
+
+	// Subscribe to event
+	SubscribeToEvent(E_POSTUPDATE,
+			URHO3D_HANDLER(ComputerCoreComponent, HandlePostUpdate));
+}
+
+
+void ComputerCoreComponent::HandlePostUpdate(StringHash eventType,
+		VariantMap&amp; eventData) {
+	if (m_pAutomatedVehicle) {
+		// Apply Linear Velocity
+		m_pAutomatedVehicle-&gt;ApplyLinearVelocity(m_LinearVelocity);
+	} else {
+		ALPHAENGINE_LOGINFO("Post Update Failed. No Automated Vehicle");
+	}
+}
+</code></pre>
+<p>In the debug info “Post Update Failed. No Automated Vehicle” only appears once but it should show after each physics post update.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>You should do physics operations in the pre-step event.</p>
+<p>E_<strong>SCENE</strong>POSTUPDATE only applys to components which are part of a scene.</p>
+<p>Your code isn’t helpful since we don’t know what sets <code>m_pAutomatedVehicle</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="3" data-topic="4166">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>You should do physics operations in the pre-step event.</p>
+<p>E_SCENEPOSTUPDATE only applys to components which are part of a scene.</p>
+<p>Your code isn’t helpful since we don’t know what sets m_pAutomatedVehicle.</p>
+</blockquote>
+</aside>
+<p>Thanks for the reply.</p>
+<p>A better idea of what I am trying to implement is here <a href="https://www.reddit.com/r/gamedev/comments/8836sb/ship_mechanics_using_thrusters_and_bullet_physics/" rel="nofollow noopener">https://www.reddit.com/r/gamedev/comments/8836sb/ship_mechanics_using_thrusters_and_bullet_physics/</a></p>
+<p>It’s the first recommendation. It comes from a developer of Star Citizen on how they handle physics of ships.</p>
+<p>The full code is below for the function. When the function is called it gets the component AutomatedVehicle and sets the pointer.</p>
+<pre><code class="lang-auto">// Initialize
+void ComputerCoreComponent::Initialize() {
+	// Debug
+	ALPHAENGINE_LOGINFO("Initialize Called");
+
+	// Get the Navigation Module
+	m_pNavigationModule = GetComponent&lt;NavigationModuleComponent&gt;();
+
+	// Get Automated Vechicle Component
+	m_pAutomatedVehicle = GetComponent&lt;AutomatedVehicleComponent&gt;();
+
+	// Get attached propulsion thrusters
+	PODVector&lt;PropulsionThrusterComponent *&gt; pPropulsionThrusters;
+
+	// Get Thrusters
+	GetNode()-&gt;GetComponents&lt;PropulsionThrusterComponent&gt;(pPropulsionThrusters,
+			true);
+
+	// Copy thrusters into memory
+	if (pPropulsionThrusters.Size() == 0) {
+		return;
+	} else {
+		if (m_pPropulsionThrusters.Size() == 0) {
+			// loop thoop each thruster and update
+			for (unsigned int i = 0; i &lt; pPropulsionThrusters.Size(); i++) {
+				// copy each thruster
+				m_pPropulsionThrusters.Push(
+						(SharedPtr&lt;PropulsionThrusterComponent&gt; ) pPropulsionThrusters[i]);
+			}
+
+		}
+	}
+
+	// Subscribe to post update
+	SetUpdateEventMask(USE_POSTUPDATE);
+
+	// Subscribe to event
+	SubscribeToEvent(E_POSTUPDATE,
+			URHO3D_HANDLER(ComputerCoreComponent, HandlePostUpdate));
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>it’s most likely you’re calling <code>GetComponent&lt;AutomatedVehicleComponent&gt;()</code> before you created that component.</p>
+<p>You may need to use DelayedStart():<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_logic_component.html#ab87accfdac685351fde43278dca1fa1f" rel="nofollow noopener" target="_blank">Urho3D</a>
+</header>
+<article class="onebox-body">
+<h3><a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_logic_component.html#ab87accfdac685351fde43278dca1fa1f" rel="nofollow noopener" target="_blank">Urho3D::LogicComponent Class Reference</a></h3>
+<p>Urho3D is a free lightweight, cross-platform 2D and 3D game engine implemented in C++ and released under the MIT license. Greatly inspired by OGRE and Horde3D.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>The automated class is this. Right now it’s a container component as I work on how the physics works.</p>
+<pre><code class="lang-auto">/*
+ * AutomatedVehicle.cpp
+ *
+ *  Created on: Feb 22, 2018
+ *      Author: vivienne
+ */
+
+#include "HangarsClientStd.h"
+
+#include "GameAsset/GAFactory.h"
+
+#include "GameAsset/Components/PhysicsComponent/RigidBodyComponent/RigidBodyComponent.h"
+
+// Add Computer Core to Automated Vehicle
+#include "GameAssets/Components/AutomatedVehicle/AutomatedVehicleComponent.h"
+#include "GameAssets/Components/ComputerCore/ComputerCoreComponent.h"
+#include "GameAssets/Components/PropulsionThruster/PropulsionThrusterComponent.h"
+
+#include "AlphaEngine/GameAsset/Components/PhysicsComponent/RigidBodyComponent/RigidBodyComponentEvent.h"
+
+AutomatedVehicleComponent::AutomatedVehicleComponent(Context* context) :
+		LogicComponent(context), m_VehicleType(Vehicle_NULL), m_Name(""), m_pComputerCore(
+				nullptr), m_bInitialized(false), m_bLoadedXML(false) {
+
+}
+
+AutomatedVehicleComponent::~AutomatedVehicleComponent() {
+
+	//UnsubscribeFromAllEvents();
+}
+
+void AutomatedVehicleComponent::RegisterObject(Context* context) {
+	context-&gt;RegisterFactory&lt;AutomatedVehicleComponent&gt;();
+}
+
+bool AutomatedVehicleComponent::LoadXML(const XMLElement&amp; source,
+		bool setInstanceDefault) {
+	ResourceCache* cache = g_pApp-&gt;GetConstantResCache();
+
+	// Get Name
+	XMLElement node = source.GetChild("UniqueID");
+
+	if (node) {
+		m_Name = node.GetAttribute("value").CString();
+	}
+
+	// Get Vehicle Type
+	node = source.GetChild("VehicleType");
+
+	if (node) {
+		m_VehicleType = (AutomatedVehicleType) node.GetUInt("value");
+	}
+
+	// Set Loaded XML
+	m_bLoadedXML = true;
+
+	return true;
+}
+
+bool AutomatedVehicleComponent::SaveXML(XMLElement&amp; dest) const {
+	XMLElement componentNode = GAFactory::SaveComponentToXML(dest,
+			GetTypeName(), node_);
+
+	// Create name
+	XMLElement childNode = componentNode.CreateChild("UniqueID");
+
+	// Set the name
+	childNode.SetAttribute("value", String(m_Name.c_str()));
+
+	// Set vehicle type
+	childNode = componentNode.CreateChild("VehicleType");
+
+	// Set value
+	// NEED TO CONVERT
+	childNode.SetUInt("value", m_VehicleType);
+
+	return true;
+}
+
+// Process per frame
+void AutomatedVehicleComponent::FixedUpdate(float timeStep) {
+	// If loaded XML and not initialized
+	if (m_bLoadedXML &amp;&amp; m_bInitialized == false &amp;&amp; node_)// Handle Per Frame Update
+			{
+		Initialize();
+	}
+
+	return;
+}
+
+void AutomatedVehicleComponent::Initialize() {
+	// Rigid Body
+	m_pRigidBody = GetComponent&lt;RigidBodyComponent&gt;();
+
+	// Get computer core
+	m_pComputerCore = GetComponent&lt;ComputerCoreComponent&gt;();
+
+	// Initialize computer core if attached
+	if (m_pComputerCore) {
+		m_pComputerCore-&gt;Initialize();
+	}
+
+//	// Get attached propulsion thrusters
+//	PODVector&lt;PropulsionThrusterComponent *&gt; pPropulsionThrusters;
+//
+//	// Get Thrusters
+//	GetNode()-&gt;GetComponents&lt;PropulsionThrusterComponent&gt;(pPropulsionThrusters,
+//			true);
+//
+//	// If thrusters detected
+//	if (int size = pPropulsionThrusters.Size()) {
+//		for (unsigned int i = 0; i &lt; size; i++) {
+//			m_pPropulsionThrusters.push_back(pPropulsionThrusters[i]);
+//		}
+//	}
+
+	// If the computer core found and propulsion thruster size then m_bInitialized;
+	//if (!m_pComputerCore &amp;&amp; !pPropulsionThrusters.Size()) {
+	if (!m_pComputerCore) {
+		// Set initialized to false
+		m_bInitialized = false;
+	} else {
+		m_bInitialized = true;
+	}
+}
+
+void AutomatedVehicleComponent::SetState(bool state) {
+	if (m_pComputerCore) {
+		m_pComputerCore-&gt;SetState(state);
+	}
+}
+
+void AutomatedVehicleComponent::InitializeAllDelegates() {
+	// Initialize
+	//Initialize();
+
+	// DEBUG LOG
+	//ALPHAENGINE_LOGINFO("Vehicle initialize delegates");
+
+	//SubscribeToEvent(E_NODECOLLISION, URHO3D_HANDLER(AutomatedVehicle, HandleCollisionBoxDelegate));
+}
+
+void AutomatedVehicleComponent::HandleCollisionBoxDelegate(StringHash eventType,
+		VariantMap&amp; eventData) {
+
+	// Get Data
+	m_OtherNode =
+			static_cast&lt;Node *&gt;(eventData[RIGIDBODY_COLLISIONBOX::P_OTHERNODE].GetPtr());
+
+	//ALPHAENGINE_LOGINFO(node-&gt;GetName());
+
+	// Check if box hit gravity
+	if (m_OtherNode-&gt;GetName().Contains("BoxGravity")) {
+		ALPHAENGINE_LOGINFO("Ship hit box gravity");
+	}
+}
+
+// Apply Linear Velocity
+void AutomatedVehicleComponent::ApplyLinearVelocity(Vector3 linearVelocity) {
+}
+
+// Apply Angular Velocity
+void AutomatedVehicleComponent::ApplyAngularVelocity(Vector3 angularVelocity) {
+}
+
+// Apply Impulse
+void AutomatedVehicleComponent::ApplyImpulse(Vector3 impulse) {
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="4166">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>t’s most likely you’re calling GetComponent&lt;AutomatedVehicleComponent&gt;() before you created that component.</p>
+<p>You may need to use DelayedStart():</p>
+</blockquote>
+</aside>
+<p>I’ll look. I’ll check but I should at least get some message “Post Update Failed. No Automated Vehicle” in the console log info repeatedly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>After taking a break. It was working as coded. I changed temporarily the intended way I would apply impulse. All good now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="7" data-topic="4166">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1b365d9eb90aa741f9b63e422b1d2788.png" width="20"/> vivienneanthony:</div>
+<blockquote>
+<p>t’s most likely you’re calling GetComponent&lt;AutomatedVehicleComponent&gt;() before you created that component.</p>
+<p>You may need to use DelayedStart():</p>
+</blockquote>
+</aside>
+<p>This is for anyone but I found this code.  It might be useful in a way just figuring the Urho3D translation.<br/>
+I code I revised works some ignoring the whole cardinal system setup temporary. I am just setting longitude, latitude, and vertical movement. I’m using a similiar method like Star Citizen.</p>
+<p>The key question will the code on the link help stabilize rotation in a scene that has gravity. Additionally,</p>
+<pre><code class="lang-auto"> newAngularVelocity = angularVelocity.PerpProjectOnto(jetAngularImpulse);</code></pre>
+<p>I’m not sure of the equivalent. I think the link has a clue then afterward I could possible set the rotation to be Vector3::Identity * the Y axis angle</p>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="" src="../../../images2/10e6105ac9bb55e61b5a5d1498ffbaca.ico" width=""/>
+<a href="http://twistedoakstudios.com/blog/Post8623_angular-velocity-is-simple" rel="nofollow noopener" target="_blank">twistedoakstudios.com</a>
+</header>
+<article class="onebox-body">
+<div class="aspect-image" style="--aspect-ratio:690/418;"><img class="thumbnail" src="../../../images2/2610137775949b27ad7b8638d7fae62d.png"/></div>
+<h3><a href="http://twistedoakstudios.com/blog/Post8623_angular-velocity-is-simple" rel="nofollow noopener" target="_blank">Twisted Oak</a></h3>
+<p>As a lean co-operative team of seasoned developers, Twisted Oak is able to offer efficient, flexible remote and on-the-floor development and consulting without any middle-man or excessive administrivia.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>My current code is</p>
+<pre><code class="lang-auto">// All Updates
+void ComputerCoreComponent::Update(float timeStep) {
+	// If command buffer
+	if (m_CommandBuffer.size()) {
+		ComputerCoreCommand currentCommand = m_CommandBuffer.front();
+
+		// Output command
+		if (!currentCommand.command.Empty()) {
+			//	ALPHAENGINE_LOGINFO(currentCommand.command);
+		}
+
+		// Ship Controls
+		if (currentCommand.command.Contains("Pitch+") == true) {
+			m_MovementPitch += .10;
+			if (m_MovementPitch &gt; 1.0f)
+				m_MovementPitch = 1.0f;
+		}
+		if (currentCommand.command.Contains("Pitch-") == true) {
+			m_MovementPitch -= .10;
+			if (m_MovementPitch &lt; -1.0f)
+				m_MovementPitch = -1.0f;
+		}
+		if (currentCommand.command.Contains("Longitude+") == true) {
+			m_MovementLongitude += .10;
+			if (m_MovementLongitude &gt; 1.0f)
+				m_MovementLongitude = 1.0f;
+		}
+		if (currentCommand.command.Contains("Longitude-") == true) {
+			m_MovementLongitude -= .10;
+			if (m_MovementLongitude &lt; -1.0f)
+				m_MovementLongitude = -1.0f;
+		}
+		if (currentCommand.command.Contains("Vertical+") == true) {
+			m_MovementVertical += .10;
+			if (m_MovementVertical &gt; 1.0f)
+				m_MovementVertical = 1.0f;
+		}
+		if (currentCommand.command.Contains("Vertical-") == true) {
+			m_MovementVertical -= .10;
+			if (m_MovementVertical &lt; -1.0f)
+				m_MovementVertical = -1.0f;
+		}
+
+		if (currentCommand.command.Contains("Latitude+") == true) {
+			m_MovementLatitude += .10;
+			if (m_MovementLatitude &gt; 1.0f)
+				m_MovementLatitude = 1.0f;
+		}
+		if (currentCommand.command.Contains("Latitude-") == true) {
+			m_MovementLatitude -= .10;
+			if (m_MovementLatitude &lt; -1.0f)
+				m_MovementLatitude = -1.0f;
+		}
+		if (currentCommand.command.Contains("Longitude+") == true) {
+			m_MovementLongitude += .10;
+			if (m_MovementLongitude &gt; 1.0f)
+				m_MovementLongitude = 1.0f;
+		}
+		if (currentCommand.command.Contains("Longitude-") == true) {
+			m_MovementLongitude -= .10;
+			if (m_MovementLongitude &lt; -1.0f)
+				m_MovementLongitude = -1.0f;
+		}
+		if (currentCommand.command.Contains("Vertical+") == true) {
+			m_MovementVertical += .10;
+			if (m_MovementVertical &gt; 1.0f)
+				m_MovementVertical = 1.0f;
+		}
+		if (currentCommand.command.Contains("Vertical-") == true) {
+			m_MovementVertical -= .10;
+			if (m_MovementVertical &lt; -1.0f)
+				m_MovementVertical = -1.0f;
+		}
+
+		// Clear Command Buffer
+		m_CommandBuffer.clear();
+	}
+
+	// Convert Movement to Velocity
+	ConvertMovementToVelocity();
+}
+
+// Set State of modules
+void ComputerCoreComponent::SetState(bool state) {
+	// If navigation module
+	if (m_pNavigationModule) {
+		m_pNavigationModule-&gt;SetState(state);
+	}
+}
+void ComputerCoreComponent::HandlePostUpdate(StringHash eventType,
+		VariantMap&amp; eventData) {
+	if (m_pAutomatedVehicle) {
+		if (m_LinearVelocity != Vector3::ZERO) {
+			// Apply Linear Velocity
+			m_pAutomatedVehicle-&gt;ApplyImpulse(m_LinearVelocity);
+
+			// Reset all forces
+			m_MovementLatitude = m_MovementLongitude = m_MovementVertical = 0.0f;
+		}
+	} else {
+		ALPHAENGINE_LOGINFO("Post Update Failed. No Automated Vehicle");
+	}
+}
+
+// Convert Movement to Velocity
+void ComputerCoreComponent::ConvertMovementToVelocity() {
+	// Create a zero vector
+	Vector3 LinearVelocity = Vector3::ZERO;
+
+	// Calculate impulse amount by Latitiude, Vertical, and Longititude
+	LinearVelocity = Vector3(m_MovementLatitude * 2, m_MovementVertical * 2,
+			m_MovementLongitude * 2);
+
+	// Set Linear Velocity Impulse
+	m_LinearVelocity = LinearVelocity;
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Sorry. I know its a lot of question. I’m reading docs and pdf’s and it’s semi gibberish. I visually can see what to do but seeing a bunch formulas ins’t help.</p>
+<p>The non-gibberish method. I would think is get the current rotation and velocity. Multiply the rotation by velocity and inverse it.  Setting the angular velocity. Then next frame or after simply set the angular velocity to Identity or Identity times the Y axis rotation.  If gravity exist.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Undefined behaviour during Context::~Context()</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Undefined behaviour during Context::~Context()</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>The majority of times when I close my Urho3D application, it ends up aborting here:</p>
+<p><code>void RefCounted::ReleaseRef()
+{
+    assert(refCount_-&gt;refs_ &gt; 0); // this assertion fails
+    (refCount_-&gt;refs_)--;
+    if (!refCount_-&gt;refs_)
+        delete this;
+}</code></p>
+<p>Very, very rarely, the application actually exits normally. Other times it will also <span class="bbcode-b">delete</span> twice, corrupting memory. The callstack always leads to Context::~Context().</p>
+<p>What’s causing this? Due to the random nature of this bug I assume a RefCounted object is being shared between multiple threads, causing a race condition. The code for reproducing this issue is my project, which can be found here: <a data-bbcode="true" href="https://github.com/thecomet93/hound" rel="nofollow noopener">https://github.com/thecomet93/hound</a></p>
+<p>Some notable things that (may) be related?</p>
+<p>I use SharedPtr where possible:</p>
+<p><code>	Urho3D::SharedPtr&lt;Urho3D::Scene&gt; scene_;
+	Urho3D::SharedPtr&lt;Urho3D::Node&gt; playerNode_;
+	Urho3D::SharedPtr&lt;Urho3D::Node&gt; cameraNode_;
+	Urho3D::SharedPtr&lt;PlayerController&gt; playerController_;
+	Urho3D::SharedPtr&lt;CameraController&gt; cameraController_;</code></p>
+<p>I Clear() my shared pointers in Stop():</p>
+<p>[code]void Hound::Stop()<br/>
+{<br/>
+cameraController_.Reset();<br/>
+cameraNode_.Reset();</p>
+<pre><code>playerController_.Reset();
+playerNode_.Reset();
+
+scene_.Reset();
+</code></pre>
+<p>}[/code]</p>
+<p>I don’t think this is wrong though. If I change those 5 SharedPtr’s above to be raw pointers, it still crashes.</p>
+<p>[EDIT] Oh yeah, info.</p>
+<p>[code]Urho3D version is commit hash 213be51f920723a83b89b732bbbf9e01237d392e (current master).</p>
+<p>$ gcc --version<br/>
+gcc (Gentoo 4.9.3 p1.2, pie-0.6.3) 4.9.3</p>
+<p>$ cmake --version<br/>
+cmake version 3.0.2</p>
+<p>$ uname -a<br/>
+Linux twilight 4.1.15-gentoo-r1 <span class="hashtag">#1</span> SMP Tue Jan 26 22:45:39 CET 2016 x86_64 AMD Phenom™ II X6 1090T Processor AuthenticAMD GNU/Linux</p>
+<p>$ cmake -L<br/>
+CMAKE_BUILD_TYPE:STRING=Debug<br/>
+CMAKE_INSTALL_PREFIX:PATH=/usr/urho3d<br/>
+URHO3D_64BIT:BOOL=ON<br/>
+URHO3D_ANGELSCRIPT:BOOL=ON<br/>
+URHO3D_DATABASE_ODBC:BOOL=OFF<br/>
+URHO3D_DATABASE_SQLITE:BOOL=OFF<br/>
+URHO3D_DEPLOYMENT_TARGET:STRING=native<br/>
+URHO3D_DOCS:BOOL=OFF<br/>
+URHO3D_DOCS_QUIET:BOOL=OFF<br/>
+URHO3D_EXTRAS:BOOL=OFF<br/>
+URHO3D_FILEWATCHER:BOOL=ON<br/>
+URHO3D_LIB_TYPE:STRING=STATIC<br/>
+URHO3D_LOGGING:BOOL=ON<br/>
+URHO3D_LUA:BOOL=ON<br/>
+URHO3D_LUAJIT:BOOL=OFF<br/>
+URHO3D_LUA_RAW_SCRIPT_LOADER:BOOL=ON<br/>
+URHO3D_NAVIGATION:BOOL=ON<br/>
+URHO3D_NETWORK:BOOL=ON<br/>
+URHO3D_PACKAGING:BOOL=OFF<br/>
+URHO3D_PCH:BOOL=ON<br/>
+URHO3D_PHYSICS:BOOL=ON<br/>
+URHO3D_PROFILING:BOOL=ON<br/>
+URHO3D_SAFE_LUA:BOOL=ON<br/>
+URHO3D_SAMPLES:BOOL=OFF<br/>
+URHO3D_SSE:BOOL=ON<br/>
+URHO3D_TESTING:BOOL=OFF<br/>
+URHO3D_THREADING:BOOL=ON<br/>
+URHO3D_TOOLS:BOOL=OFF<br/>
+URHO3D_URHO2D:BOOL=ON[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Turns out this issue is directly related with this: <a data-bbcode="true" href="http://discourse.urho3d.io/t/solved-loading-resource-after-releaseref-segfaults/1777/1">http://discourse.urho3d.io/t/solved-loading-resource-after-releaseref-segfaults/1777/1</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

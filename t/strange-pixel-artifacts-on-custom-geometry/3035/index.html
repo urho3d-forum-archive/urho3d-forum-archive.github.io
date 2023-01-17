@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Strange pixel artifacts on custom geometry</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Strange pixel artifacts on custom geometry</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">napard</div>
+          <div class="post_content">
+<p>Hi everyone,</p>
+<p>I’m working on custom geometry generation for a very minimal voxel engine (not true voxels technically speaking). On rendering stage I note some strange little holes like missing pixels on quad borders. They randomly appear and disappear when moving around. Has anyone experimented this issue? All vertex positions seem to be correct for me <img alt=":confused:" class="emoji" src="/images/emoji/twitter/confused.png?v=9" title=":confused:"/></p>
+<p><img height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/e38442a603603f32bc49e7393e57c482661f3b29.png" width="598"/></p>
+<p>I’d like to be sure I’m not missing something when setting up vertex positions…<br/>
+Thanks in advance…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>My wild guess is bounding boxes…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">napard</div>
+          <div class="post_content">
+<p>It’s not bounding boxes but…</p>
+<p>Now I’m afraid it has to do with some identical polygons occupying the exact same place, maybe some mismatch at depth buffer level. The strange thing is, even if there are two polygons at the same place, they are oriented in reverse to have always one of them culled, but I think that’s not enough and it produces weird rendering results on the corners where two or more quads touch themselves, I would need someone to please confirm this, I have not much experience with 3D graphics or OpenGL in general… Some behavior may seem odd to me but it’s in fact the expected default.</p>
+<p>I’ll do some more testing on this…</p>
+<p>And sorry for my English if there is any mistake, it’s not my native language…<br/>
+Cheers!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Depending on how you generate the mesh it could be an artifact related to T-Junctions in the edges of your mesh. See <a href="https://0fps.net/2012/07/07/meshing-minecraft-part-2/" rel="nofollow noopener">https://0fps.net/2012/07/07/meshing-minecraft-part-2/</a> for a brief discussion (he concludes it’s not a problem, except possibly on some graphics cards, so this may not be the cause of your artifacts).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Looks like T-junctions. The cause of it is usually when you have two triangles with shared edge, but not shared vertices, and because of floating point precision error the edges don’t perfectly align and you get those epsilon gaps which causes these pixels (which are what you got from behind).</p>
+<p>A solution is to detect those shared edges and split them to make sure all vertices are shared.</p>
+<p>imagine both edges are overlapping:<br/>
+v1._____.v2</p>
+<p>v3.__________.v4</p>
+<p>Edges are on the same line, but v2 and v4 aren’t at the same position, which causes precision error.</p>
+<p>to fix the T-junction:<br/>
+v1._____.v2</p>
+<p>v3.<strong><strong><em>.</em></strong></strong>.v4<br/>
+-----------v5</p>
+<p>Added v5, which as the same position as v2, so the edges 1,2 and 3,5 use exactly the same vertex positions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">napard</div>
+          <div class="post_content">
+<aside class="quote" data-post="5" data-topic="3035">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>Looks like T-junctions</p>
+</blockquote>
+</aside>
+<p>Yes, 90% sure that’s the case, thanks for the info, and I will have to deal with it as part of my poorly implemented but working greedy meshing method. Having tested on a cheapy integrated video board at work this problem is very visible, but there should be more factors related to this I think…</p>
+<p>On a sidenote, if you look carefully, you can see the same issue on <a href="http://mikolalysenko.github.io/MinecraftMeshes2/" rel="nofollow noopener">http://mikolalysenko.github.io/MinecraftMeshes2/</a> using “Sphere” as data source, but in his T-Junction test there isn’t any cracks because the mesh in the test is quite simple compared to the sphere, so maybe it is not a good test <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<blockquote>
+<p>On a sidenote, if you look carefully, you can see the same issue on <a href="http://mikolalysenko.github.io/MinecraftMeshes2/7" rel="nofollow noopener">http://mikolalysenko.github.io/MinecraftMeshes2/7</a> using “Sphere” as data source, but in his T-Junction test there isn’t any cracks because the mesh in the test is quite simple compared to the sphere, so maybe it is not a good test <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+</blockquote>
+<p>Probably just WebGL being WebGL, unless you’re referring to the Z-fighting when edges are rendered.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Not sure if this is only in custom geometry, I also noticed this on most PBR demos here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="8" data-topic="3035">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/a206ef460b2be73995958e48edfb5c6d.png" width="20"/> rasteron:</div>
+<blockquote>
+<p>Not sure if this is only in custom geometry, I also noticed this on most PBR demos here.</p>
+</blockquote>
+</aside>
+<p>sRGB and RGB mishaps perhaps? Hopefully … those minor goofs will cause mishaps with abrasive artifacts both high or low.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="9" data-topic="3035" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Not sure if this is only in custom geometry, I also noticed this on most PBR demos here.</p>
+<p>sRGB and RGB mishaps perhaps? Hopefully … those minor goofs will cause mishaps with abrasive artifacts both high or low.</p>
+</blockquote>
+</aside>
+<p>I don’t know, but I already posted an issue and sample hilighted it <a href="https://cloud.githubusercontent.com/assets/3676827/25325271/4c264836-28fd-11e7-9457-cb64220efa6a.png" rel="noopener nofollow ugc">here</a>. There’s a few more in there that I just missed out if you examine closely.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Thank you. The rects around artifact areas is helpful.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>sure thing JSands, just trying to help out and see these bugs as I see it, particularly if it is included in the demos or latest commits.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

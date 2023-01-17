@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[LUA / Build] Error linking ToLuaUtils in my Lua bindings</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[LUA / Build] Error linking ToLuaUtils in my Lua bindings</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>I’m trying to learn how to bind C++ code to the Lua API.</p>
+<p>What I’ve managed so far is registering simple functions and components, but so far I had never registered a function that received a Vector parameter.</p>
+<p>It appears that Urho uses some binding code in &lt;Urho3D/LuaScript/ToLuaUtils.h&gt;, the relevant functions for me right now are ToluaIsVector and ToluaToVector. So I <span class="hashtag">#included</span> the file (with the Urho full path, like I just wrote) in my pkg file.</p>
+<p>The binding code is generated with the proper include and the code correctly sees the functions and compiles. But it’s failing to link. One of the errors is:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>The other errors are very similar.</p>
+<p>I’m correctly linking to Urho3D as a library so why are those symbols not included? Maybe that file doesn’t get built in the library version?</p>
+<p><span class="bbcode-b">EDIT:</span> I’m pretty sure it’s not that as I just looked through libUrho3D.a (with grep) and ToluaIsVector is in there.</p>
+<p>Would it be better to just maintain a copy of ToLuaUtils in my Source folder and just build it as if it was part of my game?</p>
+<p>Also, I was wondering, why are relative include paths being used inside Urho files? I’m talking for exaple about this file, ToLuaUtils.h:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>Ok I’ve figured it out. Apparently the implementation in ToluaUtils is only provided for certain types of Vectors like Vector or PODVector despite being declared as a completely generic function and thus, it only fails at the linking phase.</p>
+<p>Isn’t there any way I can get it to accept Vector&lt;WeakPtr&gt;?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Somewhat of a hack, but it should be possible to define the whole Lua binding function in the pkg file, using the <span class="hashtag">#define</span> mechanism to disable the generated binding. You would first take the generated function as a base, and modify it to push your custom vector without going through ToLuaUtils.</p>
+<p>Take a look at for example ResourceCache.pkg:</p>
+<pre><code class="lang-auto">${
+#define TOLUA_DISABLE_tolua_ResourceLuaAPI_GetCache00
+static int tolua_ResourceLuaAPI_GetCache00(lua_State* tolua_S)
+{
+    return ToluaGetSubsystem&lt;ResourceCache&gt;(tolua_S);
+}</code></pre>
+<p>Another possibility (not 100% sure it will work) is to define the necessary template implementation of the ToLuaUtils pushvector for your specific vector specialization in your code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>Thank you,</p>
+<p>As a sollution I’d rather implement the needed template functions instead of manually defining each function with vector parameters. Right now I’m a bit confused on what ToluaIsVector and ToluaToVector do. From the context (an when do they get called) I assumed they were to convert a C++ Vector to an indexed lua table. But from what I can read in the implementation, my assumptions don’t make sense. So basically, what’s the use of those functions? And more specifically, what do those parameter names mean (lo, type, def, err)? Is that part of the lua API?</p>
+<p>For now I’ve made a workaround by having the function take a Vector (which works) containing the node ids that contain the components the function should received.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

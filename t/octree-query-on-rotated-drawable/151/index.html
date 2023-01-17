@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Octree query on rotated drawable</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Octree query on rotated drawable</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>When performing a BoundingBox octree query in lua using GetDrawables, drawable’s rotation is not taken into account, which can give inaccurate results depending on the shape of the drawable.</p>
+<p>Is there a turnaround for this issue?</p>
+<p>Example:</p>
+<p>[spoiler][code]<br/>
+require “LuaScripts/Utilities/Sample”</p>
+<p>function Start()<br/>
+SampleStart()<br/>
+CreateScene()<br/>
+SubscribeToEvent(“PostRenderUpdate”, “HandlePostRenderUpdate”)<br/>
+end</p>
+<p>function CreateScene()<br/>
+scene_ = Scene()<br/>
+scene_:CreateComponent(“Octree”)<br/>
+scene_:CreateComponent(“DebugRenderer”)</p>
+<pre><code>-- Box1
+box1 = scene_:CreateChild("Box1")
+box1.position = Vector3(0, 0, 3)
+box1.rotation = Quaternion(0, 45, 0)
+local boxObject = box1:CreateComponent("StaticModel")
+boxObject.model = cache:GetResource("Model", "Models/Box.mdl")
+boxObject.material = cache:GetResource("Material", "Materials/StoneEnvMapSmall.xml")
+
+-- Box2
+box2 = scene_:CreateChild("Box2")
+box2.position = Vector3(0.9, 0, 1.9)
+local boxObject = box2:CreateComponent("StaticModel")
+boxObject.model = cache:GetResource("Model", "Models/Box.mdl")
+boxObject.material = cache:GetResource("Material", "Materials/StoneEnvMapSmall.xml")
+
+-- Camera
+cameraNode = Node()
+cameraNode.position = Vector3(0, 4, 0)
+cameraNode:LookAt(scene_:GetChild("Box1", true))
+camera = cameraNode:CreateComponent("Camera")
+camera.farClip = 300
+renderer:SetViewport(0, Viewport:new(scene_, camera))
+
+    -- BoundingBox Octree query
+local bbox = box2:GetComponent("StaticModel").worldBoundingBox
+local result = scene_:GetComponent("Octree"):GetDrawables(bbox, DRAWABLE_GEOMETRY)
+for i =1,  table.maxn(result) do print(result[i].node.name) end
+</code></pre>
+<p>end</p>
+<p>function HandlePostRenderUpdate(eventType, eventData)<br/>
+scene_:GetComponent(“DebugRenderer”):AddBoundingBox(box1:GetComponent(“StaticModel”).worldBoundingBox, Color(1, 1, 1))<br/>
+end<br/>
+[/code][/spoiler]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>All octree queries except ray tests are against the drawables’ world axis aligned bounding boxes, which will only grow (leading to possible false positives) when they rotate.</p>
+<p>You can do your own filtering of the results afterward, however note the BoundingBox class doesn’t support oriented bounding box tests. But you could manually construct a tight bounding sphere for the object you’re interested in (there’s no automatic function for that, it depends on the object whether that will even lead to good results) and test if the sphere is inside the query area.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks for detailed explanations, now it makes sense why ray tests are so accurate compared to octree ones.<br/>
+Will continue to use custom spheres, and physics if needs be.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

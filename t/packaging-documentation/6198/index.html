@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Packaging documentation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Packaging documentation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>Hello.</p>
+<p>I am looking into packaging but I find that documentation for it is rather scarce.</p>
+<p>If I create a package out of say the Data folder and then bind it, will that create a a true read only filesystem such that I can iterate the contents of the directory using ScanDir?</p>
+<p>I use file structure to automatically bind scripts and other assets for the purposes of modding and ease of use, so you can do things like introduce a new entity by simply creating a appropriately named file and folder.  This makes modding really easy but I am not sure if this would be compatible with package structures.</p>
+<p>I haven’t tried yet to implement it so I am asking just in case someone else has experience with it.</p>
+<p>tl;dr : How do packages work and what are their limitations?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6198" data-username="Avagrande">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4b5ee9a397199168aa0012943d28b8ef.png" width="20"/> Avagrande:</div>
+<blockquote>
+<p>tl;dr : How do packages work and what are their limitations?</p>
+</blockquote>
+</aside>
+<p>Packages don’t interact with Filesystem in any way.<br/>
+Package support and abstraction is implemented at the level of ResourceCache.<br/>
+I’m not aware of any mechanism that allows to iterate resources without knowing their names thru ResourceCache.<br/>
+Although, there’s no physical limitation for implementing it… at the level of ResourceCache, of course.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>Thanks.<br/>
+I guess I will have to implement my own package format.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<p>Without ever using it, but you might want a look to this:<br/>
+</p><aside class="onebox whitelistedgeneric">
+<header class="source">
+<a href="https://icculus.org/physfs/" rel="nofollow noopener" target="_blank">icculus.org</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail" height="" src="" width=""/>
+<h3><a href="https://icculus.org/physfs/" rel="nofollow noopener" target="_blank">PhysicsFS</a></h3>
+<p>A portable, flexible virtual file system API</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>You can iterate trough the package entries with the following code:</p>
+<pre><code class="lang-auto">auto packageFiles = GetSubsystem&lt;ResourceCache&gt;()-&gt;GetPackageFiles();
+for (auto it = packageFiles.Begin(); it != packageFiles.End(); ++it) {
+    auto files = (*it)-&gt;GetEntryNames();
+    for (auto it2 = files.Begin(); it2 != files.End(); ++it2) {
+        if ((*it2).EndsWith(".as")) {
+           //This is an AngelScript file in a package
+           // (*it2) is a string with the full file path like Scripts/Sample.as
+        }
+    }
+}
+</code></pre>
+<p>But you can’t add new files to an existing package as far as I know.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>Oh thats nice! from the looks of it, its possible to create a index from packages which means I could then integrate it with the filesystem not just the cache.</p>
+<p>My goal is to make a package that mimics filesystem without Write or rather when you write it writes on disk in the same location.<br/>
+so if I ScanDir in “Scripts/” and I have “Scripts/OnDisk.lua” in the hdd and then “Scripts/InPkg.lua” in the PKG, the ScanDir function should return both files.</p>
+<p>However if I write to “Scripts/InPkg.lua” that will create a file on the actual filesystem ( hdd ) and not the pkg, but when I then run ScanDir I will still have two files and the one in PKG will be ignored.</p>
+<p>The filesystem will prefer the InPkg.lua from the filesystem instead of the pkg.<br/>
+Although I will probably want to give some control to the priority list such that I can prefer one package over the other or in some instances prefer pkg over filesystem.</p>
+<p>The benefit of this would be that players can exchange mods in .pkg format and easily remove or add them without the need to unzip anything and that my filesystem controls remain the same. Even if I try to write to a file thats in the pkg it will just write it to the hdd and therefore “overwrite” it as far as priority is concerned.  Therefore making somewhat of a virtual extension to the filesystem.</p>
+<p>I previously worked on Love2D  ( which uses PhysicsFS ) before moving to Urho3D, One key issue with PhysicsFS is that it applies strict limitations making something like a file browser next to impossible to do. If you are making a editor for example or something that needs to access files on disk it will be a pain since you might need to write all the operations yourself for each OS.</p>
+<p>I think the way the package system is now its possible to create the behaviour I need, so I will have a ago.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Editor] LUA Script recompile at runtime</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Editor] LUA Script recompile at runtime</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>Hi all!</p>
+<p>I’m starting a new project with Urho3D, and after having developed a taste for LUA I thought It’d be a good idea to adopt LUA as the main scripting language of the project. But when I started making some tests I realised  there’s no reload feature for LUA scripts, so I have to restart the whole editor for script changes to take effect.</p>
+<p>As ChrisMAN_mk2 pointed out on the IRC channel, there’s really no such feature in the Editor’s code, and I was just wondering why. Is there any kind of added difficulty in recompiling Lua scripts at runtime? Or is the feature just not implemented yet?</p>
+<p>For now I’m gonna take a look myself in the editor code and see if I can add this. If anyone wants to point out the relevant code sections to look at, or wants to provide some help it will be more than welcome.  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>Thank you!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>Hmmm maybe you could create a small lua program that detects if a loaded lua file has changed and then reload it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I’m not the Lua scripting system maintainer so I don’t precisely know how it works.</p>
+<p>However, the Lua script is just a “blob” of functions / tables / objects in the Lua VM’s memory. If I understand right when you reload a script, you would just re-execute it. What happens to the already created objects? Likely they stay. (I see the LuaFile class has a hasExecuted_ member variable to prevent multiple execution, probably because of exactly this.)</p>
+<p>The AngelScript system is more organized, each script file is a module, and the module is destroyed &amp; recreated when the script is reloaded. The in-scene script objects (held by ScriptInstance C++ objects) created from that module are also destroyed, then recreated.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]I’m not the Lua scripting system maintainer so I don’t precisely know how it works.</p>
+<p>However, the Lua script is just a “blob” of functions / tables / objects in the Lua VM’s memory. If I understand right when you reload a script, you would just re-execute it. What happens to the already created objects? Likely they stay. (I see the LuaFile class has a hasExecuted_ member variable to prevent multiple execution, probably because of exactly this.)</p>
+<p>The AngelScript system is more organized, each script file is a module, and the module is destroyed &amp; recreated when the script is reloaded. The in-scene script objects (held by ScriptInstance C++ objects) created from that module are also destroyed, then recreated.[/quote]</p>
+<p>So basically the problem is that there’s no easy way to delete everything a lua script might create without having to track it all object by object, right?</p>
+<p>Thanks for the feedback, I’ll have a look!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>Hmmm the problem of components is more complicated…  I would create a wrapper function for every function that is called for the component (or maybe I would do some metatable magic).  That wrapper function then calls the real function which is stored in a table somewhere.  Then there is code that will automatically reload the component functions.  This would be a little tricky to write maybe I will try to do that when I have more time…  <img alt=":unamused:" class="emoji" src="../../../images2/21382c100a852239caa7667da5bafe68.png" title=":unamused:"/>  Furthermore, this would not be good to keep in the released version because it will slow down the program a lot due to two functions being called rather than just one for components. :\</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>I think as long as all the data alocated by the script is released, re-running the script will just reload the component successfully. The defined functions of a ScriptObject are just attributes in a table AFAIK.</p>
+<p>Also, as long as Urho is not disabling garbage collection, setting the global symbols the script allocated to null will make the garbage collector delete them. After that, defining those symbols again will achieve reloading.</p>
+<p>It’s certainly not an efficient approach but it allows for quick prototyping in the editor.</p>
+<p>Any ideas on how could I track the allocated global symbols of a lua script without parsing the source? I could check for new additions in the global symbols table, but maybe there’s a better way to do it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>[quote=“setzer22”]I think as long as all the data alocated by the script is released, re-running the script will just reload the component successfully. The defined functions of a ScriptObject are just attributes in a table AFAIK.</p>
+<p>Also, as long as Urho is not disabling garbage collection, setting the global symbols the script allocated to null will make the garbage collector delete them. After that, defining those symbols again will achieve reloading.</p>
+<p>It’s certainly not an efficient approach but it allows for quick prototyping in the editor.</p>
+<p>Any ideas on how could I track the allocated global symbols of a lua script without parsing the source? I could check for new additions in the global symbols table, but maybe there’s a better way to do it.[/quote]</p>
+<p>Unfortunately, that cannot work with components.  This is because functions are directly attached to the lua component.  Thus, the old functions (which are stored completely independent of the file from which it was generated) are not garbage collected because lua sees that they are being kept alive by the lua component.</p>
+<p>But if the lua functions are not stored per component and instead as a template for the component it should be possible (but the urho3d source might need to be modified…</p>
+<p>I will look into how urho3d implements lua and see if it is possible.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>[quote=“GoogleBot42”]<br/>
+Unfortunately, that cannot work with components.  This is because functions are directly attached to the lua component.  Thus, the old functions (which are stored completely independent of the file from which it was generated) are not garbage collected because lua sees that they are being kept alive by the lua component.</p>
+<p>But if the lua functions are not stored per component and instead as a template for the component it should be possible (but the urho3d source might need to be modified…</p>
+<p>I will look into how urho3d implements lua and see if it is possible.[/quote]</p>
+<p>Lua ScriptObjects usually start like:</p>
+<pre><code class="lang-auto">Rotator = ScriptObject()
+
+function Rotator:Start 
+   ...
+end</code></pre>
+<p>From that code I just assumed Rotator was a global table, wouldn’t re-execute the script re-declare the table and its methods? I’m a bit lost with the inner implementation right now.</p>
+<p>Also, when the symbol for Rotator points somewhere else, won’t the garbage collector free that memory?</p>
+<p>I don’t get why functions in a table would persist, but I’m not very familiar with Lua’s inner workings so maybe I’m missing something here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>Rotator is a reference to a lua table with functions that is created when the lua file is loaded and run.  Urho3D will keep a reference to the that very same table internally.  If the file is loaded again, the table that Urho3D keeps internally doesn’t change.</p>
+<p>Think about it like this.  I create a urho3d component in lua.  This is done by using a custom function that urho3d passes to lua scripts for creating components.  Every time “ScriptObject()” is called in lua the result is guaranteed to be a new empty component.  Lua allocates the table that holds the functions and then lua passes a pointer to urho3d that represents the table (I think it is a bit different than a pointer but here we can think of it as just a pointer).  Then the lua script sets the lua functions inside that table.  And the app is run.</p>
+<p>Then the script is reloaded… “ScriptObject()” is called again.  But a different table returned not the original.  This is because it is impossible for urho3d to know that the component already exists (without extra parameters added to ScriptObject() ).  This is much because lua doesn’t have builtin classes.  So what ends up happening is that the initial “pointer” to the table help by urho3d is not deleted and urho3d doesn’t know that the programmer wants to reload the script.</p>
+<p>But don’t worry too much <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/>  A wrapper should easily be able to be written that just wraps around "“ScriptObject()” and adds a parameter to uniquely identify a component.  That function would remember every table for every class and overwrite every function automatically.  (But this way might not work depending on if urho3d access the lua functions directly or if it gets them indirectly from the table.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p><span class="mention">@Sinoid</span></p>
+<p>So basically, there’s no big issue preventing Lua reloading at runtime?</p>
+<p>When I checked the source I could see the LuaScriptInstance implementing no reload events (as AngelScript does), and as <span class="mention">@cadaver</span> pointed out, the reload is avoided on purpose in the code. All that make it seem like in Lua it’s not as easy to reload the script.</p>
+<p>Anyway, I’m curious. Is it only me that finds this such an essential thing to have? How do you guys work without script reloading?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Set viewport as texture unit</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Set viewport as texture unit</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3849_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Askhento</div>
+          <div class="post_content">
+<p>Is it possible to use viewport as texture unit in material?</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/myTechinque" quality="0" loddistance="0" /&gt;
+    &lt;texture unit="diffuse" name="viewport" /&gt;
+&lt;/material&gt;
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>I guess you could render viewport to a separate texture in the renderpath, and reference that texture in here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3849_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Askhento</div>
+          <div class="post_content">
+<p>Do you have an example ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I believe we have found quite elegant solution for this if you <em>really</em> want to reference Render Target texture in Material w/o any material-related code.</p>
+<ol>
+<li>Create empty placeholder texture in resource folder</li>
+<li>Now you can load it and keep it in ResourceCache with built-in tools</li>
+<li>Use it in Materials, etc</li>
+<li>Instead of creating new texture for Viewport, load this texture and call <code>SetSize</code> with <code>TEXTURE_RENDERTARGET</code> to make it render target.</li>
+</ol>
+<p>This way you can have 100% dynamic resource natively accessible by components and other resources.</p>
+<p><code>AddManualResource</code> will work too, but you will have to synchronize access in order not to access resource before its creation.</p>
+<p>However, you <strong>must</strong> have explicit render target creation for this to work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3849_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Askhento</div>
+          <div class="post_content">
+<p>I know that I can create Texture2d class like this :</p>
+<pre><code class="lang-auto">myTexture  = Texture2D();
+myTexture(int(size.x), int(size.y), GetRGBAFormat(), TEXTURE_RENDERTARGET);
+myTexture.name = "myTexture";
+cache.AddManualResource(myTexture);
+</code></pre>
+<p>This way I can use it like :</p>
+<pre><code class="lang-auto">&lt;texture unit="diffuse" name="myTexture" /&gt;
+</code></pre>
+<p>So your method seems to be similar. But I am confused.</p>
+<ol>
+<li>I need to add texture file with any data in it? For example “Textures/empty.png”?</li>
+<li>Should I use GetResource() ?</li>
+<li>How do I reference this texture in material?</li>
+<li>Do I need to add commands (with CopyFrameBuffer)  to renderPath to fill it with viewport data?</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Unfortunatelly, my solution cannot work neither for your main window viewport (but I think you don’t need it, right?), nor for internal renderpath textures (like gbuffer textures in deferred render path).</p>
+<p>However, I assume that you have some custom render target and non-main viewport (like in sample <code>10_RenderToTexture</code>). In this scenario, all you need to do is to use texture from Resource Cache instead of new texture in <a  rel="noopener nofollow ugc">this line</a></p>
+<p>In this context, answers to your questions:</p>
+<ol>
+<li>Yes, any texture file will do, just make sure it’s valid and loads</li>
+<li>Yes, you have to use <code>cache-&gt;GetResource</code>
+</li>
+<li>Like any other texture on the disk: by name (e.g. “Textures/empty.png”, although you will want more specific name)</li>
+<li>N/A, given my comments above. This trick works only for main output texture of render-to-texture viewport.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3849_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Askhento</div>
+          <div class="post_content">
+<p>Ok, I confirm that this method is working,</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Normals being calculated wrong?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Normals being calculated wrong?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>For some strange reason the way I calculate the normals on my cube spazzes the cube out. I do not know whether it’s the normal itself or I’m doing it wrong.</p>
+<p>This is what the cube looks like when I comment out the method used: <a href="http://prntscr.com/fe0plv" rel="nofollow noopener">http://prntscr.com/fe0plv</a><br/>
+Here’s what it looks like when I don’t comment it out: <a href="http://prntscr.com/fe0pv5" rel="nofollow noopener">http://prntscr.com/fe0pv5</a></p>
+<p>Here’s the Vertex Data (Min and Max are variables):</p>
+<pre><code>float vertexData[] = {
+
+	min.x_,          min.y_,          min.z_,							0.0f, 0.0f, 0.0f,
+	min.x_ + max.x_, min.y_,		  min.z_,							0.0f, 0.0f, 0.0f,
+	min.x_ + max.x_, min.y_ + max.y_, min.z_,							0.0f, 0.0f, 0.0f,
+	min.x_,          min.y_ + max.y_, min.z_,							0.0f, 0.0f, 0.0f,
+
+	min.x_,          min.y_,		  min.z_ + max.z_,					0.0f, 0.0f, 0.0f,
+	min.x_ + max.x_, min.y_,		  min.z_ + max.z_,					0.0f, 0.0f, 0.0f,
+	min.x_ + max.x_, min.y_ + max.y_, min.z_ + max.z_,					0.0f, 0.0f, 0.0f,
+	min.x_,			 min.y_ + max.y_, min.z_ + max.z_,					0.0f, 0.0f, 0.0f
+
+};
+</code></pre>
+<p>Here’s the way I calculate normals (The way in the sample glitches out too so I tried a different way, still doesn’t work):</p>
+<pre><code>for (unsigned int i = 0; i &lt; 48; i += 6) {
+
+	ur::Vector3 normal({ vertexData[i], vertexData[i + 1], vertexData[i + 2] });
+	normal.Normalize();
+
+	vertexData[(i + 3)] = normal.x_;
+	vertexData[(i + 3) + 1] = normal.y_;
+	vertexData[(i + 3) + 3] = normal.z_;
+}
+ur::SharedPtr&lt;Model&gt; model(new ur::Model(context_));
+ur::SharedPtr&lt;ur::VertexBuffer&gt; vb(new ur::VertexBuffer(context_));
+ur::SharedPtr&lt;ur::IndexBuffer&gt; ib(new ur::IndexBuffer(context_));
+ur::SharedPtr&lt;ur::Geometry&gt; geom(new ur::Geometry(context_));
+
+vb-&gt;SetShadowed(true);
+
+ur::PODVector&lt;ur::VertexElement&gt; elements;
+elements.Push(ur::VertexElement(ur::TYPE_VECTOR3, ur::SEM_POSITION));
+elements.Push(ur::VertexElement(ur::TYPE_VECTOR3, ur::SEM_NORMAL));
+</code></pre>
+<p>The rest of the code is self-explanatory but I also apply the NoTextureVCol Technique.<br/>
+There doesn’t seem to be any problem in the code that I’m aware of so I’m not sure what’s wrong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote" data-post="1" data-topic="3180">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/54c8d33abc775a0c82b1d6ae5110d223.png" width="20"/> ppsychrite:</div>
+<blockquote>
+<p>vertexData[(i + 3) + 3] = normal.z_;</p>
+</blockquote>
+</aside>
+<p>That looks suspect. Shouldn’t it be <code>vertexData[(i+3)+2] = normal.z_;</code>? Looks to me like you’re overwriting X coordinates.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>Holy. Thank you I didn’t notice, how stupid of me.<br/>
+While that does make it a cube, for some dang reason a face of the cube is all black and a vertex.</p>
+<p><aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/eb699b8a6793584f67ee364d2fb77cea.ico" width="32"/>
+<a href="https://prnt.sc/fe1v6i" rel="nofollow noopener" target="_blank">Lightshot</a>
+</header>
+<article class="onebox-body">
+<div class="aspect-image" style="--aspect-ratio:547/500;"><img class="thumbnail" height="500" src="../../../images2/99c6c8cf4c7c6f9bc45754028561f163.png" width="547"/></div>
+<h3><a href="https://prnt.sc/fe1v6i" rel="nofollow noopener" target="_blank">Screenshot</a></h3>
+<p>Captured with Lightshot</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/eb699b8a6793584f67ee364d2fb77cea.ico" width="32"/>
+<a href="https://prnt.sc/fe1vbj" rel="nofollow noopener" target="_blank">Lightshot</a>
+</header>
+<article class="onebox-body">
+<div class="aspect-image" style="--aspect-ratio:541/500;"><img class="thumbnail" height="500" src="../../../images2/e8784386e18af191f6efe004f1fb6ebd.png" width="541"/></div>
+<h3><a href="https://prnt.sc/fe1vbj" rel="nofollow noopener" target="_blank">Screenshot</a></h3>
+<p>Captured with Lightshot</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>I’m pretty sure now that it doesn’t have to do with the normals!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote" data-post="3" data-topic="3180">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/54c8d33abc775a0c82b1d6ae5110d223.png" width="20"/> ppsychrite:</div>
+<blockquote>
+<p>I’m pretty sure n ow that it doesn’t have to do with the normals!</p>
+</blockquote>
+</aside>
+<p>It probably still is. You’re only using 8 vertices for a cube which means your normal calculation is wrong (need to accumulate and then normalize) or you need to add colocal vertices to that which have unique vertices for the corners and use the appropriate indices.</p>
+<p>The normals calculation code in the DynamicGeometry sample works because the shape is a simple pyramid with unique vertices for every face. You’ll need unique vertices for each face of your cube most likely or integrate your normals.</p>
+<pre><code>for (unsigned int i = 0; i &lt; 48; i += 6) {
+    ur::Vector3 normal({ vertexData[i], vertexData[i + 1], vertexData[i + 2] });
+    normal.Normalize();
+
+    // NOTE: CHANGE TO +=
+    // Accumulate normals
+    vertexData[(i + 3)] += normal.x_;
+    vertexData[(i + 3) + 1] += normal.y_;
+    vertexData[(i + 3) + 2] += normal.z_;
+}
+
+// Normalize accumulated normals
+for (unsigned int i = 0; i &lt; 48; i += 6)
+    ((Vector3*)&amp;vertexData[i+3])-&gt;Normalize(); // note this is probably malformed code
+</code></pre>
+<p>Edits: can’t use grammar apparently.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>So what you’re saying is that after I += normalized values into the vertexData I should then normalize the values accumulated? Got it. Will try when I have time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>After accumulating and then normalizing it’s still the same (Although when I try inserting colors and pushing it to elements all colors appear but lighting doesn’t affect it)<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/eb699b8a6793584f67ee364d2fb77cea.ico" width="32"/>
+<a href="https://prnt.sc/fe7iwb" rel="nofollow noopener" target="_blank">Lightshot</a>
+</header>
+<article class="onebox-body">
+<div class="aspect-image" style="--aspect-ratio:666/500;"><img class="thumbnail" height="500" src="../../../images2/f3eab9ab93df9b1c0d8556bf43da6ace.png" width="666"/></div>
+<h3><a href="https://prnt.sc/fe7iwb" rel="nofollow noopener" target="_blank">Screenshot</a></h3>
+<p>Captured with Lightshot</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>This probably has to be one of my biggest mistakes this far. <img alt=":sweat:" class="emoji" src="../../../images2/0fc45c9dda91bc59ecc25d12cfc8edc4.png" title=":sweat:"/><br/>
+Instead of using the rgb values as 0.0f through 1.0f I’ve been using them as 0 to 255, making it defy lighting.<br/>
+I changed it to 1.0f for the red value and it works fine except for a triangle and a face now. <img alt=":grinning:" class="emoji" src="../../../images2/993cdd6d5aba3f941b7389fd0b3a1ba1.png" title=":grinning:"/> <a href="http://prntscr.com/fegajo" rel="nofollow noopener">http://prntscr.com/fegajo</a><br/>
+So it’s progress!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

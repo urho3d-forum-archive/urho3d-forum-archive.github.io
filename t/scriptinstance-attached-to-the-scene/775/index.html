@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ScriptInstance attached to the Scene</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ScriptInstance attached to the Scene</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NiteLordz</div>
+          <div class="post_content">
+<p>I am trying to load a scene that has a ScriptInstance attached to it. The Start() method of the script does not fire though.  Inspecting the scene xml file, i have the following component attached to the scene node</p>
+<pre><code class="lang-auto">&lt;component type="ScriptInstance" id="10"&gt;
+	&lt;attribute name="Delayed Method Calls" value="0" /&gt;
+	&lt;attribute name="Script File" value="ScriptFile;Scripts/TestInstance.as" /&gt;
+	&lt;attribute name="Class Name" value="BasicInput" /&gt;
+&lt;/component&gt;</code></pre>
+<p>How can you make a script auto execute ?</p>
+<p>Note, in the cpp file that generated the scene xml file, the following code was executed</p>
+<pre><code class="lang-auto">ScriptInstance* instance = scene_-&gt;CreateComponent&lt;ScriptInstance&gt;();
+result = instance-&gt;CreateObject(cache-&gt;GetResource&lt;ScriptFile&gt;("Scripts/TestInstance.as"), "DoSomething");
+instance-&gt;Execute("void Start()");</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Does the class name match what’s in the script file? Does the class inherit from the empty interface ScriptObject? (this is only required so that C++ side can pass a known class to AngelScript when you request the script object)</p>
+<p>Here’s a minimal example I tested completely inside the editor. The print from the Start function gets printed each time I load the scene.</p>
+<p>Scene file:</p>
+<pre><code class="lang-auto">&lt;?xml version="1.0"?&gt;
+&lt;scene id="1"&gt;
+	&lt;attribute name="Name" value="" /&gt;
+	&lt;attribute name="Time Scale" value="1" /&gt;
+	&lt;attribute name="Smoothing Constant" value="50" /&gt;
+	&lt;attribute name="Snap Threshold" value="5" /&gt;
+	&lt;attribute name="Elapsed Time" value="0" /&gt;
+	&lt;attribute name="Next Replicated Node ID" value="3" /&gt;
+	&lt;attribute name="Next Replicated Component ID" value="4" /&gt;
+	&lt;attribute name="Next Local Node ID" value="16777216" /&gt;
+	&lt;attribute name="Next Local Component ID" value="16777216" /&gt;
+	&lt;attribute name="Variables" /&gt;
+	&lt;attribute name="Variable Names" value="" /&gt;
+	&lt;component type="Octree" id="1" /&gt;
+	&lt;component type="DebugRenderer" id="2" /&gt;
+	&lt;node id="2"&gt;
+		&lt;attribute name="Is Enabled" value="true" /&gt;
+		&lt;attribute name="Name" value="" /&gt;
+		&lt;attribute name="Position" value="0 -3.94427 7.88854" /&gt;
+		&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+		&lt;attribute name="Scale" value="1 1 1" /&gt;
+		&lt;attribute name="Variables" /&gt;
+		&lt;component type="ScriptInstance" id="3"&gt;
+			&lt;attribute name="Delayed Method Calls" value="0" /&gt;
+			&lt;attribute name="Script File" value="ScriptFile;Scripts/TestScriptObject.as" /&gt;
+			&lt;attribute name="Class Name" value="TestScriptObject" /&gt;
+		&lt;/component&gt;
+	&lt;/node&gt;
+&lt;/scene&gt;</code></pre>
+<p><a href="http://TestScriptObject.as">TestScriptObject.as</a>:</p>
+<pre><code class="lang-auto">class TestScriptObject : ScriptObject
+{
+  void Start()
+  {
+    Print("TestScriptObject Start() called");
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NiteLordz</div>
+          <div class="post_content">
+<p>Thank you!  so i figured out what the problem was.  When i setup the test bed for this, i called</p>
+<pre><code class="lang-auto"></code></pre>
+<p>after i loaded the scene.</p>
+<p>Thanks again !</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Ah yes, as it’s Script subsystem constructor which does RegisterScriptLibrary() (register component types and factories) in that case you should get unknown component errors in the log.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NiteLordz</div>
+          <div class="post_content">
+<p>Yep, was a product of coding late at night.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>A question about this, where should I declare a variable to make it global and acccesible by that script? I need to implement same mechanism (execute script on scene loading), but the script must access the list of NPCs, the player, etc.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

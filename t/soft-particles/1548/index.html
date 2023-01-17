@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Soft Particles</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Soft Particles</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p><span class="bbcode-b">EDIT</span>: latest version of SP you may found at this link (currently GL and DX11 only): <a href="https://github.com/1vanK/Urho3DSoftParticles">github.com/1vanK/Urho3DSoftParticles</a></p>
+<p>Hi, today I try to read depth texture.<br/>
+In same time it using as depth buffer for testing and reading Z in alpha pass.</p>
+<p>file: ForwardHWDepth.xml</p>
+
+    
+...
+    
+        
+    
+...
+
+<p>Is it possible use depth in same time for testing samples and reading?</p>
+<p>maybe need use additional depth RT (r16) and populate it in all scene passes? and only then put it to TU for reading?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>So, is it not working?</p>
+<p>Aren’t light volumes pass does it, in DefferedHWDepth and PrepassHWDepth?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Oh, sorry my mistake.<br/>
+I just do some test with reading from Z and suppose what I got wrong results in readed from Zbuffer.<br/>
+I thought it was a mistake usage of depth buffer in same time for read and testing.</p>
+<p>and other questions:</p>
+<ol>
+<li>did you trying to reproject Z sample from depth buffer from (NDC space) to (ViewProj space before div by w) xyz/w value ?</li>
+</ol>
+<p>float hwDepth = texture2D(sDepthBuffer, vTexCoord).r; // Read Depth value<br/>
+float rDepth = ReconstructDepth(hwDepth); // Reconstruct 0…1<br/>
+What next step?</p>
+<ol start="2">
+<li>
+<p>The value that will be written to DepthBuffer from VS shader:<br/>
+gl_Position = GetClipPos(worldPos);<br/>
+Is it this - gl_Position.z / gl_Position.w ?</p>
+</li>
+<li>
+<p>vWorldPos = vec4(worldPos, GetDepth(gl_Position));<br/>
+What thing stored into last component (w) ?</p>
+</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="CHAKG73Sqcs" data-youtube-title="soft particles bug on rotate around"></div>
+<p>Hi  again, I have a some process there, but i stuck in place with comparing sceneZ and particleZ.<br/>
+As you see on this vedeo if i change a position of camera (rotate around) there is bug, particles are disappears.<br/>
+I guessing this is because I have some problems with math difference between background sceneZ value and particleZ value.<br/>
+and I do not actually know what of this reprojecties are wrong in my shader.</p>
+<p>I have a this algorithm:</p>
+<p>RenderPath</p>
+<pre><code class="lang-auto">    &lt;!-- Render SoftParticles --&gt; 
+    &lt;command type="scenepass" pass="softparticles" vertexlights="true" sort="backtofront" metadata="alpha" blend="replace" output="viewport"&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+</code></pre>
+<p>Technique for particles<br/>
+DiffVColUnlitAlphaSP.xml</p>
+<pre><code class="lang-auto">&lt;technique vs="UnlitSP" ps="UnlitSP" vsdefines="VERTEXCOLOR SP" psdefines="DIFFMAP VERTEXCOLOR SP"&gt;
+    &lt;pass name="softparticles" depthtest="always" depthwrite="false" blend="alpha" /&gt;
+&lt;/technique
+</code></pre>
+<p>and shader UnlitSP.glsl</p>
+<div class="spoiler">
+<p><a href="http://pastebin.com/2MCWLkKq">http://pastebin.com/2MCWLkKq</a></p>
+</div>
+<p>I suppose what I do wrong converting sceneZ into ViewProj space or particleZ into ViewProj space. (mb need get ViewProjInvert matrix from camera to project  with sceneZ * ViewProjInvert)<br/>
+Is any body have some ideas how to solve rotation bug ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>i create material</p>
+<p><code>&lt;material&gt;
+    &lt;technique name="Techniques/DiffVColUnlitAlphaSP.xml" /&gt;
+    &lt;texture unit="diffuse" name="Urho2D/Ball.png" /&gt;
+&lt;/material&gt;
+</code></p>
+<p>and it is fully transparent</p>
+<p>p.s. Where did the variable cProj in shader?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>and it is fully transparent<br/>
+I use for testing tweaked smoke.xml</p>
+</blockquote>
+<blockquote>
+<p>p.s. Where did the variable cProj in shader?<br/>
+actually I add this matrixes and pass they in:</p>
+</blockquote>
+<p><code>void View::SetCameraShaderParameters(Camera* camera, bool setProjection)
+{
+        graphics_-&gt;SetShaderParameter(VSP_VIEWPROJ, projection * camera-&gt;GetView());
+        graphics_-&gt;SetShaderParameter(VSP_VIEW, Matrix4::IDENTITY * camera-&gt;GetView());
+        graphics_-&gt;SetShaderParameter(VSP_PROJ, projection);
+}</code></p>
+<p>also you need after what fix uniforms.glsl to set visible this uniforms for PS shader</p>
+<pre><code class="lang-auto">// OpenGL 2 uniforms (no constant buffers)
+
+uniform mat4 cViewProj;
+uniform mat4 cProj;
+
+#ifdef COMPILEVS
+...</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I found a solution (and modification of the engine is not required)</p>
+<p>CoreData\RenderPaths\ForwardHWDepth_SoftParticles.xml (based on ForwardHWDepth)</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="depth" sizedivisor="1 1" format="readabledepth" /&gt;
+    &lt;command type="clear" depth="1.0" output="depth" /&gt;
+    &lt;command type="scenepass" pass="shadow" output="depth" /&gt;
+    &lt;command type="clear" color="fog" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" depthstencil="depth" /&gt;
+    &lt;command type="forwardlights" pass="light" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="postopaque" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="refract" depthstencil="depth"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" depthstencil="depth"  /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" depthstencil="depth" /&gt;
+    &lt;!-- Render SoftParticles --&gt;
+    &lt;command type="scenepass" pass="softparticles" vertexlights="true" sort="backtofront" metadata="alpha" blend="replace" output="viewport"&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>CoreData\Shaders\GLSL\UnlitSP.glsl (based on unlit)</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+#include "Fog.glsl"
+
+varying vec2 vTexCoord;
+varying vec4 vWorldPos;
+varying vec4 vScreenPos;
+#ifdef VERTEXCOLOR
+    varying vec4 vColor;
+#endif
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+    gl_Position = GetClipPos(worldPos);
+    vTexCoord = GetTexCoord(iTexCoord);
+    vWorldPos = vec4(worldPos, GetDepth(gl_Position));
+    vScreenPos = GetScreenPos(gl_Position);
+
+    #ifdef VERTEXCOLOR
+        vColor = iColor;
+    #endif
+}
+
+void PS()
+{
+    // Get material diffuse albedo
+    #ifdef DIFFMAP
+        vec4 diffColor = cMatDiffColor * texture2D(sDiffMap, vTexCoord);
+        #ifdef ALPHAMASK
+            if (diffColor.a &lt; 0.5)
+                discard;
+        #endif
+    #else
+        vec4 diffColor = cMatDiffColor;
+    #endif
+
+    #ifdef VERTEXCOLOR
+        diffColor *= vColor;
+    #endif
+
+    // Get fog factor
+    #ifdef HEIGHTFOG
+        float fogFactor = GetHeightFogFactor(vWorldPos.w, vWorldPos.y);
+    #else
+        float fogFactor = GetFogFactor(vWorldPos.w);
+    #endif
+
+    #if defined(PREPASS)
+        // Fill light pre-pass G-Buffer
+        gl_FragData[0] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[1] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #elif defined(DEFERRED)
+        gl_FragData[0] = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+        gl_FragData[1] = vec4(0.0, 0.0, 0.0, 0.0);
+        gl_FragData[2] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[3] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #else
+
+        float particleDepth = vWorldPos.w;
+        float solidGeometrydepth = ReconstructDepth(texture2DProj(sDepthBuffer, vScreenPos).r); // use ReconstructDepth when HWDEPTH
+    
+        if (solidGeometrydepth &lt;= particleDepth)
+        {
+            float deltaDepth = (particleDepth - solidGeometrydepth) * 1000;
+            diffColor.a -= deltaDepth;
+        }
+    
+        gl_FragColor = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+    
+    #endif
+}</code></pre>
+<p>CoreData\Techniques\DiffVColUnlitAlphaSP.xml (based on DiffVColUnlitAlpha)</p>
+<pre><code class="lang-auto">&lt;technique vs="UnlitSP" ps="UnlitSP" vsdefines="VERTEXCOLOR SP" psdefines="DIFFMAP VERTEXCOLOR SP"&gt;
+    &lt;pass name="softparticles" depthtest="always" depthwrite="false" blend="alpha" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>Data\Materials\SmokeSoftParticle.xml (based on Smoke)</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/DiffVColUnlitAlphaSP.xml" /&gt;
+    &lt;texture unit="diffuse" name="Textures/Smoke.dds" /&gt;
+&lt;/material&gt;</code></pre>
+<p>Data\Particle\SmokeStackSoftParticle.xml (based on Smoke)</p>
+<pre><code class="lang-auto">&lt;?xml version="1.0"?&gt;
+&lt;particleeffect&gt;
+	&lt;material name="Materials/SmokeSoftParticle.xml" /&gt;
+	&lt;numparticles value="1000" /&gt;
+	&lt;updateinvisible enable="true" /&gt;
+	&lt;relative enable="false" /&gt;
+	&lt;scaled enable="true" /&gt;
+	&lt;sorted enable="true" /&gt;
+	&lt;animlodbias value="0" /&gt;
+	&lt;emittertype value="Box" /&gt;
+	&lt;emittersize value="1 1 1" /&gt;
+	&lt;direction min="-0.15 1 -0.15" max="0.15 1 0.15" /&gt;
+	&lt;constantforce value="0 2 0" /&gt;
+	&lt;dampingforce value="2" /&gt;
+	&lt;activetime value="0" /&gt;
+	&lt;inactivetime value="0" /&gt;
+	&lt;emissionrate min="100" max="200" /&gt;
+	&lt;particlesize min="0.1 0.2" max="0.6 0.7" /&gt;
+	&lt;timetolive min="4" max="4" /&gt;
+	&lt;velocity min="0.5" max="3" /&gt;
+	&lt;rotation min="0" max="0" /&gt;
+	&lt;rotationspeed min="60" max="60" /&gt;
+	&lt;sizedelta add="0" mul="1.3" /&gt;
+	&lt;colorfade color="1 1 1 0" time="0" /&gt;
+	&lt;colorfade color="0.69 0.33 0.2 0.5" time="0.64" /&gt;
+	&lt;colorfade color="0 0 0 0" time="1.98" /&gt;
+	&lt;colorfade color="0 0 0 0" time="4" /&gt;
+&lt;/particleeffect&gt;</code></pre>
+<p>Old:<br/>
+<a data-bbcode="true" href="http://savepic.su/6730046.htm"><img alt="" height="" src="../../../images2/d1f672d471e17206c83511bfff652ba9.png" width=""/></a></p>
+<p>New:<br/>
+<a data-bbcode="true" href="http://savepic.su/6718782.htm"><img alt="" height="" src="../../../images2/2be5a679170af2c597a81f9373a3243c.png" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Here is possible make some improvements:<br/>
+send to shader a coefficient (replacing 1000) from material in the case of large sprites (Like explosions)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Wow, great job.<br/>
+Did you tried to  create some solid blocs around smoke to test overlaying effect?<br/>
+I also find this different functions:</p>
+<pre><code class="lang-auto">//vec2 vScreenPos = GetScreenPosPreDiv(gl_Position);
+    vec4 vScreenPos = GetScreenPos(gl_Position);[/code]
+
+in what case we may use each of them ? I do not understand.
+
+&gt;float sceneZ = texture2DProj(sDepthBuffer, vScreenPos).r;   // read depthstencil texture(readabledepth)
+the using texture2DProj is providing from previous operation step because size of  vScreenPos is vec4 and not vec2, or there is another reason? ( why we use texture projection? and no simple texture2D )
+
+there is magic number I guess 1000 ? If we change this block of code to NV's code from whitepaper is still will be working properly?
+[code]        if (solidGeometrydepth &lt;= particleDepth)
+        {
+            float deltaDepth = (particleDepth - solidGeometrydepth) * 1000;
+            diffColor.a -= deltaDepth;
+        }</code></pre>
+<p>to</p>
+<p>[code]           float scale = 1.0;<br/>
+float diffZ = (particleDepth - solidGeometrydepth)</p>
+<pre><code>        float input = clamp(diffZ, 0.0, 1.0);
+        float contrastPower = 1.0;
+        float output = 0.5 * pow(clamp(2*((input &gt; 0.5) ? 1 - input : input), 0.0, 1.0), contrastPower);
+        float weight = (input &gt; 0.5) ? 1 - output : output; 
+        
+        diffColor.a *= weight;
+</code></pre>
+<p>[/code]</p>
+<p>I mean in using NV’s tech we got two controls values what very handy: the control of contrast and scale.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<blockquote>
+<p>in what case we may use each of them ? I do not understand.<br/>
+the using texture2DProj is providing from previous operation step because size of vScreenPos is vec4 and not vec2, or there is another reason?</p>
+</blockquote>
+<p>i just copy random code from PrepassLight.glss xD</p>
+<blockquote>
+<p>there is magic number I guess 1000 ? If we change this block of code to NV’s code from whitepaper is still will be working properly?</p>
+</blockquote>
+<p>I did not study the documentation in detail. The higher the number, the greater the depth difference will affect the transparency (most of the hidden part of sprite will be visible).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I’m tesing you shader and “overlaying” is not presented I guess it work fine for now.</p>
+<blockquote>
+<p>i just copy random code from PrepassLight.glss xD<br/>
+i am always wanted to write shaders in this manner, and in same time i wanted to they should work as I expect xD</p>
+</blockquote>
+<blockquote>
+<p>I did not study the documentation in detail.<br/>
+There is no documentation about shaders using )<br/>
+For example what differences between: this -&gt; GetScreenPosPreDiv() and this -&gt; GetScreenPos() and many other things…</p>
+</blockquote>
+<p>Anyway I think you may try to create pull request with your SoftParticles.<br/>
+In future we can polish they )</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]<br/>
+Anyway I think you may try to create pull request with your SoftParticles.<br/>
+In future we can polish they )[/quote]</p>
+<p>It will not work in all RenderPaths. I do not think it will take to master. Just rename this post to “Soft Particles” and and anyone can take shader here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Ok, but may be you create small repo for store all stuff in one place also for fixes and updating ?</p>
+<ul>
+<li>also need add hlsl shader for SoftParticles</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]Ok, but may be you create small repo for store all stuff in one place also for fixes and updating ?</p>
+<ul>
+<li>also need add hlsl shader for SoftParticles[/quote]</li>
+</ul>
+<p>no problems <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>EDIT: <a href="https://github.com/1vanK/Urho3DSoftParticles">github.com/1vanK/Urho3DSoftParticles</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p><a href="https://github.com/1vanK/Urho3DSoftParticles">https://github.com/1vanK/Urho3DSoftParticles</a></p>
+</blockquote>
+<p>cool, but I found what it no working in ortho projection (when you press key 5 on numpad)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]<br/>
+cool, but I found what it no working in ortho projection (when you press key 5 on numpad)[/quote]</p>
+<p><a data-bbcode="true" href="http://savepic.su/6700395.htm"><img alt="" height="" src="../../../images2/f0c6be6658baca929ddedbde7234e133.png" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Oh, sorry I understood, I’m use not your original shader )<br/>
+anyway I found there this 1000 value are lay (Editor settings camera far clip) - this is camera far value.<br/>
+In PS shader this is cFarClipPS uniform<br/>
+I guessing the scale may be calc with this way:<br/>
+float scale = cFarClipPS - cNearClipPS;</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/66_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">szamq</div>
+          <div class="post_content">
+<p>Nice, would be that also possible on the deffered render path?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>would be that also possible on the deffered render path?<br/>
+Yes it possible, few lines to add in deffered</p>
+</blockquote>
+<p>DeferredHWDepthSP.xml (in simple Deferred.xml we do not have possibility to read depth. That’s why this working only with %name%HWDepth )</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="albedo" sizedivisor="1 1" format="rgba" /&gt;
+    &lt;rendertarget name="normal" sizedivisor="1 1" format="rgba" /&gt;
+    &lt;rendertarget name="depth" sizedivisor="1 1" format="readabledepth" /&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" depthstencil="depth" /&gt;
+    &lt;command type="clear" color="0 0 0 0" output="albedo" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="deferred" marktostencil="true" vertexlights="true" metadata="gbuffer" depthstencil="depth"&gt;
+        &lt;output index="0" name="viewport" /&gt;
+        &lt;output index="1" name="albedo" /&gt;
+        &lt;output index="2" name="normal" /&gt;
+    &lt;/command&gt;
+    &lt;command type="lightvolumes" vs="DeferredLight" ps="DeferredLight" psdefines="HWDEPTH" depthstencil="depth"&gt;
+        &lt;texture unit="albedo" name="albedo" /&gt;
+        &lt;texture unit="normal" name="normal" /&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="postopaque" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="refract" depthstencil="depth"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" depthstencil="depth" /&gt;
+    
+    &lt;command type="scenepass" pass="softparticles" vertexlights="true" sort="backtofront" metadata="alpha" blend="replace" output="viewport"&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+    
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" depthstencil="depth" /&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>and move soft particle calculations in shader little upper</p>
+<p>UnlitSP.glsl</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+#include "Fog.glsl"
+
+varying vec2 vTexCoord;
+varying vec4 vWorldPos;
+varying vec4 vScreenPos;
+#ifdef VERTEXCOLOR
+    varying vec4 vColor;
+#endif
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+    gl_Position = GetClipPos(worldPos);
+    vTexCoord = GetTexCoord(iTexCoord);
+    vWorldPos = vec4(worldPos, GetDepth(gl_Position));
+    vScreenPos = GetScreenPos(gl_Position);
+    //vScreenPos = GetScreenPosPreDiv(gl_Position);
+
+    #ifdef VERTEXCOLOR
+        vColor = iColor;
+    #endif
+}
+
+void PS()
+{
+    // Get material diffuse albedo
+    #ifdef DIFFMAP
+        vec4 diffColor = cMatDiffColor * texture2D(sDiffMap, vTexCoord);
+        #ifdef ALPHAMASK
+            if (diffColor.a &lt; 0.5)
+                discard;
+        #endif
+    #else
+        vec4 diffColor = cMatDiffColor;
+    #endif
+
+    #ifdef VERTEXCOLOR
+        diffColor *= vColor;
+    #endif
+
+    // Get fog factor
+    #ifdef HEIGHTFOG
+        float fogFactor = GetHeightFogFactor(vWorldPos.w, vWorldPos.y);
+    #else
+        float fogFactor = GetFogFactor(vWorldPos.w);
+    #endif
+    
+    float particleDepth = vWorldPos.w;
+    float solidGeometrydepth = ReconstructDepth(texture2DProj(sDepthBuffer, vScreenPos).r); // use ReconstructDepth when HWDEPTH
+        
+    if (solidGeometrydepth &lt; particleDepth)
+    {
+        float scale = cFarClipPS - cNearClipPS;
+        float deltaDepth = (particleDepth - solidGeometrydepth) * scale;    
+         
+        diffColor.a -= deltaDepth;
+    }
+    
+    #if defined(PREPASS)
+        // Fill light pre-pass G-Buffer
+        gl_FragData[0] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[1] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #elif defined(DEFERRED)
+        gl_FragData[0] = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+        gl_FragData[1] = vec4(0.0, 0.0, 0.0, 0.0);
+        gl_FragData[2] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[3] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #else    
+        gl_FragColor = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+    #endif
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Anyone is planning to make a pull request in master branch to add this ? I think it’s a must have feature for a modern engine <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="franck22000">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2cdc52013f8a4e9b5ebce773a63acafd.png" width="20"/> franck22000:</div>
+<blockquote>
+<p>Anyone is planning to make a pull request in master branch to add this ? I think it’s a must have feature for a modern engine <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+</blockquote>
+</aside>
+<p>We had a big discussion with CodingMonkey and came to the conclusion that still need to do much</p>
+<p><a href="https://github.com/1vanK/Urho3DSoftParticles/pull/3">github.com/1vanK/Urho3DSoftParticles/pull/3</a> (sorry, the Russian language)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Yes,  <span class="bbcode-b">1vanK</span> is right, there is still needed to do some polishing.<br/>
+But you also can use it now, just copy shaders and technics.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

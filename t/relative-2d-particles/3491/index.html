@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Relative 2D Particles</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Relative 2D Particles</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/758_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">qwertysam</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I’d like to have a 2D particle emitter that is relative to a node of my choosing and not proprietarily the scene node. (For example, a fire particle emitter that is attatched to the player node at the engine of a space ship).</p>
+<p>Going through the 3D documentation, I have found that both <a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_particle_effect.html" rel="nofollow noopener">ParticleEffect</a> and <a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_particle_emitter.html" rel="nofollow noopener">ParticleEmitter</a> appear to support this through the function <strong>SetRelative(true|false)</strong>.</p>
+<p>When looking through the documentation for their 2D counterparts, neither <a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_particle_effect2_d.html" rel="nofollow noopener">ParticleEffect2D</a> nor <a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_particle_emitter2_d.html" rel="nofollow noopener">ParticleEmitter2D</a> seem to have implementations of this.</p>
+<p>ParticleEmitter2D seems to be my best bet on achieving this, as the ParticleEffect2D yields no relation to anything node or scene related (unlike ParticleEffect).</p>
+<p>Thank you for reading, any guidance is appreciated!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>Have a look at the Urho2DParticle sample. You just need to create the particle emitter through <code>Node::CreateComponent</code> on the node of your choosing. Here is an extract from the sample:</p>
+<pre><code class="lang-auto">    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    ParticleEffect2D* particleEffect = cache-&gt;GetResource&lt;ParticleEffect2D&gt;("Urho2D/sun.pex");
+    if (!particleEffect)
+        return;
+
+    particleNode_ = scene_-&gt;CreateChild("ParticleEmitter2D");
+    ParticleEmitter2D* particleEmitter = particleNode_-&gt;CreateComponent&lt;ParticleEmitter2D&gt;();
+    particleEmitter-&gt;SetEffect(particleEffect);
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/758_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">qwertysam</div>
+          <div class="post_content">
+<p>I apologize, I realize now that my question might not be as clear as I thought.</p>
+<p>As an example, here is a fire effect that I made<br/>
+<img alt="image" height="471" src="../../../images2/3833f3290e7b32813d90615f9e772995.png" width="384"/></p>
+<p>It looks great, except for when my player is travelling at higher velocities</p>
+<p><img alt="image" height="454" src="../../../images2/caaa103ae506211e71896072d2c03eee.png" width="348"/></p>
+<p>The ParticleEmitter2D itself follows the player node accurately, and the reason for the particles appearing like this is due to them being created at regular intervals, allowing the ParticleEmitter2D to travel away from the previously emitted particle, therefore creating a broken stream of particles.</p>
+<p>A simple suggestion would be to increase the emission frequency of the particles. I have tried that, and the results do not differ because the particle system updates at regular intervals, only creating new particles ones it “trips” past the desired interval. <strong>The underlying issue here</strong> is that when a particle is created, it does not properly maintain the current velocity of the ParticleEmitter2D’s node.</p>
+<p>My ship has a velocity of (0, 50000), and the particles being emitted have a velocity of (0, -70), when really they should have a velocity of (0, 50000 - 70).</p>
+<p><em>As another example,</em> if I were to create a ParticleEmitter2D for the smoke that emits from the end of a gun node, and were to create a playable area inside of a moving spaceship node where the player could shoot bullets inside the spaceship, the smoke particles would have the same broken stream effect. The velocity of the particles should be relative to the ship, but are relative to the world by default.</p>
+<p>And <strong>that</strong> is what I am tried to overcome. I would like velocities of the fire particles to be relative to the spaceship.</p>
+<p>Thank you for your suggestion!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/123_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kostik1337</div>
+          <div class="post_content">
+<p>Unfortunately, this has not been implemented yet for ParticleEmitter2D. I have plans to implement it someday, but it’s not high priority for me now.<br/>
+As a workaround, I can suggest you to set ParticleEffect2D’s angle and speed accordingly to the speed of the spaceship, e.g. if you are moving at the speed (0, 50000), then set emitter’s speed at a little less than 50000 and angle <em>upwards</em> your ship, so particles positions would be not that divergent.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

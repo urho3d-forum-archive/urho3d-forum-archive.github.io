@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Using GetTempResource to load resource</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Using GetTempResource to load resource</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>This question pertains to using ResourceCache.GetTempResource() from C#.  Even though you all work with the C++ version, I’m hoping you can shed some light on this.</p>
+<p>I’ve recently realized that if you modify a resource obtained from the ResourceCache using something like:</p>
+<blockquote>
+<p>component.Model = ResourceCache.GetModel(“Models/UVSphere.mdl”);</p>
+</blockquote>
+<p>and then modify it, others that get the same thing from the resource cache will also get that change.</p>
+<p>So I need to get a unique copy.</p>
+<p>It seems one possible solution is to use Clone() after getting the resource, but for some reason, Clone() is giving me grief on Windows in UrhoSharp.  I suspect it has do do with the thread it is called on and it is going to be a big change to invoke this on the Urho thread.</p>
+<p>The other possibility is to use GetTempResource.</p>
+<blockquote>
+<p>component.Model = (Model)ResourceCache.GetTempResource(Model.TypeStatic, “Models/UVSphere.mdl”, false);</p>
+</blockquote>
+<p>This will be easier to implement, assuming it works, but the above code throws a class cast exception saying the Resource returned can’t be cast as a Model.  Can anyone explain how this should be used?</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>On C++ side GetTempResource returns owning pointer of the same type as GetResource. My best guess is that you have incorrect bindings that destroy object before you even get it.</p>
+<p>Clone returns owning pointer as well, so your issue with Clone and with GetTempResource might be actually the same bug.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>I thought perhaps my problems with Clone() were due to not calling it on the “main” thread.  It is not totally clear what the main thread is in the UrhoSharp context.  I’ve tried calling the code that uses Clone() from the true main thread of the application, from the Urho3D update thread that is called before drawing, and from the application’s event thread.  In all cases it crashes with:</p>
+<blockquote>
+<p><strong>System.AccessViolationException:</strong> ‘Attempted to read or write protected memory. This is often an indication that other memory is corrupt.’</p>
+</blockquote>
+<p>I have been programming for about 40 years now.  Using UrhoSharp has been the most frustrating project I’ve ever been involved with.  I did finally connect with the project manager and he confirmed that there will be no further development of it so it really is dead.  I can’t make any more progress as it is.</p>
+<p>I think I will connect with the *** folks and see if I can become involved in their C# bindings project. I know it is in the experimental phase, but perhaps I can either help or at least be a test case for them.  I was hoping to have this app released by end of year, but I will now have to rethink it and it will be done whenever it is done.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>I’ve done some more searching and *** is not ready yet for what I need it for.  There really do not seem do be any alternatives I can find to do what I need.</p>
+<ol>
+<li>
+<p>I might try cloning the UrhoSharp project and see if I can figure out why Clone() is crashing.</p>
+</li>
+<li>
+<p>Is there another way to load resources that doesn’t use the ResourceCache?  If I could use that then I wouldn’t need Clone() or LoadTempResource().  I would like to be able to load a resource and get an exclusive copy.  If I load it again, I need another copy.</p>
+</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>You can just create the resource directly using <code>new</code> and then load from the file directly. If you want, you can probably also use the resource cache to get the file, and then load from that, though you might end up with a similar issue with the returned SharedPtr.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>Ah, that must be how I used to do it.  I remembered another way but couldn’t come up with it.  I will try this on Monday.</p>
+<p>I suspect that a number of my issues may be due to modifying a shared copy of a resource and not realizing that all users of the object will get the last modifications, regardless of what they previously set it to.  We’ll see,</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>Using the LoadFile() function, I’m getting an exception saying the file couldn’t be found.  I am specifying the same relative path that works with ResourceCache.</p>
+<pre><code>		component.Model = new Model();
+		var success = component.Model.LoadFile("Models/UVSphere.mdl");
+</code></pre>
+<p>The file Models/UVSphere.mdl is located in the Urho resource directory I specify upon startup.  Do I need to give a full path name here?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>Looks like you might need to specify the path relative to the executable’s directory.  If I use “UrhoData/Models/UVSphere.mdl” then I no longer get a file not found error.  I get “true” returned from LoadFile().</p>
+<p>However, even though there is no error, I don’t get the model drawn.  Is there some other initialization I need to do that ResourceCache does automatically?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>And examining the Model object, it seems to be the same whether it is loaded from the ResourceCache or via LoadFile().  Same number of vertices, same memory usage, same bounding box.  There must be some subtle difference that is causing one to work and the other not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>OK, I got it to work, but I really don’t understand why my original attempt fails.  Initially I created a new Model() and assigned it to component.Model.  Then I referenced the model via component.Model to do a LoadFile and ConvertToWireframe.  This doesn’t work.</p>
+<p>However, if I create the new model, assign it to a local variable, use the local variable for the LoadFile and ConvertToWireframe, and then finally assign it to component.Model, that works!</p>
+<p>Anyone know why this would be?  If useLocalVariable is true, it works.  If false, it doesn’t.  Am I making some stupid error here that I’m missing?</p>
+<pre><code>		var useLocalVariable = true;
+		if (useLocalVariable)
+		{
+			var model = new Model();
+			var success = model.LoadFile("UrhoData/Models/UVSphere.mdl");
+			ConvertToWireframe(model);
+			component.Model = model;
+		}
+		else
+		{
+			component.Model = new Model();
+			var success = component.Model.LoadFile("UrhoData/Models/UVSphere.mdl");
+			ConvertToWireframe(component.Model);
+		}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>The only explanation I have of this behavior is that there is a setter for the assignment of the component’s Model.  The setter must cache something that doesn’t get updated with later modifications of the model.</p>
+<p>The take home message is to assign the Model after all modification to it are done.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>And then my (hopefully) final question on this subject…</p>
+<p>Most of the models (and other resources) I use are standard and not something I’ve added.  For example:</p>
+<pre><code>		var component = thickDiskStructureNode.CreateComponent&lt;StaticModel&gt;();
+		component.Model = CoreAssets.Models.Sphere.Clone();
+</code></pre>
+<p>Clone here is crashing, but I need a unique copy of the sphere model.  Can I do this using the same LoadFile() mechanism?  From what I can see there is no Sphere.mdl in the file system that is part of Urho3D.  How can I get a unique Sphere?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Those “standard” models are something UrhoSharp added, to the best of my knowledge they don’t exist in Urho (unless they’re just a wrapper for loading the Sphere.mdl that Urho3D does come with). I would suggest either downloading the Sphere.mdl from github <a >here</a>, or creating your own using the AssetImporter and/or the Blender exporter.</p>
+<p>I have no idea why your having those issues, but I suspect that it has something to do with the UrhoSharp bindings. What happens if you instead do the following:</p>
+<pre><code class="lang-auto">var model =  CoreAssets.Models.Sphere;
+var newModel = model.Clone();
+component.Model = newModel;
+</code></pre>
+<p>Also, note that <code>component.Model</code> is also an UrhoSharp specific thing, though it’s probably just a wrapper for Get/SetModel.</p>
+<hr/>
+<aside class="quote no-group" data-full="true" data-post="8" data-topic="6517" data-username="btschumy">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/a1234f56966a84b4071e0c8f4dfcb130.png" width="20"/> btschumy:</div>
+<blockquote>
+<p>Using the LoadFile() function, I’m getting an exception saying the file couldn’t be found. I am specifying the same relative path that works with ResourceCache.</p>
+<pre><code class="lang-auto">		component.Model = new Model();
+		var success = component.Model.LoadFile("Models/UVSphere.mdl");
+</code></pre>
+<p>The file Models/UVSphere.mdl is located in the Urho resource directory I specify upon startup. Do I need to give a full path name here?</p>
+</blockquote>
+</aside>
+<p>This is expected. The ResourceCache is what handles the resource directories and looking for the files in them, all of the other file operations not done through the resource cache won’t use the resource directories.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">btschumy</div>
+          <div class="post_content">
+<p>Ah, I didn’t realize those “standard” models were only UrhoSharp.  Yes, I can certainly make my own Sphere.mdl and place it in my resources.</p>
+<p>As far as I can tell, anytime I use Clone() on a model, the app crashes.  The UrhoSharp bindings may just be doing something wrong here.  I have toyed with the idea of cloning the UrhoSharp project and trying to fix some of these things myself.  Then I would build with my local copy.</p>
+<p>Thanks again for your excellent help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="15" data-topic="6517" data-username="btschumy">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/a1234f56966a84b4071e0c8f4dfcb130.png" width="20"/> btschumy:</div>
+<blockquote>
+<p>I have toyed with the idea of cloning the UrhoSharp project and trying to fix some of these things myself</p>
+</blockquote>
+</aside>
+<p>I hope you have Mac because UrhoSharp can be built (to be precise, binding generation phase) only on OSX.</p>
+<p>However, you should be ok if you are ready to patch bindings manually.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

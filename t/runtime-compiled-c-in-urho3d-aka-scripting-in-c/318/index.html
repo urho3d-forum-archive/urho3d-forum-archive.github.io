@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Runtime-compiled C++ in Urho3D aka &ldquo;Scripting in C++&rdquo;</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Runtime-compiled C++ in Urho3D aka &ldquo;Scripting in C++&rdquo;</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<p>I’ve been working in this a few weeks in my spare time after work. I took the idea of using C++ as a scripting language from <a data-bbcode="true" href="http://molecularmusings.wordpress.com/2013/08/27/using-runtime-compiled-c-code-as-a-scripting-language/" rel="nofollow noopener">http://molecularmusings.wordpress.com/2013/08/27/using-runtime-compiled-c-code-as-a-scripting-language/</a> and <a data-bbcode="true" href="http://runtimecompiledcplusplus.blogspot.com" rel="nofollow noopener">http://runtimecompiledcplusplus.blogspot.com</a>. This is technically called “Runtime-compiled C++”, which I’ll call RCCpp from now on.</p>
+<p>Obviously, C++ is not a real scripting language, nor it tends to be. The main goal is to shrink iterations’ time while having a quick preview of what you’re trying to accomplish while using a well-known language such as C++. You have the power of C++ with trusted IDEs, autocompletion, debugger and everything you’d need to work already, so you don’t need either to learn other language nor look for new tools to work with Lua or AngelScript. Of course, you can still shoot yourself in the foot, and have to be very careful about memory leaks, as the idea is to have Urho3DPlayer always running while it loads dynamically a recent compiled version of what you’re trying to do. Ok, enough chit-chat. This is what it looks like:</p>
+<p>Enable HD to be able to read the code<br/>
+</p><div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="uRf0LXjZWO0" data-youtube-title="Runtime-compiled C++ working in Urho3D"></div>
+<p>To put it simple those are the steps that Urho3D’s RCCpp follows:</p>
+<ol>
+<li>
+<p>If a .cpp is passed as an argument (instead of a .lua or .as), a Makefile is generated on the fly (only GCC/MinGW is supported for now) with all the .cpp’s within that same folder and compiles everything into a shared library. So let’s say we run “Urho3DPlayer RCCpp/Game.cpp”. This will try to compile Game.cpp and all the cpp’s within RCCpp into a shared library called Game.dll (or Game.so if we’re on a Unix system). If instead we pass an already compiled library (.dll or .so), step 2 applies inmediately.</p>
+</li>
+<li>
+<p>If the compilation succeeds, it will load at runtime the shared library and will execute its “Start” method, the same way it’s done with Lua or AngelScript.</p>
+</li>
+<li>
+<p>Every time there’s a change in any .cpp being watched (within RCCpp folder, in this case), it will compile again and if it was successful, it will call the “Stop” method of Game, destroy the old Game object, unload the old library, load the new one and call its “Start” method. This has been done this way to avoid freezing the update loop so that the game plays as smoothly as possible. Please note that a total different object is created, so if you would like to have exactly the same state as before, you’ll have to serialize and unserialize it by yourself.</p>
+</li>
+</ol>
+<p>So, right now everything is compiled into a single library. This has pros and cons, but I ended up doing it like that because if I wanted to have a different library for each class (which is desirable in terms of extensibility and speed, so that I don’t have to unload and load all the classes at the same time, just the ones that need to be replaced) I’d have to use a fixed interface (usually Update and Render methods) and have somehow a list of dependencies among classes so that if I change one class, all of its dependant classes are also compiled or at least reloaded. This was quite painful at the end, so having everything in a single library eases things up and avoids some other problems.</p>
+<p>I’ve tried to follow the rules that I’ve read in the documentation so that RCCpp is only used if a define is passed via CMake (URHO3D_RCCPP) and so on. I use the FileWatcher to know when a file has changed and needs to be recompiled. I also send useful events when a library/class is going to be unloaded or loaded, when the compilation has started or finished and so. It’s been tested it on Mac and Windows (with MinGW, no Visual Studio support yet) and it should work on Linux too. The only thing you need to make it work is adding your toolchain binary folder in your path so that “make” and “g++” can be called and define an environment variable called URHO3D_HOME pointing to your Urho3D’s main folder so that the include and library paths can be found in order to compile. You could also create a “PreMakefile” that will be included at the very beginning of the Makefile to pass to the compiler/linker your own flags. Take a look into the content of the Makefile generated to find the name of the variables to set.</p>
+<p>Lastly, I’d like to hear your thoughts about this. Do you think is useful, do you think is a waste of time, what would you improve, do you have any suggestions? I’ve easily ported all the examples so that the same file and the same code works for the C++ samples as well as for RCCpp using a couple macros. The code is not the cleanest nor the most commented thing right now, but if people are interested, we could clean things up together and polish the bugs that may arise: <a href="https://github.com/pamarcos/Urho3D/tree/RCCpp" rel="nofollow noopener">github.com/pamarcos/Urho3D/tree/RCCpp</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Interesting idea. Is there any performance boost by scripting this way? Any possible metrics?</p>
+<p>Excuse me if I’m being ignorant, but doesn’t this also require the header files to be available? I would probably have to pass on this idea if that was the case, but cool idea none-the-less!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="thebluefish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bf1ad5330f9831ec6d82214e91751e5d.png" width="20"/> thebluefish:</div>
+<blockquote>
+<p>Interesting idea. Is there any performance boost by scripting this way? Any possible metrics?</p>
+</blockquote>
+</aside>
+<p>I haven’t run any benchmark myself, but the performance boost would be the same as C++ over AngelScript or Lua. Have a look at <a href="http://codeplea.com/game-scripting-languages" rel="noopener nofollow ugc">codeplea.com/game-scripting-languages</a>. Anyway, a game bottleneck is usually its core (which in this case is already in C++, so no problem here) rather than the game logic. One of the advantages of using C++ directly is that you have the full API 100% available but with RCCpp, you don’t need to worry about large compilation times and closing and opening the game again and again.</p>
+<aside class="quote no-group" data-username="thebluefish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bf1ad5330f9831ec6d82214e91751e5d.png" width="20"/> thebluefish:</div>
+<blockquote>
+<p>Excuse me if I’m being ignorant, but doesn’t this also require the header files to be available? I would probably have to pass on this idea if that was the case, but cool idea none-the-less!</p>
+</blockquote>
+</aside>
+<p>Regarding the headers, you don’t really need to pass any header files as that’s taken care of by the Makefile. It adds to the include path every Urho3D folder as well as the same path of the cpp you’re passing. So, you just have to create a class (i.e. Game) that inherits from RCCppMainObject and reimplement its Start and Stop methods. If you wanted to use more classes, create as many as you like that inherit from RCCppObject and then you can use it from your Game class.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>I really like the idea of doing this.  I build my code around angelscripts hot swapping so doing it in c++ sounds radicool.  I don’t have any wisdom to know whether it is a good idea or not.  I looked at your code.  It looks really good!  I will definitely try out your fork sometime this week.  Thanks for sharing!!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>Super! Going to try.</p>
+<p>[after try]<br/>
+This is awesome!!! Works perfect!!!<br/>
+Once compiled, you can run the library. <code>Urho3DPlayer.exe Modules/Test.dll -w</code> This should be in the Urho3D!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This is certainly very cool. For inclusion into the official Urho3D repo, I’m not sure. We’d have to think carefully of what application / execution model we want to impose (currently Urho3D doesn’t really impose one for C++), and if reloading the whole “game” is enough, or should we need per-component reloading?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Very nice addition here for direct C++ coders in the engine! I’ve been watching this framework for some time now and its really cool to change C++ code in run-time for development/testing. I would recommend though having this as a build option or “add on” if the core team decides to add this to the repo.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AGreatFish</div>
+          <div class="post_content">
+<p>This is extremely cool <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>I think it could be extremely helpful for us C++ developers in some situations.</p>
+<p>Of course, the ability to use Urho3D as an external library needs to be preserved, but that seems to be the case (?).</p>
+<p>So…as long as it is optional, I am definitely in favour of this.</p>
+<p>PS:<br/>
+I am having some trouble getting it to work on Linux, though (though, that might just be me…). It detects the changes properly and compiles successfully and seems to “restart” the application but it doesn’t display the effects of the changes.<br/>
+I can only see those once I restart Urho3DPlayer itself (even if I pass the library itself as an argument, so it appears to compile correctly).</p>
+<p>I believe that there might be an issue with loading the new library.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="rasteron">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd8529e5abecd6bdd1f8770e66ee2bab.png" width="20"/> rasteron:</div>
+<blockquote>
+<p>I would recommend though having this as a build option or “add on” if the core team decides to add this to the repo.</p>
+</blockquote>
+</aside>
+<p>RCCpp is compiled as a separte module the same way as AngelScript, Lua or some others by defining something during the CMake process. In this case, URHO3D_RCCPP needs to be set.</p>
+<aside class="quote no-group" data-username="AGreatFish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/7037dd846d627792f54d3c79ce610946.png" width="20"/> AGreatFish:</div>
+<blockquote>
+<p>Of course, the ability to use Urho3D as an external library needs to be preserved, but that seems to be the case (?).</p>
+</blockquote>
+</aside>
+<p>Yes, in fact if RCCpp is enabled Urho3D is compiled as a shared library so that your game library is linked against it.</p>
+<p>[quote=“AGreatFish”]I am having some trouble getting it to work on Linux, though (though, that might just be me…). It detects the changes properly and compiles successfully and seems to “restart” the application but it doesn’t display the effects of the changes.<br/>
+I can only see those once I restart Urho3DPlayer itself (even if I pass the library itself as an argument, so it appears to compile correctly).[/quote]<br/>
+Sorry about that, I didn’t have time to test it on Linux (because I didn’t have a Linux partition working at the moment). Have you compiled the debug version to see what RCCpp outputs through stdout? There’s also a Build.log to check that the compilation worked, although a compilation error doesn’t seem to be your issue the way you described it. Take a look at RCCppUnix.cpp and try to write some logs in case dlopen failed. Something like this:</p>
+<p>[code]bool RCCppUnix::LoadLib(const String&amp; libraryPath)<br/>
+{<br/>
+library_ = dlopen(libraryPath.CString(), RTLD_LAZY);<br/>
+if (library_ != NULL)<br/>
+{<br/>
+String name = GetFileName(libraryPath);<br/>
+createObject_ = (PCreateRCCppObject)dlsym(library_, String(“create” + name).CString());<br/>
+destroyObject_ = (PDestroyRCCppObject)dlsym(library_, String(“destroy” + name).CString());<br/>
+}<br/>
+else<br/>
+{<br/>
+LOGDEBUG("Error opening library " + libraryPath);<br/>
+}</p>
+<pre><code>if (library_ == NULL)
+{
+    return false;
+}
+else
+{
+    return true;
+}
+</code></pre>
+<p>}[/code]</p>
+<p>Anyway, I’ll try to set a VM with a Linux version to test it out. If you take a look at RCCppWin you’ll notice that I have to do some kind of hack in order to hot-swap the library. The compilation fails to create the library because it’s still being used (which doesn’t happen un Mac). Funny thing is that whereas you cannot change the content of the library itself, you can change the name. So what it’s done is: change the old library name (let’s say from Game.dll to Game.dll.old), compile the new code to Game.dll, unload the old library and load the new one. Once this is done, the .old version is removed. However, this doesn’t seem to be your issue, as if this was the case, the compilation would fail during the linking process.</p>
+<p>Thanks everyone for checking this out. There’s still some work to do for a perfect integration with Urho3D, but I think we’re heading in the right direction.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AGreatFish</div>
+          <div class="post_content">
+<p>According to the log, the compilation is successful.</p>
+<p>I also don’t think that dlopen is the problem. I set debug messages to confirm this and I set a breakpoint and inspected the values of library_.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<p>[quote=“AGreatFish”]According to the log, the compilation is successful.</p>
+<p>I also don’t think that dlopen is the problem. I set debug messages to confirm this and I set a breakpoint and inspected the values of library_.[/quote]</p>
+<p>At the end Urho3DPlayer wasn’t working well on my VM so I installed Linux in a brand new partition. I’ve had exactly the same problem that you described. It’s been a while until I’ve found the issue. It seems dlclose is not closing properly the library and so, every time dlopen is called it returns exactly the same handler (which is the handler to the very first version of the library compiled) so nothing really changes in the game apart from destroying the main object and creating it again. If you take a look at the documentation at <a href="http://linux.die.net/man/3/dlclose" rel="nofollow noopener">linux.die.net/man/3/dlclose</a> it says:</p>
+<aside class="quote">
+<blockquote>
+<p>If the same library is loaded again with dlopen(), the same file handle is returned. The dl library maintains reference counts for library handles, so a dynamic library is not deallocated until dlclose() has been called on it as many times as dlopen() has succeeded on it. The _init() routine, if present, is only called once. But a subsequent call with RTLD_NOW may force symbol resolution for a library earlier loaded with RTLD_LAZY.</p>
+</blockquote>
+</aside>
+<p>As far as I understand, it seems that the reference count system is not working as it should or something I can’t understand is happening. In Mac is working well, though (which makes sense, because there’s only one dlopen-dlclose pair). I’m not very proud of what I’ve done to make it work, but it’s working and I think that’s enough for a day. I hope it works for you as well.<br/>
+Give it a try: <a href="https://github.com/pamarcos/Urho3D/commit/2ae5db35b0da3eb947b066185a99219ec3c09a5c" rel="nofollow noopener">github.com/pamarcos/Urho3D/comm … 9ec3c09a5c</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>i don’t know if this helps… but sdl has stuffs</p>
+<p><a href="https://wiki.libsdl.org/SDL_LoadObject" rel="nofollow noopener">wiki.libsdl.org/SDL_LoadObject</a><br/>
+<a href="https://wiki.libsdl.org/SDL_LoadFunction" rel="nofollow noopener">wiki.libsdl.org/SDL_LoadFunction</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AGreatFish</div>
+          <div class="post_content">
+<p>I just did a quick test before going to sleep and it works now <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>And it seems even cooler after actually having used it !</p>
+<p>Will take a closer look at it tomorrow <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">DougBinks</div>
+          <div class="post_content">
+<p>Doug here Runtime-Compiled C++.</p>
+<p>In our RCC++ implementation we only compile changed files, so load these as new modules with a temp name to avoid name clashing and so we can keep the old modules open (as they may contain code still being used). The solution you’re using for Linux looks the same as the one I’m using.</p>
+<p>Let me know if you have any further problems, and I’ll see if I can help - though I’m travelling for work atm, so there may be some delay.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AGreatFish</div>
+          <div class="post_content">
+<p>I noticed a funny effect:<br/>
+Since Urho3D is still running it appears that some things persist after recompiling.<br/>
+E.g. when I change the position of UI Elements, the elements appear two times. Once in the old position and once in the new position.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<p>[quote=“AGreatFish”]I noticed a funny effect:<br/>
+Since Urho3D is still running it appears that some things persist after recompiling.<br/>
+E.g. when I change the position of UI Elements, the elements appear two times. Once in the old position and once in the new position.[/quote]</p>
+<p>That’s right. RCCpp only cares about compiling, destroying the object, reloading the new lib and creating the new object. So, you have to take care of everything else by yourself. If you added something to the UI’s root, you’ll have to remove it either in the Stop method or in the destructor of your RCCppMainObject so that when the new one is created, you don’t have duplicates. I thought about cleaning the whole UI after every time your lib is unloaded, but that would clean absolutely everything and there may be cases where that’s not the desired behavior (e.g. in the samples the Urho3D logo would be removed also).</p>
+<p>The easiest solution for the UI is adding everything as children of a UiElement that you remove in the Stop method so that the next time the lib is loaded, only the new UI-related stuff is shown. This is what I did in the video with the Urho2DSprite example.</p>
+<p>Summarizing, using RCCpp is cool and useful, but there are times where it requires an exta step where you have to make sure that everything you have created/added etc, is removed in your Stop or destructor so that the next time the lib is loaded you don’t have duplicates.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>I wonder if instead of firing of the Start event we could create a virtual method OnReload and publish an event that could cancel the reload,  the OnReload would just call Start likely but it could allow the logic to grow.  I am guessing there are too many things that could happen after initialization for urho to gracefully handle object reloading.  We could set up some conventions with the vars/attributes but its hard to know if those would work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">DougBinks</div>
+          <div class="post_content">
+<p>Our <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus" rel="nofollow noopener">RCC++ framework</a> has an object initialization where we pass in a boolean demarking whether the init is being called on a new object or on one being re-loaded. I’d be tempted to go for three separate functions in future, one for first time init, one for reload init (object hasn’t been recreated or had code changed) and one for recreated object.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/70bcc47748c28f7bda94e891e8db727b.png" width="20"/> friesencr:</div>
+<blockquote>
+<p>I wonder if instead of firing of the Start event we could create a virtual method OnReload and publish an event that could cancel the reload,  the OnReload would just call Start likely but it could allow the logic to grow.  I am guessing there are too many things that could happen after initialization for urho to gracefully handle object reloading.  We could set up some conventions with the vars/attributes but its hard to know if those would work.</p>
+</blockquote>
+</aside>
+<p>Right now the Start is always called. Adding an option to avoid reloading everything by RCCpp and leaving you to do it whenever you want should not be difficult. Having said that, there are 6 different events that RCCpp is already firing to give you the possibility to clean things up your way. Those are: E_RCCPP_COMPILATION_STARTED, E_RCCPP_COMPILATION_FINISHED, E_RCCPP_LIBRARY_PRELOADED, E_RCCPP_LIBRARY_POSTLOADED, E_RCCPP_CLASS_PRELOADED, E_RCCPP_CLASS_POSTLOADED. So, you can still set up a listener to any of those methods in order to do something before the library is really reloaded. What you can’t do right now is stopping the process to reload it whenever you want. I’ll give it some thoughts of how that could be done in an easy way.</p>
+<p>[quote=“DougBinks”]Doug here Runtime-Compiled C++.</p>
+<p>In our RCC++ implementation we only compile changed files, so load these as new modules with a temp name to avoid name clashing and so we can keep the old modules open (as they may contain code still being used). The solution you’re using for Linux looks the same as the one I’m using.</p>
+<p>Let me know if you have any further problems, and I’ll see if I can help - though I’m travelling for work atm, so there may be some delay.[/quote]</p>
+<p>Good to see you here, Doug  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/>. I was mind-blown the first time I visited your webpage. It’s quite impressive to see C++ compiled and loaded at runtime. I mean, when you think about it you realize it’s technically feasible to do it, but still impressive. I tested the samples and so, but unfortunately I haven’t had much spare time to look at the code to know how everything works.<br/>
+For the very first version of RCCpp in Urho3D, instead of using a Makefile system that would compile everything into a single library, I thought of having a different shared library for every class. That in terms of modularity is desirable, but the “one-single library” approach won in terms of simplicity. The overhead of loading the whole library for a single class is still there, but I avoided the following issues:</p>
+<p>[ul]</p>
+<ol>
+<li>Compiling everything the very first time. Makefile does the work compiling only the necessary files, because otherwise I’d have to implement some kind of file date checking to see if the libraries are up-to-date and compile only the files needed.</li>
+<li>How do you solve dependencies among libraries? You have to specify one way or another what other libraries you depend on so that when some of that libraries is compiled, you create a new oject of that kind. I thought of having a Class.rcpp file with that kind of information, or embedding some commented code into any class’ cpp file (yeah, that would be specially ugly) specifying that and parsing it from RCCpp. Another option would be to parse every file and recompile everything including Class.h. I didn’t like any of the solutions, though.</li>
+<li>By compiling everything, destroying everything and creating it again I ensure that every object is an up-to-date version.<br/>
+[/ul]</li>
+</ol>
+<p>I get that by creating temporary names for the libraries you can still use the old ones. But why would you want to use an older version of the library/module? Shouldn’t every class reload the new version of the class? Or you simply let the coder choose whether he wants to reload a new version or not? Another question I have is how do you handle exceptions in Mac and Linux where you don’t really have SEH.</p>
+<p>Thanks in advance. Cheers.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">DougBinks</div>
+          <div class="post_content">
+<p><span class="mention">@Pablo</span> - glad you like the demos! Our objective with the RCC++ project was to change people’s minds about how C and C++ can be used, and it seems we’re getting there. I’ve added Urho3d to a <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/wiki/Alternatives" rel="nofollow noopener">list I keep of projects using RCC++</a>.</p>
+<p>You’ll find answers to some questions on <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/wiki" rel="nofollow noopener">our wiki</a>, and there’s a chapter on RCC++ in the book Game AI Pro if you can get hold of it.</p>
+<ol>
+<li>
+<p>Our RCC++ implementation is designed to be used to re-compile code as fast as possible. We avoid needing makefiles etc. as the developer uses their existing infrastructure to compile the code in any way they like, and RCC++ simply handles re-compilation at runtime when a source file is changed.</p>
+</li>
+<li>
+<p>We solve dependencies by embedding the information in the compiled code. See the wiki on <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/wiki/Specifying-include-directories" rel="nofollow noopener">includes</a>, <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/wiki/Using-libraries-from-runtime-modifiable-classes" rel="nofollow noopener">libraries</a>, <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/wiki/Runtime-modifiable-header-files" rel="nofollow noopener">modifiable headers</a> and <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/wiki/Runtime-source-dependencies" rel="nofollow noopener">source dependencies</a>. Recently people have <a data-bbcode="true" href="https://groups.google.com/forum/#!topic/runtimecompiledcplusplus/2_I-kewQgvc" rel="nofollow noopener">started to use RCC++ for scripting</a>, where they want to compile new code and I’m looking into ways to make this easier. Personally I prefer using my normal tool chain and just using RCC++ for changes.</p>
+</li>
+<li>
+<p>We still perform a full data reload (in memory), but keep the compiled and linked code as small as possible. Linkage is often a rate-determining step so this helps considerably. Recently I’m finding the full-reload can be more lengthy that it needs to be so I’m considering adding support for only reloading data for modified files.</p>
+</li>
+<li>
+<p>We need to keep old libraries around as our implementation compiles changes and dependencies into a single dll per <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/wiki/Using-ProjectIds-and-Projects" rel="nofollow noopener">‘project’</a> (most users only need one project). So a library may contain code from a.cpp and b.cpp, then when b.cpp changes we get a new library only containing the code from b.cpp, so need to keep the old library for the code from a.cpp. In many cases, the original code is compiled into the executable, so obviously that needs to be kept around.</p>
+</li>
+<li>
+<p>For error protection outside of windows we use signals. Take a look at <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/wiki/Error-protection" rel="nofollow noopener">the wiki page on error protection</a> and code for <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/blob/master/Aurora/RuntimeObjectSystem/RuntimeProtector.h" rel="nofollow noopener">RuntimeProtector.h</a> and implementation in <a data-bbcode="true" href="https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus/blob/master/Aurora/RuntimeObjectSystem/RuntimeObjectSystem_PlatformPosix.cpp" rel="nofollow noopener">RuntimeObjectSystem_PlatformPosix.cpp</a></p>
+</li>
+</ol>
+<p>Remember that since our RCC++ implementation uses a liberal license, you can borrow as much or as little of the code as you need for Urho3d. I’m travelling atm, so may be a bit slow with replies but please continue asking questions as you need!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">scorvi</div>
+          <div class="post_content">
+<p>hey,</p>
+<p>i have some problems integrating this into my game framework.</p>
+<p>i am using Visual studio and i followed the RCC++ project’s integration but somehow the dll which is created has no exposed functions. i used dumpbin /EXPORTS HelloWorld.dll  to check it.</p>
+<p>so i replaced</p>
+<p><code>// Expands to this example's entry-point
+//DEFINE_APPLICATION(HelloWorld)
+extern "C"  __declspec(dllexport)   RCCppObject* createHelloWorld(Context* context) { return(RCCppObject*) new HelloWorld(context); }
+extern "C"   __declspec(dllexport)  void  destroyHelloWorld(RCCppObject* object) { delete object; }
+</code></p>
+<p>and now it has exposed functions:</p>
+<p>[code]C:…\Bin\Data\RCCpp\01_HelloWorld&gt;dumpbin /EXPORTS HelloWorld.dll<br/>
+Microsoft ® COFF/PE Dumper Version 12.00.21005.1<br/>
+Copyright © Microsoft Corporation.  All rights reserved.</p>
+<p>Dump of file HelloWorld.dll</p>
+<p>File Type: DLL<br/>
+Section contains the following exports for HelloWorld.dll</p>
+<pre><code>00000000 characteristics
+543E2EEC time date stamp Wed Oct 15 10:23:08 2014
+    0.00 version
+       1 ordinal base
+       2 number of functions
+       2 number of names
+
+ordinal hint RVA      name
+
+      1    0 000033A0 createHelloWorld
+      2    1 000033F0 destroyHelloWorld
+</code></pre>
+<p>Summary</p>
+<pre><code>    1000 .data
+    5000 .rdata
+    1000 .reloc
+    5000 .text[/code]
+</code></pre>
+<p>my cmd call line is this :</p>
+<pre><code class="lang-auto"></code></pre>
+<p>did i forget to define a konstant in the cmd call ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<p>Sorry for the late reply, but I was on holidays traveling and I didn’t have access to Internet.</p>
+<p>Indeed, as MSVC was not supported, you’ll definitely need some tweaks to make it work. One of which is exporting the methods properly as you did. I would recommend you to overwrite the DEFINE_APPLICATION macro of Sample.h or the RCCP_OPBJECT of RCCppObject.h so that it works for every class and not just this one.</p>
+<p>After having a quick look at your cmd line call seems that everything is as it should (I’m not a MSVC pro, though). Could you explain deeper what’s your current issue, the steps that you do and the logs that you get? If I understood correctly, RCCpp should be complaining about not finding the createHelloWorld and destroyHelloWorld methods. It should print a log line such as “Could not load library HelloWorld”. Is that what’s actually happening to you? I understand that it woudn’t work if symbols are not exported, but I don’t really understand what’s happening to you right now if you’ve properly exported the symbols as you did.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">scorvi</div>
+          <div class="post_content">
+<p>[quote=“Pablo”]Sorry for the late reply, but I was on holidays traveling and I didn’t have access to Internet.</p>
+<p>Indeed, as MSVC was not supported, you’ll definitely need some tweaks to make it work. One of which is exporting the methods properly as you did. I would recommend you to overwrite the DEFINE_APPLICATION macro of Sample.h or the RCCP_OPBJECT of RCCppObject.h so that it works for every class and not just this one.</p>
+<p>After having a quick look at your cmd line call seems that everything is as it should (I’m not a MSVC pro, though). Could you explain deeper what’s your current issue, the steps that you do and the logs that you get? If I understood correctly, RCCpp should be complaining about not finding the createHelloWorld and destroyHelloWorld methods. It should print a log line such as “Could not load library HelloWorld”. Is that what’s actually happening to you? I understand that it woudn’t work if symbols are not exported, but I don’t really understand what’s happening to you right now if you’ve properly exported the symbols as you did.[/quote]</p>
+<p>np.</p>
+<p>i just wanted to know if using __declspec(dllexport) was the right way to do it. Because i did not see somthing like that in your implementation, so i thought i did something wrong. And i did not find this approach in the RuntimeCompiledCPlusPlus code, too… so i asked here …</p>
+<p>Yes it works with __declspec(dllexport).<br/>
+thx for your reply.</p>
+<p>how would i start creating c++ scripting for components ? or replace the scriptcomponent with a scriptcpluspluscomponent ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<p>Ok, I thought that after using __declspec(dllexport) you were still having some issues, that’s why I asked <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/>.</p>
+<p>The thing is that I did this implementation only for gcc-based compilers (in Windows that would be MinGW). By default, those compilers export every symbol unless specified otherwise. The approach of Visual Studio is exactly the other way around. Unless specified, it does not export anything, so you have to use __declspec(dllexport) yourself to every method that you want to export. That’s the reason people normally use some macro that they use in every class containing something different depending on the OS (take a look at <a href="https://github.com/LaurentGomila/SFML/blob/master/include/SFML/Config.hpp" rel="nofollow noopener">github.com/LaurentGomila/SFML/b … Config.hpp</a>, for instance).</p>
+<p>[code]////////////////////////////////////////////////////////////<br/>
+// Define helpers to create portable import / export macros for each module<br/>
+////////////////////////////////////////////////////////////<br/>
+<span class="hashtag">#if</span> !defined(SFML_STATIC)</p>
+<pre><code>#if defined(SFML_SYSTEM_WINDOWS)
+
+    // Windows compilers need specific (and different) keywords for export and import
+    #define SFML_API_EXPORT __declspec(dllexport)
+    #define SFML_API_IMPORT __declspec(dllimport)
+
+    // For Visual C++ compilers, we also need to turn off this annoying C4251 warning
+    #ifdef _MSC_VER
+
+        #pragma warning(disable: 4251)
+
+    #endif
+
+#else // Linux, FreeBSD, Mac OS X
+
+    #if __GNUC__ &gt;= 4
+
+        // GCC 4 has special keywords for showing/hidding symbols,
+        // the same keyword is used for both importing and exporting
+        #define SFML_API_EXPORT __attribute__ ((__visibility__ ("default")))
+        #define SFML_API_IMPORT __attribute__ ((__visibility__ ("default")))
+
+    #else
+
+        // GCC &lt; 4 has no mechanism to explicitely hide symbols, everything's exported
+        #define SFML_API_EXPORT
+        #define SFML_API_IMPORT
+
+    #endif
+
+#endif
+</code></pre>
+<p><span class="hashtag">#else</span></p>
+<pre><code>// Static build doesn't need import/export macros
+#define SFML_API_EXPORT
+#define SFML_API_IMPORT
+</code></pre>
+<p><span class="hashtag">#endif</span>[/code]</p>
+<aside class="quote">
+<blockquote>
+<p>how would i start creating c++ scripting for components ? or replace the scriptcomponent with a scriptcpluspluscomponent ?</p>
+</blockquote>
+</aside>
+<p>The easiest way to start using RCC++ within Urho3D is creating a folder within the Bin/Data folder called as you wish. Then, inside you have to create a class that inherits from RCCppMainObject and reimplement their Start and Stop methods, which will be the ones that Urho3D will call at the beginning and end, respectively. Then, you just have to call “Urho3dPlayer.exe MyMainClass.cpp” (as in any AngelScript or Lua script, besides any other parameters you may need). For any other component that you want to use, just remember that you have to inherit from RCCppObject and that you have to place the cpp file within the same folder as the RCCppMainObject’s file. You can also reimplement the Start/Stop methods of those additional components, but it’s not mandatory. To use the components from RCCppMainObject you just have to include its header as you would do normally and that’s all. RCC++ should be smart enough and create the proper Makefile to include every cpp within the folder of the project.</p>
+<p>Having said that, you may need some work to make Visual Studio compile the Makefile succesfully. Take a look at <a href="https://github.com/pamarcos/Urho3D/blob/RCCpp/Source/Engine/RCCpp/RCCppGppCompiler.cpp" rel="nofollow noopener">github.com/pamarcos/Urho3D/blob … mpiler.cpp</a>. You’ll have to use nmake instead of make. I’m not sure the original Makefile created will be ok for MSVC, but you can create a RCCppMsvcCompiler.cpp that does something similar but for Visual Studio.</p>
+<pre><code class="lang-auto">#ifdef __MINGW32__
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&amp;sysinfo);
+    int cores_ = sysinfo.dwNumberOfProcessors;
+    makeCommand_ = "mingw32-make -j" + String(cores_);
+#else
+    int cores_ = sysconf(_SC_NPROCESSORS_ONLN);
+    makeCommand_ = "make -j" + String(cores_);
+#endif</code></pre>
+<p>I hope it helps. Good luck, buddy!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Any chance this could work on IOS using Xcode ? It could be with some hackery I have seen workaround that allow the use of shared libraries for IOS. Although it might work only on the simulator and not on the device, but still could be quite useful.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/db4c02596e658dc9102b66ceb5fb9d80.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>Any chance this could work on IOS using Xcode ? It could be with some hackery I have seen workaround that allow the use of shared libraries for IOS. Although it might work only on the simulator and not on the device, but still could be quite useful.</p>
+</blockquote>
+</aside>
+<p>I don’t think this would work easily on iOS. I’m not very familiar with the installation process of apps for iOS, but my guess is that you’d like to have the game running on the device and be able to change the code in your machine, compile it and upload the new library to the device so that it changes the behavior of the game instance running at the moment. As far as you’re able to load a library at runtime, you should be able to load another library and start using it. What I’m concerned is that you should either have a button to know when to reload the library, or implement by your own something like Urho3D has to detect file changes (take also a look at <a href="https://code.google.com/p/simplefilewatcher/" rel="nofollow noopener">code.google.com/p/simplefilewatcher/</a>), but I’m not sure you’ll be able to do that in iOS. The other hard thing would be to upload a file to some place within iOS where your app would have access to read, and I’m not sure the OS would allow you to do that (without reinstalling the whole application) either. On the other hand, I do think this could be done in Android, as you have access to push files to different locations and in Java as far as I know you can unload and load native libraries again.</p>
+<p>If anyone’s got expertice about this, please post your thoughts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I think this could work with the simulator and it would be more useful anyway. The simulator is using the same compiler as OSX it is just clang and the files are pushed to local folder. If shared library is needed it could be with some modifications of Xcode configs but it could work. Can just Cmake be used to track if files is changed ? Can you provide a simple OSX example with Urho3D I think I can get the IOS version to work ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I wonder if it’s possible to make RCCpp secure and viable for modding.</p>
+<p>From security perspective:</p>
+<ul>
+<li>side effects only though the scripting API.</li>
+<li>bound checking</li>
+<li>sandboxing</li>
+<li>Compile at runtime to make sure the shared library doesn’t come modified.<br/>
+Using a different compiler may create incompatible library.<br/>
+If VS is used, does it mean the user needs to install VS to be able to use mods?</li>
+</ul>
+<p>From viability perspective:</p>
+<ul>
+<li>it should be easy to use. Having to deal with build systems isn’t good enough.</li>
+<li>Most commercial games want to protect their source code. Maybe if it’s possible to only include the headers relevant to the scripting API.</li>
+</ul>
+<p>To conclude it seems like too much trouble for a moddable scripting option.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Yes, if the game was built with VS users would need the exact same VS version as the main game was compiled in, due to C++'s lack of stable ABI.</p>
+<p>Maybe you could settle with using MinGW (a fixed version) and make the game installer bundle it together. But still it would bloat the installation and cause security concerns, compared to the usual approach of having moddable scripts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<p>You could make RCCpp viable for modding, but I agree with cadaver, you’d need to make sure the user has the same version of the compiler to make it work. The safest solution would be to deploy also the compiler itself to make sure the user uses exactly the same version. Once you have coped with that, you can deploy your API libraries compiled and expose only the headers so that it can be used. Of course, you’ll also have to make sure the user links against these libraries. You could also add some security for every method the user creates catching the exceptions and signals to avoid crashing the application/game itself.</p>
+<p>In any case, for the purpose of modding using a scripting language such as Lua or AngelScript seems like the way to go. They have been made thinking about all these concerns and are far more easier than C++ itself. I’d say RCCpp is thought as a tool to be able to iterate faster in your prototypes or your own libraries.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>For the Runtime-compiled C++ Is there a simple example on how to use it ? Does it need engine modification ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/db4c02596e658dc9102b66ceb5fb9d80.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>For the Runtime-compiled C++ Is there a simple example on how to use it ? Does it need engine modification ?</p>
+</blockquote>
+</aside>
+<p>It needs an engine modification that you can find in the following branch: <a href="https://github.com/pamarcos/Urho3D/tree/RCCpp" rel="nofollow noopener">github.com/pamarcos/Urho3D/tree/RCCpp</a><br/>
+You have to checkout that branch and compile Urho3D defining URHO3D_RCCPP in CMake. I run the following in the root folder to compile everything from scratch in Unix:</p>
+<pre><code class="lang-auto">rm -rf Build
+rm Lib/*
+./cmake_clean.sh
+mkdir Build
+./cmake_gcc.sh -DURHO3D_RCCPP=1 -DURHO3D_64BIT=1 -DURHO3D_OPENGL=1 -DCMAKE_BUILD_TYPE=Debug ..
+make -j8</code></pre>
+<p>Apart from that, you need a GCC-compatible compiler. In Windows, that would be MinGW.</p>
+<p>I made all the examples in C++ work with RCCpp. The way RCCpp is used is similar to the AngelScript and Lua script examples within Bin/Data, being the RCCpp examples in Bin/Data/RCCpp. So, in order to use it you have to run:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>This should compile the code for you into a shared library and load it at runtime. Then, you can change HelloGUI.cpp code (or any other file within its folder) and RCCpp will detect the change, compile, unload the old library and load the new one.</p>
+<p>It’s more deeply explained in the first post, but it’s true that there is no step-by-step guide. Please note that the code of every example within the RCCpp folder is exactly the same as the original examples in C++ that Urho3D has, except for Sample.h and Sample.inl which are slightly different in case RCCpp is activated. Basically, the difference is that you have to inherit from <span class="bbcode-i">RCCppMainObject</span> instead of Application for tour main class (RCCppObject for any other class) and use the <span class="bbcode-i">RCCPP_OBJECT</span> macro over every RCppObject class so that it exposes the create and destroy methods.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thank you for the thorough explanation. Is there a way to be made as a patch or a module, as I am keen on trying it with the latest build ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/db4c02596e658dc9102b66ceb5fb9d80.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>Thank you for the thorough explanation. Is there a way to be made as a patch or a module, as I am keen on trying it with the latest build ?</p>
+</blockquote>
+</aside>
+<p>I have merged the current master branch in my RCCpp one to update it to the latest version. Unfortunately, I am not currently able to compile Urho3D in Mac. It gives me too many errors in Yosemite with clang 6.1.0. So, even though I have changed all the RCCpp files as needed after they changed quite a bit the CMake files and the source structure, I cannot really test it to make sure it’s working.</p>
+<p>I’ll try to search over there how to fix the compilation and will update the change.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<p>Ok, finally got everything compiling with latest version of Urho3D. I have only tested it on Mac, though. Please checkout the latest commit at <a href="https://github.com/pamarcos/Urho3D/commits/RCCpp" rel="nofollow noopener">github.com/pamarcos/Urho3D/commits/RCCpp</a> and tell me whether it works or not.<br/>
+Please note that you have to configure Urho3D with CMake adding: -DURHO3D_RCCPP=1 -DURHO3D_LIB_TYPE=SHARED plus whatever you want.</p>
+<p>If I have time tomorrow, I will write some Readme in the repo explaining with a step-by-step example how to use it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Awesome ! I will try it out <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I am having problems enabling RCPP. When I run the Urho3d Player it says RCCpp is not enabled. I compiled with <a href="http://RCCpp.sh" rel="nofollow noopener">RCCpp.sh</a> under OSX.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/db4c02596e658dc9102b66ceb5fb9d80.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>I am having problems enabling RCPP. When I run the Urho3d Player it says RCCpp is not enabled. I compiled with <a href="http://RCCpp.sh" rel="nofollow noopener">RCCpp.sh</a> under OSX.</p>
+</blockquote>
+</aside>
+<p>I have pushed new changes to ensure that URHO3D_RCPP is enabled. Please also make sure that you don’t have any CMake files cached and if using the <a href="http://RCCpp.sh" rel="nofollow noopener">RCCpp.sh</a> script you are compiling the “Build” folder it generates.<br/>
+Also remember to set URHO3D_HOME to your Urho3D’s compiled folder (where your lib and include folders are). If you are using the <a href="http://RCCpp.sh" rel="nofollow noopener">RCCpp.sh</a> script, that’s the Build folder.<br/>
+Apart from that, now Samples are all copied properly to the Data/RCCpp folder as it was they were in the previous version.</p>
+<p>I hope this time you can make it work <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>It worked with 02_HelloGUI without problems but it errored with 01_HelloWorld .<br/>
+These are the errors: <a href="http://codepad.org/VWjsczg2" rel="nofollow noopener">codepad.org/VWjsczg2</a> .<br/>
+I also noticed I cannot maintain the state of the application when I change the text for example it also resets the whole application to the default.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<p>[quote=“sabotage3d”]It worked with 02_HelloGUI without problems but it errored with 01_HelloWorld .<br/>
+These are the errors: <a href="http://codepad.org/VWjsczg2" rel="nofollow noopener">codepad.org/VWjsczg2</a> .[/quote]<br/>
+Sorry about the error in the HelloWorld example, that was my fault. I have been quite busy at work and didn’t have much time to fix this and test every single sample. Fortunately, we both have similar systems and I was able to fix it quite easily. Please checkout the newest version.</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/db4c02596e658dc9102b66ceb5fb9d80.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>I also noticed I cannot maintain the state of the application when I change the text for example it also resets the whole application to the default.</p>
+</blockquote>
+</aside>
+<p>Yep, there is no state saving right now in RCCpp as it was intended to be a PoC for fast prototyping. I am thinking about making this a lightweight runtime-compiled C++ library and do the integration with Urho3D as I have done. In there, I could implement some state saving to restore the state between different compilations. I have been taking a look at <a data-bbcode="true" href="http://uscilab.github.io/cereal/index.html" rel="nofollow noopener">http://uscilab.github.io/cereal/index.html</a> and it looks quite promising.<br/>
+However, it’s up to the developer to know whether it should save and load something or not. Also, depending on what you’re trying to do and how, the class may have weird behavior or even crash when reloading it. One has to take into account that not everything is destructed and constructed again, but only the classes you are working with. This means that for instance if you took the UI root node and draw something within it, if you don’t remove it in your Stop (or destructor), when Start (or constructor) draws again over the UI root, you will have the same thing drawn twice.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks a lot. Any plans for merging this with Urho3d ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/db4c02596e658dc9102b66ceb5fb9d80.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>Thanks a lot. Any plans for merging this with Urho3d ?</p>
+</blockquote>
+</aside>
+<p>Sorry for the late reply, I was waiting if someone else within the Urho3D dev team answered. Actually, that’s not on me but on the devs so it’s for them to decide whether this is worth it or not.<br/>
+On my side, I’m still thinking about the best way to take out RCCpp from within Urho3D into a lightweight 3rd-party library adding features such as serialization to save and restore the state of the scene.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Yeah that would be quite cool. This one looks really fast and it preserves the state: <a href="https://www.youtube.com/watch?v=FHwJUGhXDUQ" rel="nofollow noopener">youtube.com/watch?v=FHwJUGhXDUQ</a> .  Is it based on different techniuqe ?<br/>
+There are some updates here as well: <a href="http://runtimecompiledcplusplus.blogspot.co.uk/" rel="nofollow noopener">runtimecompiledcplusplus.blogspot.co.uk/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1032_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pablo</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/db4c02596e658dc9102b66ceb5fb9d80.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>This one looks really fast and it preserves the state: <a href="https://www.youtube.com/watch?v=FHwJUGhXDUQ" rel="nofollow noopener">youtube.com/watch?v=FHwJUGhXDUQ</a> .  Is it based on different techniuqe ?</p>
+</blockquote>
+</aside>
+<p>As far as I know for the posts that he did it’s the same technique, but he did a very good work preserving the state. Regarding RCC++ it’s been recently updated, but what I don’t like too much about it is that it’s not that easy to understand and use for a newcomer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I also found this in-depth article for implementing Runtime-compiled C++in a game engine : <a href="http://blog.molecular-matters.com/2014/05/10/using-runtime-compiled-c-code-as-a-scripting-language-under-the-hood/" rel="nofollow noopener">blog.molecular-matters.com/2014/ … -the-hood/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>[quote=“Pablo”]<br/>
+Sorry for the late reply, I was waiting if someone else within the Urho3D dev team answered. Actually, that’s not on me but on the devs so it’s for them to decide whether this is worth it or not.<br/>
+On my side, I’m still thinking about the best way to take out RCCpp from within Urho3D into a lightweight 3rd-party library adding features such as serialization to save and restore the state of the scene.[/quote]</p>
+<p>I agree with the guys here, it is a great idea and an added C++ feature. One way to find out is to update your repo, a sample demo and send your changes for PR review.  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p><span class="bbcode-b">+1000</span> keep it up!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

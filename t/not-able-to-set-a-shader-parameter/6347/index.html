@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Not able to Set a Shader Parameter</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Not able to Set a Shader Parameter</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Hey guys, I’ve been messing around with glsl bloom and greyscale.<br/>
+I’m able to get both to work. I can toggle them on which is great.<br/>
+I want to fade in the greyscale, though, not just toggle it on. I’ve tried for a while today to do SetShaderParameter but it’s just not working.<br/>
+My use case is fading this in (from full color to full monochrome) and back out in-game.</p>
+<p>Below is my xml which is bloom, an unused pixellation effect, and greyscale mashed together. Like I said, it works fine toggling on and off the Grey tag via:</p>
+<pre><code class="lang-auto">effectRenderPath:SetEnabled("Grey", true)
+</code></pre>
+<p>But this requires the values (swapping rgb for intensity) to be preset in the GreyScale.glsl file. I need to change those values during gameplay.</p>
+<p>BloomGreyScale.xml</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+	&lt;rendertarget name="buffer" sizedivisor="1 1" filter="false"/&gt; 
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" output="buffer"/&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" output="buffer" /&gt;
+    &lt;command type="forwardlights" pass="light" output="buffer" /&gt;
+    &lt;command type="scenepass" pass="postopaque" output="buffer" /&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" output="buffer" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" output="buffer" /&gt;
+	&lt;command type="quad" tag="Grey" vs="CopyFramebuffer" ps="GreyScale" output="viewport"&gt;
+		&lt;parameter name="Greyness" value="1 1 1" /&gt;
+		&lt;texture unit="diffuse" name="buffer" /&gt;
+	&lt;/command&gt;
+	    &lt;rendertarget name="blurv" tag="Bloom" sizedivisor="6 6" format="rgb" filter="true" /&gt;
+    &lt;rendertarget name="blurh" tag="Bloom" sizedivisor="6 6" format="rgb" filter="true" /&gt;
+    &lt;command type="quad" tag="Bloom" vs="Bloom" ps="Bloom" psdefines="BRIGHT" output="blurv"&gt;
+        &lt;parameter name="BloomThreshold" value="0.3" /&gt;
+        &lt;texture unit="diffuse" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="Bloom" vs="Bloom" ps="Bloom" psdefines="BLURH" output="blurh"&gt;
+        &lt;texture unit="diffuse" name="blurv" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="Bloom" vs="Bloom" ps="Bloom" psdefines="BLURV" output="blurv"&gt;
+        &lt;texture unit="diffuse" name="blurh" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="Bloom" vs="Bloom" ps="Bloom" psdefines="COMBINE" output="viewport"&gt;
+        &lt;parameter name="BloomMix" value="1 .5" /&gt;
+        &lt;texture unit="diffuse" name="viewport" /&gt;
+        &lt;texture unit="normal" name="blurv" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;
+</code></pre>
+<p>I tried modifying the CoreData/Shaders/GreyScale file:</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+#include "Lighting.glsl"
+
+varying vec2 vScreenPos;
+
+uniform vec3 cGreyness;
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+    gl_Position = GetClipPos(worldPos);
+    vScreenPos = GetScreenPosPreDiv(gl_Position);
+}
+
+void PS()
+{
+
+    vec3 rgb = texture2D(sDiffMap, vScreenPos).rgb;
+    float intensity = GetIntensity(rgb)-cGreyness.x;
+    gl_FragColor = vec4(vec3(cGreyness), 1.0);
+
+}
+</code></pre>
+<p>Now, I know the above won’t actually make the intended monochrome effect, it’ll be a flat color on the whole screen. I can do the math (blending the rgb and intensity values together with the ‘greyness’ variable) later. I just need to make sure I can send ‘greyness’ in the first place.</p>
+<p>And in game I’ve tried variations of:</p>
+<pre><code class="lang-auto">effectRenderPath:SetShaderParameter("Greyness",Vector3(1,1,1))
+</code></pre>
+<p>But no matter what I try, floats or vectors, I can’t seem to actually pass the value to the shader. If I set the value in the shader file manually it works, but to blend the monochrome I need to obviously set it live.</p>
+<p>If I set cGreyness vec3 in GreyScale.glsl to Vec3(1,1,1) it’ll be flat white, as it should. 0,0,0 would be flat black. However I get a blackscreen no matter what I do with the SetShaderParameter.</p>
+<p>Any ideas what it might be?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Does it work when you set arbitrary color in renderpath XML?<br/>
+If yes, try setting color in XML <em>and</em> setting different color in the code. What happens in this scenario?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>try<br/>
+<code>    effectRenderPath:SetShaderParameter("Greyness",Variant(Vector3(1,1,1)))</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>ahhhh that was it, I’m an idiot. The irony is I have that same Variant syntax elsewhere for materials, just overlooked it. Works perfectly.<br/>
+Usually if I do something like this, like feeding a vector instead of a quarternion, I’ll get a segfault or an error. In this case I guess the shader just ignored this value since I didn’t get any console messages?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>this is the fault of lua wrappers I think. It should work like that but it doesn’t and you get no error. Lua as a whole is sadly neglected in urho3d and has many <a href="https://discourse.urho3d.io/t/lua-animated-model-is-not-a-drawable/6322">issues</a> personally I very rarely get answers to many of these. I often have to delve into tolua++ and just diy parts of it.</p>
+<p>Have you compiled with safe lua? it may help but produce false errors and you often cant trust the lua part anyway since its a second class citizen as far as urho3d is concerned.  kind of sucks <img alt=":frowning:" class="emoji" src="../../../images2/c383444e3b50f1554d2f21c7c206ca52.png" title=":frowning:"/></p>
+<p>I am not entirely sure what it does if you just pass the vector but I assume it fails to convert it correctly and fails silently. I haven’t had a segfault over a variant before though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Ah yeah, I have the same issues but fortunately nothing that has stopped my progress too much. I did SafeLua before but have since reinstalled my OS and I forgot to this time around. I just try not to make any mistakes, lol. I don’t recall if safelua helped that much anyway.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

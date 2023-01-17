@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Building of influence map</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Building of influence map</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Hi, all!</p>
+<p>How would you implement “closest visible item” query for NPC in Urho?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Wrote <a href="https://github.com/LucKeyProductions/OGTatt/blob/master/mastercontrol.h#L111-L153">this</a> for <a href="https://github.com/LucKeyProductions/OGTatt">OG Tatt</a>:</p>
+<pre><code class="lang-auto">template &lt;class T&gt; T* GetNearestInstanceOf(Vector3 location)
+{
+    T* nearest{ nullptr };
+    float nearestDistance{ M_INFINITY };
+
+    PODVector&lt;T*&gt; components{};
+    world.scene-&gt;GetDerivedComponents&lt;T&gt;(components, true);
+
+    for (T* c : components) {
+
+        Node* node{ static_cast&lt;Component*&gt;(c)-&gt;GetNode() };
+        float distance{ (location - node-&gt;GetWorldPosition()).LengthSquared() };
+
+        if (distance &lt; nearestDistance) {
+
+            nearest = c;
+            nearestDistance = distance;
+        }
+    }
+    return nearest;
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>That’s absurdly useful for my game. Thank you so much sir.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Some more thing about influence map.</p>
+<p>Imagine an NPC. He have</p>
+<ol>
+<li>“awareness radius” - he knows of extistence of objects in this radius and can enumerate it.</li>
+<li>Can separate things by type (which means tag). So it can answer “where is closest taxi?” “where is closest vehicle?”<br/>
+“where is a toilet?” “where i can eat?” questions.</li>
+<li>Can only consider the target details on close radius, i.e. “is this bus full so I can not fit?”, “is there someone in vehicle<br/>
+on driver seat?” “is this shitty restaurant closed?”. BUT NPC should do risk management, i.e. collect data so he can<br/>
+consider on distance. So to not constantly repeat failed action of previous NPCs, i.e. he “sees” that a man before<br/>
+failed accessing the restaurant which scores this target -50, which allows selecting another restaurant nearby, if any.<br/>
+So kind of messaging failures to directly visible NPCs so they select different targets for some time, but<br/>
+wears off after a few minutes and do not affect nearby NPCs which did not “see” what happened.</li>
+</ol>
+<p>So the role for influence map is to accelerate all these considerations for many NPCs.<br/>
+Which is wat I want to eventually get to. as I see, there are a few data sets there.</p>
+<ol>
+<li>We need layering system which allows to access all spatial data or by criteria.<br/>
+<a href="https://github.com/jlblancoc/nanoflann" rel="nofollow noopener">https://github.com/jlblancoc/nanoflann</a> allows quick spatial searches, but we also need some way to request tag as key.<br/>
+This probably can be done by using structure like VariantMap with tags as key, and separate K-D trees,<br/>
+with main K-D tree for storing all data. Wihch looks like extreme data duplication, but I can’t think of anything else.</li>
+<li>The layering system should be quick and dynamic, i.e. change of tag should allow migration. I did not test nanoflann<br/>
+with this, but I really hope it will work.</li>
+</ol>
+<p>Any ideas on where to look for inspiration and code?</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Since you don’t need the actual distance value for the comparison, you can improve the performance by using LengthSquared() instead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Ah, thanks. Saves a Sqrt() I guess?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

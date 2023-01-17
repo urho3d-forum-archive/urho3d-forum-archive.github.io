@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Task system - coroutines for Urho3D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Task system - coroutines for Urho3D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>I implemented cooperative multitasking for Urho3D. Simply put you can now write code like this:</p>
+<pre><code class="lang-cpp">
+void TasksSample::MushroomAI()
+{
+    // Implement mushroom logic.
+    const char* mushroomText[] = {
+        "Q: Mummy, why do all the other kids call me a hairy werewolf?",
+        "A: Now stop talking about that and brush your face!",
+        "Q: What did one thirsty vampire say to the other as they were passing the morgue?",
+        "A: Let’s stop in for a cool one!",
+        "Q: How can you tell if a vampire has a horrible cold?",
+        "A: By his deep loud coffin!",
+        "Q: What do skeletons say before eating?",
+        "A: Bone Appetit!",
+        "Q: Why did the vampire get fired from the blood bank?",
+        "A: He was caught drinking on the job!",
+        "Q: What is a vampire’s pet peeve?",
+        "A: A Tourniquet!",
+    };
+
+    // This task runs as long as title node exists in a scene.
+    WeakPtr&lt;Node&gt; titleNode(scene_-&gt;GetChild("MushroomTitle", true));
+    for (;!titleNode.Expired();)
+    {
+        auto index = Random(0, SDL_arraysize(mushroomText) / 2);
+        auto text3D = titleNode-&gt;GetComponent&lt;Text3D&gt;();
+
+        // Mushroom says a joke question
+        text3D-&gt;SetText(mushroomText[index * 2]);
+        // And waits for 5 seconds. This does not block rendering.
+        SuspendTask(5.f);
+
+        // After 5 seconds mushroom tells an answer.
+        text3D-&gt;SetText(mushroomText[index * 2 + 1]);
+        SuspendTask(3.f);
+
+        // And after 3 more seconds laughs.
+        text3D-&gt;SetText("Hahahahaha!!!");
+        // Next joke comes after 3 seconds.
+        SuspendTask(3.f);
+
+        // SuspendTask() may be called without arguments. Execution will be resumed on the next frame.
+        SuspendTask();
+    }
+}
+
+void TasksSample::SubscribeToEvents()
+{
+    // Create a task that will be scheduled each time E_UPDATE event is fired.
+    GetTasks()-&gt;Create(E_UPDATE, std::bind(&amp;TasksSample::MushroomAI, this));
+}
+</code></pre>
+<p><code>MushroomAI()</code> code is written as if it executed sequentially and yet <code>SuspendTask()</code> calls do not block rendering even though code runs on the main thread. If you wish you may implement task scheduling on other threads as well. It is implemented in a cross-platform and efficient way. On windows it uses fiber API. On unixes it uses ucontext for first context switch and _setjmp/_longjmp for following context switches. No assembly code used.</p>
+<p>Code:</p>
+<ul>
+<li><a href="https://github.com/***/Urho3D/blob/master/Source/Urho3D/Core/Tasks.h" rel="nofollow noopener">Tasks.h</a></li>
+<li><a href="https://github.com/***/Urho3D/blob/master/Source/Urho3D/Core/Tasks.cpp" rel="nofollow noopener">Tasks.cpp</a></li>
+<li><a href="https://github.com/***/Urho3D/blob/master/Source/Samples/101_Tasks/Tasks.cpp" rel="nofollow noopener">Full sample code</a></li>
+</ul>
+<p>Joke-telling npc mushroom from the sample:<br/>
+<img alt="2" height="351" src="../../../images2/709755dcb08cee3f5fc925d8a90d2cd6.gif" width="640"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/698_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TrevorCash</div>
+          <div class="post_content">
+<p>This looks awesome - can you start tasks with function arguments?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>It looks great, but I am afraid that it has bad portability among platforms.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Great work.</p>
+<p>Instead of time out, how can we use this coroutine to wait for a signal or a returned object before continue with the next or subsequence or parallel tasks?</p>
+<p>These has lots of application. E.g. parallel path findings, state machines, discrete event etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="2" data-topic="3665" data-username="TrevorCash">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/3e03f509e9bddfe0b1fb74b7770250a7.png" width="20"/> TrevorCash:</div>
+<blockquote>
+<p>This looks awesome - can you start tasks with function arguments?</p>
+</blockquote>
+</aside>
+<p>Sure, use <code>std::bind</code>:</p>
+<pre><code class="lang-cpp">void MyClass::MyMethod(int val)
+{
+    assert(val == 2);
+}
+GetTasks()-&gt;Create(std::bind(&amp;MyClass::MyMethod, this, 2));
+</code></pre>
+<aside class="quote no-group" data-full="true" data-post="3" data-topic="3665" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>It looks great, but I am afraid that it has bad portability among platforms.</p>
+</blockquote>
+</aside>
+<p>What do you mean? It would run perfectly on platforms that support ucontext and some version of c standard, which is just about any platform supported by urho. Including MacOS (although it is true that they deprecated ucontext), iOS, Android, raspberry pi, arm/arm64/x86/x64. I am not so sure how it would fare on consoles. One thing that i am sure of - if this does not work on certain platforms then it is not too hard to make it work <img alt=":wink:" class="emoji" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title=":wink:"/></p>
+<aside class="quote no-group" data-post="4" data-topic="3665" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>Instead of time out, how can we use this coroutine to wait for a signal or a returned object before continue with the next or subsequence or parallel tasks?</p>
+<p>These has lots of application. E.g. parallel path findings, state machines, discrete event etc.</p>
+</blockquote>
+</aside>
+<p>Sure you can. What you would do is:</p>
+<pre><code class="lang-cpp">if (isConditionSet)
+{
+    // signal was received, do things
+}
+SuspendTask();    // Schedule other tasks, resume on next frame.
+</code></pre>
+<p>Or you can manually switch to tasks. API still needs a bit of work to allow sidestepping scheduler completely, but in theory you can totally do <code>task-&gt;SwitchTo()</code>, task is scheduled and execution resumes after this method call as soon as task calls <code>SuspendTask()</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Look great.<br/>
+Where would you put that signal condition check inside the tasks code so that it execute immediately on signal.<br/>
+Could you make a small sample for this?</p>
+<p>How would you do to suspend or interrupt other tasks from a different task?<br/>
+Or could you possible sending object or signal immediately between tasks? For example sending to interrupt and changing task at the current frame.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="3665" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>Where would you put that signal condition check inside the tasks code so that it execute immediately on signal.</p>
+<p>Could you make a small sample for this?</p>
+</blockquote>
+</aside>
+<p>That is not how tasks work. Tasks are like micro-threads. If you want task to resume when some signal is sent you probably want to do it manually - receive signal and call <code>task-&gt;SwitchTo()</code> which will schedule task.</p>
+<aside class="quote no-group" data-post="6" data-topic="3665" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>How would you do to suspend or interrupt other tasks from a different task?</p>
+</blockquote>
+</aside>
+<p>Same way as you would do it with threads: set condition variable somewhere and have task check it constantly. You do not want to have and use <code>task-&gt;Terminate()</code> for example, because it would free task stack without unwinding it and possibly cause memory leaks.</p>
+<aside class="quote no-group" data-post="6" data-topic="3665" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>Or could you possible sending object or signal immediately between tasks? For example sending to interrupt and changing task at the current frame.</p>
+</blockquote>
+</aside>
+<p>You would have to implement that part. Maybe like some kind of queue that task is constantly checking, getting items from it and processing once you put something in there?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Thanks,<br/>
+I’m just raising a few questions to understand the capability of the implementation.</p>
+<p>The reason I’m asking about interrupt and signal is when you would use it for ai character, where the ai could do multiple tasks concurrently.</p>
+<p>Best regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Yes, that is exactly the point of task system - doing multiple things at one (but not in parallel).</p>
+<p>For example you could have <code>AttackTask()</code> which actively looks for enemies around and attacks them.</p>
+<p>Then you could have <code>HealTask()</code> which checks HP every X seconds and consumes healing potions.</p>
+<p>Then you could have <code>ReactTask()</code> which would check HP every X seconds and once it reaches 10% or less it would make NPC scream “AHHHH!!!” and flee.</p>
+<p>Now logical thing would be to terminate <code>AttackTask()</code> when <code>ReactTask()</code> initiates fleeing. NPC could have <code>state_</code> member variable which could be <code>AGGRESSIVE</code> or <code>FRIGHTENED</code>, and <code>AttackTask()</code> then would only make NPC attack if it is in <code>AGGRESSIVE</code> state.</p>
+<p>Not the best AI design but i hope it illustrates how to do things concurrently.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p><span class="mention">@George1</span> i worked on it a bit more and added <code>task-&gt;Terminate()</code> method to request task termination. <code>SuspendTask()</code> throws exception in the task, this unwinds the stack properly and prevents any memory leaks i mentioned earlier. If exception cost is too high you may manually keep checking <code>task-&gt;IsTerminating()</code> before every <code>SuspendTask()</code> call and return from the task, avoiding throwing exception.</p>
+<p>Updated sample, adding multiple examples to that worker thread function demonstrating how various things work. Also added example on how to manually schedule tasks without using task scheduler.</p>
+<p>Hope you find it useful</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

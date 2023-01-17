@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Attribute refactoring</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Attribute refactoring</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Here is semi-major attribute refactoring.<br/>
+I would be happy if someone review code and/or test changes before I push it.<br/>
+<a class="onebox"  rel="nofollow noopener" target="_blank">https://github.com/urho3d/Urho3D/pull/2091</a></p>
+<ol>
+<li>Arbitrary attribute metadata was added.</li>
+</ol>
+<p>Attribute metadata is per-attribute <code>VariantMap</code> with custom values.<br/>
+The only way to set metadata is to call <code>SetMetadata</code> on <code>URHO3D_ATTRIBUTE</code>-like macros. <code>SetMetadata</code> calls may be chained.</p>
+<p>Metadata may be acquired via <code>AttributeInfo::GetMetadata</code> or <code>AttributeInfo::GetMetadata&lt;T&gt;</code>. It is also exposed to Angel Script.</p>
+<ol start="2">
+<li>Offset-based attributes were removed due to unsafety.</li>
+</ol>
+<p><code>URHO3D_ATTRIBUTE</code> and <code>URHO3D_ENUM_ATTRIBUTE</code> are aliased to accesor attributes now. So, offset can’t be used to identify attribute anymore. Use attribute name or metadata. See <code>Constraint</code> for example.</p>
+<p>Attribute type hacking will get broken. If you lied with attribute type, code won’t compile. E.g. <code>Light::CascadeParameters::splits_</code> were <code>float[4]</code> and serialized like <code>Vector4</code>. Don’t lie to your compiler anymore.</p>
+<ol start="3">
+<li>Vector structure elements and corresponding defines were removed, <span class="mention">@KonstantTom</span>.</li>
+</ol>
+<p>Use metadata variable <code>AttributeMetadata::P_VECTOR_STRUCT_ELEMENTS</code> instead. It shall be initialized with <code>StringVector</code> instead of <code>const char*[]</code>, no trailing zero is needed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>Can you compare the performance difference between these changes, especially the retiring the offset part.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/203_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">KonstantTom</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<ol start="3">
+<li>Vector structure elements and corresponding defines were removed,</li>
+</ol>
+</blockquote>
+</aside>
+<p>These changes are fine to me. Arbitrary metadata is much more flexible. It looks good for me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/503_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alex-Doc</div>
+          <div class="post_content">
+<p>It looks good to me.</p>
+<p>The only thing I don’t like is the new line for <code>.SetMetadata</code> but it’s just a matter of personal taste.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="2" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/616e31ac3a98a36e7523b7f453239fc1.png" width="20"/> yushli1:</div>
+<blockquote>
+<p>Can you compare the performance difference between these changes, especially the retiring the offset part.</p>
+</blockquote>
+</aside>
+<p>Performance is not affected. The test below take the same time with both old and new version (75++5 ms for Debug, 10-+0.5 ms for Release). I didn’t test metadata-related changes because they have very limited area.</p>
+<details>
+<summary>
+Code</summary>
+<pre><code>#include &lt;Urho3D/Scene/Serializable.h&gt;
+#include &lt;Urho3D/IO/VectorBuffer.h&gt;
+#include &lt;Urho3D/Core/StringUtils.h&gt;
+#include &lt;chrono&gt;
+
+using namespace Urho3D;
+
+#define URHO3D_NEW_ATTRIBUTE(name, typeName, variable, defaultValue, mode) URHO3D_ACCESSOR_ATTRIBUTE_FREE(name, [](const ClassName* classPtr) -&gt; typename AttributeTrait&lt;typeName &gt;::ReturnType { return classPtr-&gt;variable; }, [](ClassName* classPtr, typename AttributeTrait&lt;typeName &gt;::ParameterType value) { classPtr-&gt;variable = value; }, typeName, defaultValue, mode)
+#undef URHO3D_ATTRIBUTE
+#define URHO3D_ATTRIBUTE(name, typeName, variable, defaultValue, mode) URHO3D_NEW_ATTRIBUTE(name, typeName, variable, defaultValue, mode)
+
+class TestSerializable : public Serializable
+{
+   URHO3D_OBJECT(TestSerializable, Serializable);
+
+public:
+   TestSerializable(Context* context) : Serializable(context)
+   {
+      bool_ = !!Random(0, 1);
+      int_ = Random(1, 100);
+      float_ = Random(1.0f, 100.0f);
+      string_ = String(Random(1, 100));
+      vector_ = { Random(1, 100), Random(1, 100), Random(1, 100) };
+      map_ = { { "1", Random(1, 100) }, { "2", Random(1, 100) }, { "3", Random(1, 100) } };
+   }
+   static void RegisterObject(Context* context)
+   {
+      context-&gt;RegisterFactory&lt;TestSerializable&gt;();
+
+      URHO3D_ATTRIBUTE("Bool", bool, bool_, false, AM_DEFAULT);
+      URHO3D_ATTRIBUTE("Int", int, int_, 0, AM_DEFAULT);
+      URHO3D_ATTRIBUTE("Float", float, float_, 0.0f, AM_DEFAULT);
+      URHO3D_ATTRIBUTE("String", String, string_, String::EMPTY, AM_DEFAULT);
+      URHO3D_ATTRIBUTE("VariantVector", VariantVector, vector_, Variant::emptyVariantVector, AM_DEFAULT);
+      URHO3D_ATTRIBUTE("VariantMap", VariantMap, map_, Variant::emptyVariantMap, AM_DEFAULT);
+   }
+private:
+   bool bool_;
+   int int_;
+   float float_;
+   String string_;
+   VariantVector vector_;
+   VariantMap map_;
+};
+
+size_t Test(Context* context)
+{
+   TestSerializable::RegisterObject(context);
+   Vector&lt;SharedPtr&lt;TestSerializable&gt;&gt; objects;
+   for (int i = 0; i &lt; 10000; ++i)
+      objects.Push(MakeShared&lt;TestSerializable&gt;(context));
+   VectorBuffer output;
+   output.Resize(1024 * 1024);
+
+   auto t1 = std::chrono::high_resolution_clock::now();
+   for (TestSerializable* object : objects)
+      object-&gt;Save(output);
+   auto t2 = std::chrono::high_resolution_clock::now();
+   size_t us = (size_t)std::chrono::duration_cast&lt;std::chrono::microseconds&gt;(t2 - t1).count();
+
+   File file(context);
+   file.Open("C:/output.bin", FILE_WRITE);
+   file.Write(output.GetData(), output.GetSize());
+   file.Close();
+   return us;
+}
+</code></pre>
+</details>
+<aside class="quote" data-post="4" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8a921bbe6313284d77fc74b5bef2a2ef.png" width="20"/> Alex-Doc:</div>
+<blockquote>
+<p>The only thing I don’t like is the new line for .SetMetadata but it’s just a matter of personal taste</p>
+</blockquote>
+</aside>
+<p>The idea is pretty simple here. Have you heard about “single line -<br/>
+single declaration” rule in C++? Here is the same situation. Metadata  is the declaration of the new variable inside the map, so it shall be placed on its own line.<br/>
+The same is about variadic <code>SendEvent</code>: I’d like to put every event parameter on its own line.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>In this test code you’re not really testing the performance of <code>object-&gt;Save()</code>, you’re testing the hundreds of memory allocations that are occurring in VectorBuffer, which are comparatively slow to serialization.</p>
+<p>I can’t test it for myself now but recommend reserving space on the vector buffer before doing the test and see if it makes any difference.</p>
+<pre><code class="lang-cpp">output.Resize(sizeof(TestSerializable) * 10000);  // Not entirely sure how attributes contribute to the size of the serialized data, so maybe you need to increase this factor
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="6" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/12a1dc2eccbee0e3555e7cc3e716f46e.png" width="20"/> TheComet:</div>
+<blockquote>
+<p>In this test code you’re not really testing the performance of object-&gt;Save(), you’re testing the hundreds of memory allocations that are occurring in VectorBuffer, which are comparatively slow to serialization.</p>
+</blockquote>
+</aside>
+<p>Hundreds of memory allocations take only about 10% of overall time. New test results:</p>
+<p>Debug Old: 65…75 ms;<br/>
+Debug New: 70…76 ms;<br/>
+Release Old: 8.8…10 ms;<br/>
+Release New: 9.3…10 ms.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>How are the meanings of these results? Does that mean Release Old use 8.8 to 10 ms while Release New use 9.3 to 10 ms?<br/>
+Also VauleAnimation and ObjectAnimation relies on AttributeAnimation. We may need to test their performance differences before commiting such a fundamental code change as well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>Please come back often and give the valuable opinions. It may take you ten minutes but will save a lot of arguments and point the right direction for this amazing engine. Like the retiring the attribute offset thing, do you think it will affect the overall performance since AttributeAnimation, ValueAnimation and ObjectAnimation are all depending on it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I don’t understand why do you care about performance at all.</p>
+<ol>
+<li>offset attributes is an old hack that should be removed ASAP.</li>
+<li>Performance can’t be worse than accessor attributes.</li>
+<li>Only 25% of urho attributes are affected.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>Debug Old: 65…75 ms;<br/>
+Debug New: 70…76 ms;<br/>
+Release Old: 8.8…10 ms;<br/>
+Release New: 9.3…10 ms.</p>
+<p>Judging from this test result,  new performance is  actually a bit slower, consistently in both debug and release.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>You should treat these results as ‘accessor attributes are negligibly slower (~5% in release mode) than offset attributes due to two extra pointer-to-function calls’.<br/>
+Then, my refactorig is obligatory migration to accessor attributes without breaking API for safety reasons.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I understand fixing Undefined Behavior with the offset usage (just use lambda accessor instead?).</p>
+<p>I don’t understand why:</p>
+<ol>
+<li>you need attribute meta info</li>
+<li>overhead is introduced</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="13" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>you need attribute meta info</p>
+</blockquote>
+</aside>
+<p>I just wanted to add attribute metadata at some point and get rid of kludge named ‘vector structure elements’. When I tried to remove offset attributes, I understood that the point is now. See changes in Constraint.cpp in my PR.</p>
+<aside class="quote" data-post="13" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>overhead is introduced</p>
+</blockquote>
+</aside>
+<p>What overhead do you mean?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>5% slower in release mode consistently is not negligible for such a core feature because many other features are depending on it, like ValueAnimation, ObjectAnimation, Serialization, Deserialization and Networking. Using offset exists safely for many years and should not be changed just for so called safety at the price of performance. And this change cannot be opt out. I suggest only commit such a change with thorough test and ensure no negative performance introduced at all.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="14" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>vector structure elements</p>
+</blockquote>
+</aside>
+<p>Looked at it a bit, undocumented and looks quite messy. I’m not sure I understand what is it used for (stores names of members encoded into a VariantVector?).<br/>
+Also it only seems to be used in a single place in the editor, which is also undocumented.</p>
+<p>Internally Urho uses URHO3D_ACCESSOR_VARIANT_VECTOR_STRUCTURE_ATTRIBUTE for two classes: StaticModelGroup and SplinePath.</p>
+<p>They seem to use VariantVector to store known ID type + size count as the first element, which doesn’t make sense (just use a <code>vector&lt;T&gt;</code> of the known type).<br/>
+Is it because serialization doesn’t support vector or something?</p>
+<p>To me it seems this kludge should be completely removed and replaced with a proper solution.<br/>
+If meta info suppose to replace it, it still doesn’t solve the underlying kludge that caused it in the first place.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<blockquote>
+<p>5% slower in release mode consistently is not negligible for such a core feature</p>
+</blockquote>
+<p>So, it’s the problem of accessor attributes introduced six years ago. Accessor attributes were <em>designed</em> to make code more <em>simple</em> and <em>safe</em> despite some performance loss. Do you think it was bad decision? Why nobody cared about it for six years?</p>
+<blockquote>
+<p>should not be changed just for so called safety at the price of performance</p>
+</blockquote>
+<p>Undefined Behavior must not be used. Consider this as axiom.</p>
+<p>Think the opposite: there is no reason to use unsafe code unless it is noticeably faster.<br/>
+Now the difference is too small to care about. Note that random performance fluctuation is much bigger than performace loss. So, performace loss is negligibly small.<br/>
+<img alt="image" height="288" src="../../../images2/60bf30bd091d2103c65804172e3e931d.png" width="480"/></p>
+<p>100 tries, test duration measured in microseconds.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>You should label charts.</p>
+<p>Also there are benchmarking frameworks for getting statistically sound results.<br/>
+<a class="onebox" href="https://github.com/nickbruun/hayai" rel="nofollow noopener" target="_blank">https://github.com/nickbruun/hayai</a><br/>
+<a class="onebox" href="https://github.com/DigitalInBlue/Celero" rel="nofollow noopener" target="_blank">https://github.com/DigitalInBlue/Celero</a><br/>
+<a class="onebox" href="https://github.com/google/benchmark" rel="nofollow noopener" target="_blank">https://github.com/google/benchmark</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="16" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>To me it seems this kludge should be completely removed and replaced with a proper solution.</p>
+<p>If meta info suppose to replace it, it still doesn’t solve the underlying kludge that caused it in the first place.</p>
+</blockquote>
+</aside>
+<p>What do you call ‘proper solution’? Metadata is designed to be something that <em>is not used</em> by the engine core.</p>
+<blockquote>
+<p>stores names of members encoded into a VariantVector?</p>
+</blockquote>
+<p>It stores display names of VariantVector elements.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>On the performance of attribute animations, regardless of whether set accessor or offset access is used, the path to getting the value into the intended destination is complex and ugly. If there are 100’s or 1000’s of scene objects which need to animate this way, so that the time taken to apply the animations is significant, then optimizing to an explicit update could be beneficial. Also note the call to ApplyAttributes() which is necessary according to how the attributes work and how they may have late-applied side-effects. In most cases when you know what you’re animating, it should be unnecessary, but the animation system cannot decide that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>What I understood from:</p>
+<blockquote>
+<p>I just wanted to add attribute metadata at some point and get rid of kludge named ‘vector structure elements’.</p>
+</blockquote>
+<p>is that metadata suppose to replace <code>vector structure elements</code>.<br/>
+What I’m saying is to begin with <code>vector structure elements</code> was added to handle a kludge of using <code>VariantVector</code> instead of <code>vector&lt;T&gt;</code>.<br/>
+Solving original vector kludge -&gt; <code>vector structure elements</code> isn’t needed -&gt; nothing to replace.</p>
+<p>Extra name info is only used by the editor, for displaying things.<br/>
+That means that the naming info can be implemented in a way which is completely external to the engine.</p>
+<p>Or just display <code>vector&lt;T&gt;</code> without naming each element entry, just indenting and/or with some default name like “element”, so no extra naming info is needed. Though that might degrade UX.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<blockquote>
+<p>Or just display vector without naming each element entry, just indenting and/or with some default name like “element”, so no extra naming info is needed</p>
+</blockquote>
+<p>It sux.<br/>
+<img alt="image" height="318" src="../../../images2/5dc08848d9cad0b7a2a8d7b3e6af6968.png" width="365"/></p>
+<blockquote>
+<p>That means that the naming info can be implemented in a way which is completely external to the engine</p>
+</blockquote>
+<p>It was implemented inside an Editor year ago. If you need to hack Editor code to make the component attributes work, the architecture sux.</p>
+<blockquote>
+<p>Solving original vector kludge<br/>
+How to do it? What’s T for BillboardSet?</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I was reluctant about this, especially regarding if this will cause loss in performance. However, this statement:</p>
+<aside class="quote no-group" data-post="17" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Think the opposite: there is no reason to use unsafe code unless it is noticeably faster.</p>
+</blockquote>
+</aside>
+<p>want to give this a benefit of doubt.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p><span class="mention">@cadaver</span> May you elaborate how Constraint attributes work?<br/>
+There is <code>Position</code> attribute. When it is set via serializable interface, <code>otherPosition_</code> is updated. When it is set via <code>SetPosition</code>,<code>otherPosition_</code> is untouched.<br/>
+What’s the point?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/203_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">KonstantTom</div>
+          <div class="post_content">
+<aside class="quote" data-post="16" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>Internally Urho uses URHO3D_ACCESSOR_VARIANT_VECTOR_STRUCTURE_ATTRIBUTE for two classes: StaticModelGroup and SplinePath.</p>
+</blockquote>
+</aside>
+<p>Also it’s used by BillboardSet in which each billboard has position, size, uv, color and other parameters. So, vector structure elements are designed for cases such as BillboardSet billboards.<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/BillboardSet.cpp#L60</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="50" style="counter-reset: li-counter 49 ;">
+<li>"None",
+</li>
+<li>"Rotate XYZ",
+</li>
+<li>"Rotate Y",
+</li>
+<li>"LookAt XYZ",
+</li>
+<li>"LookAt Y",
+</li>
+<li>"LookAt Mixed",
+</li>
+<li>"Direction",
+</li>
+<li>nullptr
+</li>
+<li>};
+</li>
+<li>
+</li>
+<li class="selected">static const StringVector billboardsStructureElementNames =
+</li>
+<li>{
+</li>
+<li>"Billboard Count",
+</li>
+<li>"   Position",
+</li>
+<li>"   Size",
+</li>
+<li>"   UV Coordinates",
+</li>
+<li>"   Color",
+</li>
+<li>"   Rotation",
+</li>
+<li>"   Direction",
+</li>
+<li>"   Is Enabled"
+</li>
+<li>};
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>With BillboardSet, you got a vector of <code>Billboard</code>'s, T is <code>Billboard</code>.<br/>
+I didnt mean just display “count”.<br/>
+For something like StaticModelGroup, you have NodeIDs, so it will say something like “NodeIDs count/size”.<br/>
+We’re suppose to be serializing <code>vector&lt;T&gt;</code> as an attribute here, so it should already have a name. We also don’t just serialize some random set of unnamed attributes for each element, we’re serializing T. Information about T’s attributes should be provided, including their names.<br/>
+So it’s more like a nested type attributes thingy. And there’s no need for editor-side stuff.<br/>
+A good example for nested type serialization thingy is <a href="http://uscilab.github.io/cereal/" rel="nofollow noopener">cereal library</a>. Now that we can use C++11 we could do something similar.</p>
+<p>Looking at Urho I see that the <code>AttributeInfo</code> type is limited to the hardcoded <code>VariantType</code>'s. That means that adding “nested type serialization” support will require a refactor to support any type. I’m assuming other things rely on attributes to use <code>Variant</code>, so it may also require further refactoring of other code to be more generic.<br/>
+The rabbit hole goes deeper. Perhaps it will be better to find the most low level part that requires refactoring and start from there, and work our way up to attributes. To me it seems to be usage of <code>Variant</code> where generic templates could’ve been used.</p>
+<p>I don’t have a full overview about what attributes are used for, and what they require to be able to do. If I’m missing something let me know (documentation’s welcome!).</p>
+<p><span class="mention">@KonstantTom</span> Thanks, forgot to search for the <code>MIXED</code> macro version. This post also addresses your point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>void AttributeAnimationInfo::ApplyValue(const Variant&amp; newValue)<br/>
+{<br/>
+Animatable* animatable = static_cast&lt;Animatable*&gt;(target_.Get());<br/>
+if (animatable)<br/>
+{<br/>
+animatable-&gt;OnSetAttribute(attributeInfo_, newValue);<br/>
+animatable-&gt;ApplyAttributes();<br/>
+}<br/>
+}<br/>
+If attribute are to be redesigned and improved, I think it should take this use case into consideration. Each update will need to set the attribute by using a Variant, while the type information of the variant is already known when creating the animation. That actually waste a lot of execution time. Can this variant be taken away at compile time, say, by using template?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="26" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>Now that we can use C++11 we could do something similar.</p>
+</blockquote>
+</aside>
+<aside class="quote" data-post="27" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/616e31ac3a98a36e7523b7f453239fc1.png" width="20"/> yushli1:</div>
+<blockquote>
+<p>Each update will need to set the attribute by using a Variant, while the type information of the variant is already known when creating the animation.</p>
+</blockquote>
+</aside>
+<p>We couldn’t. We will never be able to mix templates and polymorphism. Unless we drop all virtual cascades and do serialization in the header, we cannot perserve real type in any way and get rid of Variant. And it’s not the point of this topic because of it.</p>
+<aside class="quote" data-post="27" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/616e31ac3a98a36e7523b7f453239fc1.png" width="20"/> yushli1:</div>
+<blockquote>
+<p>That actually waste a lot of execution time</p>
+</blockquote>
+</aside>
+<p>We often lose execution time to make code usage convinient. The more generic engine is, the more performance is lost.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>I think the solution provided is relatively clean. The mixing of macro and method chaining is a bit on the ugly side but should do.</p>
+<p>The performance test appears to have been done only for saving ? How relevant is that performance test on the average run-time of a game?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="27" data-topic="3482" data-username="yushli1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/055c2f964436dc2673fedfdea2a8e783.png" width="20"/> yushli1:</div>
+<blockquote>
+<p>Can this variant be taken away at compile time, say, by using template?</p>
+</blockquote>
+</aside>
+<p>Yes. The type is known at compile time. <code>AttributeAnimationInfo</code> should be templated to animate <code>T</code> and use<br/>
+<code>ApplyValue(const T&amp; newValue)</code>. The question is what else needs to be refactored.</p>
+<aside class="quote no-group" data-post="28" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>We couldn’t. We will never be able to mix templates and polymorphism. Unless we drop all virtual cascades and do serialization in the header, we cannot perserve real type in any way and get rid of Variant. And it’s not the point of this topic because of it.</p>
+</blockquote>
+</aside>
+<p>Can you better explain what’s the problem with Cereal’s approach?<br/>
+The topic started with trying to fix code smell. I think it’s better to dig deep, find the root cause, and fix it.</p>
+<aside class="quote no-group" data-post="28" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>We often lose execution time to make code usage convinient. The more generic engine is, the more performance is lost.</p>
+</blockquote>
+</aside>
+<p>This is wrong.<br/>
+Again, look at Cereal - <em><strong>much</strong></em> simpler and convenient code usage than Urho’s serialization, without losing any execution time, in fact it’s even faster because things are being done at compile time.<br/>
+And it’s more generic than Urho’s serialization - it can handle any type.</p>
+<p>You’re not trading off execution time for usage connivance.<br/>
+You’re trading off proper problem solving and design for an easier problem (which is not inherently a bad thing, common practice when considering resource constraints).</p>
+<p>If anyone which is familiar with Attribute and/or Attribute animation can give me complete requirements for what they need to technically do (instead of me guessing and missing stuff by looking at code), I could try to prototype a system that uses templates to see if it’s feasible.<br/>
+Meanwhile I can start prototyping based on what I already understand.</p>
+<p>In general documentation for developers could be nice - overviews of how systems in the engine are designed, what problem they’re trying to solve and how. It’s much faster and safer than trying to guess and assume based on code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<aside class="quote" data-post="30" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>, I could try to prototype a system that uses templates to see if it’s feasible.</p>
+<p>Meanwhile I can start prototyping based on what I already understand.</p>
+</blockquote>
+</aside>
+<p>I will vote for this try.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>So for now I can prototype:</p>
+<ul>
+<li>serialize attribute of any type, using compile time information.</li>
+<li>animate attribute value, using compile time information.</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<blockquote>
+<p>AttributeAnimationInfo should be templated to animate T and use<br/>
+ApplyValue(const T&amp; newValue). The question is what else needs to be refactored</p>
+</blockquote>
+<p>It will give you exactly nothing. ValueAnimation is the Resource that stores Variant-s. You will have to cast this variant somehow before applying it to the attribute. Now this cast is performed inisde accessor. If you templatize anything, you will just make the architecture more compliacted and move this cast at the level of AttributeAnimationInfo or ValueAnimationInfo. You will not get <em>any</em> benefit unless you templatize ValueAnimation Resource itself.</p>
+<blockquote>
+<p>Can you better explain what’s the problem with Cereal’s approach?</p>
+</blockquote>
+<p>Just compare the syntax of Cereal and Urho. I can’t imagine how to match it without breaking the API and resource compatibility.</p>
+<blockquote>
+<p>Again, look at Cereal - much simpler and convenient code usage than Urho’s serialization</p>
+</blockquote>
+<p>And much less powerful.</p>
+<blockquote>
+<p>If anyone which is familiar with Attribute and/or Attribute animation can give me complete requirements for what they need to technically do (instead of me guessing and missing stuff by looking at code), I could try to prototype a system that uses templates to see if it’s feasible</p>
+</blockquote>
+<p>My current experience tell me that it’s <em>not</em> feasible. Of course, you could try. Here are requrements, good luck:</p>
+<ol>
+<li>Don’t break Serializable API, including these macros. Urho and user components shall work without changes.</li>
+<li>Don’t break compatibility of serialized XMLs and Jsons;</li>
+</ol>
+<p>I suppose it’s ok to break OnSetAttribute hooks (8 Urho components used it). It is smelly hack and have to be removed at some point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>backward compatibility isn’t a requirement for what the system suppose to do.<br/>
+I mean things like “be able to add value animations dynamically”.</p>
+<p>Value animation will require complete rethinking. That’s why I suggested earlier to start refactoring from the bottom - so you’ll know what you’re building on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Did you read the comment?</p>
+<pre><code>    // Convenience for editing static constraints: if not connected to another body, adjust world position to match local
+    // (when deserializing, the proper other body position will be read after own position, so this calculation is safely
+    // overridden and does not accumulate constraint error
+</code></pre>
+<p>It’s somewhat of a kludge. Feel free to remove or refactor.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="34" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>backward compatibility isn’t a requirement for what the system suppose to do.</p>
+</blockquote>
+</aside>
+<p>It is a requirement for Urho API (with exceptions listed in poritng notes)</p>
+<blockquote>
+<p>That’s why I suggested earlier to start refactoring from the bottom - so you’ll know what you’re building on</p>
+</blockquote>
+<p>Refactoring != breaking anything and building from scratch. What’s the point of such changes? Especially when benefit is so impalpable. You won’t win any FPS. You will win few milliseconds for binary serialization. And you will lose all users, beacuse (I suppose) such PR will never be merged.</p>
+<p>Okay, here are functional requirements:</p>
+<ol>
+<li>
+<p>Of course, The System shall be able to serialize variant attributes of the object. Either all attributes simultaneously or one-by-one.</p>
+</li>
+<li>
+<p>The System shall store and provide access to attribute information: attribute name, enum names, default values, attribute flags and metadata.</p>
+</li>
+<li>
+<p>The System shall allow to iterate over attributes.</p>
+</li>
+<li>
+<p>The System shall support attributes with custom setters and getters.</p>
+</li>
+<li>
+<p>The System shall support XML, Json and binary formats.</p>
+</li>
+<li>
+<p>The System shall support user-friendly enums for XML and Json.</p>
+</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/203_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">KonstantTom</div>
+          <div class="post_content">
+<p>Why did you save enum names? I think, enum names can be added as metadata too.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Enum names are important for Urho core mechanisms. I don’t want to use metadata for obligatory attribute parameters. However, I may change my opinion later…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Did some initial prototyping for generic serialization.<br/>
+Note that it’s a simple prototype showing generic serialization(only) implementation, and not drop-in replacement for Urho’s attributes.</p>
+<p><a href="https://wandbox.org/permlink/ib1BFzZ32aGTTWP8" rel="nofollow noopener">Simple introduction example for variadic templates usage</a>.<br/>
+<a href="https://gist.github.com/Enhex/4d42ef13dda1681eaac7ae6ead25669c" rel="nofollow noopener">Example of generic serialization to file</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Will you try to make your serialization meet at least these weak requirements?</p>
+<aside class="quote no-group" data-post="36" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Of course, The System shall be able to serialize variant attributes of the object. Either all attributes simultaneously or one-by-one.</p>
+<p>The System shall store and provide access to attribute information: attribute name, enum names, default values, attribute flags and metadata.</p>
+<p>The System shall allow to iterate over attributes.</p>
+<p>The System shall support attributes with custom setters and getters.</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="40" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>serialize variant attributes</p>
+</blockquote>
+</aside>
+<p>That’s what we need to fix.</p>
+<p>You’re confusing serialization and other features related to attributes.<br/>
+Serialization is just about reading and writing, it isn’t responsible all the other things u listed.<br/>
+Serialization can use setters and getters, you can specialize the type’s serialization for input and output, and call set / get in each.</p>
+<p>And the core problem is the use of variant, which create limitations that lead to kludges (already explained how).<br/>
+Naming, default values, etc don’t use variant therefore there’s no problem to fix here.</p>
+<p>There are only 2 things that I know of that use variant - attribute serialization and animation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="41" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>That’s what we need to fix.</p>
+</blockquote>
+</aside>
+<p>I meant, serialize types supported by variant.</p>
+<blockquote>
+<p>You’re confusing serialization and other features related to attributes<br/>
+Serialization is just about reading and writing, it isn’t responsible all the other things u listed</p>
+</blockquote>
+<p>Urho don’t need plain serialization like cereal per se.<br/>
+Urho need attribute system that allows to treat object as group of named and parameterized attributes.<br/>
+Serialization is just an usage of this attribute system.<br/>
+Have you tried to prototype such attribute system without Variant? It’s hard for me to even imagine it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="42" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>I meant, serialize types supported by variant.</p>
+</blockquote>
+</aside>
+<p>It’s trivial.<br/>
+First of all in the example I automatically generate serialization for arithmetic types, that includes all the kinds of integers and floats.<br/>
+I updated the example with a Vector3 class. Serializing it is this simple:</p>
+<pre><code class="lang-auto">template&lt;typename Stream&gt;
+void serialize(Stream&amp; f, Vector3&amp; value) {
+	read_or_write(f, value);
+}
+</code></pre>
+<p>We don’t need to completely replace all of Urho’s attributes system. Just get rid of the use of variant where it causes limitations and can be replaced with a better solution.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="43" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>Just get rid of the use of variant where it causes limitations and can be replaced with a better solution</p>
+</blockquote>
+</aside>
+<p>Variant is the basement of Urho attributes. How do you replace it with templates?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In the Tundra project we had attributes with templates / subclasses.</p>
+<p><aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/realXtend/tundra-urho3d/blob/master/src/TundraCore/Scene/IAttribute.h" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/realXtend/tundra-urho3d/blob/master/src/TundraCore/Scene/IAttribute.h" rel="nofollow noopener" target="_blank">realXtend/tundra-urho3d/blob/master/src/TundraCore/Scene/IAttribute.h</a></h4>
+<pre><code class="lang-h">/**
+    For conditions of distribution and use, see copyright notice in LICENSE
+
+    @file   IAttribute.h
+    @brief  Abstract base class and template class implementations for entity-component attributes. */
+
+#pragma once
+
+#include "TundraCoreApi.h"
+#include "CoreDefines.h"
+#include "CoreTypes.h"
+#include "AttributeChangeType.h"
+#include "SceneFwd.h"
+
+#include &lt;Urho3D/Container/Ptr.h&gt;
+#include &lt;Urho3D/Container/Str.h&gt;
+
+namespace Tundra
+{
+
+</code></pre>
+
+  This file has been truncated. <a href="https://github.com/realXtend/tundra-urho3d/blob/master/src/TundraCore/Scene/IAttribute.h" rel="nofollow noopener" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/realXtend/tundra-urho3d/blob/master/src/TundraCore/Scene/IAttribute.cpp" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/realXtend/tundra-urho3d/blob/master/src/TundraCore/Scene/IAttribute.cpp" rel="nofollow noopener" target="_blank">realXtend/tundra-urho3d/blob/master/src/TundraCore/Scene/IAttribute.cpp</a></h4>
+<pre><code class="lang-cpp">/**
+    For conditions of distribution and use, see copyright notice in LICENSE
+
+    @file   IAttribute.cpp
+    @brief  Abstract base class and template class for entity-component attributes. */
+
+#include "StableHeaders.h"
+
+#include "IAttribute.h"
+#include "Entity.h"
+#include "IComponent.h"
+#include "CoreTypes.h"
+#include "CoreDefines.h"
+#include "CoreStringUtils.h"
+#include "AssetReference.h"
+#include "EntityReference.h"
+#include "Math/Transform.h"
+#include "Math/Color.h"
+#include "Math/Point.h"
+#include "LoggingFunctions.h"
+</code></pre>
+
+  This file has been truncated. <a href="https://github.com/realXtend/tundra-urho3d/blob/master/src/TundraCore/Scene/IAttribute.cpp" rel="nofollow noopener" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>Not necessarily prettier. Another part of using Variant is that you gain freeform data for scripting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="44" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>How do you replace it with templates?</p>
+</blockquote>
+</aside>
+<ul>
+<li>Identify what are the problems Variant is used for.</li>
+<li>Prototype a better solution in isolation so you don’t have to deal with external complexity.</li>
+<li>Integrate the better solution to replace the previous solution.</li>
+</ul>
+<p>Again, I only came across variant being used for serialization and animation, and in both cases I don’t see any necessity to use variant instead of generic templates.<br/>
+So the next step is to prototype a generic solution for attribute animation. That may be more complicated since animations are dynamically added.</p>
+<p>Later on we need to see how they’re integrated into Urho - that may lead to more refactoring as other code that interacts with the previous systems uses variant.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>If we make hierarchy like in Tundra<br/>
+AttributeInfo &lt;- AttributeInfoImpl</p>
+<ol>
+<li>AttributeInfo shall have virtual Save/Load XML/JSon/Binary for serialization (PImpl-ed);</li>
+<li>AttributeInfo shall have virtual SetVariant to work with ValueAnimation resource (just postpone the problem for now);</li>
+<li>We shall expose all AttributeInfoImpl to AS and update Editor code.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Here is one more important change.<br/>
+I replaced attribute accessor with function pointers and used lambda <em>for each</em> attribute macro.</p>
+<p>Pros:</p>
+<ul>
+<li>Removed <code>AttributeTrait</code>, <code>MixedAttributeTrait</code> and the whole hierarchy of <code>AttributeAccessor</code>;</li>
+<li>Removed one virtual call on attribute set/get;</li>
+<li>Things are more generic now, <strong>accessors don’t have to match the exact type anymore</strong>
+</li>
+<li>So, <code>URHO3D_MIXED_ACCESSOR_ATTRIBUTE</code> is deprecated (not removed, of course), use <code>URHO3D_ACCESSOR_ATTRIBUTE</code> instead.</li>
+</ul>
+<p>Cons:</p>
+<ul>
+<li>??? things have changed, maybe</li>
+</ul>
+<aside class="quote" data-post="46" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>Later on we need to see how they’re integrated into Urho - that may lead to more refactoring as other code that interacts with the previous systems uses variant.</p>
+</blockquote>
+</aside>
+<p>Getting rid of Variant in attributes will make script API more complicated and cause a lot of work, so I am not going to work on it. Despite the fact that serialization could became faster without Variant casting.<br/>
+You could try to do it on your own if you have enough passion.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="48" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>I replaced attribute accessor with function pointers</p>
+</blockquote>
+</aside>
+<p>Instead of function pointers you can use template functors. It will allow inlining lambdas and functions. <a href="https://github.com/Enhex/Benchmarks/tree/master/lambda%20std%20function%20vs%20template%20parameter" rel="noopener nofollow ugc">Example</a></p>
+<aside class="quote no-group" data-post="48" data-topic="3482" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Getting rid of Variant in attributes will make script API more complicated</p>
+</blockquote>
+</aside>
+<p>How will it make things more complicated?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="49" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>How will it make things more complicated?</p>
+</blockquote>
+</aside>
+<p>This is just a guess.<br/>
+Variant is simple. It’s plain type, that is easy to pass to function, return from function or facade to script API. Once you replace straightforward value type with virtual hierarchy, it causes wide scale refactoring. Try to get attributes from the Tundra and fit them into Urho-s <code>ScriptInstance</code>.</p>
+<aside class="quote" data-post="49" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>Instead of function pointers you can use template functors</p>
+</blockquote>
+</aside>
+<p>I cannot because AttributeInfo is non-template.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>It isn’t a simple type, it’s like a union. You have to manually handle each case for each type.</p>
+<p>Why use virtual hierarchy as a replacement?</p>
+<p>Of course it would cause wide scale refactoring.<br/>
+If we can’t find a way to fix things without causing performance regression, I suggest dropping this issue for now.<br/>
+The current attributes system isn’t broken. It’s better to focus on something else.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="51" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>If we can’t find a way to fix things without causing performance regression, I suggest dropping this issue for now.</p>
+</blockquote>
+</aside>
+<p>Probably I misunderstood something. Where do you see performance regression?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>earlier you reported your fix reduced performance</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="54" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>earlier you reported your fix reduced performance</p>
+</blockquote>
+</aside>
+<p>My fix is unrelated here.<br/>
+In release mode accessor attributes are negligibly slower than offset attributes probably due to two extra pointer-to-function calls. Negligibly means that measurement error is greater than the difference.</p>
+<p>I can not get the idea of better attribute refactoring out of my head, btw…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I have to agree with Enhex on this. If ain’t broken then don’t fix it. Or perhaps don’t do it now until you have more overview or more comfortable with the code base.</p>
+<p>At a quick glance on the last commit in the master branch, I don’t feel it has went through all the basic use cases yet. I could be wrong though, but it looks like the refactoring work is incomplete as it has only done on those cases where the <code>Serializable::OnSetAttribute()</code> are being overridden. Also, it does not feel that right (at least to me) to have so many almost identical accessor methods. It bloats the code base unnecessarily.</p>
+<p>I think the last commit should be reverted back first and keep it in a new topic branch. The work can be continued in the branch if there is really such need. And when the whole refactoring is done then a pull request is made to ask the lib users to evaluate, before actually merging. I think Lasse would do it like this for fundamental change.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<blockquote>
+<p>At a quick glance on the last commit in the master branch, I don’t feel it has went through all the basic use cases yet. I could be wrong though, but it looks like the refactoring work is incomplete as it has only done on those cases where the Serializable::OnSetAttribute() are being overridden.</p>
+</blockquote>
+<p>Commit in the master is not heavily tied to this attribute refactoring, I wanted to do it anyway.<br/>
+If the Component need an action on attribute set, it shall explicitly state this action.<br/>
+if-cascades in <code>OnSetAttribute</code> are a bit too ugly.<br/>
+I could (ok, <em>you could</em>) revert this commit if you don’t like the implementation, but I don’t want to keep attribute hooks in <code>OnSetAttribute</code>. They looks like they came from the pre-accessor epoch when all logic had to be implemented inside <code>OnSetAttribute</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I believe all the related commits for a fundamental change should go in together as a whole instead of piecemeal. The last commit appears to be a small part of the whole work to me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Now I have an idea how to get rid of the hooks without such amouth of methods…<br/>
+I reverted last commit. It was big and unpleasant, I agree.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The accessor hooks are / were a tool, because they were available, they got used, for better or worse. Whatever was most convenient.</p>
+<p>In this case the price of removing them is the introduction of (more) functions needed only for the manipulation of attributes. I don’t see a way around this, at least immediately. Ideally the attribute accessors would be just the same as the component’s public API, but in case of ID attributes and such, it needs those “fictional” functions just for the attributes. A “deeper” solution might transform pointers to / from IDs and resource refs directly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="60" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>Ideally the attribute accessors would be just the same as the component’s public API</p>
+</blockquote>
+</aside>
+<p>I see one more problem here. Public API do the work immediatelly, but attribute setters postpone heavy actions for ApplyAttributes. E.g. CollisionShape::SetShapeType updates shape and rigid body, but attribute accessor just set the <code>recreateShape_ = true</code> flag. This is also dirty: two separate mechanisms of doing the same work.</p>
+<aside class="quote" data-post="60" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>I don’t see a way around this, at least immediately.</p>
+</blockquote>
+</aside>
+<p>For example, the action could be explicitly specified in the attribute declaration. So it would be explicitly stated that attribute A setup cause MarkSomethingDirty, attribute B setup cause MarkSomethingElseDirty and attribute C setup cause ValidateThisThisAndThis.</p>
+<p>However, it doesn’t fix generic problem with GetSmthAttr+GetSmth pairs.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I’m talking idealistically now, so in practice any changes might be unfeasible or cause performance loss, but it seems a bit of an antipattern that there even is a difference between the public API and attribute access, in regard to this “late” setting of heavy state. After all, if you’re instantiating something purely in code, you’re going to make several public API calls to set the state anyway.</p>
+<p>For example collision shape recreation or other heavy operations could be made to happen on demand before next Bullet update if needed, etc. regardless of which route the change was made.</p>
+<p>But of course, this is just daydreaming, there’s surely a lot of improvements to Urho that could be made that are more important than this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>Just my 2 cents<br/>
+Since you already moved  to C++11.<br/>
+Take a look at the following:<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/25ecd8dd3459b5cab7d3b9e1dfc2e6c0.ico" width="32"/>
+<a href="https://github.com/billyquith/ponder" rel="nofollow noopener" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="400" src="https://avatars2.githubusercontent.com/u/1754471?s=400&amp;v=4" width="400"/>
+<h3><a href="https://github.com/billyquith/ponder" rel="nofollow noopener" target="_blank">billyquith/ponder</a></h3>
+<p>ponder - C++ reflection library</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>It looks neat but I wonder about its performance. As we all know the reflection approach is usually slower.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="60" data-topic="3482">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>I don’t see a way around this, at least immediately.</p>
+</blockquote>
+</aside>
+<p>However, there are semi-optimal solutions that both not very heavy and and help to avoid public API bloating.</p>
+<p>Getter and setter could be written as lambda function inside RegisterObject even now, but it’s not the shortest and the simplest solution.</p>
+<p>It migth be better to specify epilogue (post-set) action in the non-accessor attribute declaration. Such changes will require some design effort, but the attributes will be more straightforward than with OnSetAttr hooks. I’ll try to implement this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Someone recently pointed me to awesome lib that may be relevant in this case. Maybe you people should check it out: <a href="http://www.rttr.org/" rel="nofollow noopener">http://www.rttr.org/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I have to go back to this task, so here is new revision.<br/>
+<a class="onebox"  rel="nofollow noopener" target="_blank">https://github.com/urho3d/Urho3D/pull/2091</a><br/>
+I temporarily added some code in HelloWorld to test things, you could check it for example.</p>
+<p><strong>Important changed:</strong></p>
+<ul>
+<li>
+<p>offset_ is removed, all attributes are working via accessors now.</p>
+</li>
+<li>
+<p>So, identifying attribute inside OnSetAttribute by offset doesn’t work anymore.</p>
+</li>
+<li>
+<p>I added <code>URHO3D_ATTRIBUTE_EX</code> and <code>URHO3D_ENUM_ATTRIBUTE_EX</code> that call specified member function when attribute is set (similar to accessor attributes, but this function doesn’t have input arguments). Metadata or attribute name could also be used to identify the attribute, but I decided to avoid this for now. Could be changed.</p>
+</li>
+<li>
+<p>I replaced all <code>URHO3D_*_FREE</code> functions with <code>URHO3D_CUSTOM_ATTRIBUTE</code> and <code>URHO3D_CUSTOM_ENUM_ATTRIBUTE</code> that work with any getter/setter functional objects. Note that these new functions works with Variant type due to performance reasons. Could be changed later.</p>
+</li>
+</ul>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li>
+<p>No UB in attributes anymore!</p>
+</li>
+<li>
+<p>No extra calls (or even less calls) comparing to old version. Every attribute is set or get via the following chain of calls: <code>AttributeAccessor::Set(virtual)-&gt;[internal lambda](probably inline)-&gt;member access or setter/getter call</code></p>
+</li>
+<li>
+<p>No extra memory allocation even for lambda getters/setters</p>
+</li>
+<li>
+<p>No extra copying. Attribute actions are performed directly with Variant came from Serializable code.</p>
+</li>
+<li>
+<p>Exact type matching is not required anymore. It’s enough for member attribure to be <em>convertible</em> to corresponding Variant type. Same for getters and setters, no need in mixed accessors anymore.</p>
+</li>
+<li>
+<p>No more tons of accessors and traits. Compiler resolves all type stuff on its own.</p>
+</li>
+<li>
+<p>Any lambda could be passed as attribute accessors. Note: this lambda should work with Variant directly.</p>
+</li>
+<li>
+<p>Attribute with explicit post-set action is more straightforward than custom logic in OnSetAttribute.</p>
+</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>
+<p>Old offset-based attribute identifying doesn’t work anymore.</p>
+</li>
+<li>
+<p>Old type hacks like for Light cascade splits don’t work enymore.</p>
+</li>
+<li>
+<p>Someone may dislike macro magic used to make lambdas. Probably will change it a bit…</p>
+</li>
+<li>
+<p>Attribute identifying may be considered less readable. Feel free to discuss.</p>
+</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

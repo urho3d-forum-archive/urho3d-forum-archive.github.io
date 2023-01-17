@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Normal-based Movement Help</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Normal-based Movement Help</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Edit <span class="hashtag">#0:</span> Simplified the code, spider is still crabwalking…<br/>
+<img alt="" height="240" src="../../../images2/0e82e51025edb18039e1768137adb9e9.gif" width="320"/></p>
+<pre><code class="lang-auto">FoinSpider = ScriptObject()
+
+function FoinSpider:Start()
+  self.MOVE_FORCE = 0.5
+  self.BRAKE_FORCE = 0.025
+  self.rotDummy_ = nil
+  self.rayDistance_ = 30.0
+  self.gravityForce_ = Vector3(-9.81, -9.81, -9.81)
+  self.slerpDest_ = Quaternion()
+  self.slerpInterval_ = 0.1
+  self.slerpProgress_ = 0.0
+
+  self.STATE_STAND = 0
+  self.STATE_IDLE = 1
+  self.STATE_FOLLOW = 2
+  self.STATE_SPIT = 3
+  self.currentState_ = 0
+
+  self.targetNode_ = nil
+  self.body_ = nil
+  self.animController_ = nil
+end
+
+function FoinSpider:DelayedStart()
+  self.rotDummy_ = self.node:GetChild("rotDummy")
+  self.body_ = self.node:GetComponent("RigidBody")
+  self.animController_ = self.node:GetComponent("AnimationController")
+
+  self:SetState(self.STATE_STAND)
+
+  self:SubscribeToEvent(self.node:GetChild("playerTrigger"), "NodeCollisionStart", "FoinSpider:HandleNodeCollisionStart")
+  self:SubscribeToEvent(self.node:GetChild("playerTrigger"), "NodeCollisionEnd", "FoinSpider:HandleNodeCollisionStart")
+  --self:SubscribeToEvent("PostRenderUpdate", "FoinSpider:HandlePostRenderUpdate")
+end
+
+function FoinSpider:Stop()
+  --
+end
+
+function FoinSpider:FixedUpdate(timeStep)
+  self:FollowPath(timeStep)
+
+  if self.rotDummy_ == nil then return end
+
+  local nodePos = self.node:GetWorldPosition()
+  local aimPoint = self.rotDummy_:GetWorldPosition()
+  local rayDir = (aimPoint - nodePos):Normalized()
+  rayDir = rayDir * Vector3(-1.0, -1.0, -1.0)
+
+  local result = LevelScene_:GetComponent("PhysicsWorld"):RaycastSingle(Ray(aimPoint, rayDir), self.rayDistance_, 2)
+
+  if result.body ~= nil then
+    local invertedNormal = result.normal * self.gravityForce_
+    self.body_:SetGravityOverride(invertedNormal)
+    local quat = Quaternion()
+    quat:FromLookRotation(self.node:GetDirection(), result.normal)
+    
+    self.node:SetRotation(quat)
+
+    --[[if quat ~= self.slerpDest_ then
+      self.slerpDest_ = quat
+      self.slerpProgress_ = 0.0
+    end
+
+    local rot = self.body_:GetRotation()
+
+    if self.slerpProgress_ &lt; 1.0 then
+      rot = rot:Slerp(self.slerpDest_, self.slerpProgress_)
+      self.node:SetRotation(rot)
+
+      self.slerpProgress_ = self.slerpProgress_ + (self.slerpInterval_ * timeStep)
+      --self.slerpProgress_ = self.slerpProgress_ + (self.slerpInterval_)
+      self.slerpProgress_ = Clamp(self.slerpProgress_, 0.0, 1.0)
+    elseif rot ~= self.slerpDest_ then
+      self.node:SetRotation(self.slerpDest_)
+    end--]]
+
+end
+
+end
+
+function FoinSpider:HandleNodeCollision(eventType, eventData)
+  --
+end
+
+function FoinSpider:HandleNodeCollisionStart(eventType, eventData)
+  local trigger = eventData["Trigger"]:GetBool()
+  local otherNode = eventData["OtherNode"]:GetPtr("Node")
+
+  if trigger == true then
+    self.targetNode_ = otherNode
+    self:SetState(self.STATE_FOLLOW)
+  end
+
+end
+
+function FoinSpider:SetState(state)
+  self.currentState_ = state
+
+  if state == self.STATE_STAND then
+    self:StateStand()
+  elseif state == self.STATE_FOLLOW then
+    self:StateFollow()
+  end
+
+end
+
+function FoinSpider:StateStand()
+  local STAND_ANI = "Models/foinSpider/stand.ani"
+
+  self.body_:SetLinearVelocity(Vector3.ZERO)
+  self.body_:SetFriction(10.0)
+
+  if self.animController_ ~= nil then
+    self.animController_:PlayExclusive(STAND_ANI, 0, true, 0.0)
+end
+end
+
+function FoinSpider:StateFollow()
+  local WALK_ANI = "Models/foinSpider/walk.ani"
+
+  self.body_:SetFriction(0.0)
+
+  if self.animController_ ~= nil then
+    self.animController_:PlayExclusive(WALK_ANI, 0, true, 0.0)
+end
+end
+
+function FoinSpider:FollowPath(timeStep)
+  if self.currentState_ == self.STATE_STAND then
+    return
+  end
+  
+  --local nodePos = self.node:GetWorldPosition()
+  local nodePos = self.rotDummy_:GetWorldPosition()
+  local targetPos = self.targetNode_:GetWorldPosition()
+
+  if (targetPos - nodePos):Length() &gt; 25.0 then
+    --self.node:LookAt(targetPos, Vector3.UP, TS_WORLD)
+    self.node:LookAt(targetPos)
+  else
+    self:SetState(self.STATE_STAND)
+    return
+  end
+  
+  local velocity = self.body_.linearVelocity
+  --local speed = velocity:Length()
+
+  --local speedRatio = speed / self.MOVE_FORCE
+
+  self.body_:ApplyImpulse((targetPos - nodePos):Normalized() * self.MOVE_FORCE)
+
+  local brakeForce = velocity * -self.BRAKE_FORCE
+  self.body_:ApplyImpulse(brakeForce)
+  
+  local WALK_ANI = "Models/foinSpider/walk.ani"
+  self.animController_:SetSpeed(WALK_ANI, (self.body_:GetLinearVelocity():Length() * 0.05))
+end
+
+function FoinSpider:HandlePostRenderUpdate(eventType, eventData)
+  local debug = LevelScene_:GetComponent("DebugRenderer")
+  --LevelScene_:GetComponent("PhysicsWorld"):DrawDebugGeometry(true)
+  --LevelScene_:GetComponent("Octree"):DrawDebugGeometry(true)
+  renderer:DrawDebugGeometry(true)
+
+  local nodePos = self.node:GetWorldPosition()
+  local aimPoint = self.rotDummy_:GetWorldPosition()
+  local rayDir = (aimPoint - nodePos):Normalized()
+  rayDir = rayDir * Vector3(-1.0, -1.0, -1.0)
+
+  --debug:AddLine(aimPoint, aimPoint + (rayDir * self.rayDistance_), Color(1.0, 1.0, 1.0), false)
+  debug:AddCross(aimPoint, 2.0 , Color(1.0, 1.0, 1.0), false)
+  debug:AddCross(aimPoint + (rayDir * self.rayDistance_), 2.0, Color(1.0, 1.0, 1.0), false)
+  
+  debug:AddLine(nodePos, nodePos + (self.node:GetDirection() * self.rayDistance_), Color(1.0, 1.0, 1.0), false)
+  debug:AddLine(aimPoint, aimPoint + (self.node:GetDirection() * self.rayDistance_), Color(1.0, 1.0, 1.0), false)
+end
+</code></pre>
+<p>Edit: I’ve ditched pathfinding because i couldn’t get it to work.  I think I’ve gotten the ground normal + target direction rotations combining but the target direction is sideways.  Any ideas as to why that is?</p>
+<p>new code:</p>
+<pre><code class="lang-auto">FoinSpider = ScriptObject()
+
+function FoinSpider:Start()
+  self.MOVE_FORCE = 0.5
+  self.BRAKE_FORCE = 0.025
+  self.rotDummy_ = nil
+  self.rayDistance_ = 50.0
+  --self.gravityForce_ = Vector3(-9.81, -9.81, -9.81)
+  self.gravityForce_ = Vector3(-9.81, -9.81, -9.81)
+  self.slerpDest_ = Quaternion()
+  self.slerpInterval_ = 0.1
+  self.slerpProgress_ = 0.0
+
+  self.STATE_STAND = 0
+  self.STATE_IDLE = 1
+  self.STATE_FOLLOW = 2
+  self.STATE_SPIT = 3
+  self.currentState_ = 0
+
+  self.targetNode_ = nil
+end
+
+function FoinSpider:DelayedStart()
+  self.rotDummy_ = self.node:GetChild("rotDummy")
+
+  self:SetState(self.STATE_STAND)
+
+  --self:SubscribeToEvent("Update", "FoinSpider:HandleUpdate")
+  --self:SubscribeToEvent(self.node, "NodeCollision", "FoinSpider:HandleNodeCollision")
+  self:SubscribeToEvent(self.node:GetChild("playerTrigger"), "NodeCollisionStart", "FoinSpider:HandleNodeCollisionStart")
+  self:SubscribeToEvent(self.node:GetChild("playerTrigger"), "NodeCollisionEnd", "FoinSpider:HandleNodeCollisionStart")
+  self:SubscribeToEvent("PostRenderUpdate", "FoinSpider:HandlePostRenderUpdate")
+end
+
+function FoinSpider:Stop()
+  --
+end
+
+function FoinSpider:HandleUpdate(eventType, eventData)
+  local timeStep = eventData["TimeStep"]:GetFloat()
+end
+
+function FoinSpider:FixedUpdate(timeStep)
+  self:FollowPath(timeStep)
+
+  if self.rotDummy_ == nil then return end
+
+  local body  = self.node:GetComponent("RigidBody")
+
+  local nodePos = self.node:GetWorldPosition()
+  local aimPoint = self.rotDummy_:GetWorldPosition()
+  local rayDir = (aimPoint - nodePos):Normalized()
+  rayDir = rayDir * Vector3(-1.0, -1.0, -1.0)
+
+  local result = LevelScene_:GetComponent("PhysicsWorld"):RaycastSingle(Ray(aimPoint, rayDir), self.rayDistance_, 2)
+
+  if result.body ~= nil then
+    local invertedNormal = result.normal * self.gravityForce_
+    body:SetGravityOverride(invertedNormal)
+    local quat = Quaternion()
+    quat:FromLookRotation(self.node:GetDirection(), result.normal)
+    
+    body:SetRotation(quat)
+--[[
+    if quat ~= self.slerpDest_ then
+      self.slerpDest_ = quat
+      self.slerpProgress_ = 0.0
+    end
+
+    local rot = body:GetRotation()
+
+    if self.slerpProgress_ &lt; 1.0 then
+      rot = rot:Slerp(self.slerpDest_, self.slerpProgress_)
+      body:SetRotation(rot)
+
+      --self.slerpProgress_ = self.slerpProgress_ + (self.slerpInterval_ * timeStep)
+      self.slerpProgress_ = self.slerpProgress_ + (self.slerpInterval_)
+      self.slerpProgress_ = Clamp(self.slerpProgress_, 0.0, 1.0)
+    elseif rot ~= self.slerpDest_ then
+      body:SetRotation(self.slerpDest_)
+    end--]]
+
+end
+
+end
+
+function FoinSpider:HandleNodeCollision(eventType, eventData)
+  --
+end
+
+function FoinSpider:HandleNodeCollisionStart(eventType, eventData)
+  local trigger = eventData["Trigger"]:GetBool()
+  local otherNode = eventData["OtherNode"]:GetPtr("Node")
+
+  if trigger == true then
+    self.targetNode_ = otherNode
+    self:SetState(self.STATE_FOLLOW)
+  end
+
+end
+
+function FoinSpider:SetState(state)
+  self.currentState_ = state
+
+  if state == self.STATE_STAND then
+    self:StateStand()
+  elseif state == self.STATE_FOLLOW then
+    self:StateFollow()
+  end
+
+end
+
+function FoinSpider:StateStand()
+  local STAND_ANI = "Models/foinSpider/stand.ani"
+  local animCtrl = self.node:GetComponent("AnimationController")
+
+  local body = self.node:GetComponent("RigidBody")
+  body:SetLinearVelocity(Vector3.ZERO)
+  body:SetFriction(10.0)
+
+  if animCtrl ~= nil then
+    animCtrl:PlayExclusive(STAND_ANI, 0, true, 0.0)
+end
+end
+
+function FoinSpider:StateFollow()
+  local WALK_ANI = "Models/foinSpider/walk.ani"
+  local animCtrl = self.node:GetComponent("AnimationController")
+  local body = self.node:GetComponent("RigidBody")
+
+  body:SetFriction(0.0)
+
+  if animCtrl ~= nil then
+    animCtrl:PlayExclusive(WALK_ANI, 0, true, 0.0)
+end
+end
+
+function FoinSpider:FollowPath(timeStep)
+  if self.currentState_ == self.STATE_STAND then
+    return
+  end
+  
+  local body  = self.node:GetComponent("RigidBody")
+
+  local nodePos = self.node:GetWorldPosition()
+  local targetPos = self.targetNode_:GetWorldPosition()
+
+  if (targetPos - nodePos):Length() &gt; 25.0 then
+    self.node:LookAt(targetPos, Vector3.UP, TS_WORLD)
+  else
+    self:SetState(self.STATE_STAND)
+    return
+  end
+  
+  local velocity = body.linearVelocity
+  --local speed = velocity:Length()
+
+  --local speedRatio = speed / self.MOVE_FORCE
+
+  body:ApplyImpulse((targetPos - nodePos):Normalized() * self.MOVE_FORCE)
+
+  local brakeForce = velocity * -self.BRAKE_FORCE
+  body:ApplyImpulse(brakeForce)
+  
+  local WALK_ANI = "Models/foinSpider/walk.ani"
+  local animCtrl = self.node:GetComponent("AnimationController")
+  animCtrl:SetSpeed(WALK_ANI, (body:GetLinearVelocity():Length() * 0.05))
+end
+
+function FoinSpider:HandlePostRenderUpdate(eventType, eventData)
+  local debug = LevelScene_:GetComponent("DebugRenderer")
+  LevelScene_:GetComponent("PhysicsWorld"):DrawDebugGeometry(true)
+  --LevelScene_:GetComponent("Octree"):DrawDebugGeometry(true)
+  renderer:DrawDebugGeometry(true)
+
+  local nodePos = self.node:GetWorldPosition()
+  local aimPoint = self.rotDummy_:GetWorldPosition()
+  local rayDir = (aimPoint - nodePos):Normalized()
+  rayDir = rayDir * Vector3(-1.0, -1.0, -1.0)
+
+  debug:AddLine(aimPoint, aimPoint + (rayDir * self.rayDistance_), Color(1.0, 1.0, 1.0), false)
+  debug:AddCross(aimPoint, 2.0 , Color(1.0, 1.0, 1.0), false)
+  debug:AddCross(aimPoint + (rayDir * self.rayDistance_), 2.0, Color(1.0, 1.0, 1.0), false)
+end
+</code></pre>
+<p>Pic of spider moving towards player.  Notice how its side is facing the player (that’s the problem).<br/>
+<img alt="" height="" src="../../../images2/af1852a031d854e015b7eb4a1ad50f70.png" width=""/></p>
+<p>Hello, I’m making a spider and through some online snippets have managed to get it moving along surface normals.  I’m really bad at math though and need help rotating three things.  The first is the spider along the normal.  There’s some code for that and it seems to be working but I’d like to make sure it’s correct (found in FixedUpdate).  Second is the spider towards the current waypoint (combining the current surface normal rotation with the destination waypoint).  Third is the direction of the impulse applied to the spider so that it moves towards the next waypoint (previous two rotations should be applied in FollowPath).  Any help would be greatly appreciated!</p>
+<pre><code class="lang-auto">FoinSpider = ScriptObject()
+
+function FoinSpider:Start()
+  self.MOVE_FORCE = 2.0
+  self.BRAKE_FORCE = 0.025
+  self.rotDummy_ = nil
+  self.rayDistance_ = 25.0
+  self.gravityForce_ = Vector3(-9.81, -9.81, -9.81)
+  self.slerpDest_ = Quaternion()
+  self.slerpInterval_ = 0.1
+  self.slerpProgress_ = 0.0
+  
+  self.STATE_STAND = 0
+  self.STATE_IDLE = 1
+  self.STATE_FOLLOW = 2
+  self.STATE_SPIT = 3
+  self.currentState_ = 0
+  
+  self.targetNode_ = nil
+  self.pathEndPos_ = nil
+  self.currentPath_ = nil
+  self.nearestExtents_ = 30.0
+end
+
+function FoinSpider:DelayedStart()
+  local body  = self.node:GetComponent("RigidBody")
+  body.collisionEventMode = COLLISION_ALWAYS
+  
+  body:SetFriction(0.0)
+  
+  self.rotDummy_ = self.node:GetChild("rotDummy")
+  
+  self:SetState(self.STATE_STAND)
+  
+  --self:SubscribeToEvent("Update", "FoinSpider:HandleUpdate")
+  --self:SubscribeToEvent(self.node, "NodeCollision", "FoinSpider:HandleNodeCollision")
+  self:SubscribeToEvent(self.node:GetChild("playerTrigger"), "NodeCollisionStart", "FoinSpider:HandleNodeCollisionStart")
+  self:SubscribeToEvent(self.node:GetChild("playerTrigger"), "NodeCollisionEnd", "FoinSpider:HandleNodeCollisionStart")
+  self:SubscribeToEvent("PostRenderUpdate", "FoinSpider:HandlePostRenderUpdate")
+end
+
+function FoinSpider:Stop()
+  --
+end
+
+function FoinSpider:HandleUpdate(eventType, eventData)
+  local timeStep = eventData["TimeStep"]:GetFloat()
+end
+
+function FoinSpider:FixedUpdate(timeStep)
+  if self.rotDummy_ == nil then return end
+  
+  local body  = self.node:GetComponent("RigidBody")
+  
+  local nodePos = self.node:GetWorldPosition()
+  local aimPoint = self.rotDummy_:GetWorldPosition()
+  local rayDir = (aimPoint - nodePos):Normalized()
+  rayDir = rayDir * Vector3(-1.0, -1.0, -1.0)
+  
+  local result = self.node:GetScene():GetComponent("PhysicsWorld"):RaycastSingle(Ray(aimPoint, rayDir), self.rayDistance_, 2)
+  
+  if result.body ~= nil then
+    local invertedNormal = result.normal * self.gravityForce_
+    body:SetGravityOverride(invertedNormal)
+    local quat = Quaternion()
+    quat:FromLookRotation(self.node:GetDirection(), result.normal)
+    
+    if quat ~= self.slerpDest_ then
+      self.slerpDest_ = quat
+      self.slerpProgress_ = 0.0
+    end
+
+    local rot = body:GetRotation()
+
+    if self.slerpProgress_ ~= 1.0 then
+      rot = rot:Slerp(self.slerpDest_, self.slerpProgress_)
+      body:SetRotation(rot)
+
+      self.slerpProgress_ = self.slerpProgress_ + (self.slerpInterval_ * timeStep)
+    elseif rot ~= self.slerpDest_ then
+      body:SetRotation(self.slerpDest_)
+    end
+
+  end
+
+  self:FollowPath(timeStep)
+end
+
+function FoinSpider:HandleNodeCollision(eventType, eventData)
+    --[[local contacts = eventData["Contacts"]:GetBuffer()
+
+    while not contacts.eof do
+        local contactPosition = contacts:ReadVector3()
+        local contactNormal = contacts:ReadVector3()
+        local contactDistance = contacts:ReadFloat()
+        local contactImpulse = contacts:ReadFloat()
+
+        -- If contact is below node center and mostly vertical, assume it's a ground contact
+        if contactPosition.y &lt; self.node.position.y + 1.0 then
+            local level = Abs(contactNormal.y)
+            if level &gt; 0.75 then
+                --
+            end
+        end
+    end--]]
+end
+
+function FoinSpider:HandleNodeCollisionStart(eventType, eventData)
+  local trigger = eventData["Trigger"]:GetBool()
+  local otherNode = eventData["OtherNode"]:GetPtr("Node")
+  
+  if trigger == true then
+    self.targetNode_ = otherNode
+    self:SetState(self.STATE_FOLLOW)
+  end
+  
+end
+
+function FoinSpider:HandlePostRenderUpdate(eventType, eventData)
+  local debug = self.node:GetScene():GetComponent("DebugRenderer")
+  --self.node:GetScene():GetComponent("PhysicsWorld"):DrawDebugGeometry(true)
+  --self.node:GetScene():GetComponent("Octree"):DrawDebugGeometry(true)
+  --renderer:DrawDebugGeometry(true)
+  
+  local nodePos = self.node:GetWorldPosition()
+  local aimPoint = self.rotDummy_:GetWorldPosition()
+  local rayDir = (aimPoint - nodePos):Normalized()
+  rayDir = rayDir * Vector3(-1.0, -1.0, -1.0)
+  
+  debug:AddLine(aimPoint, aimPoint + (rayDir * self.rayDistance_), Color(1.0, 1.0, 1.0), false)
+  debug:AddCross(aimPoint, 2.0 , Color(1.0, 1.0, 1.0), false)
+  debug:AddCross(aimPoint + (rayDir * self.rayDistance_), 2.0, Color(1.0, 1.0, 1.0), false)
+  
+  if self.currentPath_ == nil then
+    return
+  end
+  
+  local navMesh = self.node:GetScene():GetComponent("NavigationMesh")
+  navMesh:DrawDebugGeometry(true)
+  
+  -- Visualize the start and end points and the last calculated path
+  local size = table.maxn(self.currentPath_)
+  if size &gt; 0 then
+    debug:AddBoundingBox(BoundingBox(self.pathEndPos_ - Vector3(0.1, 0.1, 0.1), self.pathEndPos_ + Vector3(0.1, 0.1, 0.1)), Color(1.0, 1.0, 1.0))
+
+    -- Draw the path with a small upward bias so that it does not clip into the surfaces
+    local bias = Vector3(0.0, 0.05, 0.0)
+    debug:AddLine(nodePos + bias, self.currentPath_[1] + bias, Color(1.0, 1.0, 1.0))
+
+    if size &gt; 1 then
+      for i = 1, size - 1 do
+        debug:AddLine(self.currentPath_[i] + bias, self.currentPath_[i + 1] + bias, Color(1.0, 1.0, 1.0))
+      end
+    end
+  end
+end
+
+function FoinSpider:SetState(state)
+  self.currentState_ = state
+  
+  if state == self.STATE_STAND then
+    self:StateStand()
+  elseif state == self.STATE_FOLLOW then
+    self:StateFollow()
+  end
+  
+end
+
+function FoinSpider:StateStand()
+  local STAND_ANI = "Models/foinSpider/stand.ani"
+  local animCtrl = self.node:GetComponent("AnimationController")
+  
+  if animCtrl ~= nil then
+    if animCtrl:IsPlaying(STAND_ANI) then
+    else
+      animCtrl:Play(STAND_ANI, 0, true, 0.1)
+    end
+  end
+end
+
+function FoinSpider:StateFollow()
+  local WALK_ANI = "Models/foinSpider/walk.ani"
+  local animCtrl = self.node:GetComponent("AnimationController")
+  local body = self.node:GetComponent("RigidBody")
+  
+  if animCtrl ~= nil then
+    if animCtrl:IsPlaying(WALK_ANI) then
+      animCtrl:SetSpeed(WALK_ANI, (body:GetLinearVelocity():Length()) / (self.MOVE_FORCE * 10.0))
+    else
+      animCtrl:Play(WALK_ANI, 0, true, 0.1)
+      animCtrl:SetSpeed(WALK_ANI, (body:GetLinearVelocity():Length()) / (self.MOVE_FORCE * 10.0))
+    end
+  end
+  
+  local navMesh = self.node:GetScene():GetComponent("NavigationMesh")
+  local pathPos = navMesh:FindNearestPoint(self.targetNode_:GetWorldPosition(), Vector3.ONE * self.nearestExtents_)
+  
+  self.pathEndPos_ = pathPos
+  self.currentPath_ = navMesh:FindPath(self.node:GetPosition(), self.pathEndPos_)
+  print("telling to follow")
+end
+
+function FoinSpider:FollowPath(timeStep)
+  if self.currentPath_ == nil then
+    return
+  end
+
+  if table.maxn(self.currentPath_) &gt; 0 then
+    local nextWaypoint = self.currentPath_[1] -- NB: currentPath[1] is the next waypoint in order
+    
+    local nodePos = self.node:GetWorldPosition()
+    
+    local body  = self.node:GetComponent("RigidBody")
+
+    --todo should moveDir be normal dir + target dir?
+    local moveDir = (nextWaypoint - nodePos):Normalized()
+    local velocity = body.linearVelocity
+    --local rot = self.node.rotation
+    body:ApplyImpulse(--[[rot *--]] moveDir * self.MOVE_FORCE)
+        
+    local brakeForce = velocity * -self.BRAKE_FORCE
+    body:ApplyImpulse(brakeForce)
+    
+    --todo combine slerp dest with target dir
+    
+    if (nextWaypoint - nodePos):Length() &lt; 0.1 then
+      table.remove(self.currentPath_, 1)
+      return
+    end
+    
+  end
+end
+</code></pre>
+<p>pic for motivation:<br/>
+<img alt="" height="" src="../../../images2/8f0c71b072ffda830acde3e7ce821e54.png" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>I got the spider to face correctly by separating the physics components from the model components.  The model components went into a dummy node that was then rotated by -90.  I think I exported using the proper front view in blender so I don’t know why I had to resort to this hack.  Perhaps bullet transformations are incompatible with urhos.</p>
+<p><img alt="" height="" src="../../../images2/e41b2946f6f7c6ec606ee7127b2bff9a.png" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="practicing01">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/14b76c8d5256588278b9ed2de25f6236.png" width="20"/> practicing01:</div>
+<blockquote>
+<p>I think I exported using the proper front view in blender so I don’t know why I had to resort to this hack.</p>
+</blockquote>
+</aside>
+<p>I think the axes mentioned after each <span class="bbcode-i">Front view</span> option in the Urho3D exporter are confusing. Be sure to double check that export setting while ignoring what’s in between parentheses.<br/>
+Also set Origin to Global and apply the spider’s rotation by hitting Ctrl+A, R while having it selected. That way it’s more WYSIWYG.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

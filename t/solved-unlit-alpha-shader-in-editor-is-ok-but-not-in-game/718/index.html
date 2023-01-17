@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED]unlit alpha shader in editor is ok, but not in game?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED]unlit alpha shader in editor is ok, but not in game?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>hi folks!<br/>
+I am trying to use my own unlit alpha test shader and in the editor he works normally<br/>
+but in the game not.<br/>
+Why is this happening?  I just need alphatest without shading with light</p>
+<p>video of this problem.<br/>
+[video]<a href="http://www.youtube.com/watch?v=vzwmEYuKraA%5B/video%5D">http://www.youtube.com/watch?v=vzwmEYuKraA[/video]</a></p>
+<p>this my lit tech</p>
+<pre><code class="lang-auto">&lt;technique vs="LitSolidAlphaMask" ps="LitSolidAlphaMask" psdefines="DIFFMAP ALPHAMASK" alphamask="true" &gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="litbase" psdefines="AMBIENT" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+    &lt;pass name="prepass" psdefines="PREPASS" /&gt;
+    &lt;pass name="material" psdefines="MATERIAL" depthtest="equal" depthwrite="false" /&gt;
+    &lt;pass name="deferred" psdefines="DEFERRED" /&gt;
+    &lt;pass name="depth" vs="Depth" ps="Depth" psdefines="ALPHAMASK" /&gt;
+    &lt;pass name="shadow" vs="Shadow" ps="Shadow" psdefines="ALPHAMASK" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>this unlit tech</p>
+<pre><code class="lang-auto">&lt;technique vs="UnlitAlphaMask" ps="UnlitAlphaMask" psdefines="DIFFMAP ALPHAMASK" alphamask="true"&gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="depth" vs="Depth" ps="Depth" psdefines="ALPHAMASK" /&gt;
+    &lt;pass name="deferred" psdefines="DEFERRED" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>the UnlitAlphaMask shader is the same as Unlit but only with this code fix:</p>
+<pre><code class="lang-auto">    // Get material diffuse albedo
+    #ifdef DIFFMAP
+        float4 diffColor = cMatDiffColor * tex2D(sDiffMap, iTexCoord);
+        #ifdef ALPHAMASK
+            if (diffColor.a &lt; cFactor)
+                discard;
+        #endif
+    #else
+        float4 diffColor = cMatDiffColor;
+    #endif</code></pre>
+<p>my cFactor is added also to Uniforms.hlsl</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>no one has any idea about this ?</p>
+<p>maybe needed make git request for adding  DiffUnlitAlphaMask.xml,  with one then i modify by adding alpha factor uniform )</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">reattiva</div>
+          <div class="post_content">
+<p>Wild guess, have you added ‘Factor’ in your material as a parameter?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Yes, it’s work perfect in editor, but then i’m run compiled game.exe, the object all most time are invisible, only in initial moment it shows then gone.</p>
+<p>this animation code. it’s work for LitAlphaMask Tech, and why it can’t work for unlit i don’t know</p>
+<pre><code class="lang-auto">void ScriptSmokeFx::Start()
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+	maxLifeTime = 1.0f; // ???????
+	currentLifeTime_ = 0.0f;
+
+	scaleAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+	
+	float startSize = 1.0f * GetNode()-&gt;GetWorldScale().Length(); // relative on inited scale
+	float endSize = 3.0f * GetNode()-&gt;GetWorldScale().Length();
+
+	scaleAnim_-&gt;SetKeyFrame(0.0f, Vector3(startSize, startSize, startSize));
+	scaleAnim_-&gt;SetKeyFrame(maxLifeTime, Vector3(endSize, endSize, endSize));
+
+	GetNode()-&gt;SetScale(startSize);
+	GetNode()-&gt;SetAttributeAnimation("Scale", scaleAnim_, WM_LOOP);
+
+	StaticModel* model = GetComponent&lt;StaticModel&gt;();
+
+#if 1
+	mat_ = SharedPtr&lt;Material&gt;(model-&gt;GetMaterial(0)-&gt;Clone("ClonedMat"));
+	//cache-&gt;AddManualResource(mat_);
+#else
+	mat_ = model-&gt;GetMaterial(0);
+#endif
+
+	// alpha factor
+	factorAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+	factorAnim_-&gt;SetKeyFrame(0.0f, 0.0f);
+	factorAnim_-&gt;SetKeyFrame(maxLifeTime / 5.0f, 0.2f);
+	factorAnim_-&gt;SetKeyFrame(maxLifeTime + (maxLifeTime / 5.0f), 1.0f); // litle shift (+1/5t) end value to remove visual artifacts with factor
+	mat_-&gt;SetShaderParameterAnimation("Factor", factorAnim_);
+	mat_-&gt;SetScene(GetScene());
+
+	// color fade
+	colorAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+	colorAnim_-&gt;SetKeyFrame(0.0f, Vector3(1.0f,1.0f,1.0f));
+	colorAnim_-&gt;SetKeyFrame((maxLifeTime / 3.0f), Vector3(1.0f,1.0f,1.0f));
+	colorAnim_-&gt;SetKeyFrame(maxLifeTime + (maxLifeTime / 5.0f), Vector3(0.2f,0.2f,0.2f));
+	mat_-&gt;SetShaderParameterAnimation("MatDiffColor", colorAnim_);
+	mat_-&gt;SetScene(GetScene());
+
+	model-&gt;SetMaterial(0,mat_);
+	
+	target_ = NULL;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i found a my mistake, now i use Vector4 instead of Vector3 for animation color value</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

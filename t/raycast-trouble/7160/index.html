@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>RayCast trouble</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">RayCast trouble</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So I am trying to have my energy sword cast a constant ray to check if an enemy is within range. However when I turn on the debug render I cannot get the raycast ray to show. I’ve been able to set this up for other parts of my code with no issues. Some of the code has been moved around for debugging.</p>
+<pre><code class="lang-auto">void EnergySword::RegisterObject(Context* context)
+{
+	context-&gt;RegisterFactory&lt;EnergySword&gt;();
+}
+
+void EnergySword::Start()
+{
+	loadResources();
+
+	// Component has been inserted into its scene node. Subscribe to events now
+	SubscribeToEvent(GetNode(), E_NODECOLLISION, URHO3D_HANDLER(EnergySword, HandleNodeCollision));
+}
+
+void EnergySword::DelayedStart()
+{
+	SubscribeToEvent(node_-&gt;GetChild("right_hand_marker", true), E_POSTRENDERUPDATE, URHO3D_HANDLER(EnergySword, MeleeLunge));
+	SubscribeToEvent(GetNode(), E_ANIMATIONTRIGGER, URHO3D_HANDLER(EnergySword, HandleAnimationTriggerZombie));
+}
+
+void EnergySword::FixedUpdate(float timeStep)
+{
+}
+
+void EnergySword::loadResources()
+{
+	cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	node_-&gt;SetScale(Vector3(0.025f, 0.025f, 0.025f));
+
+	swordObject = node_-&gt;CreateComponent&lt;AnimatedModel&gt;();
+	swordObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/plasma_sword.mdl"));
+	swordObject-&gt;ApplyMaterialList("Materials/plasma_sword.txt");
+
+	meleeshape_ = node_-&gt;CreateComponent&lt;CollisionShape&gt;();
+	meleeshape_-&gt;SetBox(Vector3(50.0f, 20.0f, 2.0f), Vector3::ZERO, Quaternion::IDENTITY);
+}
+
+void EnergySword::HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+{
+	// Check collision contacts and see if character is standing on ground (look for a contact that has near vertical normal)
+	using namespace NodeCollision;
+
+	RigidBody* body = node_-&gt;GetComponent&lt;RigidBody&gt;(true);
+
+	MemoryBuffer contacts(eventData[P_CONTACTS].GetBuffer());
+
+	while (!contacts.IsEof())
+	{
+		Vector3 contactPosition = contacts.ReadVector3();
+		Vector3 contactNormal = contacts.ReadVector3();
+		/*float contactDistance = */contacts.ReadFloat();
+		/*float contactImpulse = */contacts.ReadFloat();
+
+		// If contact is below node center and pointing up, assume it's a ground contact
+		if (contactPosition.y_ &lt; (node_-&gt;GetPosition().y_ + 1.0f))
+		{
+			float level = contactNormal.y_;
+		}
+	}
+}
+
+void EnergySword::PlaySound(const String&amp; soundName, float gain, float nearAttenuation, float farAttenuation)
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	// Create the sound source node
+	Node *sound_node = node_-&gt;CreateChild("Sound source node");
+
+	Sound* sound = cache-&gt;GetResource&lt;Sound&gt;(soundName);
+
+	soundSrc = node_-&gt;CreateComponent&lt;SoundSource3D&gt;();
+	soundSrc-&gt;SetNearDistance(nearAttenuation);
+	soundSrc-&gt;SetFarDistance(farAttenuation);
+
+	// Create the listener node
+	Node *listener_node = scene_-&gt;GetChild("Player", true);
+	// Create the listener itself
+	SoundListener *listener = listener_node-&gt;CreateComponent&lt;SoundListener&gt;();
+
+	// Set the listener for that audio subsystem
+	cache-&gt;GetSubsystem&lt;Audio&gt;()-&gt;SetListener(listener);
+
+	soundSrc-&gt;SetGain(gain);
+	soundSrc-&gt;Play(sound);
+	soundSrc-&gt;SetAutoRemoveMode(REMOVE_COMPONENT);
+}
+
+void EnergySword::HandleAnimationTriggerZombie(StringHash eventType, VariantMap&amp; eventData)
+{
+	using namespace AnimationTrigger;
+	AnimatedModel* model = node_-&gt;GetComponent&lt;AnimatedModel&gt;();
+	if (model)
+	{
+		AnimationState* state = model-&gt;GetAnimationState(eventData[P_NAME].GetString());
+
+		if (eventData[P_NAME].GetString() == "Melee 002")
+		{
+			bone = node_-&gt;GetChild(eventData[P_DATA].GetString(), true);
+
+
+
+			if (bone != NULL)
+			{
+				PlaySound("Sounds/sword_melee%2.ogg", 0.5f, 0.1f, 10.0f);
+			}
+
+		}
+		if (state == NULL)
+		{
+			return;
+
+		}
+
+	}
+
+}
+
+void EnergySword::DrawDebug(DebugRenderer* debug, bool depthTest)
+{
+	Vector3 size_{ 50.0f, 20.0f, 2.0f };
+	Vector3 startPos_{};
+	Vector3 endPos_{};
+	Quaternion startRot_{};
+	Quaternion endRot_{};
+
+	const BoundingBox bounds{ -size_ * .5f, size_ * .5f };
+	debug-&gt;AddBoundingBox(bounds, { startPos_, startRot_, 1.f }, Color::GREEN, depthTest);
+	debug-&gt;AddBoundingBox(bounds, { endPos_, endRot_, 1.f }, Color::RED, depthTest);
+	debug-&gt;AddLine(startPos_, endPos_, Color::YELLOW, depthTest);
+}
+
+void EnergySword::MeleeLunge()
+{
+	PhysicsWorld* physicsWorld_ = scene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+	PhysicsRaycastResult result;
+	Vector3 pos(node_-&gt;GetWorldPosition());
+	Ray ray(pos, node_-&gt;GetWorldDirection());  // the given vector is the direction
+	physicsWorld_-&gt;RaycastSingle(result, ray, 40.0f, 1);
+	debug-&gt;AddLine(pos, Vector3(0, 0, 0), Color::RED, false);
+	if (result.distance_ &lt;= 40)
+	{
+	}
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@wand</span> I have updated the code above.</p>
+<p>I’m trying to get my raycast in MeleeLunge() to show up in the debug render so I can begin coding the next parts, however I cannot get the ray to render.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<p>Did you debug if the event is called at all? I would guess that E_POSTRENDERUPDATE isn’t triggered ‘on’ the node at all but only globally. Try to remove the binding to the node:</p>
+<pre><code class="lang-auto">SubscribeToEvent(E_POSTRENDERUPDATE, URHO3D_HANDLER(EnergySword, MeleeLunge));
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So I made the changes, but when I change what <span class="mention">@dertom</span> suggested it crashes. Ptr.h line 124</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>This post was flagged by the community and is temporarily hidden.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I think so. If I comment out the SubscribeToEvent line everything work fine. I am using the EnergySword class in my main like this. Everything loads fine.</p>
+<pre><code class="lang-auto">player_handBoneNode = objectNode-&gt;GetChild("right_hand_marker", true);
+player_handBoneNode-&gt;CreateComponent&lt;EnergySword&gt;();
+player_handBoneNode-&gt;GetComponent&lt;AnimatedModel&gt;()-&gt;SetViewMask(3);
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<p>The method MeleeLunge has not the right signature for an event-callback. (The one that seems to be kicked also replied this just before me, now his reply is deleted…would have guessed you read that).<br/>
+Change MeleeLunge to:</p>
+<pre><code class="lang-auto">void EnergySword::MeleeLunge(StringHash eventType, VariantMap&amp; eventData)
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>This post was flagged by the community and is temporarily hidden.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>This post was flagged by the community and is temporarily hidden.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>I remember Lumak has an example of ray cast with the ribbon trail slashing a dummy.  It might be useful if you can locate it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So I have made all the changes. <span class="mention">@George1</span>  do you have a link to Lumaks example?</p>
+<p>I suspect my issue maybe is that the node the EnergySword is used on is a child node of another node. I could be wrong though.</p>
+<p>I’ve tried this:<br/>
+<code>SubscribeToEvent(GetNode()-&gt;GetChild("right_hand_marker", true), E_POSTRENDERUPDATE, URHO3D_HANDLER(EnergySword, MeleeLunge));</code></p>
+<p>It does not crash, but nothing happens.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="13" data-topic="7160" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<p>It does not crash, but nothing happens.</p>
+</blockquote>
+</aside>
+<p>Yes, because this event is not triggered on this node.<br/>
+You need to call as I suggested in the first post and it crashed because you had the method-signature of MeleeLunge wrong,no? Did you change as I suggested in the second post?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@dertom</span> Yes I believe I made the changes you suggested. Here is the new code:</p>
+<pre><code class="lang-auto">void EnergySword::RegisterObject(Context* context)
+{
+	context-&gt;RegisterFactory&lt;EnergySword&gt;();
+}
+
+void EnergySword::Start()
+{
+	loadResources();
+
+	// Component has been inserted into its scene node. Subscribe to events now
+	SubscribeToEvent(GetNode(), E_NODECOLLISION, URHO3D_HANDLER(EnergySword, HandleNodeCollision));
+}
+
+void EnergySword::DelayedStart()
+{
+	SubscribeToEvent(GetNode()-&gt;GetChild("right_hand_marker", true), E_POSTRENDERUPDATE, URHO3D_HANDLER(EnergySword, MeleeLunge));
+	SubscribeToEvent(GetNode(), E_ANIMATIONTRIGGER, URHO3D_HANDLER(EnergySword, HandleAnimationTriggerZombie));
+}
+
+void EnergySword::FixedUpdate(float timeStep)
+{
+}
+
+void EnergySword::loadResources()
+{
+	cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	node_-&gt;SetScale(Vector3(0.025f, 0.025f, 0.025f));
+
+	swordObject = node_-&gt;CreateComponent&lt;AnimatedModel&gt;();
+	swordObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/plasma_sword.mdl"));
+	swordObject-&gt;ApplyMaterialList("Materials/plasma_sword.txt");
+
+	meleeshape_ = node_-&gt;CreateComponent&lt;CollisionShape&gt;();
+	meleeshape_-&gt;SetBox(Vector3(50.0f, 20.0f, 2.0f), Vector3::ZERO, Quaternion::IDENTITY);
+}
+
+void EnergySword::HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+{
+	// Check collision contacts and see if character is standing on ground (look for a contact that has near vertical normal)
+	using namespace NodeCollision;
+
+	RigidBody* body = node_-&gt;GetComponent&lt;RigidBody&gt;(true);
+
+	MemoryBuffer contacts(eventData[P_CONTACTS].GetBuffer());
+
+	while (!contacts.IsEof())
+	{
+		Vector3 contactPosition = contacts.ReadVector3();
+		Vector3 contactNormal = contacts.ReadVector3();
+		/*float contactDistance = */contacts.ReadFloat();
+		/*float contactImpulse = */contacts.ReadFloat();
+
+		// If contact is below node center and pointing up, assume it's a ground contact
+		if (contactPosition.y_ &lt; (node_-&gt;GetPosition().y_ + 1.0f))
+		{
+			float level = contactNormal.y_;
+		}
+	}
+}
+
+void EnergySword::PlaySound(const String&amp; soundName, float gain, float nearAttenuation, float farAttenuation)
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	// Create the sound source node
+	Node *sound_node = node_-&gt;CreateChild("Sound source node");
+
+	Sound* sound = cache-&gt;GetResource&lt;Sound&gt;(soundName);
+
+	soundSrc = node_-&gt;CreateComponent&lt;SoundSource3D&gt;();
+	soundSrc-&gt;SetNearDistance(nearAttenuation);
+	soundSrc-&gt;SetFarDistance(farAttenuation);
+
+	// Create the listener node
+	Node *listener_node = scene_-&gt;GetChild("Player", true);
+	// Create the listener itself
+	SoundListener *listener = listener_node-&gt;CreateComponent&lt;SoundListener&gt;();
+
+	// Set the listener for that audio subsystem
+	cache-&gt;GetSubsystem&lt;Audio&gt;()-&gt;SetListener(listener);
+
+	soundSrc-&gt;SetGain(gain);
+	soundSrc-&gt;Play(sound);
+	soundSrc-&gt;SetAutoRemoveMode(REMOVE_COMPONENT);
+}
+
+void EnergySword::HandleAnimationTriggerZombie(StringHash eventType, VariantMap&amp; eventData)
+{
+	using namespace AnimationTrigger;
+	AnimatedModel* model = node_-&gt;GetComponent&lt;AnimatedModel&gt;();
+	if (model)
+	{
+		AnimationState* state = model-&gt;GetAnimationState(eventData[P_NAME].GetString());
+
+		if (eventData[P_NAME].GetString() == "Melee 002")
+		{
+			bone = node_-&gt;GetChild(eventData[P_DATA].GetString(), true);
+
+
+
+			if (bone != NULL)
+			{
+				PlaySound("Sounds/sword_melee%2.ogg", 0.5f, 0.1f, 10.0f);
+			}
+
+		}
+		if (state == NULL)
+		{
+			return;
+
+		}
+
+	}
+
+}
+
+void EnergySword::DrawDebug(DebugRenderer* debug, bool depthTest)
+{
+	Vector3 size_{ 50.0f, 20.0f, 2.0f };
+	Vector3 startPos_{};
+	Vector3 endPos_{};
+	Quaternion startRot_{};
+	Quaternion endRot_{};
+
+	const BoundingBox bounds{ -size_ * .5f, size_ * .5f };
+	debug-&gt;AddBoundingBox(bounds, { startPos_, startRot_, 1.f }, Color::GREEN, depthTest);
+	debug-&gt;AddBoundingBox(bounds, { endPos_, endRot_, 1.f }, Color::RED, depthTest);
+	debug-&gt;AddLine(startPos_, endPos_, Color::YELLOW, depthTest);
+}
+
+void EnergySword::MeleeLunge(StringHash eventType, VariantMap&amp; eventData)
+{
+	PhysicsWorld* physicsWorld_ = scene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+	PhysicsRaycastResult result;
+	Vector3 pos(node_-&gt;GetWorldPosition());
+	Ray ray(pos, node_-&gt;GetWorldDirection());  // the given vector is the direction
+	physicsWorld_-&gt;RaycastSingle(result, ray, 40.0f, 1);
+	if (result.body_)
+	{
+		debug-&gt;AddLine(pos, result.position_, Color::RED, false);
+	}
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="15" data-topic="7160" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<pre><code class="lang-auto">void EnergySword::MeleeLunge(StringHash eventType, VariantMap&amp; eventData)
+{
+	PhysicsWorld* physicsWorld_ = scene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+	PhysicsRaycastResult result;
+	Vector3 pos(node_-&gt;GetWorldPosition());
+	Ray ray(pos, node_-&gt;GetWorldDirection());  // the given vector is the direction
+	physicsWorld_-&gt;RaycastSingle(result, ray, 40.0f, 1);
+	if (result.body_)
+	{
+		debug-&gt;AddLine(pos, result.position_, Color::RED, false);
+	}
+}
+</code></pre>
+</blockquote>
+</aside>
+<p>Given that you don’t declare debug, does this code even compile?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<p>You subscribe on the node. Change it please like this. good luck…</p>
+<aside class="quote no-group" data-full="true" data-post="5" data-topic="7160" data-username="dertom">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4066e49439adaebc8e20a6a1b2981136.png" width="20"/> dertom:</div>
+<blockquote>
+<p>Did you debug if the event is called at all? I would guess that E_POSTRENDERUPDATE isn’t triggered ‘on’ the node at all but only globally. Try to remove the binding to the node:</p>
+<pre><code class="lang-auto">SubscribeToEvent(E_POSTRENDERUPDATE, URHO3D_HANDLER(EnergySword, MeleeLunge));
+</code></pre>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@SirNate0</span> Yes debug is defined in the header file. I will move this to the cpp for more clarity.<br/>
+<span class="mention">@dertom</span> When I do this it just crashes on startup.</p>
+<p>New Code:</p>
+<pre><code class="lang-auto">void EnergySword::RegisterObject(Context* context)
+{
+	context-&gt;RegisterFactory&lt;EnergySword&gt;();
+}
+
+void EnergySword::Start()
+{
+	loadResources();
+
+	// Component has been inserted into its scene node. Subscribe to events now
+	SubscribeToEvent(GetNode(), E_NODECOLLISION, URHO3D_HANDLER(EnergySword, HandleNodeCollision));
+}
+
+void EnergySword::DelayedStart()
+{
+	SubscribeToEvent(GetNode(), E_ANIMATIONTRIGGER, URHO3D_HANDLER(EnergySword, HandleAnimationTriggerZombie));
+	SubscribeToEvent(E_POSTRENDERUPDATE, URHO3D_HANDLER(EnergySword, MeleeLunge));
+}
+
+void EnergySword::FixedUpdate(float timeStep)
+{
+}
+
+void EnergySword::loadResources()
+{
+	cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	node_-&gt;SetScale(Vector3(0.025f, 0.025f, 0.025f));
+
+	swordObject = node_-&gt;CreateComponent&lt;AnimatedModel&gt;();
+	swordObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/plasma_sword.mdl"));
+	swordObject-&gt;ApplyMaterialList("Materials/plasma_sword.txt");
+
+	meleeshape_ = node_-&gt;CreateComponent&lt;CollisionShape&gt;();
+	meleeshape_-&gt;SetBox(Vector3(50.0f, 20.0f, 2.0f), Vector3::ZERO, Quaternion::IDENTITY);
+}
+
+void EnergySword::HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+{
+	// Check collision contacts and see if character is standing on ground (look for a contact that has near vertical normal)
+	using namespace NodeCollision;
+
+	RigidBody* body = node_-&gt;GetComponent&lt;RigidBody&gt;(true);
+
+	MemoryBuffer contacts(eventData[P_CONTACTS].GetBuffer());
+
+	while (!contacts.IsEof())
+	{
+		Vector3 contactPosition = contacts.ReadVector3();
+		Vector3 contactNormal = contacts.ReadVector3();
+		/*float contactDistance = */contacts.ReadFloat();
+		/*float contactImpulse = */contacts.ReadFloat();
+
+		// If contact is below node center and pointing up, assume it's a ground contact
+		if (contactPosition.y_ &lt; (node_-&gt;GetPosition().y_ + 1.0f))
+		{
+			float level = contactNormal.y_;
+		}
+	}
+}
+
+void EnergySword::PlaySound(const String&amp; soundName, float gain, float nearAttenuation, float farAttenuation)
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	// Create the sound source node
+	Node *sound_node = node_-&gt;CreateChild("Sound source node");
+
+	Sound* sound = cache-&gt;GetResource&lt;Sound&gt;(soundName);
+
+	soundSrc = node_-&gt;CreateComponent&lt;SoundSource3D&gt;();
+	soundSrc-&gt;SetNearDistance(nearAttenuation);
+	soundSrc-&gt;SetFarDistance(farAttenuation);
+
+	// Create the listener node
+	Node *listener_node = scene_-&gt;GetChild("Player", true);
+	// Create the listener itself
+	SoundListener *listener = listener_node-&gt;CreateComponent&lt;SoundListener&gt;();
+
+	// Set the listener for that audio subsystem
+	cache-&gt;GetSubsystem&lt;Audio&gt;()-&gt;SetListener(listener);
+
+	soundSrc-&gt;SetGain(gain);
+	soundSrc-&gt;Play(sound);
+	soundSrc-&gt;SetAutoRemoveMode(REMOVE_COMPONENT);
+}
+
+void EnergySword::HandleAnimationTriggerZombie(StringHash eventType, VariantMap&amp; eventData)
+{
+	using namespace AnimationTrigger;
+	AnimatedModel* model = node_-&gt;GetComponent&lt;AnimatedModel&gt;();
+	if (model)
+	{
+		AnimationState* state = model-&gt;GetAnimationState(eventData[P_NAME].GetString());
+
+		if (eventData[P_NAME].GetString() == "Melee 002")
+		{
+			bone = node_-&gt;GetChild(eventData[P_DATA].GetString(), true);
+
+
+
+			if (bone != NULL)
+			{
+				PlaySound("Sounds/sword_melee%2.ogg", 0.5f, 0.1f, 10.0f);
+			}
+
+		}
+		if (state == NULL)
+		{
+			return;
+
+		}
+
+	}
+
+}
+
+void EnergySword::DrawDebug(DebugRenderer* debug, bool depthTest)
+{
+	Vector3 size_{ 50.0f, 20.0f, 2.0f };
+	Vector3 startPos_{};
+	Vector3 endPos_{};
+	Quaternion startRot_{};
+	Quaternion endRot_{};
+
+	const BoundingBox bounds{ -size_ * .5f, size_ * .5f };
+	debug-&gt;AddBoundingBox(bounds, { startPos_, startRot_, 1.f }, Color::GREEN, depthTest);
+	debug-&gt;AddBoundingBox(bounds, { endPos_, endRot_, 1.f }, Color::RED, depthTest);
+	debug-&gt;AddLine(startPos_, endPos_, Color::YELLOW, depthTest);
+}
+
+void EnergySword::MeleeLunge(StringHash eventType, VariantMap&amp; eventData)
+{
+	debug = scene_-&gt;GetComponent&lt;DebugRenderer&gt;();
+
+	PhysicsWorld* physicsWorld_ = scene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+	PhysicsRaycastResult result;
+	Vector3 pos(node_-&gt;GetWorldPosition());
+	Ray ray(pos, node_-&gt;GetWorldDirection());  // the given vector is the direction
+	physicsWorld_-&gt;RaycastSingle(result, ray, 40.0f, 1);
+	if (result.body_)
+	{
+		debug-&gt;AddLine(pos, result.position_, Color::RED, false);
+	}
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So after double checking my code. I forgot to pass the scene from my main to the EnergySword class. This is done to get things like the debug render of the current scene. After <span class="mention">@SirNate0</span> comment I went to double check all my references. This explains why the other classes were working fine, but not this one.</p>
+<p>Thanks everyone for the suggestions.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

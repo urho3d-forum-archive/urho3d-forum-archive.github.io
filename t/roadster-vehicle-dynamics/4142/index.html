@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Roadster vehicle dynamics</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Roadster vehicle dynamics</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Just another one of those videos to inspire others on this forum.</p>
+<p>Does it actually inspire others? I wonder.</p>
+<p>Side friction stiffness settings:<br/>
+front: 0.8f<br/>
+rear: 0.04f</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="L05nckGYOEU" data-youtube-title="Roadster Racing"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>Nice .<br/>
+I guess it’s a Chibii racers retro car.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Yes, that’s correct. I bought several art packs from 3drt and noticed you were using the retro set as well. I gotta say, it’s nice to work with something of a quality, unlike my pickup truck that I made in my offroad repo.</p>
+<p>oh, wait. The name of the person that made the android racer started with ‘E’ and I thought it was you, but it’s extobias.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>That’s really nice. I’m trying to get the same effects, unsuccessfully, for a couple of weeks. The thing is I would to have several height’s on the track but the car is flying in the curves with heights.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>What do you mean by added heights, something like a ramp, speed bump, or gradual height elevation on the road?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>Like in gradual height elevation. The front wheels start to bumping, even applying a down force.<br/>
+I’ve playing with sideFrictionStiffness, but the problem occurs when the car takes the curve with height.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="EnV_52BAL60" data-youtube-title="test"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>OK, I understand what you mean.  One thing that can help force the vehicle to stay on the ground is to apply a downward force.  In the original 19_VehicleDemo, there’s this block:</p>
+<pre><code class="lang-auto">    // Apply downforce proportional to velocity
+    Vector3 localVelocity = hullRot.Inverse() * hullBody_-&gt;GetLinearVelocity();
+    hullBody_-&gt;ApplyForce(hullRot * Vector3::DOWN * Abs(localVelocity.z_) * DOWN_FORCE);</code></pre>
+<p>I do something similar but apply force only when one of the wheel is not touching:</p>
+<pre><code class="lang-auto">void Vehicle::ApplyDownwardForce()
+{
+    // apply downward force when some wheels are grounded
+    if (numWheelContacts_ != numWheels_ )
+    {
+        // small arbitrary multiplier
+        const float velocityMultiplyer = 1.00f;
+        Vector3 downNormal = node_-&gt;GetUp() * -1.0f;
+        float velocityMag = hullBody_-&gt;GetLinearVelocity().LengthSquared() * velocityMultiplyer;
+        velocityMag = Clamp(velocityMag, MIN_DOWN_FORCE, MAX_DOWN_FORCE);
+        hullBody_-&gt;ApplyForce(velocityMag * downNormal);
+    }
+}</code></pre>
+<p>The <strong>velocityMultiplyer</strong> is a tweakable value, which I haven’t touched yet. And the MIN_DOWN_FORCE and MAX_DOWN_FORCE are set to 10.0f and 1e4f, respectively. The MAX value is pretty high, but I tend to have my vehicles travel at much faster speed than normal.</p>
+<p>edit: You should also consider raising your sidewalls, though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">noskopo</div>
+          <div class="post_content">
+<p>How did you make the tire tracks? <img alt=":grinning:" class="emoji" src="../../../images2/993cdd6d5aba3f941b7389fd0b3a1ba1.png" title=":grinning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Welcome to the forum noskopo. You can find the skid track code here, <a href="https://github.com/Lumak/Urho3D-Offroad-Vehicle">https://github.com/Lumak/Urho3D-Offroad-Vehicle</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I think you could try to play with:</p>
+<ol>
+<li>vehicle center of mass and your collision shape. In some cases one can make car which<br/>
+can’t flip at all.</li>
+<li>If you’re using raycast vehicle, try to increase spring stiffness.</li>
+<li>If you’re using raycast vehicle, try also decreasing roll influence.<br/>
+Also I find it amusing to use 2 downforces - one when all wheels touch ground and another which<br/>
+whorks when at least one wheel touches ground. This makes vehicle hard to go flying for no reason.<br/>
+Also try to learn yourself a bit about real vehicle physics parameters to make sure the behavior is not too<br/>
+unrealistic and makes sense at least a tiny bit. Articles like <a href="https://www.howacarworks.com/basics/how-the-transmission-works" rel="nofollow noopener">https://www.howacarworks.com/basics/how-the-transmission-works</a> and <a href="http://blender3d.org.ua/forum/game/iwe/upload/Vehicle_Simulation_With_Bullet.pdf" rel="nofollow noopener">http://blender3d.org.ua/forum/game/iwe/upload/Vehicle_Simulation_With_Bullet.pdf</a><br/>
+and <a href="http://www.asawicki.info/Mirror/Car%20Physics%20for%20Games/Car%20Physics%20for%20Games.html" rel="nofollow noopener">http://www.asawicki.info/Mirror/Car%20Physics%20for%20Games/Car%20Physics%20for%20Games.html</a><br/>
+help a lot with understanding mechanics. Also, try some common games like Tux Racer, GTA3/VC/SA and try to feel the difference and what you really like and dislike.<br/>
+Hope that helps.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Also Bullet term for “I use convex hull and my vehicle behaves strange, I did everything abouc center of mass and still can’t make it behave, Havok fixes it easily with inertia shape” is Inertia Tensor. Just for records.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, your track is too flat, a little curve for it and slight elevation of some parts would make it much more interesting…<br/>
+About side friction - how do you implement it? The problem about  original btRaycastVehicle in addition to wheel rotation is absence of control of side to side slide. Probably this also should depend on track surface somehow, but I did not go that far yet. (Urho3D component fixes wheel rotation, but not side-side sliding).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="12" data-topic="4142" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>Well, your track is too flat, a little curve for it and slight elevation of some parts would make it much more interesting…</p>
+</blockquote>
+</aside>
+<p>That won’t happen until the level design/creation phase. I still have a couple of dynamics to work out first before I get to that point.</p>
+<aside class="quote no-group" data-post="12" data-topic="4142" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>About side friction - how do you implement it?</p>
+</blockquote>
+</aside>
+<p>You reviewed the “offroad repo” a long time ago – it’s the changes to the btRaycastVehicle side.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I just tested this bit for auto correct pitch roll: //ref from <a href="https://discourse.urho3d.io/t/constraint-class-working-on-derived-class/4081/6">Constraint Class working on derived class</a></p>
+<pre><code class="lang-auto">void Vehicle::AutoCorrectPitchRoll()
+{
+    // auto correct pitch and roll while air borne
+    if (numWheelContacts_ == 0)
+    {
+        // ref from https://discourse.urho3d.io/t/constraint-class-working-on-derived-class/4081/6
+        const float stability = 0.3f;
+        const float speed = 1.5f;
+        Vector3 predictedUp = Quaternion(hullBody_-&gt;GetAngularVelocity().Length() * M_DEGTORAD * stability / speed,
+                                         hullBody_-&gt;GetAngularVelocity()) * node_-&gt;GetUp();
+        Vector3 torqueVector = predictedUp.CrossProduct(Vector3::UP);
+        torqueVector *= speed * speed * m_fVehicleMass;
+        hullBody_-&gt;ApplyTorque(torqueVector);
+    }
+}</code></pre>
+<p>The predictedUp calculation is clever and it works a lot better.</p>
+<p>edit: I added this to the repo minutes ago.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>21 AI vehicles pathing on a spline. Tested on my Android phone and it ran very smooth.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="fjFJ9B2C49k" data-youtube-title="AI Vehicle cluster"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Your phone is tough.<br/>
+Mine can handle up to 5 btRaycastVehicles, so I have to LOD and run distant ones without physics.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I mean without Bullet as I do very simple fake physics manually. I think it depends on terrain<br/>
+and various other aspects like my phone is Meizu M5 note.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I’m not usually up this early, but went to bed early and just got up for no good reason.  Anyway, my phone is Android 4.1.2, API 16, a duo-core arm, and yours is Android 6.0 with an octa-core cpu, a more powerful phone. It’s hard to believe that you can only have 5 raycast vehicles in your scene.  It must be the terrain. I don’t have it in my scene nor did I have it testing on my phone.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, I did play with raycast schedule pipeline, and it does have potential. so maybe I will be able to run more than 5 vehicles as I come to this, I just need to write another subsystem for this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>btw, my terrain is 240x240 grid (procedural, but nothing fancy), distance between vertices is 1 unit. So one have to be careful about raycasts to survive.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Could the culprit for your performance caused by your custom terrain? The default terrain uses Bullet’s btHeightfieldTerrainShape, and I don’t remember the performance being bad.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Yes, the terrain is custom and uses btHeightfieldTerrainShape but also I use AI to prevent collisions, which uses raycasts too, and it seems somehow it chokes on large amount of raycasts per frame. After I implemented priority queue of raycasts and removed physics from distant vehicles (I run simple car physics on them which is fully custom - just simple integration of 3 values) I can run about 20 vehicles at 20 fps.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p><span class="mention">@slapin</span> Please stay on the topic. If you have an issue, please create another thread of your own.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p><span class="mention">@weitjong</span>, he is on topic.</p>
+<p><span class="mention">@slapin</span> - right, the raycast performance issue. Have you tried using the <strong>RaycastSingleSegmented()</strong> fn for ray lengths &gt; 10 meters? You’ll get a better performance than the <strong>RaycastSingle()</strong> fn.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p><span class="mention">@Lumak</span>, If you say so. Have fun.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Ah, thanks for RaycastSingleSegmented() - this is really makes difference. I can run ~30 vehicles this way. I think using threaded raycast would make it even better, but I don’t have guts to look that direction. Thanks a lot! This looks like I can increase. performance for NPCs too.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>RaycastSingleSegmented() is based on Bullet’s raycasting.<br/>
+Might be relevant:<br/>
+<a class="onebox" href="https://pybullet.org/Bullet/phpBB3/viewtopic.php?t=10143" rel="nofollow noopener" target="_blank">https://pybullet.org/Bullet/phpBB3/viewtopic.php?t=10143</a></p>
+<p>Bullet’s author confirms here raycasts are thread safe when not stepping the world.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Network testing - what you see in the video is on the client side. The host is sitting at the starting line.  All other drivers are AI.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="Yismp9qJI_o" data-youtube-title="Race Network Client testing"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>Nice !<br/>
+I am also playing with it lately , creating scenes with race cars.<br/>
+I uploaded some video , all of them are AI driven , runs also flawlessly on  low range Android and iOS mobiles</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="306y2R00IQk" data-youtube-title="2018 04 17 03 24 22"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Oh, sweet! Wow, you got a full level designed and created already, awesome. That’s probably my most difficult part in my game development. I get to that point in my prototypes and … just draw blank.</p>
+<p>What type of AI pathing do you use?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>For AI ,<br/>
+I am using “Chase The Rabbit” algorithm .<br/>
+Basically each car is following its own  virtual invisible “rabbit” .<br/>
+Each rabbit (node) is following predefined markers that form different paths , with some random salt modified each frame causing it to jump from path to path<br/>
+Every frame :<br/>
+The acceleration of the car is modified based upon its distance to its “rabbit”<br/>
+The steering of the car is modified based of direction of the car in relation to its “rabbit” in world space<br/>
+In addition I am raycasting several rays from each car to the sides and front to detect collision with other cars , and modify steering &amp; acceleration accordingly .</p>
+<p>Regarding the level itself , I am using my “wild imagination” <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/><br/>
+Basically adding &amp; removing some stuff and see how it looks , a lot of trial and error , still not happy with it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Tid bit of info about my vehicle setup for network:</p>
+<ul>
+<li>rigibody - REPLICATED</li>
+<li>collisonshape - REPLICATED</li>
+<li>prefab xml car node layout: hubs, steering wheel node, driver node, static models - all LOCAL</li>
+<li>raycast vehicle (btRaycastVehicle) - LOCAL</li>
+<li>wheels - LOCAL</li>
+<li>sounds - LOCAL</li>
+<li>skid track - LOCAL</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>My 1st semi-completed level testing.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="SSl8PPOqh6g" data-youtube-title="Roadster Race Level Test"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I’ve just looked at my profiler view of the level and the race from the vid above and got my total memory usage is shown as 7.2MB. I added extra dump in the largest memory user for each type of resource and got:</p>
+<pre><code class="lang-auto">rscgrp: Texture2D, largest: name=Textures/vp_sky_v3_007_1024LGT.png, size=2.7 M 
+rscgrp: Technique, largest: name=Techniques/NoTexture.xml, size=1.4 k           
+rscgrp: XMLFile, largest: name=track6/track6.xml, size=47.3 k                   
+rscgrp: Image, largest: name=Textures/UI.png, size=128.0 k                      
+rscgrp: Font, largest: name=Fonts/Anonymous Pro.ttf, size=12.2 M                
+rscgrp: Model, largest: name=Models/Sphere.mdl, size=41.9 k                     
+rscgrp: Material, largest: name=Materials/pineMat.xml, size=588 b               
+rscgrp: TextureCube, largest: name=Textures/Level0Cube.xml, size=128.3 k        
+rscgrp: Sound, largest: name=Sounds/engine-prototype.ogg, size=119.9 k          
+rscgrp: Shader, largest: name=Shaders/GLSL/LitSolid.glsl, size=122.9 k          
+rscgrp: Animation, largest: name=Racers/Racer_Idle.ani, size=79.2 k             
+</code></pre>
+<p>My question is, how is the total memory 7.2MB while the font usage is 12.2MB?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

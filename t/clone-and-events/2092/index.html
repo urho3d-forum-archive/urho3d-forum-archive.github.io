@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Clone and events</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Clone and events</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>Any way to also clone subscribed events for components and nodes when cloning ?</p>
+<p>I have some components and nodes that subscribes to events, when cloning them, clones have lost events.<br/>
+Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Cloning uses the exact same method as load/save, attribute serialization. Event subscription status is separate from this.</p>
+<p>If possible, I’d just recommend making the event connections in OnNodeSet() or Start() / DelayedStart() functions, as appropriate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>ok.<br/>
+And what about to send a cloned event with the clone ptr in map to trigger actions for clones when a object is cloned ? maybe usefull for lot of things like auto registering to some other events  <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+<p>I added :</p>
+<p><code>/// A component has been cloned.
+URHO3D_EVENT(E_COMPONENTCLONED, ComponentCloned)
+{
+    URHO3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+    URHO3D_PARAM(P_NODE, Node);                    // Node pointer
+    URHO3D_PARAM(P_COMPONENT, Component);          // Component pointer
+}</code></p>
+<p>and at end of Node::CloneComponent()</p>
+<p>[code]<br/>
+// Send component cloned event<br/>
+using namespace ComponentCloned;</p>
+<pre><code>VariantMap&amp; eventData = GetEventDataMap();
+eventData[P_SCENE] = scene_;
+eventData[P_NODE] = this;
+eventData[P_COMPONENT] = cloneComponent;
+SendEvent(E_COMPONENTCLONED, eventData);[/code]
+</code></pre>
+<p>It works for cloned components, but I’m not sure for cloned Node where to send a similar event.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Events are often used for when something happens that you can’t directly anticipate. For example screen resize. The scene already sends node and component creation/deletion events, which are used by the editor for keeping the hierarchy window up to date. But that doesn’t differentiate between cloning and other methods of creating new nodes.</p>
+<p>Since the engine doesn’t ever call Clone() on its own, but it’s always your application logic and you know when it’s called, you could follow with any post-cloning setup imperatively, just by calling some function in the cloned component(s). So I don’t see a separate engine-defined event necessary here. Or if you wish, you could send an event yourself at the same time when cloning.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>ok right. E_COMPONENTADDED should be sufficiant.<br/>
+however I get some crash using the component ptr from E_COMPONENTADDED after cloning.</p>
+<p>When I look the CloneComponent code, SafeCreateComponent (who call addComponent and then trigger the event E_COMPONENTADDED), the sended component does not have yet attributes applied by CloneComponent, this event shouldn’t be sended only after ? (when I move the send event code after it fix the crash)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The meaning of the event is exactly what it says (component added). It doesn’t tell anything of the attribute contents, which could be populated some time after, or possibly never (In case it’s a node/component creation outside serialization or cloning.)</p>
+<p>At the time when the component is added, and the event is sent, Node code cannot know what case it is.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>On second thoughts, the Node::Clone() function knows best when it’s done with setting each components’ (and its own) attributes, and also the mappings to new and old component. Therefore it could in fact make sense to have events sent from the engine code. Cloning shouldn’t be a high-frequency operation (not any more frequent than instantiation of prefabs) and furthermore the events should be cheap performance-wise if no-one is listening to them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Added in master branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>great thanks.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

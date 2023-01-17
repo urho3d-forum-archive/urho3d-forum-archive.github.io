@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ListView problem with HierarchyMode true</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ListView problem with HierarchyMode true</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Hello, i have a problem with ListView only when SetHierarchy is set to true.<br/>
+It display items on top of each other.</p>
+<p>I set defaultstyle to root ui element, but problem still…</p>
+<pre><code>    auto* cache = GetSubsystem&lt;ResourceCache&gt;();
+auto* font = cache-&gt;GetResource&lt;Font&gt;("Fonts/Anonymous Pro.ttf");
+XMLFile* style = cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml");
+
+auto title = SharedPtr&lt;Text&gt;(new Text(context_));
+title-&gt;SetText("File1");
+title-&gt;SetDefaultStyle(style);
+title-&gt;SetStyleAuto();
+title-&gt;SetInternal(true); // i tried without
+
+auto title2 = SharedPtr&lt;Text&gt;(new Text(context_));
+title2-&gt;SetText("File2");
+title2-&gt;SetDefaultStyle(style);
+title2-&gt;SetStyleAuto();
+title2-&gt;SetInternal(true); // i tried without
+
+auto* list = window-&gt;CreateChild&lt;ListView&gt;("WindowListView");
+list-&gt;SetHierarchyMode(true);
+list-&gt;SetFixedHeight(300);
+list-&gt;SetFixedWidth(300);
+list-&gt;SetDefaultStyle(style);
+list-&gt;SetStyleAuto();
+list-&gt;SetIndent(1);
+
+list-&gt;InsertItem(M_MAX_UNSIGNED, title);
+list-&gt;InsertItem(M_MAX_UNSIGNED, title2);
+</code></pre>
+<p>Thanks for any helps.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Thank you, it works !<br/>
+I did not realize that vertical positioning is manual.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>When item collapse, you need to reposition items… It’s very strange, i think it’s an issue</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>No, look (a picture is more clear of words)<br/>
+<img alt="Sans%20titre" height="187" src="../../../images2/83c224e288aa3eb7e886f02880d6fe22.png" width="301"/></p>
+<p>When LayerBack is collapse, all next items must be repositioned.<br/>
+I was try to call enableLayoutUpdate(); after each inserted item and avoid manual positionning but without success.</p>
+<pre><code>void LocalWorldEditorState::updateListViewGraphScene(ListView* list, Node* node, 
+ UIElement* parent)
+{
+if (parent == nullptr)
+{
+    list-&gt;RemoveAllItems();
+}
+
+for (Node* child : node-&gt;GetChildren())
+{
+    auto item = new Text(context_);
+    item-&gt;SetText(child-&gt;GetName());
+    item-&gt;SetName(child-&gt;GetName());
+    item-&gt;SetFixedHeight(20);
+    item-&gt;SetStyleAuto();
+    item-&gt;SetPosition(0, list-&gt;GetNumItems() * 20);
+
+    if (parent == nullptr)
+    {
+        list-&gt;InsertItem(M_MAX_UNSIGNED, item);
+    }
+    else
+    {
+        list-&gt;InsertItem(M_MAX_UNSIGNED, item, parent);
+    }
+
+    updateListViewGraphScene(list, child, item);
+}
+
+list-&gt;GetContentElement()-&gt;SetFixedHeight(list-&gt;GetNumItems() * 20);
+}
+</code></pre>
+<p>For my use-case, i need display nodes inside layers, like this :</p>
+<p>LayerBack<br/>
+node01<br/>
+node02<br/>
+LayerMiddle<br/>
+node03<br/>
+node04<br/>
+LayerTop<br/>
+node05<br/>
+node06</p>
+<p>Maybe i will fallback to multiple listview without hierarchy mode.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Ok, the SetLayout track is good in my opinion.<br/>
+In the meantime, I import the XML layout bin/Data/UI/EditorHierarchyWindow.xml and then apply my update function as shown above, and it works.</p>
+<pre><code>SharedPtr&lt;UIElement&gt; list = m_ui-&gt;LoadLayout(GetSubsystem&lt;ResourceCache&gt;()-&gt;GetResource&lt;XMLFile&gt;("UI/EditorHierarchyWindow.xml"));
+ListView* l = static_cast&lt;ListView*&gt;(list-&gt;GetChild("HierarchyList", true));
+
+l-&gt;SetFixedHeight(300);
+l-&gt;SetFixedWidth(300);
+
+updateListViewGraphScene(l, m_scene);
+
+m_ui-&gt;GetRoot()-&gt;AddChild(list);
+</code></pre>
+<p>I wonder if it is not better to create the interface from xml file only (make separation between visual &amp; logic like HTML &amp; JS.</p>
+<p><img alt="Sans%20titre" height="370" src="../../../images2/9a141c4224c4d737b558cb440fdc67f1.png" width="345"/></p>
+<p>Edit: for a complete solution with only C++ code add SetStyle(“HierarchyListView”); to your element.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

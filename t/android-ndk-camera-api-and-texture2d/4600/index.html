@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Android NDK camera api and Texture2D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Android NDK camera api and Texture2D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Hello community it is me again,</p>
+<p>and again i bother you with camera texture stuff. As some of you know i used a Texture2D for displaying a camera stream from my androids color camera, this was working well as i used googles project tango where i did only need to bind via GLuint<br/>
+TangoService_updateTextureExternalOes(<br/>
+TANGO_CAMERA_COLOR, textureID,<br/>
+&amp;ts)</p>
+<p>Now i found this useful tutorial<br/>
+<a class="onebox" href="https://www.sisik.eu/blog/android/ndk/camera" rel="nofollow noopener" target="_blank">https://www.sisik.eu/blog/android/ndk/camera</a><br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/sixo/native-camera/blob/master/app/src/main/cpp/native-lib.cpp" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/sixo/native-camera/blob/master/app/src/main/cpp/native-lib.cpp" rel="nofollow noopener" target="_blank">sixo/native-camera/blob/master/app/src/main/cpp/native-lib.cpp</a></h4>
+<pre><code class="lang-cpp">#include &lt;jni.h&gt;
+#include &lt;string&gt;
+#include &lt;fstream&gt;
+#include &lt;vector&gt;
+#include &lt;thread&gt;
+
+#include &lt;camera/NdkCameraManager.h&gt;
+#include &lt;camera/NdkCameraMetadata.h&gt;
+#include &lt;camera/NdkCameraDevice.h&gt;
+#include &lt;media/NdkImageReader.h&gt;
+#include &lt;android/native_window_jni.h&gt;
+#include &lt;GLES2/gl2.h&gt;
+#include &lt;GLES2/gl2ext.h&gt;
+
+#include "log.h"
+#include "gl_helper.h"
+#include "cam_utils.h"
+
+
+using namespace sixo;
+</code></pre>
+
+  This file has been truncated. <a href="https://github.com/sixo/native-camera/blob/master/app/src/main/cpp/native-lib.cpp" rel="nofollow noopener" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/298b47bcb25b5f93b2f65fdd18e4cc1a.ico" width="32"/>
+<a href="https://github.com/googlesamples/android-ndk/tree/master/camera" rel="nofollow noopener" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="200" src="../../../images2/31d82cc6442ceebc5395c472bec749a6.png" width="200"/>
+<h3><a href="https://github.com/googlesamples/android-ndk/tree/master/camera" rel="nofollow noopener" target="_blank">googlesamples/android-ndk</a></h3>
+<p>Android NDK samples with Android Studio. Contribute to googlesamples/android-ndk development by creating an account on GitHub.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>it allowed me to capture the camera stream myself and now i want to get rid off this Tango function.</p>
+<p>The important part building a camera capturing session with the ndk is the following code, assume that surface is of type jobject, passed via jni from GLSurfaceView.</p>
+<pre><code>  // Prepare surface
+textureId = texId;
+textureWindow = ANativeWindow_fromSurface(env, surface);
+
+// Prepare outputs for session
+ACaptureSessionOutput_create(textureWindow, &amp;textureOutput);
+ACaptureSessionOutputContainer_create(&amp;outputs);
+ACaptureSessionOutputContainer_add(outputs, textureOutput);
+
+// Create the session
+ACameraDevice_createCaptureSession(cameraDevice, outputs, &amp;sessionStateCallbacks, &amp;textureSession);
+
+// Prepare request for texture target
+ACameraDevice_createCaptureRequest(cameraDevice, TEMPLATE_PREVIEW, &amp;textureRequest);
+
+ANativeWindow_acquire(textureWindow);
+ACameraOutputTarget_create(textureWindow, &amp;textureTarget);
+ACaptureRequest_addTarget(textureRequest, textureTarget);
+
+// Start capturing continuously
+ACameraCaptureSession_setRepeatingRequest(textureSession, &amp;captureCallbacks, 1,   &amp;textureRequest, nullptr);
+</code></pre>
+<p>So now my question does anyone know how i can add the urho Texture2D into the output container?</p>
+<pre><code>auto surface = cameraTexture-&gt;GetRenderSurface()-&gt;GetSurface();
+auto target = cameraTexture-&gt;GetRenderSurface()-&gt;GetTarget();
+auto id = (int)cameraTexture-&gt;GetGPUObjectName();
+</code></pre>
+<p>Above are some parameter i can extract but i don’t know how to add this texture through the camera capture session output. Maybe anyone already did work with ndk camera api.</p>
+<p>Best Regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Still a open task, if you need more details feel free to ask. <img alt=":wink:" class="emoji" src="../../../images2/54580715256ddb71bd695c5ac97f8802.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>You could hack Texture2D to be able to receive texture from int. It also seems possible to subclass Texture2D and access the texture_ member without modifying the engine code.<br/>
+I would probably have done this the other way around, copying the contents of that cameraTexture to a texture from Urho3D by using glReadPixels. That however will be a bit CPU intensive depending on the resolution of the camera.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Thank you for your answer going through CPU is something which should be avoided under all circumstances. The cpu has to do a lot of other things in my case ;). I already did a fork for myself where i adjusted things like that, but i believe this is just not documented or well explored. The fact that we can access the Surface, Target as well as the RenderSurface of a Texture2D should provide us with enough information to give this ndk api a proper texture target for its output container. I just can’t figure out exactly how <img alt=":smiley:" class="emoji" src="../../../images2/709f26ac94a0e531f2b4ec1f4b839a88.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

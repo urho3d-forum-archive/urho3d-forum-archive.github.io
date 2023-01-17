@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Networking - How to tell client about connection failure?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Networking - How to tell client about connection failure?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’m new to Urho3D’s networking code, so maybe I’m missing something obvious. Is there a way to tell the client why they were disconnected from the server?</p>
+<p>Consider:</p>
+<pre><code class="lang-cpp">void ServerUserRegistry::HandleClientIdentity(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace ClientIdentity;
+
+    Connection* connection = static_cast&lt;Connection*&gt;(eventData[P_CONNECTION].GetPtr());
+    String username = connection-&gt;GetIdentity()["Username"].GetString();
+
+    // Username might be empty (or not exist)
+    if (username.Empty())
+    {
+        URHO3D_LOGERROR("Empty username, rejecting");
+        eventData[P_ALLOW] = false;
+
+        connection-&gt;SendRemoteEvent(E_INVALIDUSERNAME, true);
+
+        return;
+    }
+}
+</code></pre>
+<p>The client never receives E_INVALIDUSERNAME because it is disconnected before the event can effectively be transmitted.</p>
+<p>What is the correct way to inform the client of an error message before they get disconnected?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Could <code>SendMessage</code> work? An error code would do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>That works. I don’t know if I trust that the message is guaranteed to arrive or not before disconnecting, though, but it works for now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Update: SendMessage() doesn’t work</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Just looking at the network code how it’s done now I see that by setting <code>P_ALLOW</code> data client is immediately disconnected. So instead I wouldn’t disconnect the user right away, I would send him a message and disconnect him manually after specific time has passed (maybe 100ms would do) just so there is enough time that the client can receive the message. To make it even better I would send the message explaining what wen’t wrong and allow the client to disconnect by himself, but for the sake of safety would still set a delayed disconnect on the server just in case the client tries to do something silly after receiving refusal message.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>One more thing that would be even better if we added a possible way to send a error/disconnect reason code when the server calls disconnect on a client (in the engine itself).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Hey, are we talking about missing functionality? This could give me an excuse to get my hands dirty with Urho with respect to networking. Ultimately, Urho is using UDP based network model(s), so there never really was a proper connection, and the most common “Reason” we will be told, is “timed out”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Yes, this would be a new functionality but should be fairly easy to implement but of course, we can’t always guarantee that the message will be retrieved by the client and I think that’s ok in this case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Actually we CAN guarantee delivery, in all the “normal” cases of disconnection… our UDP tunnel is not really disconnected, because it was never connected, so we can certainly send a last message before our termination request.<br/>
+But we can’t in the case of unexpected disconnection, due to timeout as far as we are concerned.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

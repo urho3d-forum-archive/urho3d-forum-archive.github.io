@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Reading depth buffer data from C++</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Reading depth buffer data from C++</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">restless</div>
+          <div class="post_content">
+<p>So I create a render to texture with linked depth target like this:</p>
+<pre><code>impRenderTexture_ = new Texture2D(context_);
+impRenderTexture_-&gt;SetSize(segment_res,
+                           segment_res,
+                           Graphics::GetRGBAFormat(),
+                           Urho3D::TEXTURE_RENDERTARGET,
+                           0);
+
+impRenderTextureDepth_ = new Texture2D(context_);
+impRenderTextureDepth_-&gt;SetSize(segment_res,
+                                segment_res,
+                                Graphics::GetDepthStencilFormat(),
+                                Urho3D::TEXTURE_DEPTHSTENCIL,
+                                0);
+
+impRenderPath_ = new RenderPath();
+impRenderPath_-&gt;Load(
+    GetSubsystem&lt;ResourceCache&gt;()
+    -&gt;GetResource&lt;XMLFile&gt;("RenderPaths/ImpostorForwardDepth.xml"));
+ RenderSurface* renderSurface = impRenderTexture_-&gt;GetRenderSurface();
+impViewport_ = new Viewport(context_,
+                            impScene_,
+                            impCameraNode_-&gt;GetComponent&lt;Camera&gt;());
+impViewport_-&gt;SetRenderPath(impRenderPath_);
+renderSurface-&gt;SetUpdateMode(Urho3D::SURFACE_MANUALUPDATE);
+renderSurface-&gt;SetLinkedDepthStencil(
+     impRenderTextureDepth_-&gt;GetRenderSurface());
+renderSurface-&gt;SetViewport(0, impViewport_);
+</code></pre>
+<p>Then I start rendering it:</p>
+<pre><code>impRenderTexture_-&gt;GetRenderSurface()-&gt;QueueUpdate();
+SubscribeToEvent (E_ENDVIEWRENDER,
+                  URHO3D_HANDLER(Impostor, HandleRenderDone));
+</code></pre>
+<p>And when I recieve event I read texture data:</p>
+<pre><code>impRenderTexture_-&gt;GetData(0, my_buffer);
+</code></pre>
+<p>And it works good: my_buffer now contains whole the rendered frame data.</p>
+<p>But when I try to read depth data like this:</p>
+<pre><code>auto surface = impRenderTexture_-&gt;GetRenderSurface()-&gt;GetLinkedDepthStencil();
+Texture2D* tx2d = reinterpret_cast&lt;Texture2D*&gt;(tex-&gt;GetParentTexture());
+// tx2d now actually points to the impRenderTextureDepth_ that we created
+// and linked..
+tx2d-&gt;GetData(0, my_depth_buffer);
+</code></pre>
+<p>But GetData() fails like this  (in OGLTexture2D.cpp:303):</p>
+<pre><code>bool Texture2D::GetData(unsigned level, void* dest) const
+{
+    if (!object_.name_ || !graphics_)
+    {
+        //&lt;----------- FAILS HERE :( ------------&gt;
+        URHO3D_LOGERROR("No texture created, can not get data");    
+        return false;
+    }
+    ...
+</code></pre>
+<p>Am I missing something on how it’s done?</p>
+<p>Things I tried to no result so far:</p>
+<ul>
+<li>Let the engine create depth buffer automatically – don’t seem to have any way to access it then</li>
+</ul>
+<p>SOLUTION is elaborated a bit in post <span class="hashtag">#3</span></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Have you tried other formats? Like LinearDepth or ReadableDepth ? If nothing works, you can even use color format RGBA16F.</p>
+<p>Also, can you show your renderpath?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">restless</div>
+          <div class="post_content">
+<p>Render path (stock ForwardDepth.xml):</p>
+<pre><code>&lt;renderpath&gt;
+    &lt;rendertarget name="depth" sizedivisor="1 1" format="lineardepth" /&gt;
+    &lt;command type="clear" color="1 1 1 1" depth="1.0" stencil="0" output="depth" /&gt;
+    &lt;command type="scenepass" pass="depth" output="depth" /&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+    &lt;command type="scenepass" pass="postopaque" /&gt;
+    &lt;command type="scenepass" pass="refract"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha"&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+&lt;/renderpath&gt;
+</code></pre>
+<p>Do you mean different formats in SetSize? Like this:</p>
+<pre><code class="lang-auto">impRenderTextureDepth_-&gt;SetSize(segment_res,
+                                segment_res,
+                                Graphics::GetDepthStencilFormat(),  // this one?
+                                Urho3D::TEXTURE_DEPTHSTENCIL,
+                                0);
+</code></pre>
+<p>Good idea! Replaced it with Graphics::GetReadableDepthFormat() and now it seems to be working! Need to work on the client code to confirm everything works now.</p>
+<p>Thanks a lot!</p>
+<p>UPD: Solution was to use Graphics::GetReadableDepthFormat() when creating a texture for depth rendering. <div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="2889602834704_37impostor_depthstencil"><img alt="2889602834704_37impostor_depthstencil" data-base62-sha1="b9hLkdsUa2TjZd9uwxjr3wtGPTy"  height="500" src="../../../images2/f2f577b4779143940417e8e865aa2250.png" width="500"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">2889602834704_37impostor_depthstencil</span><span class="informations">512×512 2.61 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">restless</div>
+          <div class="post_content">
+<p>By the way, I seem to be getting the data in 1-byte format. Is it legal for the texture to return 0 from .GetComponents()? Should I file a bug on this?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

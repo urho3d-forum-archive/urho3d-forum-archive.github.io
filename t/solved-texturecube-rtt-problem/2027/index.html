@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[solved] TextureCube RTT problem</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[solved] TextureCube RTT problem</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>For a few weeks, <a data-bbcode="true" href="http://discourse.urho3d.io/t/procsky/1168/1">ProcSky component</a> is failing to render TextureCube faces.  <span class="bbcode-b">ghidra</span> helped to narrow the problem.</p>
+<p>Unlike RenderToTexture sample, I did not need to setup RenderSurfaces or new viewports or rendering camera… just render quads. I think the problem is not in the shader.</p>
+<p>Currently I am looking at this in particular (edited slightly for clarity):</p>
+<pre><code class="lang-auto">  // Create a Skybox to draw to. Set its Material, Technique, and render size.
+  skybox_ = node_-&gt;CreateComponent&lt;Skybox&gt;();
+  Model* model(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+  skybox_-&gt;SetModel(model);
+  SharedPtr&lt;Material&gt; skyboxMat(new Material(context_));
+  skyboxMat-&gt;SetTechnique(0, cache-&gt;GetResource&lt;Technique&gt;("Techniques/DiffSkybox.xml"));
+  skyboxMat-&gt;SetCullMode(CULL_NONE);
+  skybox_-&gt;SetMaterial(skyboxMat);
+  SetRenderSize(renderSize_);
+
+ProcSky::SetRenderSize(unsigned size) {
+  // Create a TextureCube and assign to the ProcSky material.
+  SharedPtr&lt;TextureCube&gt; skyboxTexCube(new TextureCube(context_));
+  skyboxTexCube-&gt;SetName("DiffProcSky");
+  skyboxTexCube-&gt;SetSize(size, Graphics::GetRGBAFormat(), TEXTURE_RENDERTARGET);
+  skyboxTexCube-&gt;SetFilterMode(FILTER_BILINEAR);
+  skyboxTexCube-&gt;SetAddressMode(COORD_U, ADDRESS_CLAMP);
+  skyboxTexCube-&gt;SetAddressMode(COORD_V, ADDRESS_CLAMP);
+  skyboxTexCube-&gt;SetAddressMode(COORD_W, ADDRESS_CLAMP);
+  GetSubsystem&lt;ResourceCache&gt;()-&gt;AddManualResource(skyboxTexCube);
+  skybox_-&gt;GetMaterial()-&gt;SetTexture(TU_DIFFUSE, skyboxTexCube);
+  renderSize_ = size;
+}</code></pre>
+<p>Full source <a href="https://github.com/carnalis/ProcSky/blob/master/ProcSky.cc">github.com/carnalis/ProcSky/blo … ProcSky.cc</a></p>
+<p>Maybe I was not using the proper way to accomplish RTT.<br/>
+Maybe a recent change requires one of my own?<br/>
+Only this recent commit stands out: <a >github.com/urho3d/Urho3D/commit … 54913455c8</a><br/>
+Any advice is welcome.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Regular RenderSurface RTT works for me, so your problem might be related to your custom quad command and/or shaders.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>My shader has not changed and I am pretty sure is not being run.</p>
+<p>The commands have not changed:</p>
+<pre><code class="lang-auto">  Renderer* renderer(GetSubsystem&lt;Renderer&gt;());
+  rPath_ = renderer-&gt;GetViewport(0)-&gt;GetRenderPath();
+
+  // Add custom quad commands to render path.
+  for (unsigned i(0); i &lt; MAX_CUBEMAP_FACES; ++i) {
+    RenderPathCommand cmd;
+    cmd.tag_ = "ProcSky";
+    cmd.type_ = CMD_QUAD;
+    cmd.sortMode_ = SORT_BACKTOFRONT;
+    cmd.pass_ = "base";
+    cmd.outputs_.Push(MakePair(String("DiffProcSky"), (CubeMapFace)i));
+    cmd.textureNames_[0] = String::EMPTY; // have tried "viewport" and not setting it
+    cmd.vertexShaderName_ = "ProcSky";
+    cmd.vertexShaderDefines_ = String::EMPTY; // have tried not setting it
+    cmd.pixelShaderName_ = "ProcSky";
+    cmd.pixelShaderDefines_ = String::EMPTY; // have tried not setting it
+    cmd.shaderParameters_ = atmoParams;
+    cmd.shaderParameters_["InvViewRot"] = faceRotations_[i];
+    cmd.enabled_ = true;
+    rPath_-&gt;AddCommand(cmd);
+  }</code></pre>
+<p>RenderPath dump</p>
+<pre><code class="lang-auto">INFO: Command 0 tag= type=clear enabled=1 pass= outputs=viewport/face=0
+INFO: Command 1 tag= type=scenepass enabled=1 pass=base outputs=viewport/face=0
+INFO: Command 2 tag= type=forwardlights enabled=1 pass=light outputs=viewport/face=0
+INFO: Command 3 tag= type=scenepass enabled=1 pass=postopaque outputs=viewport/face=0
+INFO: Command 4 tag= type=scenepass enabled=1 pass=refract outputs=viewport/face=0
+INFO: Command 5 tag= type=scenepass enabled=1 pass=alpha outputs=viewport/face=0
+INFO: Command 6 tag= type=scenepass enabled=1 pass=postalpha outputs=viewport/face=0
+INFO: Command 7 tag=FXAA2 type=quad enabled=1 pass= vs=FXAA2 ps=FXAA2 texNames[0]=viewport outputs=viewport/face=0
+INFO: Command 8 tag=ProcSky type=quad enabled=1 pass=base vs=ProcSky ps=ProcSky outputs=DiffProcSky/face=0
+INFO: Command 9 tag=ProcSky type=quad enabled=1 pass=base vs=ProcSky ps=ProcSky outputs=DiffProcSky/face=1
+INFO: Command 10 tag=ProcSky type=quad enabled=1 pass=base vs=ProcSky ps=ProcSky outputs=DiffProcSky/face=2
+INFO: Command 11 tag=ProcSky type=quad enabled=1 pass=base vs=ProcSky ps=ProcSky outputs=DiffProcSky/face=3
+INFO: Command 12 tag=ProcSky type=quad enabled=1 pass=base vs=ProcSky ps=ProcSky outputs=DiffProcSky/face=4
+INFO: Command 13 tag=ProcSky type=quad enabled=1 pass=base vs=ProcSky ps=ProcSky outputs=DiffProcSky/face=5</code></pre>
+<p>DiffProcSky output is attached to a normal Skybox.<br/>
+At this point, maybe the easiest approach is to try to imitate RTT sample, where possible.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I didn’t experience problems when I pulled your ProcSky code and used it against latest master. I just had to change the object definition to</p>
+<p>URHO3D_OBJECT(ProcSky, Component);</p>
+<p>I used the 08_Decals sample and created ProcSky to the same node as the Zone component, and called Initialize() after defining the viewport. When I pumped up the Rayleigh the sky textures lit up and saving them also showed content. I tested OpenGL3 under VS2010.</p>
+<p>In case you still have trouble, you may need to debug inside Urho, into the View class where the renderpath commands are being executed, and see what happens.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Thanks for your valuable help, Lasse.</p>
+<p>I have now tried your procedure: using the repo shader and source in 08_Decals. I did not get your result, as odd as it seems.</p>
+<p>I changed my mingw-w64 toolchain (thanks minipix) which allowed me to debug into DLLs again.<br/>
+View::RenderQuad() is being called, values/params seem correct, at first glance.<br/>
+That should eliminate source code, shader, scene file, and all data files on my end.<br/>
+I changed video drivers on the small chance of a problem there.</p>
+<p>My cmake config, for anyone interested</p>
+<p><span class="spoiler"><code>
+cmake -G "MinGW Makefiles" -D CMAKE_BUILD_TYPE=Debug -D CMAKE_CXX_FLAGS_DEBUG="-g" -D CMAKE_CXX_FLAGS="-march=native -Wno-error=narrowing" -D MINGW_SYSROOT="C:/mingw/x86_64-w64-mingw32" -D URHO3D_C++11=1 -D URHO3D_ANGELSCRIPT=1 -D URHO3D_DOCS_QUIET=1 -D DOXYGEN_SKIP_DOT=1 -D URHO3D_LIB_TYPE=SHARED -D URHO3D_MKLINK=1 -D URHO3D_OPENGL=1 -D URHO3D_SAMPLES=1 -D URHO3D_URHO2D=0 -D URHO3D_LOGGING=1 -D URHO3D_TOOLS=0 "%SOURCE%"
+</code><br/>
+-Wno-error=narrowing so gcc doesn’t die on Bullet</span></p>
+<p>So I’m now going around looking outside the boxes… Will post any conclusions. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p><span class="bbcode-b">edit:</span> will look further into View and maybe Graphics, because the render time is noticeably much much smaller with this bug.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Found it.</p>
+<p>OGLGraphics.cpp<br/>
+<a >github.com/urho3d/Urho3D/commit … b31d26cdf5</a></p>
+<p>There have been problems with <span class="bbcode-b">GL_TEXTURE_CUBE_MAP_SEAMLESS</span> (OpenGL 3.2) on some hardware; e.g., GeForce 9800 GT, 9600 GM</p>
+<p>In these cases the vertex shader falls back to software and aborts, leaving only black.</p>
+<p>I have created an issue on GitHub: <a >github.com/urho3d/Urho3D/issues/1380</a></p>
+<p>State of affairs:<br/>
+Application developers can disable the extension in Urho’s Graphics cpp implementations, and if they have fixes that are clean enough they can be PR’d.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

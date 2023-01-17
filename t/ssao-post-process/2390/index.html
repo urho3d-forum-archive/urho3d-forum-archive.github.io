@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>SSAO Post Process</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">SSAO Post Process</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I’m studying how to implement a good SSAO shader, the core code is ported from: <a data-bbcode="true" href="https://github.com/jsj2008/Zombie-Blobs/blob/278e16229ccb77b2e11d788082b2ccebb9722ace/src/postproc.fs" rel="nofollow noopener">https://github.com/jsj2008/Zombie-Blobs/blob/278e16229ccb77b2e11d788082b2ccebb9722ace/src/postproc.fs</a></p>
+<p>The original shader always generates thick shadow on the background, I added a threshold to check if it is in this case, and I added some clear comments.</p>
+<p>The result is fine enough, no need to add a blur pass, I make it a post process, it only support forward lighting now.</p>
+<p>If you have any alpha layers, please merge ssao.xml and Forward.xml as one render path, and make sure all about alpha is after ssao pass.</p>
+<p>Edit: It support mobile devices now, the performance is good, CPU increases 2% on my iPad mini retina.</p>
+<p>C++:</p>
+<pre><code class="lang-auto">ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+GetSubsystem&lt;Renderer&gt;()-&gt;GetViewport(0)-&gt;GetRenderPath()-&gt;Append(cache-&gt;GetResource&lt;XMLFile&gt;("PostProcess/ssao.xml"));
+
+Vector2 screenSize(GetSubsystem&lt;Graphics&gt;()-&gt;GetWidth(), GetSubsystem&lt;Graphics&gt;()-&gt;GetHeight());
+GetSubsystem&lt;Renderer&gt;()-&gt;GetViewport(0)-&gt;GetRenderPath()-&gt;SetShaderParameter("ScreenSize", screenSize);
+</code></pre>
+<p>ssao.xml:</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="depth" sizedivisor="1 1" format="lineardepth" /&gt;
+    &lt;command type="clear" color="1 1 1 1" depth="1.0" stencil="0" output="depth" /&gt;
+    &lt;command type="scenepass" pass="depth" output="depth" /&gt;
+    &lt;command type="quad" tag="ssao" vs="ssao" ps="ssao"&gt;
+        &lt;parameter name="ScreenSize" value="1024 768" /&gt;
+        &lt;texture unit="diffuse" name="viewport" /&gt;
+        &lt;texture unit="emissive" name="depth" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;
+</code></pre>
+<p>ssao.glsl:</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Samplers.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+
+varying highp vec2 vScreenPos;
+
+#ifdef COMPILEVS
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+    gl_Position = GetClipPos(worldPos);
+    vScreenPos = GetScreenPosPreDiv(gl_Position);
+}
+
+#endif
+
+
+#ifdef COMPILEPS
+uniform highp vec2 cScreenSize;
+
+// Port from: https://github.com/jsj2008/Zombie-Blobs/blob/278e16229ccb77b2e11d788082b2ccebb9722ace/src/postproc.fs
+
+// see T M?ller, 1999: Efficiently building a matrix to rotate one vector to another
+mat3 rotateNormalVecToAnother(vec3 f, vec3 t) {
+    vec3 v = cross(f, t);
+    float c = dot(f, t);
+    float h = (1.0 - c) / (1.0 - c * c);
+    return mat3(c + h * v.x * v.x, h * v.x * v.y + v.z, h * v.x * v.z - v.y,
+                h * v.x * v.y - v.z, c + h * v.y * v.y, h * v.y * v.z + v.x,
+                h * v.x * v.z + v.y, h * v.y * v.z - v.x, c + h * v.z * v.z);
+}
+
+vec3 normal_from_depth(float depth, highp vec2 texcoords) {
+    // One pixel: 0.001 = 1 / 1000 (pixels)
+    const vec2 offset1 = vec2(0.0, 0.001);
+    const vec2 offset2 = vec2(0.001, 0.0);
+    
+    float depth1 = DecodeDepth(texture2D(sEmissiveMap, texcoords + offset1).rgb);
+    float depth2 = DecodeDepth(texture2D(sEmissiveMap, texcoords + offset2).rgb);
+    
+    vec3 p1 = vec3(offset1, depth1 - depth);
+    vec3 p2 = vec3(offset2, depth2 - depth);
+    
+    highp vec3 normal = cross(p1, p2);
+    normal.z = -normal.z;
+    
+    return normalize(normal);
+}
+
+void PS()
+{
+    const float aoStrength = 1.0;
+    
+    highp vec2 tx = vScreenPos;
+    highp vec2 px = vec2(1.0 / cScreenSize.x, 1.0 / cScreenSize.y);
+    
+    float depth = DecodeDepth(texture2D(sEmissiveMap, vScreenPos).rgb);
+    vec3  normal = normal_from_depth(depth, vScreenPos);
+    
+    // radius is in world space unit
+    const float radius = 1.0;
+    float zRange = radius / (cFarClipPS - cNearClipPS);
+    
+    // calculate inverse matrix of the normal by rotate it to identity
+    mat3 InverseNormalMatrix = rotateNormalVecToAnother(normal, vec3(0.0, 0.0, 1.0));
+    
+    // result of line sampling
+    // See Loos &amp; Sloan: Volumetric Obscurance
+    // http://www.cs.utah.edu/~loos/publications/vo/vo.pdf
+    float hemi = 0.0;
+    float maxi = 0.0;
+    
+    for (int x = -2; x &lt;= 2; ++x) {
+        for (int y = -2; y &lt;= 2; ++y) {
+            // make virtual sphere of unit volume, more closer to center, more ambient occlusion contributions
+            float rx = 0.3 * float(x);
+            float ry = 0.3 * float(y);
+            float rz = sqrt(1.0 - rx * rx - ry * ry);
+            
+            highp vec3 screenCoord = vec3(float(x) * px.x, float(y) * px.y, 0.0);
+            // 0.25 times smaller when farest, 5.0 times bigger when nearest.
+            highp vec2 coord = tx + (5.0 - 4.75 * depth) * screenCoord.xy;
+            // fetch depth from texture
+            screenCoord.z = DecodeDepth(texture2D(sEmissiveMap, coord).rgb);
+            // move to origin
+            screenCoord.z -= depth;
+
+            // ignore occluders which are too far away
+            if (screenCoord.z &lt; -zRange) continue;
+
+            // Transform to normal-oriented hemisphere space
+            highp vec3 localCoord = InverseNormalMatrix * screenCoord;
+            // ralative depth in the world space radius
+            float dr = localCoord.z / zRange;
+            // calculate contribution
+            float v = clamp(rz + dr * aoStrength, 0.0, 2.0 * rz);
+
+            maxi += rz;
+            hemi += v;
+        }
+    }
+
+    float ao = clamp(hemi / maxi, 0.0, 1.0);
+
+    gl_FragColor = vec4(texture2D(sDiffMap, vScreenPos).rgb * ao, 1.0);
+}
+
+#endif
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Nice! Some screens?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<p>Any plan for a hlsl version</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>SSAO:<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://www.mesh-online.net/ssao1.jpg" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/b1fb0834c559405ba67b030e1f95d58f.jpg" width="666"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1024×768</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+Original:<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://www.mesh-online.net/ssao2.jpg" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/17fba2e3eb202d412ccbdac3fe760cb7.jpg" width="666"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1024×768</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+Original+SSAO:<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://www.mesh-online.net/ssao3.jpg" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/107f3deb90ace871f8836c85f197881b.jpg" width="666"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1024×768</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Nice work but quickly checking the original+ssao results, I don’t see any much difference. Maybe do a side by side comparison? <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>So , did anyone worked out a hlsl version of this ? it seems quite interesting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoldenThumbs</div>
+          <div class="post_content">
+<p>Not as far as I can tell. Sorry.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>I just make a <a href="https://github.com/ab4daa/PostProcess_attempt/blob/master/bin/CoreData/Shaders/HLSL/ssao.hlsl" rel="nofollow noopener">HLSL version</a>.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="https://raw.githubusercontent.com/ab4daa/PostProcess_attempt/master/ssao.png" rel="nofollow noopener" title="ssao.png"><img alt="" height="500" src="../../../images2/2e9644a6443446f9d017d56c80b294ab.png" width="666"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">ssao.png</span><span class="informations">2048×1536</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoldenThumbs</div>
+          <div class="post_content">
+<p>I modified this shader a bit. Moved the effect to it’s own deferred renderpath so it can be blended with the ambient term, a bunch of other changes as well.<br/>
+<a href="https://github.com/GoldenThumbs/Urho3D/blob/gld_dev/bin/CoreData/RenderPaths/DeferredSSAO.xml#L13-L17" rel="noopener nofollow ugc">The Render Path</a><br/>
+<a href="https://github.com/GoldenThumbs/Urho3D/blob/gld_dev/bin/CoreData/Shaders/GLSL/SSAO.glsl" rel="noopener nofollow ugc">The Shader</a></p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="2xAOLlgS97ipUXSXPWy1lu71t4F"  height="500" src="../../../images2/1a7a121d5a14f169891b2c865c0dd707.jpeg"  width="641"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1026×800 104 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>That’s some pretty extreme dithering.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoldenThumbs</div>
+          <div class="post_content">
+<p>Yeah, it is. I’m working on a solution. Currently using a single pass blur using two textureGather calls</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

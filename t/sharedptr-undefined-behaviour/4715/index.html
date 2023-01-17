@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>SharedPtr undefined behaviour</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">SharedPtr undefined behaviour</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1835_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sheridan</div>
+          <div class="post_content">
+<p>Greetings! )<br/>
+I’m trying to understand how to work with SharedPtr correctly and stumbled upon an indefinite behavior that put me in a dead end. It is expected that after deleting an object, the number of links will decrease, but this does not happen.</p>
+<pre><code class="lang-auto">Urho3D::SharedPtr&lt;Urho3D::Node&gt;  m_rootNode;
+...
+#define DELETE_URHO_PTR(_name,_method) \
+    LOG_DBG(#_name " isnull? " &lt;&lt; _name.Null()) \
+    if(_name.NotNull()) \
+    { \
+        LOG_DBG(#_name " before refs=" &lt;&lt; _name.Refs()) \
+        _method; \
+        delete _name; \
+        LOG_DBG(#_name " after refs=" &lt;&lt; _name.Refs()) \
+    }
+#define DELETE_URHO_REMOVABLE(_name) DELETE_URHO_PTR(_name, _name-&gt;Remove())
+...
+DELETE_URHO_REMOVABLE(m_rootNode);
+</code></pre>
+<p>Logs:</p>
+<pre><code class="lang-auto">[2018-12-09 13:53:37] {140326202556608} [Debg] m_rootNode isnull? false
+[2018-12-09 13:53:37] {140326202556608} [Debg] m_rootNode before refs=3
+[2018-12-09 13:53:37] {140326202556608} [Debg] m_rootNode after refs=-1411174928
+</code></pre>
+<p>I also often use the “create on access” technique. Do I understand correctly that the .Get() method will not change the number of refs count?</p>
+<pre><code class="lang-auto">Urho3D::Node *CWorldObject::rootNode()
+{
+    if(m_rootNode.Null())
+    {
+        m_rootNode = ST-&gt;graphic()-&gt;scene()-&gt;CreateChild();
+    }
+    return m_rootNode.Get();
+}
+...
+Urho3D::RigidBody *CWorldObject::body()
+{
+    if(m_body.Null())
+    {
+        m_body = rootNode()-&gt;CreateComponent&lt;Urho3D::RigidBody&gt;();
+        m_body-&gt;SetCollisionEventMode(Urho3D::COLLISION_ALWAYS);
+    }
+    return m_body.Get();
+}
+</code></pre>
+<p>In general, I would very much like not to use SharedPtr in my project, but to work with objects directly. But as I understand it, CreateChild/CreateComponent, in addition to constructing objects, also performs various bindings that are not performed in object constructors, that is, the part of object initialization is taken out of an object …<br/>
+How safe will it be to not use SharedPtr/CreateComponent?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>I still don’t understand why you call <code>delete</code> on <code>m_rootNode</code>. That’s not a pointer and I’m not even sure why the compiler let you do that. You’re supposed to <code>Release()</code> your reference and let the smart pointer do it’s job.</p>
+<p>As for why the counters become that value. You should look at the destructor of <code>RefCounted</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1835_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sheridan</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4715">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4dfc5d0fa7f66ffc42fdd6509cfc065a.png" width="20"/> S.L.C:</div>
+<blockquote>
+<p>Release</p>
+</blockquote>
+</aside>
+<p>This method unavialable, but i think i should use delete or Reset() <a  rel="nofollow noopener">because</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>You would only use delete if the shared pointer itself would be dynamically allocated. Like <code>Urho3D::SharedPtr&lt;Urho3D::Node&gt;* m_rootNode;</code> and not <code>Urho3D::SharedPtr&lt;Urho3D::Node&gt; m_rootNode;</code>. Notice the <code>*</code>.</p>
+<p>So based on that macro. I assume this line <code>delete _name;</code> becomes <code>delete m_rootNode;</code>. And <code>m_rootNode</code> is not a pointer.</p>
+<p>Or maybe I got something wrong here. Who knows.</p>
+<p>And yes. The method was <code>Reset()</code>. My mistake.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1835_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sheridan</div>
+          <div class="post_content">
+<p>oh, <a href="https://en.cppreference.com/w/cpp/memory/new/operator_delete" rel="nofollow noopener">operator delete</a> not overload in SharedPtr. It my mistake, right.</p>
+<p>But when i show in code…</p>
+<pre><code class="lang-auto">void Reset() { ReleaseRef(); }
+
+void SharedPtr::ReleaseRef()
+    {
+        if (ptr_)
+        {
+            ptr_-&gt;ReleaseRef();
+            ptr_ = nullptr;
+        }
+    }
+</code></pre>
+<p><code>ptr_ = nullptr;</code> ???</p>
+<p>of course,</p>
+<pre><code class="lang-auto">void RefCounted::ReleaseRef()
+{
+    assert(refCount_-&gt;refs_ &gt; 0);
+    (refCount_-&gt;refs_)--;
+    if (!refCount_-&gt;refs_)
+        delete this;
+}
+</code></pre>
+<p>but i think more right move deleting to SharedPtr from RefCounted</p>
+<p>My question im my project begin from this point: i have a dynamic mesh and make model like this</p>
+<pre><code class="lang-auto">Urho3D::Model *CDynamicMesh::dynamicModel()
+{
+    if(m_dynamicModel.Null())
+    {
+        m_dynamicModel = new Urho3D::Model(ST-&gt;graphic()-&gt;context());
+    }
+    return m_dynamicModel.Get();
+}
+...
+m_parentBlock-&gt;collisionShape()-&gt;SetTriangleMesh(dynamicModel());
+m_parentBlock-&gt;model()-&gt;SetModel(dynamicModel());
+</code></pre>
+<p>and in result i have 3 refs to pointer. But i can not rtemove my model from <code>m_parentBlock-&gt;collisionShape()</code> ( Urho3D::CollisionShape) and <code>m_parentBlock-&gt;model()</code> (Urho3D::StaticModel). How i can there reset refs?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="4715">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/9bddd9f8b6ee23c69b17913b5a6b08c8.png" width="20"/> Sheridan:</div>
+<blockquote>
+<p>How i can there reset refs?</p>
+</blockquote>
+</aside>
+<p>When you reset m_dynamicModel and parent node for CollisionShape and StaticModel, m_dynamicModel would be gone</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

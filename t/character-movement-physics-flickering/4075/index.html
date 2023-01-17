@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Character Movement/Physics flickering</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Character Movement/Physics flickering</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hey guys, Im doing character movement on my server, and I see that is flickering some times, dno why. Im using 60fps update on client and 30fps on server (physicsworld).</p>
+<p>Video showing the problem:<br/>
+<a class="onebox" href="https://puu.sh/zBdGu/2826b16857.mp4" rel="nofollow noopener" target="_blank">https://puu.sh/zBdGu/2826b16857.mp4</a></p>
+<p>Node Settings:<br/>
+<img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/b/b78ac803baaa74bbab0c73be8064e666425f654b.png"/></p>
+<p>Map Floor settings:</p>
+<pre><code>	Node * pMapNode = pScene-&gt;CreateChild( pMap-&gt;GetName(), LOCAL );
+	pMapNode-&gt;SetPosition( Vector3( 0, 0, 0 ) );
+	pMapNode-&gt;SetScale( Vector3( 1.0f, 1.0f, 1.0f ) );
+	
+	auto * pBody = pMapNode-&gt;CreateComponent&lt;RigidBody&gt;();
+	pBody-&gt;SetFriction( 1.0f );
+
+	auto * pShape = pMapNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+	pShape-&gt;SetTriangleMesh( GetSubsystem&lt;ResourceCache&gt;()-&gt;GetResource&lt;Model&gt;( 	pMap-&gt;GetBaseMap()-&gt;GetFileName() ) );
+</code></pre>
+<p>Character Mover on Server:</p>
+<pre><code>	Node * pCharacterNode = GetNode();
+	auto * pCharacterBody = pCharacterNode-&gt;GetComponent&lt;RigidBody&gt;();
+	
+	const Controls &amp; cControls = pConnection-&gt;GetControls();
+	const Vector3 &amp; cVelocity = pCharacterBody-&gt;GetLinearVelocity();
+	
+	Quaternion cRotation( 0.0f, cControls.yaw_, 0.0f );
+	Vector3 cMoveDirection = Vector3::ZERO;
+
+	Vector3 cPlaneVelocity( cVelocity.x_, 0.0f, cVelocity.z_ );
+
+	if( cControls.buttons_ &amp; CHARACTERCONTROL_Forward )
+	{
+		cMoveDirection += Vector3::FORWARD;
+		pCharacterNode-&gt;SetRotation( cRotation );
+	}
+	
+	if( cMoveDirection.LengthSquared() &gt; 0.0f )
+		cMoveDirection.Normalize();
+
+	pCharacterBody-&gt;ApplyImpulse( cRotation * cMoveDirection * 1.0f );
+
+	Vector3 cBrakeForce = -cPlaneVelocity * 0.1f;
+	pCharacterBody-&gt;ApplyImpulse( cBrakeForce );
+</code></pre>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Does it work smoothly if simulated locally?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="2" data-topic="4075" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Does it work smoothly if simulated locally?</p>
+</blockquote>
+</aside>
+<p>Server is running locally, so, shouldnt happen this. Dont know if can be some setting on physics… I tried get the physics settings from 18_CharacterDemo sample.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<pre><code class="lang-auto">node-&gt;GetOrCreateComponent&lt;SmoothedTransform&gt;();
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>I think the below code affecting that motion.</p>
+<p>Vector3 cBrakeForce = -cPlaneVelocity * 0.1f;<br/>
+pCharacterBody-&gt;ApplyImpulse( cBrakeForce );</p>
+<p>Can you comment it out to see if it is ok?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Do you work with physics in function FixedUpdate() ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Yes, Im using a Logic Component. ll try about SmoothedTransform.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Didnt work.</p>
+<p>@ Could be something on yaw? Dno. Nothing works until now.</p>
+<pre><code>//Manipulating Camera Yaw
+if( INPUT-&gt;GetKeyDown( KEY_LEFT ) )
+	fCameraYaw += 0.5f;
+else if( INPUT-&gt;GetKeyDown( KEY_RIGHT ) )
+	fCameraYaw -= 0.5f;
+
+//Getting Mouse Yaw
+fMouseYaw = Atan2( INPUT-&gt;GetMousePosition().y_ - (GRAPHICS-&gt;GetSize().y_ &gt;&gt; 1), INPUT-&gt;GetMousePosition().x_ - (GRAPHICS-&gt;GetSize().x_ &gt;&gt; 1) ) + 90.0f;
+</code></pre>
+<p>And to send to server side:</p>
+<pre><code>cControls.yaw_ = CAMERAMANAGER-&gt;GetCameraYaw() + CAMERAMANAGER-&gt;GetMouseYaw();
+</code></pre>
+<p>@@ 've tried remove brake force, change the value that Im multiplying the impulse, but nothing is changed. Same problem on all changes.</p>
+<p>@@@ Same making the physics on PhysicsPreStep…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<blockquote>
+<p>pCharacterNode-&gt;SetRotation( cRotation );</p>
+</blockquote>
+<p>actually you can not set rotations and positions for dynamics bodies, you can use only forces and impulses</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Honestly, you do not need to rotate the capsule, just push it in the direction you want. Just rotate camera around object in Update (in Update you can use standart input-&gt;GetMouseMove() for yaw)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>You can calculate impulses which will move the body.<br/>
+For example I use this code for control movement speed:</p>
+<pre><code class="lang-auto">        Vector3 desiredVel = rotation * dir * MOVE_SPEED;
+        Vector3 impulse = (desiredVel - playerBody-&gt;GetLinearVelocity()) * playerBody-&gt;GetMass();// * 0.1f;
+        playerBody-&gt;ApplyImpulse(impulse);
+</code></pre>
+<p>Same for rotations</p>
+<p>EDIT: based on <a href="http://www.iforce2d.net/b2dtut/constant-speed">http://www.iforce2d.net/b2dtut/constant-speed</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hmm ic. Same after all changes quoted on this topic, the problem always appears, dno why.</p>
+<p>If I use ur code out this condition <strong>if( cControls.buttons_ &amp; CHARACTERCONTROL_Forward )</strong>, this happens (beyond flickr)<br/>
+<video controls="" height="100%" width="100%">
+<source src="https://puu.sh/zCc1X/0acb440e15.mp4"/>
+<a href="https://puu.sh/zCc1X/0acb440e15.mp4" rel="nofollow noopener">https://puu.sh/zCc1X/0acb440e15.mp4</a>
+</video>
+</p>
+<p>Its strange, in every way the flicker happens lol.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/755_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Don</div>
+          <div class="post_content">
+<p>Could you provide a repository that we could look at? This seems like an issue that could encompass many parts of the code, and providing the full scope could help. Also I want to say, your graphical style is really slick.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>+1 for <span class="mention">@Don</span><br/>
+I could investigate the problem if there is something run-able.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Haa, I have an idea.</p>
+<p>Ensure that:</p>
+<ol>
+<li>You have turned off server physics interpolation.</li>
+<li>You have <code>RigidBody</code> of your character only on server side. The code <em>may</em> work even if you have bodies both on client and server side. I’d like not to tempt fate.</li>
+</ol>
+<blockquote>
+<p>Position and rotation are Node attributes, while linear and angular velocities are RigidBody attributes. To cut down on the needed network bandwidth the physics components can be created as local on the server: in this case the client will not see them at all, and will only interpolate motion based on the node’s transform changes. Replicating the actual physics components allows the client to extrapolate using its own physics simulation, and to also perform collision detection, though always non-authoritatively.</p>
+</blockquote>
+<blockquote>
+<p>By default the physics simulation also performs interpolation to enable smooth motion when the rendering framerate is higher than the physics FPS. This should be disabled on the server scene to ensure that the clients do not receive interpolated and therefore possibly non-physical positions and rotations. See SetInterpolation().</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hmm ye I have character only on server side… I should create in client replicated or local? I will not have 2 characters at same time?</p>
+<p>Thanks for ur help, I believe that u solved the problem, ll try this later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="16" data-topic="4075" data-username="dev4fun">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6df1fe13ae3a31e86f42534520c3ac8e.png" width="20"/> dev4fun:</div>
+<blockquote>
+<p>Hmm ye I have character only on server side… I should create in client replicated or local? I will not have 2 characters at same time?</p>
+</blockquote>
+</aside>
+<p>If you have character on the server side only, it should be fine.<br/>
+Then, just turn off physics interpolation on the server side.<br/>
+If it doen’t help… well, make a sample for ppl to try it. I’ve never seen such bugs with sample network app.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Interpolation was already turned off lol.</p>
+<p>SVN Repo:<br/>
+client: <a href="https://subversion.assembla.com/svn/dev-client/trunk" rel="nofollow noopener">https://subversion.assembla.com/svn/dev-client/trunk</a><br/>
+server: <a href="https://subversion.assembla.com/svn/dev-server/trunk" rel="nofollow noopener">https://subversion.assembla.com/svn/dev-server/trunk</a><br/>
+shared: <a href="https://subversion.assembla.com/svn/dev-shared/trunk" rel="nofollow noopener">https://subversion.assembla.com/svn/dev-shared/trunk</a></p>
+<p>If someone want to see this in-game: <a href="https://puu.sh/zCy4x/f004273bf4.rar" rel="nofollow noopener">https://puu.sh/zCy4x/f004273bf4.rar</a><br/>
+(should run login server, after game server)(can type any login and pw, and dont need a character nick)(to walk let mouse button left pressing or double click with mouse button left)</p>
+<pre><code>void CMapHandler::CreateScene() - create scene to server and maps collision
+CCharacter * CCharacterHandler::LoadCharacter( Connection * pConnection, String strCharacterName ) - instantie XML responsible for character node and create the logic component CCharacter
+void CCharacter::FixedUpdate( float fTime ) - physics of each character at scene
+</code></pre>
+<p>I really dno what more can be, Im “newbie” on Urho3D, and until now this is the unique problem I dont solved.<br/>
+Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p><s>Archive seems broken. Or maybe some very new version of winRAR.<br/>
+Tried to download&amp;open it two times.</s></p>
+<p>And… I have no idea how to download SVN repos w/o any installed SVN client.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="16" data-topic="4075" data-username="dev4fun">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6df1fe13ae3a31e86f42534520c3ac8e.png" width="20"/> dev4fun:</div>
+<blockquote>
+<p>Hmm ye I have character only on server side…</p>
+</blockquote>
+</aside>
+<p>I’m looking at your code and I’m not sure that the Client doesn’t have <code>RigidBody</code> component: in the file <code>Server Data\Objects\Character.xml</code> there is replicated <code>RigidBody</code> component that is probably replicated on the client side.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Oh ya, its replicated… so maybe I understood wrong your question in previous post.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>lol its really strange, when I believe that is solved, ll check and the problem appears again and again. Sometimes I got less flickering, sometimes more…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>So even if you 100% don’t have any <code>RigidBody</code> for characters on the client side, you still get artifacts?</p>
+<p>Try this test plan:</p>
+<p>Do you have artifacts with standard SceneReplication sample?<br/>
+If yes… that’s strange, I don’t want to even think about it.<br/>
+If no, do you have artifacts if use your character controller in SceneReplication sample?<br/>
+If yes… that’s strange, I don’t want to even think about it.<br/>
+If no, artifacts occur somewhere in your code that is different from SceneReplication sample…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hmm ya probably its something on my source. 've implemented the movement code and camera code on scene replication sample and all works good…</p>
+<p>So it isnt:</p>
+<ul>
+<li>Camera (yaw)</li>
+<li>Object (xml) from character</li>
+<li>Movement Physics Code (ApplyImpulse etc)</li>
+<li>Collision (used same collision as used on SceneReplication)</li>
+<li>Logic Component (CCharacter)</li>
+</ul>
+<p>Jesus, 'll need to review whole source code haha.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Well, bisection isn’t so hard, much better than “nothing works”.<br/>
+I suggest you to compare scenes in sample an in your project.<br/>
+E.g. just dump them in XML.<br/>
+IMO it’s quite hard to break inbuilt interpolation from code unless you intentionally do something outside your server instance of the Character.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hmm ya, 'll try this haha.</p>
+<p>Just to know, scene on server, needs to be identical on game? Bcoz on my server 'll use just to coliision, this way I put all maps (models) on same scene. But on game, I load just one map, and when necessary I load other map. This way scene game != scene server.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Replicated nodes and components must be identical. They will be, regardless of your will. Local nodes and components… you know. They don’t have to.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Things I’ve tested:</p>
+<ul>
+<li>Camera (yaw)</li>
+<li>Object (xml) from character</li>
+<li>Movement Physics Code (ApplyImpulse etc)</li>
+<li>Collision (used same collision as used on SceneReplication)</li>
+<li>Logic Component (CCharacter)</li>
+<li>Multiple connections to server (client connect to login server and game server)</li>
+<li>Scene Settings</li>
+</ul>
+<p>Comparing dumped scenes…<br/>
+<img height="174" src="../../../images2/39cbcf8309a9e25eac6101b2884a7220.png" width="607"/></p>
+<p>My alternatives are practically exhausted, I really could pay someone to help me<br/>
+I dont have the slightest idea of what might be happening <img alt=":frowning:" class="emoji" src="../../../images2/51ea35e7c47bd75b6fa0d425ad2d734f.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Sure, I made some tests and I came to the conclusion that the problem is the game… <img alt=":roll_eyes:" class="emoji" src="../../../images2/7a473123da190b64ca7260d2779c15bd.png" title=":roll_eyes:"/> Why?</p>
+<p>My Game with <strong>Server of Scene Replication Sample</strong> = flickering<br/>
+<strong>Scene Replication Game</strong> with My Server = all works good</p>
+<p>Now I need to check game code to see what could be happening. Any idea?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Problem was bcoz camera was updating by HandleUpdate and dont HandlePostUpdate… <img alt=":tired_face:" class="emoji" src="../../../images2/f723bb64345b5e0ef8283908c449e178.png" title=":tired_face:"/><br/>
+I have to made many tests to discover this and think on this haha, thanks and sorry to all who helped me <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

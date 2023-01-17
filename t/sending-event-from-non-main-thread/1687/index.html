@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Sending event from non-main thread</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Sending event from non-main thread</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">atai</div>
+          <div class="post_content">
+<p>Hi, I run into this Urho3D (1.5)  error on GNU/Linux:</p>
+<p><span class="hashtag">#0</span>  Urho3D::Object::SendEvent (this=0x7fffe0039ab0, eventType=…, eventData=…)<br/>
+at /store/software/urho3d/Urho3D.git/Source/Urho3D/Core/Object.cpp:290<br/>
+290	        URHO3D_LOGERROR(“Sending events is only supported from the main thread”);</p>
+<p>Is there any particular reason I cannot send event from a non-main thread?  Is it possible to support non-main thread sending events on certain platforms which may not have main thread only restrictions?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>A Urho event is basically an immediate function call to the handler, and because events are frequently used to communicate scene or UI changes, it would be generally unsafe to respond from anywhere else than the main thread, and this is not supported on any platform. It also simplifies the internals a lot.</p>
+<p>You will need to implement a queue (naturally protected by a threadsafety primitive, such as mutex), to which messages are submitted by the other thread(s) and received by the main thread in a well-determined part of the frame update, then forwarded as events. This is e.g. how the FileWatcher class operates.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">atai</div>
+          <div class="post_content">
+<p>Hi, thanks for the reply.  I would expect that the certain tasks can be restricted to the main thread due to OS restrictions, but sendEvent() would be usable in other threads  so for example we can invoke services from other thread.  For people familiar with Android, which has the restriction that the UI calls can be only made in the main thread, sendEvent() or similar calls can be used from other threads to update the UI.</p>
+<p>Also now I get around this restiction by setting the thread that is doing the work to be the main thread.  So it is kind of arbitrary in Urho3d what thread can be the main thread?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Main thread <em>shouldn’t</em> matter in terms of technical capability. Urho3D will check whether it is the main thread to enforce the notion that sending an event from one thread to another is not thread-safe. Sure, you could get around this by denoting another thread as the main thread; however you’re just getting around a safety feature. It does not change whether or not you’re going to get undefined behavior by firing events from anything but the original main thread.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Note that we could implement (in the engine) a generic queue for non-mainthread events, and for example say they will always be taken from the queue in the beginning of next frame. However I’m against it for two reasons:</p>
+<ul>
+<li>It confuses the nature of events, as it would make them behave differently depending on whether sent from the main thread or not. Because now events are always immediate, the event data map can be used by the callee to communicate return values. For queued events this would not be possible.</li>
+<li>What if you wanted to handle the event in a different phase of the frame, for example during scene update?</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

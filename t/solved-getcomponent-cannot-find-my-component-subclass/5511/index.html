@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] GetComponent() cannot find my component subclass</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] GetComponent() cannot find my component subclass</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2527_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Spongeloaf</div>
+          <div class="post_content">
+<p>I have a Component subclass called Planet. It looks like this:</p>
+<pre><code class="lang-auto">class Planet : public Component {
+public:
+	bool has_gravity = false;
+};
+</code></pre>
+<p>It’s added to the planet’s node like this:</p>
+<pre><code class="lang-auto">Planet* rock_planet = rock_node-&gt;CreateComponent&lt;Planet&gt;();
+rock_planet-&gt;has_gravity = true;
+</code></pre>
+<p>During each update, I check each planet for gravity:</p>
+<pre><code class="lang-auto">PODVector&lt;RigidBody2D*&gt; all_nodes;
+scene_-&gt;GetComponents(all_nodes, StringHash::Calculate("RigidBody2D"));
+
+for (PODVector&lt;RigidBody2D*&gt;::Iterator body = all_nodes.Begin(); body != all_nodes.End(); body++)
+	{		
+		Node* node = (*body)-&gt;GetNode();
+		Planet* planet = node-&gt;GetComponent&lt;Planet&gt;();
+		if (planet) 
+                {
+                      // do stuff
+                }
+</code></pre>
+<p>However this always returns null. If I swap  for any other built in component type, it works perfectly:</p>
+<pre><code class="lang-auto">// For debug rendering - this code works just fine.
+PhysicsWorld2D* physics_world = scene_-&gt;GetComponent&lt;PhysicsWorld2D&gt;();
+</code></pre>
+<p>Inside GetComponent is a rabbit hole of templates, typedefs, and string hashes. It is not obvious to me what I need to do to make this work, or more specifically which parts of these templates my Planet is missing.</p>
+<p>Other Components have <span class="hashtag">#defined</span> things in their class definitions that I’m not familiar with:</p>
+<pre><code class="lang-auto">class URHO3D_API StaticSprite2D : public Drawable2D
+{
+    URHO3D_OBJECT(StaticSprite2D, Drawable2D);
+</code></pre>
+<p>Straight copying those into my class has not helped:<br/>
+<code>"URHO3D_OBJECT(Planet, Component)")</code><br/>
+Visual studio doesn’t like it, and I don’t know what it does anyway, but it’s the most obvious difference between my class and other components.</p>
+<p>Any help?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>You didn’t register  your component ,</p>
+<p><strong>Declare in your class</strong><br/>
+static void RegisterObject(Context*);</p>
+<p><strong>Implement</strong><br/>
+<code>void Planet ::RegisterObject(Context* context){ context-&gt;RegisterFactory&lt;Planet&gt;("Planet");}</code></p>
+<p><strong>Call once in the beginning :</strong><br/>
+Planet::RegisterObject(context);</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Also, i hope you don’t forget the boilerplate macro:</p>
+<pre><code class="lang-cpp">URHO3D_OBJECT(Planet, Component);
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2527_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Spongeloaf</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="5511">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/aa1895aba5007d63790c391fb6bef3db.png" width="20"/> S.L.C:</div>
+<blockquote>
+<p>Also, i hope you don’t forget the boilerplate macro</p>
+</blockquote>
+</aside>
+<p>I mentioned it in the original post; I wasn’t sure if I needed it but it did look important. According to visual studio the function definition for ‘URHO3D_OBJECT’ is not found. I’ve included object.h, and visual studio can even peek the definition of it. What else am I missing?</p>
+<pre><code class="lang-auto">class Planet : public Component {
+
+	URHO3D_OBJECT(Planet, Component);
+
+public:
+	bool has_gravity;
+	static void RegisterObject(Context*);
+};
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codexhound</div>
+          <div class="post_content">
+<p>Every custom object which derives from object needs a constructor that takes a context pointer to use the URHO3D_OBJECT macro (it defines a bunch of code Urho objects need to use events and hashing, etc) kind of like the Q_OBJECT macro in qt.<br/>
+For you it would look like</p>
+<pre><code>class Planet : public Component {
+       URHO3D_OBJECT(Planet, Component);
+       public:
+         Planet(Context * context) : Component(context) {}
+         bool has_gravity;
+         static void RegisterObject(Context*);
+};
+</code></pre>
+<p>Without that constructor, Urho3D has no way of registering the object for lookup from what I’ve gathered. Given that, in all my implementations so far RegisterObject has not been necessary as I’ve been using this:</p>
+<p>Use GetDerivedComponent() for finding custom unregistered derived objects.</p>
+<p>I think with all that in your class it should work with GetComponent as well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2527_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Spongeloaf</div>
+          <div class="post_content">
+<p>It seems to work now. Thanks for the help <span class="mention">@elix22</span>, <span class="mention">@S.L.C</span>, and <span class="mention">@codexhound</span>!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Endless Loop in Log::HandleEndFrame, Release 1.32</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Endless Loop in Log::HandleEndFrame, Release 1.32</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Stymgade</div>
+          <div class="post_content">
+<p>This is actually a two-parter: I made a test .exe that does nothing but do the ‘Hello World’ without using the Sample class - this works perfectly fine.</p>
+<p>My existing design  (migrating from Ogre) has 3 binaries involved:<br/>
+[ul]<br/>
+[li]The main exe, which calls a GraphicsEngine::Run[/li]<br/>
+[li]The Urho3D ‘Interaction’ dll, which contains the class inheriting from Urho3D::Application[/li]<br/>
+[li]The dll where the bulk of the code resides, which contains the GraphicsEngine class, and which creates the Urho3D::Application subclass.[/li][/ul]</p>
+<p>Using the exact code from the test exe, putting it into the aforementioned dll (and exporting it), and running the application, results in an endless loop due to it apparently not being the ‘main thread’ (I’ve created no threads in my own code at this stage). I can post code if this isn’t clear, which I don’t think it is  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>Which results my main question: Why does it not register as a main thread, or how can I make it do so? I had a quick look over the documentation but could only see the multithreading reference.</p>
+<p>This leads onto the problem in the actual code:</p>
+<p>Line 252 in Log.cpp:</p>
+<p>[code]void Log::HandleEndFrame(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+MutexLock lock(logMutex_);</p>
+<pre><code>// Process messages accumulated from other threads (if any)
+while (!threadMessages_.Empty())	
+{
+    const StoredLogMessage&amp; stored = threadMessages_.Front();
+    
+    if (stored.level_ != LOG_RAW)
+        Write(stored.level_, stored.message_);
+    else
+        WriteRaw(stored.message_, stored.error_);
+    
+    threadMessages_.PopFront();
+}
+</code></pre>
+<p>}[/code]<br/>
+This obviously pops off one message each time, decrementing the total - fair enough.</p>
+<p>The problem is in the called Log::Write, line 132:</p>
+<p>[code]void Log::Write(int level, const String&amp; message)<br/>
+{<br/>
+assert(level &gt;= LOG_DEBUG &amp;&amp; level &lt; LOG_NONE);</p>
+<pre><code>// If not in the main thread, store message for later processing
+if (!Thread::IsMainThread())
+{
+    if (logInstance)
+    {
+        MutexLock lock(logInstance-&gt;logMutex_);
+        logInstance-&gt;threadMessages_.Push(StoredLogMessage(message, level, false));
+    }
+    
+    return;
+}
+...[/code]
+</code></pre>
+<p>If it’s not the main thread, and logInstance is valid, the log entry gets pushed back onto the list. This results in the endless loop I was encountering. I’m only getting this due to the incorrect main thread assignment (which I’d appreciate for how to fix!), but it’s clearly possible to result in the endless loop in other situations.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Stymgade</div>
+          <div class="post_content">
+<p>Ok, after much debugging I found the issue: crossing DLL boundaries.</p>
+<p>It seems the second it entered any function within the DLL, the mainThreadID was 0, hence triggering the invalid main thread - despite the fact the same compiler was used for all projects, and to compile the engine itself. The answers here provide a decent explanation: <a data-bbcode="true" href="http://stackoverflow.com/questions/22797418/how-do-i-safely-pass-objects-especially-stl-objects-to-and-from-a-dll" rel="nofollow noopener">http://stackoverflow.com/questions/22797418/how-do-i-safely-pass-objects-especially-stl-objects-to-and-from-a-dll</a>.</p>
+<p>Luckily, I have no real need to have it in a separate DLL, so I’ve just converted the project to a static library and am linking to it with the main exe as a workaround.</p>
+<p>The potential for the endless loop still exists however, so I’ll add it to the issue tracker separately.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

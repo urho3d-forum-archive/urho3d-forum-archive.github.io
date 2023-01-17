@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Bouncing still happening even with restitution set to 0</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Bouncing still happening even with restitution set to 0</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">miz</div>
+          <div class="post_content">
+<p>I have set the restitution of a RigidBody to 0 but after it collides with a static wall (mass set to 0) it still bounces off.</p>
+<p>I am even subscribing to E_PHYSICSCOLLISIONSTART and setting linear velocity of the RigidBody to 0,0,0 with the event handler but it still bounces.</p>
+<p>Anyone have a clue what could be happening?</p>
+<pre><code class="lang-auto">	playerBody = playerNode-&gt;CreateComponent&lt;RigidBody&gt;();
+	playerBody-&gt;SetMass(10);
+	
+	playerBody-&gt;SetUseGravity(false);
+	playerBody-&gt;SetAngularFactor(Vector3(0, 0, 0));
+	playerBody-&gt;SetRestitution(0);</code></pre>
+<p>[code]void Player::HandleCollisionStart(StringHash eventType, VariantMap&amp; eventData) {<br/>
+using namespace PhysicsCollisionStart;</p>
+<pre><code>Node* nodeB = static_cast&lt;Node*&gt;(eventData[P_NODEB].GetPtr());
+Node* nodeA = static_cast&lt;Node*&gt;(eventData[P_NODEA].GetPtr());
+
+
+
+if ((nodeA-&gt;GetPosition() == playerNode-&gt;GetPosition() || nodeB-&gt;GetPosition() == playerNode-&gt;GetPosition())) {
+	playerBody-&gt;SetLinearVelocity(Vector3(0, 0, 0));
+}
+</code></pre>
+<p>}[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">miz</div>
+          <div class="post_content">
+<p>So I even tried changing my handler to:</p>
+<pre><code class="lang-auto">void Player::HandleCollisionStart(StringHash eventType, VariantMap&amp; eventData) {
+   using namespace PhysicsCollisionStart;
+
+   Node* nodeB = static_cast&lt;Node*&gt;(eventData[P_NODEB].GetPtr());
+   Node* nodeA = static_cast&lt;Node*&gt;(eventData[P_NODEA].GetPtr());
+
+
+
+   if ((nodeA-&gt;GetPosition() == playerNode-&gt;GetPosition() || nodeB-&gt;GetPosition() == playerNode-&gt;GetPosition())) {
+      playerBody-&gt;SetLinearVelocity(Vector3(0, 0, 0));
+      STOP = true;
+   }
+
+}</code></pre>
+<p>and then in the in my update handler putting:</p>
+<pre><code class="lang-auto">		if (STOP) {
+			playerBody-&gt;SetLinearVelocity(Vector3(0, 0, 0));
+			STOP = false;
+		}</code></pre>
+<p>Which still doesn’t work but if I do:</p>
+<pre><code class="lang-auto">		if (STOP) {
+			playerBody-&gt;SetLinearVelocity(Vector3(0, 0, 0));
+			//STOP = false; //--- disabled resetting STOP flag
+		}</code></pre>
+<p>Then it does come to a standstill.</p>
+<p>So it seems like whatever Urho3D is doing to change the velocity from the collision is happening after my event handlers and only the next frame after am I able to stop it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Could it be the other object’s restitution is non-zero? Then it’s like pinball.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">miz</div>
+          <div class="post_content">
+<p>other object’s restitution is also 0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<pre><code class="lang-auto">This check is dicey at best. You can compare pointers or node names, etc instead.</code></pre>
+<p>This check is dicey at best. You can compare pointers or node names, etc instead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">miz</div>
+          <div class="post_content">
+<p>I’m not having a problem with the check. The code inside the check gets run. It just doesn’t stop the bouncing</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/328_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">zedraken</div>
+          <div class="post_content">
+<p>Hello,<br/>
+it seems that I have almost the same issue.<br/>
+I am trying to have a player (at first person view) walk on a terrain. The camera (the player view) is initially located above the terrain and when the simulation starts, the camera falls down until it collides with the terrain.<br/>
+Then, the camera starts gliding around on the terrain depending on the slope.</p>
+<p>Beyond the implementation details given here (like setting the linear velocity to 0), I just want to be sure if I do it the right way. I mean that to have a first person view, I use the camera for which I create a rigid body with a collision shape. I give the camera a mass and a friction factor (I tried high values).<br/>
+Thus, I manage the UP and DOWN keys along with the mouse orientation to make the camera move forward in the view direction. Note that is that case, the mouse also gives the vertical orientation of the camera.<br/>
+However, like you, I am unable to stop the gliding movement, although I implemented the solution you propose (setting up a collision start event handler). Thus, when moving forward by pressing the UP key which is for making the player (the camera) move forward, I am able to cross some terrain parts which have a slope and be on the other side (below the terrain), which makes the camera fall down for the eternity.<br/>
+So, my questions are :<br/>
+1 - is it the best solution to implement a first person view walking on a terrain or is there a better way to achieve it ?<br/>
+2 - if I do it the right way, is there an “elegant” solution for removing the gliding movement, having a simple walk movement based on pressing a “move forward” key, and using the mouse to give the camera direction ?</p>
+<p>I can provide more details (code snippets) if needed. Maybe someone has already faced such issue ?</p>
+<p>Thanks in advance for your answers.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/328_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">zedraken</div>
+          <div class="post_content">
+<p>I have quickly checked the “18_CharacterDemo” sample. Can it be a good starting point to understand how to solve the issue ? I saw that a brake force is applied?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">miz</div>
+          <div class="post_content">
+<p>It sounds as though you have your camera node and player node as the same node? I would have your camera node separate to you player node and just have it follow your player node. That way you can have the camera node without a body or shape and it won’t just fall to the ground.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/328_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">zedraken</div>
+          <div class="post_content">
+<p>Hi miz, thank you for your reply.</p>
+<p>In fact, I think that I really made a simplistic implementation in which I have the terrain node with its physics and collision shape created, and the camera node (also with its physics and collision shape).<br/>
+I did not create another node so unlikely what is said in your answer, I do not have a player node (maybe my mistake ?).</p>
+<p>I remember to have seen the following page on the wiki :<br/>
+<a data-bbcode="true" href="http://urho3d.wikia.com/wiki/Physics" rel="nofollow noopener">http://urho3d.wikia.com/wiki/Physics</a></p>
+<p>It seems, as you say, that a node shall be created for the player (with a static or animated model I guess) on which physics and collision shape are created. The camera node does not handle any physics but shall be located and oriented in such a way that it displays what the player sees (first person).</p>
+<p>I will try that solution as soon as possible.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

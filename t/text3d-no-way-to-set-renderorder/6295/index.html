@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Text3D - No way to set RenderOrder</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Text3D - No way to set RenderOrder</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We are heavy users of RenderOrder to control which layer is on Top (rather than Y-position).</p>
+<p>We want to overlay Text3D, but this class doesn’t appear to have a way to set the “RenderOrder”.  When we check the “text3D.Material” property, it’s null, so we can’t set it that way.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>You could move the text to a separate scene and overlay it into the main one, or set a depthbias in the text’s material. But there are likely better ways involving Z-buffer magic and/or arcane depth writing.</p>
+<p>Another option would be to use UI elements instead of components, but without more information about the exact goal you’re trying to achieve it’s hard to say which method would make more sense.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Thanks for the answer!  The most elegant solution would be to do this like we do for every other object in our scene:</p>
+<p>model.Material.RenderOrder = {value}</p>
+<p>However, for Text3D component, “text.Material” is NULL.    We are using UrhoSharp, so maybe this NULL Material is only a defect of UrhoSharp, and maybe for Urho3D the Text3D material is not-null.</p>
+<p>The other solutions would be awkward and/or limiting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>UrhoSharp <em>is</em> a defect. <img alt=":smirk:" class="emoji" src="../../../images2/25fadc682a4d3273aaccbef0a244569e.png" title=":smirk:"/></p>
+<p>Starting my dive in QtCreator at /Source/Urho3D/UI/Text3D.h, I used Ctrl+Shift+U to find all occurrences of <code>material_</code>. I then noticed several <code>if (!material_)</code> lines which seemed worth investigating. This brought me to <a ><code>Text3D::UpdateTextMaterials</code></a>:</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/UI/Text3D.cpp#L647</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="637" style="counter-reset: li-counter 636 ;">
+<li>{
+</li>
+<li>    if (!geometries_[i])
+</li>
+<li>    {
+</li>
+<li>        auto* geometry = new Geometry(context_);
+</li>
+<li>        geometry-&gt;SetVertexBuffer(0, vertexBuffer_);
+</li>
+<li>        batches_[i].geometry_ = geometries_[i] = geometry;
+</li>
+<li>    }
+</li>
+<li>
+</li>
+<li>    if (!batches_[i].material_ || forceUpdate || isSDFFont != usingSDFShader_)
+</li>
+<li>    {
+</li>
+<li class="selected">        // If material not defined, create a reasonable default from scratch
+</li>
+<li>        if (!material_)
+</li>
+<li>        {
+</li>
+<li>            auto* material = new Material(context_);
+</li>
+<li>            auto* tech = new Technique(context_);
+</li>
+<li>            Pass* pass = tech-&gt;CreatePass("alpha");
+</li>
+<li>            pass-&gt;SetVertexShader("Text");
+</li>
+<li>            pass-&gt;SetPixelShader("Text");
+</li>
+<li>            pass-&gt;SetBlendMode(BLEND_ALPHA);
+</li>
+<li>            pass-&gt;SetDepthWrite(false);
+</li>
+<li>            material-&gt;SetTechnique(0, tech);
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>It seems a temporary material is created if none is assigned, so you’d have to <em>make</em> it not null. <img alt=":fishing_pole_and_fish:" class="emoji" src="../../../images2/5b5b1842470a45967800a42130d78ce5.png" title=":fishing_pole_and_fish:"/><br/>
+…or access the batch instead of the component.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Modanung – I REALLY appreciate your attention and time here.  Thank you!</p>
+<p>If I set the Material to non-null, will that do anything for me?  Will I then be able to set the Material’s Render Order and the Text3D object will comply?   That would seem odd.</p>
+<p>And regarding accessing the batch - how to do that?</p>
+<p>It’s too bad UrhoSharp seems abandoned.   Currently for .NET standard 2.0 (and similar), the leading proposal for 3D support is now UrhoSharp – which has these deficiencies/defects.  If we could pay someone to fix these UrhoSharp bugs, I think we would.  Who is qualified to fix UrhoSharp bugs?</p>
+<p>Miguel is busy with other things, and Egorbor too is now busy with other things.  Seems Urhosharp is mostly an orphan now – leaving .NET Standard 2.0 apps without a production-quality solution for 3D rendering.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="6295" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>If I set the Material to non-null, will that do anything for me? Will I then be able to set the Material’s Render Order and the Text3D object will comply? That would seem odd.</p>
+</blockquote>
+</aside>
+<p>If you set custom material, you should be able to configure it however you want.<br/>
+If you were doing C++, it wouldn’t be a problem to configure render order here:</p><aside class="onebox githubblob" data-onebox-src="https://github.com/urho3d/Urho3D/blob/master/Source/Urho3D/UI/Text3D.cpp#L659">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/UI/Text3D.cpp#L659</a></h4>
+<pre class="onebox">    <code class="lang-cpp">
+      <ol class="start lines" start="649" style="counter-reset: li-counter 648 ;">
+          <li>}
+</li>
+          <li>
+</li>
+          <li>if (!batches_[i].material_ || forceUpdate || isSDFFont != usingSDFShader_)
+</li>
+          <li>{
+</li>
+          <li>    // If material not defined, create a reasonable default from scratch
+</li>
+          <li>    if (!material_)
+</li>
+          <li>    {
+</li>
+          <li>        auto* material = new Material(context_);
+</li>
+          <li>        auto* tech = new Technique(context_);
+</li>
+          <li>        Pass* pass = tech-&gt;CreatePass("alpha");
+</li>
+          <li class="selected">        pass-&gt;SetVertexShader("Text");
+</li>
+          <li>        pass-&gt;SetPixelShader("Text");
+</li>
+          <li>        pass-&gt;SetBlendMode(BLEND_ALPHA);
+</li>
+          <li>        pass-&gt;SetDepthWrite(false);
+</li>
+          <li>        material-&gt;SetTechnique(0, tech);
+</li>
+          <li>        material-&gt;SetCullMode(CULL_NONE);
+</li>
+          <li>        batches_[i].material_ = material;
+</li>
+          <li>    }
+</li>
+          <li>    else
+</li>
+          <li>        batches_[i].material_ = material_-&gt;Clone();
+</li>
+          <li>
+</li>
+      </ol>
+    </code>
+  </pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>
+It’s just C# that misses bindings.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="6295" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<pre><code class="lang-auto">auto* material = new Material(context_);
+
+        auto* tech = new Technique(context_);
+
+        Pass* pass = tech-&gt;CreatePass("alpha");
+
+        pass-&gt;SetVertexShader("Text");
+
+        pass-&gt;SetPixelShader("Text");
+
+        pass-&gt;SetBlendMode(BLEND_ALPHA);
+
+        pass-&gt;SetDepthWrite(false);
+
+        material-&gt;SetTechnique(0, tech);
+
+        material-&gt;SetCullMode(CULL_NONE);
+</code></pre>
+</blockquote>
+</aside>
+<p>Eugene, using a custom material resolved our RenderOrder issue, however, the custom material I created, doesn’t look the same as the default material.   In my screenshot below, the top image is the default material, with bad Z-order.   The bottom image is using the new custom material (so Z-order is now on top, but the rendering is all messed up.   Looks like it’s no longer getting the Colors…  note, I tried to make the StrokeColor Yellow (for testing), but it’s still black.</p>
+<p>Here is my C# code for creating this material:</p>
+<pre><code>					var mat = new Material();
+					var tech = new Technique(priceNode.Context);
+					Pass pass = tech.CreatePass("alpha");
+					pass.VertexShader = "Text";
+					pass.PixelShader = "Text";
+					pass.BlendMode = BlendMode.Alpha; // (BLEND_ALPHA);
+					pass.DepthWrite = false; // SetDepthWrite(false);
+					mat.SetTechnique(0, tech);
+					mat.CullMode = CullMode.None;  // SetCullMode(CULL_NONE);
+					mat.RenderOrder = 255;
+					mat.SetShaderParameter("ShadowColor", new Color(1f, 1f, 0, 1));
+					mat.SetShaderParameter("StrokeColor", new Color(1f, 1f, 0, 1));
+					text.Material = mat;
+</code></pre>
+<p><img alt="image" data-base62-sha1="1ko2ePzj0KPwiCN2mciBYG2QcAM" height="480" src="../../../images2/3dc37f22695880949b6d3c4637d204b7.png" width="453"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>That code snippet was for non-SDF text. Check the code below for SDF fonts, probably you need that one. I guess you have to add this one line:<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/UI/Text3D.cpp#L683</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="673" style="counter-reset: li-counter 672 ;">
+<li>// Note: custom defined material is assumed to have right shader defines; they aren't modified here
+</li>
+<li>if (!material_)
+</li>
+<li>{
+</li>
+<li>    Technique* tech = material-&gt;GetTechnique(0);
+</li>
+<li>    Pass* pass = tech ? tech-&gt;GetPass("alpha") : nullptr;
+</li>
+<li>    if (pass)
+</li>
+<li>    {
+</li>
+<li>        switch (GetTextEffect())
+</li>
+<li>        {
+</li>
+<li>        case TE_NONE:
+</li>
+<li class="selected">            pass-&gt;SetPixelShaderDefines("SIGNED_DISTANCE_FIELD");
+</li>
+<li>            break;
+</li>
+<li>
+</li>
+<li>        case TE_SHADOW:
+</li>
+<li>            pass-&gt;SetPixelShaderDefines("SIGNED_DISTANCE_FIELD TEXT_EFFECT_SHADOW");
+</li>
+<li>            break;
+</li>
+<li>
+</li>
+<li>        case TE_STROKE:
+</li>
+<li>            pass-&gt;SetPixelShaderDefines("SIGNED_DISTANCE_FIELD TEXT_EFFECT_STROKE");
+</li>
+<li>            break;
+</li>
+<li>        }
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Eugene thanks!  I got it working now.   That did the trick, just adding this line:</p>
+<p>mat.PixelShaderDefines = “SIGNED_DISTANCE_FIELD TEXT_EFFECT_STROKE”;</p>
+<p>===<br/>
+However, it was still sorta ugly, so I modified the Text shader to make it smoother around the edges, and looks “OK”.   There is still the escalator/dithering effect that occurs when we move the camera pixel-by-pixel (as it tracks your motion on the map).</p>
+<p>We may still be making our own Text3D object (based off current one, but fixes this dithering).  For now, this will get us by.     The Z-Order issue is now fixed.</p>
+<p>Thank you Eugene – I wouldn’t have figured this out without your advice!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

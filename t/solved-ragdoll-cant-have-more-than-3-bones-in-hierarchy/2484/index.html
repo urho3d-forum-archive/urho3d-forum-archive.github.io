@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Ragdoll can&rsquo;t have more than 3 bones in hierarchy</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Ragdoll can&rsquo;t have more than 3 bones in hierarchy</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>As I found-out, any chain in ragdoll can’t be more than<br/>
+3 bones from root to any point, otherwise it explodes.<br/>
+Looks like bug. Unity and UE4 work with this model without any problems.<br/>
+Variating mass and various other parameters surprisingly make no difference at all.<br/>
+Is it Bullet limitation or some Urho thing?<br/>
+If I just set single chest at root and add 2 bones per limb and one for head it works, but looks really<br/>
+like Jack - too rigid and not interesting for actual model.<br/>
+Any ideas?</p>
+<p><a href="https://youtu.be/2HCR7g2j41E" rel="nofollow noopener">youtu.be/2HCR7g2j41E</a></p>
+<p>EDIT:</p>
+<p>OK, I solved a problem. I fine-tuned ragdoll to avoid too much strain<br/>
+on constraints, and set physicsWorld.fps = 100, which made it not penetrate surface.<br/>
+Now I just have to tune bones a bit.</p>
+<p><a href="https://youtu.be/5Bm1lf4-K8k" rel="nofollow noopener">youtu.be/5Bm1lf4-K8k</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Did you try turning off collision on the constraints when making them, like in the sample? Also I’m wondering what the big capsule collision shape is doing there.<br/>
+Mind sharing the relevant bit of code?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, I partially solved the problem. The basic idea:</p>
+<ol start="0">
+<li>Don’t use ragdoll example, it is confusing. Only use it as reference for what contraints can you use<br/>
+for which limbs and some reference for limits, not more. It will not work for your skeleton.<br/>
+0.1 Represent all your constraint positions and rotations in global space for your reference,<br/>
+and convert to bone local space when actually create bone bodies and constraints.</li>
+<li>The more bones in ragdoll, the less stable it will be.</li>
+<li>To improve situation one can do the following to improve stability:</li>
+</ol>
+<ul>
+<li>Increase bone collision sizes</li>
+<li>make sure all (most) of your bones can relax on ground not hanging on constraints. Hanging on constraints reduce stability.</li>
+<li>sometimes adding extra bone improves stability. this happens if your ragdoll is forced on constraint’s limits for long time.<br/>
+this helps it relax a bit. This is mainly relevant for spine though, not for limbs.</li>
+<li>for your biggest mass body parts (spine, chest, pelvis, head, root) use boxes. they tend to stabilize quicker.<br/>
+Yes, use box for head.</li>
+</ul>
+<ol start="3">
+<li>Limbs and head tend to penetrate landscape and become super unstable. Use the following script on node to avoid that (or make it less frequent)</li>
+</ol>
+<pre><code class="lang-auto">class RagdollPreventIntersection: ScriptObject {
+    Vector3 last_pos;
+    Vector3 vel;
+    void FixedUpdate(float timeStep)
+    {
+        RigidBody@ body = node.GetComponent("RigidBody");
+        if (body is null)
+            return;
+        Vector3 direction = (node.worldPosition - last_pos).Normalized();
+        Ray prev(node.worldPosition, direction);
+        RayQueryResult result = sc.octree.RaycastSingle(prev, RAY_TRIANGLE, (node.worldPosition - last_pos).length, DRAWABLE_GEOMETRY);
+        if (result.drawable !is null &amp;&amp; result.drawable.node is floorNode) {
+            Vector3 dv = body.position - last_pos;
+            body.position = (body.position + last_pos) / 2.0;
+        } else
+            last_pos = body.position;
+    }
+    void Start()
+    {
+        RigidBody@ body = node.GetComponent("RigidBody");
+        if (body !is null) {
+            last_pos = body.position;
+            vel = body.linearVelocity;
+            body.restitution = 0.01f;
+            body.ccdRadius = 0.05f;
+            body.ccdMotionThreshold = 0.05f;
+        }
+    }
+}</code></pre>
+<p>But this script should be switched off after some stable pose occured as it will prevent body from resting.</p>
+<ol start="4">
+<li>
+<p>Hierarchy of rigid bodies is a problem - unstable root bone can make whole body not rest and jitter. The more bones here<br/>
+in line the herder for them to be stable. Keep very careful attention on upper hierarchy bones.</p>
+</li>
+<li>
+<p>Sometimes constraints are not strong enough to keep your ragdoll stable. Sometimes limb outstretches and<br/>
+can’t find rest. Especially bottom part (legs). I have not solved this one yet for legs, but upper body is pretty stable.</p>
+</li>
+</ol>
+<p>I have remaining problem of leg separation - the upper part of leg separates from root and ends up under terrain or lying outstretched with constraint wiggling like mad. Looks like it can’t cope with so much bones in ragdoll which I have.<br/>
+It is strange, but in Unity using ragdoll wizard and nothing else the ragdoll is very stable. But AFAIR Unity uses PhysX, not Bullet.<br/>
+So I wonder if it is Bullet limitation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Also I can’t really get ragdolls to rest, when added arms. While spine-only ragdolls get to rest in a few minutes,<br/>
+as I add arms they never get to rest and penetrate surface more often.</p>
+<p><a href="https://youtu.be/XfoDsP-uNpw" rel="nofollow noopener">youtu.be/XfoDsP-uNpw</a></p>
+<p>I will provide script as I clean it, as it looks a bit exploded now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Yep, and capsule is not active at the time, it is just there displayed by DebugRenderer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Capsule colors indicate their state and white means they’re active. I’ve looked at the Urho’s ragdoll sample and in that the capsule is removed when the ragdoll is activated.  Perhaps, you just need to do the same to correct the craziness that’s going on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I just set main body.enabled = false I really wonder how can it affect anything.<br/>
+I think I can disable capsule too. Removing seems overkill as I will need them for recovery…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Just setting it to false only works if it’ll never collide with anything else in the world ever, but as soon as it collides with another body this code</p>
+<pre><code class="lang-auto">void RigidBody::ApplyForce(const Vector3&amp; force)
+{
+    if (body_ &amp;&amp; force != Vector3::ZERO)
+    {
+        Activate();
+        body_-&gt;applyCentralForce(ToBtVector3(force));
+    }
+}
+</code></pre>
+<p>Activates it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Created some images which may help.<br/>
+<img alt="" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/648a85255dd3c459f3d89166e9d1862240d78e44.jpg"/><br/>
+<img alt="" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/7e2702d637500c0cfc2b84e27fed2fb1866c0299.jpg"/></p>
+<p>And code to setup the capsules correctly.</p>
+<p>[spoiler][code]<br/>
+//<br/>
+// Copyright © 2008-2016 the Urho3D project.<br/>
+//<br/>
+// Permission is hereby granted, free of charge, to any person obtaining a copy<br/>
+// of this software and associated documentation files (the “Software”), to deal<br/>
+// in the Software without restriction, including without limitation the rights<br/>
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell<br/>
+// copies of the Software, and to permit persons to whom the Software is<br/>
+// furnished to do so, subject to the following conditions:<br/>
+//<br/>
+// The above copyright notice and this permission notice shall be included in<br/>
+// all copies or substantial portions of the Software.<br/>
+//<br/>
+// THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR<br/>
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,<br/>
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE<br/>
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER<br/>
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,<br/>
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN<br/>
+// THE SOFTWARE.<br/>
+//</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/Graphics/AnimatedModel.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/IO/Log.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Physics/PhysicsEvents.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Physics/RigidBody.h&gt;</p>
+<p><span class="hashtag">#include</span> “CreateRagdoll.h”</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/DebugNew.h&gt;</p>
+<p>CreateRagdoll::CreateRagdoll(Context* context) :<br/>
+Component(context)<br/>
+{<br/>
+}</p>
+<p>void CreateRagdoll::OnNodeSet(Node* node)<br/>
+{<br/>
+// If the node pointer is non-null, this component has been created into a scene node. Subscribe to physics collisions that<br/>
+// concern this scene node<br/>
+if (node)<br/>
+SubscribeToEvent(node, E_NODECOLLISION, URHO3D_HANDLER(CreateRagdoll, HandleNodeCollision));<br/>
+}</p>
+<p>void CreateRagdoll::HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+using namespace NodeCollision;</p>
+<pre><code>// Get the other colliding body, make sure it is moving (has nonzero mass)
+RigidBody* otherBody = static_cast&lt;RigidBody*&gt;(eventData[P_OTHERBODY].GetPtr());
+
+if (otherBody-&gt;GetMass() &gt; 0.0f)
+{
+    // We do not need the physics components in the AnimatedModel's root scene node anymore
+    node_-&gt;RemoveComponent&lt;RigidBody&gt;();
+    node_-&gt;RemoveComponent&lt;CollisionShape&gt;();
+
+    // Create RigidBody &amp; CollisionShape components to bones
+    CreateRagdollBone("Bip01_Pelvis", SHAPE_BOX, Vector3(0.3f, 0.2f, 0.25f), Vector3(0.0f, 0.0f, 0.0f),
+        Quaternion(0.0f, 0.0f, 0.0f));
+    CreateRagdollBone("Bip01_Spine1", SHAPE_BOX, Vector3(0.35f, 0.2f, 0.3f), Vector3(0.15f, 0.0f, 0.0f),
+        Quaternion(0.0f, 0.0f, 0.0f));
+    //CreateRagdollBone("Bip01_L_Thigh", SHAPE_CAPSULE, Vector3(0.175f, 0.45f, 0.175f), Vector3(0.25f, 0.0f, 0.0f),
+    //    Quaternion(0.0f, 0.0f, 90.0f));
+    CreateCapsuleFromBoneToBone("Bip01_L_Thigh", "Bip01_L_Calf", 0.175f);
+
+    //CreateRagdollBone("Bip01_R_Thigh", SHAPE_CAPSULE, Vector3(0.175f, 0.45f, 0.175f), Vector3(0.25f, 0.0f, 0.0f),
+    //    Quaternion(0.0f, 0.0f, 90.0f));
+    CreateCapsuleFromBoneToBone("Bip01_R_Thigh", "Bip01_R_Calf", 0.175f);
+
+    //CreateRagdollBone("Bip01_L_Calf", SHAPE_CAPSULE, Vector3(0.15f, 0.55f, 0.15f), Vector3(0.25f, 0.0f, 0.0f),
+    //    Quaternion(0.0f, 0.0f, 90.0f));
+    CreateCapsuleFromBoneToBone("Bip01_L_Calf", "Bip01_L_Foot", 0.15f);
+
+    //CreateRagdollBone("Bip01_R_Calf", SHAPE_CAPSULE, Vector3(0.15f, 0.55f, 0.15f), Vector3(0.25f, 0.0f, 0.0f),
+    //    Quaternion(0.0f, 0.0f, 90.0f));
+    CreateCapsuleFromBoneToBone("Bip01_R_Calf", "Bip01_R_Foot", 0.15f);
+
+    CreateRagdollBone("Bip01_Head", SHAPE_BOX, Vector3(0.2f, 0.2f, 0.2f), Vector3(0.1f, 0.0f, 0.0f),
+        Quaternion(0.0f, 0.0f, 0.0f));
+    //CreateRagdollBone("Bip01_L_UpperArm", SHAPE_CAPSULE, Vector3(0.15f, 0.35f, 0.15f), Vector3(0.1f, 0.0f, 0.0f),
+    //    Quaternion(0.0f, 0.0f, 90.0f));
+    CreateCapsuleFromBoneToBone("Bip01_L_UpperArm", "Bip01_L_Forearm", 0.15f);
+
+    //CreateRagdollBone("Bip01_R_UpperArm", SHAPE_CAPSULE, Vector3(0.15f, 0.35f, 0.15f), Vector3(0.1f, 0.0f, 0.0f),
+    //    Quaternion(0.0f, 0.0f, 90.0f));
+    CreateCapsuleFromBoneToBone("Bip01_R_UpperArm", "Bip01_R_Forearm", 0.15f);
+
+    //CreateRagdollBone("Bip01_L_Forearm", SHAPE_CAPSULE, Vector3(0.125f, 0.4f, 0.125f), Vector3(0.2f, 0.0f, 0.0f),
+    //    Quaternion(0.0f, 0.0f, 90.0f));
+    CreateCapsuleFromBoneToBone("Bip01_L_Forearm", "Bip01_L_Hand", 0.125f);
+
+    //CreateRagdollBone("Bip01_R_Forearm", SHAPE_CAPSULE, Vector3(0.125f, 0.4f, 0.125f), Vector3(0.2f, 0.0f, 0.0f),
+    //    Quaternion(0.0f, 0.0f, 90.0f));
+    CreateCapsuleFromBoneToBone("Bip01_R_Forearm", "Bip01_R_Hand", 0.125f);
+
+    // Create Constraints between bones
+    CreateRagdollConstraint("Bip01_L_Thigh", "Bip01_Pelvis", CONSTRAINT_CONETWIST, Vector3::BACK, Vector3::FORWARD,
+        Vector2(45.0f, 45.0f), Vector2::ZERO);
+    CreateRagdollConstraint("Bip01_R_Thigh", "Bip01_Pelvis", CONSTRAINT_CONETWIST, Vector3::BACK, Vector3::FORWARD,
+        Vector2(45.0f, 45.0f), Vector2::ZERO);
+    CreateRagdollConstraint("Bip01_L_Calf", "Bip01_L_Thigh", CONSTRAINT_HINGE, Vector3::BACK, Vector3::BACK,
+        Vector2(90.0f, 0.0f), Vector2::ZERO);
+    CreateRagdollConstraint("Bip01_R_Calf", "Bip01_R_Thigh", CONSTRAINT_HINGE, Vector3::BACK, Vector3::BACK,
+        Vector2(90.0f, 0.0f), Vector2::ZERO);
+    CreateRagdollConstraint("Bip01_Spine1", "Bip01_Pelvis", CONSTRAINT_HINGE, Vector3::FORWARD, Vector3::FORWARD,
+        Vector2(45.0f, 0.0f), Vector2(-10.0f, 0.0f));
+    CreateRagdollConstraint("Bip01_Head", "Bip01_Spine1", CONSTRAINT_CONETWIST, Vector3::LEFT, Vector3::LEFT,
+        Vector2(0.0f, 30.0f), Vector2::ZERO);
+    CreateRagdollConstraint("Bip01_L_UpperArm", "Bip01_Spine1", CONSTRAINT_CONETWIST, Vector3::DOWN, Vector3::UP,
+        Vector2(45.0f, 45.0f), Vector2::ZERO, false);
+    CreateRagdollConstraint("Bip01_R_UpperArm", "Bip01_Spine1", CONSTRAINT_CONETWIST, Vector3::DOWN, Vector3::UP,
+        Vector2(45.0f, 45.0f), Vector2::ZERO, false);
+    CreateRagdollConstraint("Bip01_L_Forearm", "Bip01_L_UpperArm", CONSTRAINT_HINGE, Vector3::BACK, Vector3::BACK,
+        Vector2(90.0f, 0.0f), Vector2::ZERO);
+    CreateRagdollConstraint("Bip01_R_Forearm", "Bip01_R_UpperArm", CONSTRAINT_HINGE, Vector3::BACK, Vector3::BACK,
+        Vector2(90.0f, 0.0f), Vector2::ZERO);
+
+    // Disable keyframe animation from all bones so that they will not interfere with the ragdoll
+    AnimatedModel* model = GetComponent&lt;AnimatedModel&gt;();
+    Skeleton&amp; skeleton = model-&gt;GetSkeleton();
+    for (unsigned i = 0; i &lt; skeleton.GetNumBones(); ++i)
+        skeleton.GetBone(i)-&gt;animated_ = false;
+
+    // Finally remove self from the scene node. Note that this must be the last operation performed in the function
+    Remove();
+}
+</code></pre>
+<p>}</p>
+<p>void CreateRagdoll::CreateRagdollBone(const String&amp; boneName, ShapeType type, const Vector3&amp; size, const Vector3&amp; position,<br/>
+const Quaternion&amp; rotation)<br/>
+{<br/>
+// Find the correct child scene node recursively<br/>
+Node* boneNode = node_-&gt;GetChild(boneName, true);<br/>
+if (!boneNode)<br/>
+{<br/>
+URHO3D_LOGWARNING(“Could not find bone " + boneName + " for creating ragdoll physics components”);<br/>
+return;<br/>
+}</p>
+<pre><code>RigidBody* body = boneNode-&gt;CreateComponent&lt;RigidBody&gt;();
+// Set mass to make movable
+body-&gt;SetMass(1.0f);
+// Set damping parameters to smooth out the motion
+body-&gt;SetLinearDamping(0.05f);
+body-&gt;SetAngularDamping(0.85f);
+// Set rest thresholds to ensure the ragdoll rigid bodies come to rest to not consume CPU endlessly
+body-&gt;SetLinearRestThreshold(1.5f);
+body-&gt;SetAngularRestThreshold(2.5f);
+
+CollisionShape* shape = boneNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+// We use either a box or a capsule shape for all of the bones
+if (type == SHAPE_BOX)
+    shape-&gt;SetBox(size, position, rotation);
+else
+    shape-&gt;SetCapsule(size.x_, size.y_, position, rotation);
+</code></pre>
+<p>}</p>
+<p>void CreateRagdoll::CreateRagdollConstraint(const String&amp; boneName, const String&amp; parentName, ConstraintType type,<br/>
+const Vector3&amp; axis, const Vector3&amp; parentAxis, const Vector2&amp; highLimit, const Vector2&amp; lowLimit,<br/>
+bool disableCollision)<br/>
+{<br/>
+Node* boneNode = node_-&gt;GetChild(boneName, true);<br/>
+Node* parentNode = node_-&gt;GetChild(parentName, true);<br/>
+if (!boneNode)<br/>
+{<br/>
+URHO3D_LOGWARNING(“Could not find bone " + boneName + " for creating ragdoll constraint”);<br/>
+return;<br/>
+}<br/>
+if (!parentNode)<br/>
+{<br/>
+URHO3D_LOGWARNING(“Could not find bone " + parentName + " for creating ragdoll constraint”);<br/>
+return;<br/>
+}</p>
+<pre><code>Constraint* constraint = boneNode-&gt;CreateComponent&lt;Constraint&gt;();
+constraint-&gt;SetConstraintType(type);
+// Most of the constraints in the ragdoll will work better when the connected bodies don't collide against each other
+constraint-&gt;SetDisableCollision(disableCollision);
+// The connected body must be specified before setting the world position
+constraint-&gt;SetOtherBody(parentNode-&gt;GetComponent&lt;RigidBody&gt;());
+// Position the constraint at the child bone we are connecting
+constraint-&gt;SetWorldPosition(boneNode-&gt;GetWorldPosition());
+// Configure axes and limits
+constraint-&gt;SetAxis(axis);
+constraint-&gt;SetOtherAxis(parentAxis);
+constraint-&gt;SetHighLimit(highLimit);
+constraint-&gt;SetLowLimit(lowLimit);
+</code></pre>
+<p>}</p>
+<p>int CreateRagdoll::CreateCapsuleFromBoneToBone(const String&amp; boneName, const String&amp; childBoneName, float diameter)<br/>
+{<br/>
+Node* boneNode = node_-&gt;GetChild(boneName, true);</p>
+<pre><code>if (!boneNode)
+{
+    URHO3D_LOGWARNING("Could not find bone " + boneName + " for creating ragdoll physics components");
+    return -1;
+}
+
+Node* childBoneNode = boneNode-&gt;GetChild(childBoneName);
+
+if (!childBoneNode)
+{
+    URHO3D_LOGWARNING("Bone " + childBoneName + " is not an immediate child of " + boneName);
+    return -1;
+}
+
+// gather info based on child's local space
+Vector3 posLS = childBoneNode-&gt;GetPosition();
+Vector3 centerPos = posLS * 0.5f;
+Vector3 direction = posLS.Normalized();
+float length = posLS.Length();
+Vector3 size(diameter, length, 0);
+Quaternion rotation;
+rotation.FromRotationTo(Vector3::UP, direction);
+
+return CreateCollisionShape(boneNode, centerPos, rotation, size);
+</code></pre>
+<p>}</p>
+<p>int CreateRagdoll::CreateCollisionShape(Node <em>boneNode, const Vector3&amp; position, const Quaternion&amp; rotation, const Vector3&amp; size)<br/>
+{<br/>
+RigidBody</em> body = boneNode-&gt;CreateComponent();<br/>
+// Set mass to make movable<br/>
+body-&gt;SetMass(1.0f);<br/>
+// Set damping parameters to smooth out the motion<br/>
+body-&gt;SetLinearDamping(0.05f);<br/>
+body-&gt;SetAngularDamping(0.85f);<br/>
+// Set rest thresholds to ensure the ragdoll rigid bodies come to rest to not consume CPU endlessly<br/>
+body-&gt;SetLinearRestThreshold(1.5f);<br/>
+body-&gt;SetAngularRestThreshold(2.5f);</p>
+<pre><code>CollisionShape* shape = boneNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+shape-&gt;SetCapsule(size.x_, size.y_, position, rotation);
+
+return 0;
+</code></pre>
+<p>}</p>
+<p>[/code][/spoiler]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>And lastly and most importantly, constraint should prevent rigidbody to NOT have collision with its immediate parent, as shown in the code:</p>
+<pre><code class="lang-auto">    // Most of the constraints in the ragdoll will work better when the connected bodies don't collide against each other
+    constraint-&gt;SetDisableCollision(disableCollision);
+    // The connected body must be specified before setting the world position
+    constraint-&gt;SetOtherBody(parentNode-&gt;GetComponent&lt;RigidBody&gt;());
+</code></pre>
+<p>disableCollision = true by default.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Yep, I disable collision in constraints, otherwise it is much worse.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>The current progress - I implemented almost all bones I need, but still get not resting ragdolls and<br/>
+ragdolls penetrating terrain</p>
+<p>(this one with big capsules still enabled)<br/>
+<a href="https://youtu.be/9iWSvoAEAaI" rel="nofollow noopener">youtu.be/9iWSvoAEAaI</a></p>
+<p>(this one is with big capsules disabled)<br/>
+<a href="https://youtu.be/KKhUYc1CVow" rel="nofollow noopener">youtu.be/KKhUYc1CVow</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Ok, thanks everyone, now I made it work:</p>
+<p><a href="https://youtu.be/5Bm1lf4-K8k" rel="nofollow noopener">youtu.be/5Bm1lf4-K8k</a></p>
+<p>The main key was to set physicsWorld.fps = 100<br/>
+after that everything magically started working and<br/>
+average performance increased.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>That’s looking much better, slapin. Looks like your large capsule is changed to a trigger or was it something else?<br/>
+Not sure why the legs penetrate the terrain on some of your ragdolls, though.</p>
+<p>If constraints are created correctly, you should get something like this:<br/>
+<img alt="" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/8e0c95888c2be2c6138497428f32458a57a6788e.jpg"/></p>
+<p>edit: added a pic</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, now it doesn’t penetrate terrain anymore. As for capsule - it doesn’t affect anything, I just disable it now together with<br/>
+RigidBody. My setup is basically the same as with ragdoll demo except that I use global rotations and some tweaking.</p>
+<p>Now I want to experiment with active ragdoll path, I just need to understand how this is done.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

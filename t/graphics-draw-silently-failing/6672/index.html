@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Graphics::Draw Silently Failing</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Graphics::Draw Silently Failing</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>The various <code>Graphics::Draw(...)</code> calls all seem to start with something along the line of an if check ensuring the state is acceptable and possibly a compiler define check (example below). If the conditions are not met, Draw just silently returns, making it impossible to tell if the call succeeded from both the calling code (e.g. a boolean success state return) and from the log.</p>
+<pre><code class="lang-auto">#if !defined(GL_ES_VERSION_2_0) || defined(__EMSCRIPTEN__)
+    if (!indexCount || !indexBuffer_ || !indexBuffer_-&gt;GetGPUObjectName() || !instancingSupport_)
+        return;
+</code></pre>
+<p>This ended up making it a ~3 hour process to figure out why the ImGui integration was failing to draw on an Emscripten build, rather than a ~3 minute process. As such, I was wondering if adding at least a log message would be acceptable, something like</p>
+<pre><code class="lang-auto">#if !defined(GL_ES_VERSION_2_0) || defined(__EMSCRIPTEN__)
+    if (!indexCount || !indexBuffer_ || !indexBuffer_-&gt;GetGPUObjectName() || !instancingSupport_)
+    {
+        URHO3D_LOGERROR("Invalid call to Graphics::DrawInstanced(PrimitiveType type, unsigned indexStart, unsigned indexCount, unsigned minVertex, unsigned vertexCount,
+    unsigned instanceCount)");
+        return;
+    }
+...
+
+#else
+    URHO3D_LOGERROR("Unsupported draw call Graphics::DrawInstanced(PrimitiveType type, unsigned indexStart, unsigned indexCount, unsigned minVertex, unsigned vertexCount,
+    unsigned instanceCount)");
+#endif
+</code></pre>
+<p>Does this sound like a good idea? The main exception I can think of is that a call to Draw with 0 indices could be viewed as succeeding by doing nothing, so that case should possibly be excluded from logging the error.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6672" data-username="SirNate0">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fb52f23a6782e890737d90432eac55f2.png" width="20"/> SirNate0:</div>
+<blockquote>
+<p>As such, I was wondering if adding at least a log message would be acceptable</p>
+</blockquote>
+</aside>
+<p>The downside – huge amount of errors will overflow logs and it may hide more inportant errors in the begining. “No logging in render loop” policy has its reasons. I dunno what’s better.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<blockquote>
+<p>Resized scratch buffer to size X</p>
+</blockquote>
+<p>Great Destroyer of logs.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>When there is something we submit but not rendered, we can use graphics debugger to investigate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I don’t think I’ve ever used a graphics debugger, but I also haven’t done any significant work on shaders for a few years. Would it work in this case though, as Urho never calls the graphics API to have it draw? And would it work for all the platforms (e.g. Web)?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Won’t help in this case (as you said, it’s not even being called) and HTML5/WebGL debugging is a mess anyways.</p>
+<p>Graphics debugger is more useful for understanding how the high-level is acting, how the vertex-shader is transforming things, and what the graphics state is at different times (like finding sticky state or confirming viewports are reasonable in shadow-atlasing).</p>
+<p>Serious question is why this is even being hit at all. There are valid draw cases for unindexed draws with null vertex buffers (merge-instancing), but none for indexed draws with invalid index buffers. I assume it’s the instance support bool failing? Even though WebGL2 should have that … isn’t that like mandatory to claim WebGL2 support? Bug in feature detection maybe or Mozilla browser being Mozilla (AKA: crap)?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Could you add a static variable, and only log the first e.g. 5 instances of failures? Then add a log message “Exceeded log limit, these errors won’t be logged again…”</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="6672" data-username="JSandusky">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/21d4babb39f9f7d59fc4987dd1566385.png" width="20"/> JSandusky:</div>
+<blockquote>
+<p>Serious question is why this is even being hit at all.</p>
+</blockquote>
+</aside>
+<p>To clarify, this check is not one I actually had fail. It was <code>void Draw(PrimitiveType type, unsigned indexStart, unsigned indexCount, unsigned baseVertexIndex, unsigned minVertex, unsigned vertexCount)</code> due to a lack of GL3 support (I’m assuming this actually means GL ES 3, but the variable/function doesn’t specify). I just provided the other as an example of the <code>#ifdef</code>.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

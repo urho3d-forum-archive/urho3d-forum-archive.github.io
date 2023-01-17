@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Rendering to multiple OS-level windows</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Rendering to multiple OS-level windows</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<p>Does Urho3D support rendering the same scene to multiple OS-level windows via different cameras / shaders?  I have done some digging and it doesn’t look like it, but I see SDL seems to support this, so I am reasoning that it should be possible:</p>
+<aside class="onebox allowlistedgeneric">
+<header class="source">
+<img class="site-icon" height="16" src="../../../images2/da6a4644ba14944bd1a1a9320af06284.png" width="16"/>
+<a href="https://discourse.libsdl.org/t/does-sdl2-actually-support-multiple-windows/25933" rel="noopener nofollow ugc" target="_blank" title="10:59AM - 22 March 2019">Simple Directmedia Layer – 22 Mar 19</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="60" src="../../../images2/d731933214f1f621b278999964f3d72f.png" width="60"/>
+<h3><a href="https://discourse.libsdl.org/t/does-sdl2-actually-support-multiple-windows/25933" rel="noopener nofollow ugc" target="_blank">Does SDL2 actually support multiple windows?</a></h3>
+<p>It’s possible to call SDL_CreateWindow multiple times and it indeed opens multiple windows, but what then? Specifically, how to swap buffers when multiple windows are present?  // Render window1. SDL_GL_MakeCurrent(glContext1, window1);...</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>I am extending an application which renders via multiple cameras to multiple RenderSurfaces, but all of these are displayed within the same SDL window (as textures within the scene).  I see that multi-window support is not a critical use case for Urho3D users, but in my case there is not alternative-- I have multiple output displays which need to be driven simultaneously with the same scene.</p>
+<p>If it is not already supported, can somebody outline for me what I need to think through and implement to get it done?  To me it looks like the graphics class really wasn’t intended to do this, and I am hoping to do minimal damage to make it work and maybe even generate a PR to share this work.  I would also appreciate a guestimate of how hard this is likely to be.</p>
+<p>Thanks!</p>
+<p>Dave</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6420" data-username="mcmordie">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/31512d2eefc307df893ce0ae68e6930f.png" width="20"/> mcmordie:</div>
+<blockquote>
+<p>If it is not already supported, can somebody outline for me what I need to think through and implement to get it done?</p>
+</blockquote>
+</aside>
+<p>Something like that was done for Dear ImGUI integration in the fork:<br/>
+<a href="https://github.com/***/***/blob/master/Source/Urho3D/SystemUI/SystemUI.cpp" rel="noopener nofollow ugc">https://github.com/***/***/blob/master/Source/Urho3D/SystemUI/SystemUI.cpp</a><br/>
+I don’t know all the details, but the general idea was to let ImGUI handle multiple windows and use render to texture for rendering into windows provided by ImGUI.<br/>
+<code>Graphics</code> was left untouched and I don’t see any realistic way to add multi-window support there.</p>
+<p>Last time I checked it worked ok-ish with rare layout bugs on ImGUI side.<br/>
+So, that’s the easiest way: let ImGUI handle this stuff and glue it to <code>Graphics</code> with a couple of hacks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<p>Thank you for your guidance on this.  I am sure you are right, but I am also stubborn.  What I see is that Graphics is 1:1 with the SDL Window.  If I create a second Window by creating other Graphics object sharing the same context (setExternalContext), I get another window, with rendering to the first one still working.  What I don’t understand is how set up a second renderer and viewport so that they work with this second window.  What is driving my stubbornness is that I think I know how to make this work in OpenGL, but of course we are multi-platform and I am roughing this in on D3D9 / Win10.   Is this a totally lost cause, or is there potential feasibility to make this work through SDL?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="6420" data-username="mcmordie">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/31512d2eefc307df893ce0ae68e6930f.png" width="20"/> mcmordie:</div>
+<blockquote>
+<p>If I create a second Window by creating other Graphics object</p>
+</blockquote>
+</aside>
+<p><code>Graphics</code> is singleton, you cannot create another instance of it.<br/>
+Well, you can do that technically, but it’s not expected (and was never designed) to work in defined way. First (but not last) obstacle is abundance of mutable static variables in <code>Graphics/*</code>.</p>
+<p>I predict one of the following outcomes:</p>
+<ol>
+<li>It will crash or assert;</li>
+<li>Only first <code>Graphics</code> will work properly, others will be disabled or broken;</li>
+<li>Multiple instances of <code>Graphics</code> will interfere with each other in unpredicatble ways;</li>
+<li>Any combination of items 1-3.</li>
+</ol>
+<p>I neither know nor care enough to try estimating the scope of such task (which is equivalent to overall <code>Graphics/*</code> refactoring).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<p>Wow that is super helpful, especially as I overlooked the static vars and since the constructor is public I assumed it was not a singleton.  So if I wanted to take a stab at this it would have to start with building a multi-instance/multi-window version of Graphics and then probably spiral out of control into crazyland breaking every other class in a codebase I have zero experience with.  Sounds like a party.</p>
+<p>One last question while I have your ear: if I went down this rabbit hole, would <em>anyone</em> else benefit from this?  The reason I ask is that I notice that Unity3D supports this, so there must be some demand for it.</p>
+<p>I guess the only sane option in Urho3D  is the first one you outlined.  Thanks for staying with me to make the case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="6420" data-username="mcmordie">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/31512d2eefc307df893ce0ae68e6930f.png" width="20"/> mcmordie:</div>
+<blockquote>
+<p>I went down this rabbit hole, would <em>anyone</em> else benefit from this?</p>
+</blockquote>
+</aside>
+<p>In my opinion, risks outweight the benefits.</p>
+<p>You don’t exactly need multiple native windows for <em>games</em>, I don’t remember I have ever played 3D game with more than one window.</p>
+<p>And if you need it for tools, then ImGUI+Render-to-texture is much simpler and less invasive solution than trying to refactor whole <code>Graphics</code> stuff.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<p>Got it.  Thanks again for your help!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Draw points, lines and triangles on the screen</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Draw points, lines and triangles on the screen</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">freegodsoul</div>
+          <div class="post_content">
+<p>Hello! I have two questions:</p>
+<ol>
+<li>What is the best way to draw debug data, such as points, lines and triangles in screen (or UI) space?</li>
+<li>How to draw custom geometry as a part of UI?</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sasha7b9o</div>
+          <div class="post_content">
+<p>I wrote such bicycle:</p>
+<p>[code]<span class="hashtag">#pragma</span> once</p>
+<p>class lImage : public Image<br/>
+{<br/>
+URHO3D_OBJECT(lImage, Image);<br/>
+public:<br/>
+lImage(Context *context = gContext);<br/>
+~lImage();</p>
+<pre><code>static void RegisterObject(Context *context = gContext);
+
+void SetSize(int width, int height);
+void SetPoint(int x, int y, const Color&amp; color);
+void DrawLine(int x0, int y0, int x1, int y1, const Color &amp;color);
+void DrawRectangle(int x, int y, int width, int height, const Color &amp;color);
+void FillRectangle(int x, int y, int width, int height, const Color &amp;color);
+void FillRegion(int x, int y, const Color &amp;color);
+void FillRegion(int x, int y, const Color &amp;color, const Color &amp;colorBound);
+void CopyImage(int x, int y, lImage &amp;image);      // Those points which have transparency more than 0.5 are copied
+void DrawPolyline(const Color &amp;color, int numPoints, int *xy);
+void DrawCircle(float x, float y, float radius, const Color &amp;color, float step = 1.0f);
+IntVector2 GetHotSpot() const;
+void SetHotSpot(int x, int y);
+</code></pre>
+<p>private:<br/>
+lImage&amp; operator=(const lImage&amp;)<br/>
+{};</p>
+<pre><code>void Replace4Points(int x, int y, const Color &amp;color);
+void Replace4PointsBound(int x, int y, const Color &amp;color);
+
+Color replacedColor;
+Color boundingColor;
+IntVector2 hotSpot;
+</code></pre>
+<p>};</p>
+<p><span class="hashtag">#include</span> &lt;stdafx.h&gt;</p>
+<p><span class="hashtag">#include</span> “Image.h”<br/>
+<span class="hashtag">#include</span> “Core/Math.h”</p>
+<p>lImage::lImage(Context *context) :<br/>
+Image(context)<br/>
+{</p>
+<p>}</p>
+<p>lImage::~lImage()<br/>
+{</p>
+<p>}</p>
+<p>void lImage::SetSize(int width, int height)<br/>
+{<br/>
+Image::SetSize(width, height, 4);<br/>
+}</p>
+<p>void lImage::RegisterObject(Context* context)<br/>
+{<br/>
+context-&gt;RegisterFactory();<br/>
+}</p>
+<p>void lImage::SetPoint(int x, int y, const Color&amp; color)<br/>
+{<br/>
+if(x &lt; GetWidth() &amp;&amp; y &lt; GetHeight())<br/>
+{<br/>
+SetPixel((int)x, (int)y, color);<br/>
+}<br/>
+}</p>
+<p>void lImage::DrawLine(int x0, int y0, int x1, int y1, const Color &amp;color)<br/>
+{<br/>
+if((x1 - x0) == 0 &amp;&amp; (y1 - y0) == 0)<br/>
+{<br/>
+x0++;<br/>
+}</p>
+<pre><code>int x = x0;
+int y = y0;
+int dx = (int)fabs((float)(x1 - x0));
+int dy = (int)fabs((float)(y1 - y0));
+int s1 = Math::Sign(x1 - x0);
+int s2 = Math::Sign(y1 - y0);
+int temp;
+bool exchange;
+if(dy &gt; dx)
+{
+    temp = dx;
+    dx = dy;
+    dy = temp;
+    exchange = true;
+}
+else
+{
+    exchange = false;
+}
+int e = 2 * dy - dx;
+for(int i = 0; i &lt;= dx; i++)
+{
+    SetPoint(x, y, color);
+    while(e &gt;= 0)
+    {
+        if(exchange)
+        {
+            x += s1;
+        }
+        else
+        {
+            y += s2;
+        }
+        e -= 2 * dx;
+    }
+    if(exchange)
+    {
+        y += s2;
+    }
+    else
+    {
+        x += s1;
+    }
+    e += 2 * dy;
+}
+</code></pre>
+<p>}</p>
+<p>void lImage::DrawRectangle(int x, int y, int width, int height, const Color &amp;color)<br/>
+{<br/>
+DrawLine(x, y, x + width, y, color);<br/>
+DrawLine(x + width, y, x + width, y + height, color);<br/>
+DrawLine(x, y + height, x + width, y + height, color);<br/>
+DrawLine(x, y, x, y + height, color);<br/>
+}</p>
+<p>void lImage::FillRectangle(int x0, int y0, int width, int height, const Color &amp;color)<br/>
+{<br/>
+for(int x = x0; x &lt; x0 + width; x++)<br/>
+{<br/>
+DrawLine(x, y0, x, y0 + height, color);<br/>
+}<br/>
+}</p>
+<p>void lImage::FillRegion(int x, int y, const Color &amp;color)<br/>
+{<br/>
+replacedColor = GetPixel(x, y);</p>
+<pre><code>SetPixel(x, y, color);
+
+Replace4Points(x, y, color);
+</code></pre>
+<p>}</p>
+<p>void lImage::Replace4Points(int x, int y, const Color &amp;color)<br/>
+{<br/>
+if(y &gt; 0)                       // upper pixel<br/>
+{<br/>
+if(GetPixel(x, y - 1) == replacedColor)<br/>
+{<br/>
+SetPixel(x, y - 1, color);<br/>
+Replace4Points(x, y - 1, color);<br/>
+}<br/>
+}<br/>
+if(x &lt; GetWidth() - 1)   // rught pixel<br/>
+{<br/>
+if(GetPixel(x + 1, y) == replacedColor)<br/>
+{<br/>
+SetPixel(x + 1, y, color);<br/>
+Replace4Points(x + 1, y, color);<br/>
+}<br/>
+}<br/>
+if(y &lt; GetHeight() - 1)<br/>
+{<br/>
+if(GetPixel(x, y + 1) == replacedColor)<br/>
+{<br/>
+SetPixel(x, y + 1, color);<br/>
+Replace4Points(x, y + 1, color);<br/>
+}<br/>
+}<br/>
+if(x &gt; 0)<br/>
+{<br/>
+if(GetPixel(x - 1, y) == replacedColor)<br/>
+{<br/>
+SetPixel(x - 1, y, color);<br/>
+Replace4Points(x - 1, y, color);<br/>
+}<br/>
+}<br/>
+}</p>
+<p>void lImage::FillRegion(int x, int y, const Color &amp;color, const Color &amp;colorBound)<br/>
+{<br/>
+boundingColor = colorBound;</p>
+<pre><code>if(GetPixel(x, y) != colorBound)
+{
+    SetPixel(x, y, color);
+    Replace4PointsBound(x, y, color);
+}
+</code></pre>
+<p>}</p>
+<p>void lImage::CopyImage(int x0, int y0, lImage &amp;inImage)<br/>
+{<br/>
+int xMin = x0;<br/>
+int xMax = xMin + inImage.GetWidth();<br/>
+if (xMax &gt;= GetWidth())<br/>
+{<br/>
+xMax = GetWidth() - 1;<br/>
+}</p>
+<pre><code>int yMin = y0;
+int yMax = yMin + inImage.GetHeight();
+if (yMax &gt;= GetHeight())
+{
+    yMax = GetHeight() - 1;
+}
+
+for (int x = x0; x &lt; xMax; x++)
+{
+    for (int y = y0; y &lt; yMax; y++)
+    {
+        int curX = x - x0;
+        int curY = y - y0;
+        Color color = inImage.GetPixel(curX, curY);
+
+        if (color.a_ &gt; 0.5f)
+        {
+            SetPoint(x, y, color);
+        }
+    }
+}
+</code></pre>
+<p>}</p>
+<p><span class="hashtag">#define</span> FILL(a, b)                              <br/>
+Color col = GetPixel(a, b);                 <br/>
+if(col != boundingColor &amp;&amp; col != color)    <br/>
+{                                           <br/>
+SetPixel(a, b, color);                  <br/>
+Replace4PointsBound(a, b, color);       <br/>
+}</p>
+<p>void lImage::Replace4PointsBound(int x, int y, const Color &amp;color)<br/>
+{<br/>
+if(y &gt; 0)<br/>
+{<br/>
+FILL(x, y - 1);<br/>
+}<br/>
+if(x &lt; GetWidth() - 1)<br/>
+{<br/>
+FILL(x + 1, y);<br/>
+}<br/>
+if(y &lt; GetHeight() - 1)<br/>
+{<br/>
+FILL(x, y + 1);<br/>
+}<br/>
+if(x &gt; 0)<br/>
+{<br/>
+FILL(x - 1, y);<br/>
+}<br/>
+}</p>
+<p>void lImage::DrawPolyline(const Color &amp;color, int numPoints, int *xy)<br/>
+{<br/>
+int numLines = numPoints - 1;</p>
+<pre><code>for(int i = 0; i &lt; numLines; i++)
+{
+    DrawLine(xy[i * 2], xy[i * 2 + 1], xy[i * 2 + 2], xy[i * 2 + 3], color);
+}
+</code></pre>
+<p>}</p>
+<p>void lImage::DrawCircle(float x, float y, float radius, const Color &amp;color, float step)<br/>
+{<br/>
+for (float angle = 0.0f; angle &lt; 360.0f; angle += step)<br/>
+{<br/>
+SetPoint((int)(x + Cos(angle) * radius + 0.5f), (int)(y + Sin(angle) * radius + 0.5f), color);<br/>
+}<br/>
+}</p>
+<p>IntVector2 lImage::GetHotSpot() const<br/>
+{<br/>
+return hotSpot;<br/>
+}</p>
+<p>void lImage::SetHotSpot(int x, int y)<br/>
+{<br/>
+hotSpot.x_ = x;<br/>
+hotSpot.y_ = y;<br/>
+}[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">freegodsoul</div>
+          <div class="post_content">
+<p>[quote=“Sasha7b9o”]I wrote such bicycle:</p>
+<p>[code]<span class="hashtag">#pragma</span> once</p>
+<p>class lImage : public Image<br/>
+{<br/>
+URHO3D_OBJECT(lImage, Image);<br/>
+public:<br/>
+lImage(Context *context = gContext);<br/>
+~lImage();</p>
+<pre><code>static void RegisterObject(Context *context = gContext);
+
+void SetSize(int width, int height);
+void SetPoint(int x, int y, const Color&amp; color);
+void DrawLine(int x0, int y0, int x1, int y1, const Color &amp;color);
+void DrawRectangle(int x, int y, int width, int height, const Color &amp;color);
+void FillRectangle(int x, int y, int width, int height, const Color &amp;color);
+void FillRegion(int x, int y, const Color &amp;color);
+void FillRegion(int x, int y, const Color &amp;color, const Color &amp;colorBound);
+void CopyImage(int x, int y, lImage &amp;image);      // Those points which have transparency more than 0.5 are copied
+void DrawPolyline(const Color &amp;color, int numPoints, int *xy);
+void DrawCircle(float x, float y, float radius, const Color &amp;color, float step = 1.0f);
+IntVector2 GetHotSpot() const;
+void SetHotSpot(int x, int y);
+</code></pre>
+<p>private:<br/>
+lImage&amp; operator=(const lImage&amp;)<br/>
+{};</p>
+<pre><code>void Replace4Points(int x, int y, const Color &amp;color);
+void Replace4PointsBound(int x, int y, const Color &amp;color);
+
+Color replacedColor;
+Color boundingColor;
+IntVector2 hotSpot;
+</code></pre>
+<p>};</p>
+<p><span class="hashtag">#include</span> &lt;stdafx.h&gt;</p>
+<p><span class="hashtag">#include</span> “Image.h”<br/>
+<span class="hashtag">#include</span> “Core/Math.h”</p>
+<p>lImage::lImage(Context *context) :<br/>
+Image(context)<br/>
+{</p>
+<p>}</p>
+<p>lImage::~lImage()<br/>
+{</p>
+<p>}</p>
+<p>void lImage::SetSize(int width, int height)<br/>
+{<br/>
+Image::SetSize(width, height, 4);<br/>
+}</p>
+<p>void lImage::RegisterObject(Context* context)<br/>
+{<br/>
+context-&gt;RegisterFactory();<br/>
+}</p>
+<p>void lImage::SetPoint(int x, int y, const Color&amp; color)<br/>
+{<br/>
+if(x &lt; GetWidth() &amp;&amp; y &lt; GetHeight())<br/>
+{<br/>
+SetPixel((int)x, (int)y, color);<br/>
+}<br/>
+}</p>
+<p>void lImage::DrawLine(int x0, int y0, int x1, int y1, const Color &amp;color)<br/>
+{<br/>
+if((x1 - x0) == 0 &amp;&amp; (y1 - y0) == 0)<br/>
+{<br/>
+x0++;<br/>
+}</p>
+<pre><code>int x = x0;
+int y = y0;
+int dx = (int)fabs((float)(x1 - x0));
+int dy = (int)fabs((float)(y1 - y0));
+int s1 = Math::Sign(x1 - x0);
+int s2 = Math::Sign(y1 - y0);
+int temp;
+bool exchange;
+if(dy &gt; dx)
+{
+    temp = dx;
+    dx = dy;
+    dy = temp;
+    exchange = true;
+}
+else
+{
+    exchange = false;
+}
+int e = 2 * dy - dx;
+for(int i = 0; i &lt;= dx; i++)
+{
+    SetPoint(x, y, color);
+    while(e &gt;= 0)
+    {
+        if(exchange)
+        {
+            x += s1;
+        }
+        else
+        {
+            y += s2;
+        }
+        e -= 2 * dx;
+    }
+    if(exchange)
+    {
+        y += s2;
+    }
+    else
+    {
+        x += s1;
+    }
+    e += 2 * dy;
+}
+</code></pre>
+<p>}</p>
+<p>void lImage::DrawRectangle(int x, int y, int width, int height, const Color &amp;color)<br/>
+{<br/>
+DrawLine(x, y, x + width, y, color);<br/>
+DrawLine(x + width, y, x + width, y + height, color);<br/>
+DrawLine(x, y + height, x + width, y + height, color);<br/>
+DrawLine(x, y, x, y + height, color);<br/>
+}</p>
+<p>void lImage::FillRectangle(int x0, int y0, int width, int height, const Color &amp;color)<br/>
+{<br/>
+for(int x = x0; x &lt; x0 + width; x++)<br/>
+{<br/>
+DrawLine(x, y0, x, y0 + height, color);<br/>
+}<br/>
+}</p>
+<p>void lImage::FillRegion(int x, int y, const Color &amp;color)<br/>
+{<br/>
+replacedColor = GetPixel(x, y);</p>
+<pre><code>SetPixel(x, y, color);
+
+Replace4Points(x, y, color);
+</code></pre>
+<p>}</p>
+<p>void lImage::Replace4Points(int x, int y, const Color &amp;color)<br/>
+{<br/>
+if(y &gt; 0)                       // upper pixel<br/>
+{<br/>
+if(GetPixel(x, y - 1) == replacedColor)<br/>
+{<br/>
+SetPixel(x, y - 1, color);<br/>
+Replace4Points(x, y - 1, color);<br/>
+}<br/>
+}<br/>
+if(x &lt; GetWidth() - 1)   // rught pixel<br/>
+{<br/>
+if(GetPixel(x + 1, y) == replacedColor)<br/>
+{<br/>
+SetPixel(x + 1, y, color);<br/>
+Replace4Points(x + 1, y, color);<br/>
+}<br/>
+}<br/>
+if(y &lt; GetHeight() - 1)<br/>
+{<br/>
+if(GetPixel(x, y + 1) == replacedColor)<br/>
+{<br/>
+SetPixel(x, y + 1, color);<br/>
+Replace4Points(x, y + 1, color);<br/>
+}<br/>
+}<br/>
+if(x &gt; 0)<br/>
+{<br/>
+if(GetPixel(x - 1, y) == replacedColor)<br/>
+{<br/>
+SetPixel(x - 1, y, color);<br/>
+Replace4Points(x - 1, y, color);<br/>
+}<br/>
+}<br/>
+}</p>
+<p>void lImage::FillRegion(int x, int y, const Color &amp;color, const Color &amp;colorBound)<br/>
+{<br/>
+boundingColor = colorBound;</p>
+<pre><code>if(GetPixel(x, y) != colorBound)
+{
+    SetPixel(x, y, color);
+    Replace4PointsBound(x, y, color);
+}
+</code></pre>
+<p>}</p>
+<p>void lImage::CopyImage(int x0, int y0, lImage &amp;inImage)<br/>
+{<br/>
+int xMin = x0;<br/>
+int xMax = xMin + inImage.GetWidth();<br/>
+if (xMax &gt;= GetWidth())<br/>
+{<br/>
+xMax = GetWidth() - 1;<br/>
+}</p>
+<pre><code>int yMin = y0;
+int yMax = yMin + inImage.GetHeight();
+if (yMax &gt;= GetHeight())
+{
+    yMax = GetHeight() - 1;
+}
+
+for (int x = x0; x &lt; xMax; x++)
+{
+    for (int y = y0; y &lt; yMax; y++)
+    {
+        int curX = x - x0;
+        int curY = y - y0;
+        Color color = inImage.GetPixel(curX, curY);
+
+        if (color.a_ &gt; 0.5f)
+        {
+            SetPoint(x, y, color);
+        }
+    }
+}
+</code></pre>
+<p>}</p>
+<p><span class="hashtag">#define</span> FILL(a, b)                              <br/>
+Color col = GetPixel(a, b);                 <br/>
+if(col != boundingColor &amp;&amp; col != color)    <br/>
+{                                           <br/>
+SetPixel(a, b, color);                  <br/>
+Replace4PointsBound(a, b, color);       <br/>
+}</p>
+<p>void lImage::Replace4PointsBound(int x, int y, const Color &amp;color)<br/>
+{<br/>
+if(y &gt; 0)<br/>
+{<br/>
+FILL(x, y - 1);<br/>
+}<br/>
+if(x &lt; GetWidth() - 1)<br/>
+{<br/>
+FILL(x + 1, y);<br/>
+}<br/>
+if(y &lt; GetHeight() - 1)<br/>
+{<br/>
+FILL(x, y + 1);<br/>
+}<br/>
+if(x &gt; 0)<br/>
+{<br/>
+FILL(x - 1, y);<br/>
+}<br/>
+}</p>
+<p>void lImage::DrawPolyline(const Color &amp;color, int numPoints, int *xy)<br/>
+{<br/>
+int numLines = numPoints - 1;</p>
+<pre><code>for(int i = 0; i &lt; numLines; i++)
+{
+    DrawLine(xy[i * 2], xy[i * 2 + 1], xy[i * 2 + 2], xy[i * 2 + 3], color);
+}
+</code></pre>
+<p>}</p>
+<p>void lImage::DrawCircle(float x, float y, float radius, const Color &amp;color, float step)<br/>
+{<br/>
+for (float angle = 0.0f; angle &lt; 360.0f; angle += step)<br/>
+{<br/>
+SetPoint((int)(x + Cos(angle) * radius + 0.5f), (int)(y + Sin(angle) * radius + 0.5f), color);<br/>
+}<br/>
+}</p>
+<p>IntVector2 lImage::GetHotSpot() const<br/>
+{<br/>
+return hotSpot;<br/>
+}</p>
+<p>void lImage::SetHotSpot(int x, int y)<br/>
+{<br/>
+hotSpot.x_ = x;<br/>
+hotSpot.y_ = y;<br/>
+}[/code][/quote]</p>
+<p>Nice software renderer! <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/><br/>
+But I want actually something like <span class="bbcode-b">CustomGeometry/DebugRenderer</span> analog for overlay rendering. Because then I would have full power of Urho’s <span class="bbcode-b">materials </span>and <span class="bbcode-b">techniques</span>.<br/>
+More precisely, I want to implement <span class="bbcode-b">SelectionBox</span> like here: <a data-bbcode="true" href="http://www.ogre3d.org/tikiwiki/Intermediate+Tutorial+4" rel="nofollow noopener">http://www.ogre3d.org/tikiwiki/Intermediate+Tutorial+4</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

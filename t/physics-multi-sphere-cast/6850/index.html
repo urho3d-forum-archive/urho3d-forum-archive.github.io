@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Physics Multi-Sphere Cast</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Physics Multi-Sphere Cast</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I needed to be able to get multiple collisions for a sphere cast. There was a brief guide for how to do it somewhere on the bullet forum (basically combine the code from the multi-ray-cast with the code for the sphere-cast). Here is the result:</p>
+<pre><code class="lang-auto">// For the header
+void SphereCastMultiple(PhysicsWorld* pw, Vector&lt;PhysicsRaycastResult&gt;&amp; results, const Ray&amp; ray, float radius, float maxDistance, unsigned collisionMask = M_MAX_UNSIGNED);
+
+
+// In the .cpp file
+#include &lt;Urho3D/ThirdParty/Bullet/btBulletCollisionCommon.h&gt;
+#include &lt;Urho3D/ThirdParty/Bullet/btBulletDynamicsCommon.h&gt;
+#include &lt;Urho3D/Physics/PhysicsUtils.h&gt;
+
+
+struct AllHitsConvexResultCallback : public btCollisionWorld::ConvexResultCallback
+{
+    AllHitsConvexResultCallback(const btVector3&amp; rayFromWorld, const btVector3&amp; rayToWorld)
+        : m_convexFromWorld(rayFromWorld),
+          m_convexToWorld(rayToWorld)
+    {
+    }
+
+    btAlignedObjectArray&lt;const btCollisionObject*&gt; m_collisionObjects;
+
+    /// used to calculate hitPointWorld from hitFraction
+    btVector3 m_convexFromWorld;        
+    btVector3 m_convexToWorld;
+
+    btAlignedObjectArray&lt;btVector3&gt; m_hitNormalWorld;
+    btAlignedObjectArray&lt;btVector3&gt; m_hitPointWorld;
+    btAlignedObjectArray&lt;btScalar&gt; m_hitFractions;
+
+
+    virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult&amp; rayResult, bool normalInWorldSpace)
+    {
+        m_collisionObjects.push_back(rayResult.m_hitCollisionObject);
+        btVector3 hitNormalWorld;
+        if (normalInWorldSpace)
+        {
+            hitNormalWorld = rayResult.m_hitNormalLocal;
+        }
+        else
+        {
+            //need to transform normal into worldspace
+            hitNormalWorld = rayResult.m_hitCollisionObject-&gt;getWorldTransform().getBasis() * rayResult.m_hitNormalLocal;
+        }
+        m_hitNormalWorld.push_back(hitNormalWorld);
+        btVector3 hitPointWorld;
+        m_hitPointWorld.push_back(rayResult.m_hitPointLocal);
+        m_hitFractions.push_back(rayResult.m_hitFraction);
+        return m_closestHitFraction;     
+    }
+};
+
+
+void SphereCastMultiple(PhysicsWorld* pw, Vector&lt;PhysicsRaycastResult&gt;&amp; results, const Ray&amp; ray, float radius, float maxDistance, unsigned collisionMask)
+{
+
+    if (maxDistance &gt;= M_INFINITY)
+        URHO3D_LOGWARNING("Infinite maxDistance in physics sphere cast is not supported");
+
+    btSphereShape shape(radius);
+    Vector3 endPos = ray.origin_ + maxDistance * ray.direction_;
+
+    AllHitsConvexResultCallback
+        convexCallback(ToBtVector3(ray.origin_), ToBtVector3(endPos));
+    convexCallback.m_collisionFilterGroup = (short)0xffff;
+    convexCallback.m_collisionFilterMask = (short)collisionMask;
+
+    pw-&gt;GetWorld()-&gt;convexSweepTest(&amp;shape, btTransform(btQuaternion::getIdentity(), convexCallback.m_convexFromWorld),
+        btTransform(btQuaternion::getIdentity(), convexCallback.m_convexToWorld), convexCallback);
+
+    for (unsigned i = 0; (int)i &lt; convexCallback.m_hitFractions.size(); ++i)
+    {
+        PhysicsRaycastResult result;
+        result.body_ = static_cast&lt;RigidBody*&gt;(convexCallback.m_collisionObjects[i]-&gt;getUserPointer());
+        result.position_ = ToVector3(convexCallback.m_hitPointWorld[i]);
+        result.normal_ = ToVector3(convexCallback.m_hitNormalWorld[i]);
+        result.distance_ = convexCallback.m_hitFractions[i] * (endPos - ray.origin_).Length();
+        result.hitFraction_ = convexCallback.m_hitFractions[i];
+        results.Push(result);
+    }
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

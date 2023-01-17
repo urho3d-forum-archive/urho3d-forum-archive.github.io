@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to Layer Scenes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to Layer Scenes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Hello, I’ve got two scenes with a camera in each (1 ortho 1 perspective).  I’d like to have the scene with the ortho camera on top of the scene with the perspective camera (like if they were 2d layers).  Is this possible?  If so how would I go about doing this?  Thanks for your time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This question is similar to <a href="http://discourse.urho3d.io/t/render-3d-model-in-orthographic-mode/737/1">topic753.html</a>. Make 2 viewports (check the MultipleViewports sample) that have the same screen region, point each to the respective scene and camera, then use a different renderpath for the “on-top” scene, where you omit the “clear” command. If you get trouble with Z-buffering, then you can make the second renderpath clear depth but not color.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>I’ve made two viewports/cams/scenes but I’m not seeing both scenes, just whichever is viewport 0.  Did I do something wrong with the renderpath stuff?</p>
+<pre><code class="lang-auto">SpaceSimulationMenuSelect::SpaceSimulationMenuSelect(Context* context, Urho3DPlayer* main) :
+    Object(context)
+{
+	main_ = main;
+	elapsedTime_ = 0.0f;
+
+	main_-&gt;cameraNode_-&gt;RemoveAllChildren();
+	main_-&gt;cameraNode_-&gt;RemoveAllComponents();
+	main_-&gt;cameraNode_-&gt;Remove();
+
+	scene_ = new Scene(main_-&gt;GetContext());
+	cameraNode_ = new Node(main_-&gt;GetContext());
+
+	Renderer* renderer = GetSubsystem&lt;Renderer&gt;();
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	renderer-&gt;SetNumViewports(2);
+
+	File loadFile(context_,
+			GetSubsystem&lt;FileSystem&gt;()-&gt;GetProgramDir()
+			+ "Data/Scenes/MSNMenu.xml", FILE_READ);
+	main_-&gt;scene_-&gt;LoadXML(loadFile);
+
+	main_-&gt;cameraNode_ = main_-&gt;scene_-&gt;GetChild("camera");
+	main_-&gt;viewport_-&gt;SetCamera(main_-&gt;cameraNode_-&gt;GetComponent&lt;Camera&gt;());
+
+	renderer-&gt;SetViewport(0, main_-&gt;viewport_);
+
+	File loadFile2(context_,
+			GetSubsystem&lt;FileSystem&gt;()-&gt;GetProgramDir()
+			+ "Data/Scenes/spaceSimulationMenu.xml", FILE_READ);
+	scene_-&gt;LoadXML(loadFile2);
+
+	cameraNode_ = scene_-&gt;GetChild("camera");
+
+	SharedPtr&lt;RenderPath&gt; colorUnclearRenderPath = SharedPtr&lt;RenderPath&gt; (new RenderPath());
+	colorUnclearRenderPath-&gt;Load(cache-&gt;GetResource&lt;XMLFile&gt;("RenderPaths/BackgroundLayer.xml"));
+	viewport_ = new Viewport(main_-&gt;GetContext(), scene_, cameraNode_-&gt;GetComponent&lt;Camera&gt;());
+	viewport_-&gt;SetCamera(cameraNode_-&gt;GetComponent&lt;Camera&gt;());
+	viewport_-&gt;SetRenderPath(colorUnclearRenderPath);
+	renderer-&gt;SetViewport(1, viewport_);
+
+	SubscribeToEvent(E_UPDATE, HANDLER(SpaceSimulationMenuSelect, HandleUpdate));
+}</code></pre>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;command type="clear" depth="1.0" stencil="0" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+    &lt;command type="scenepass" pass="postopaque" /&gt;
+    &lt;command type="scenepass" pass="refract"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+&lt;/renderpath&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>there is my trying to make sceneB( mushrooms + light+ ortho camera) as overlay on sceneA (ground and boxes+ light+ camera).<br/>
+and seems it works correctly<br/>
+<a data-bbcode="true" href="http://savepic.ru/6604446.htm"><img alt="" height="" src="../../../images2/4c829b33ac1577d0301921ff945393f0.png" width=""/></a></p>
+<p>the first of all you need copy RenderPath/Forward.xml named it like as RenderPath/ForwardTest.xml  and delete first commad with clear command.</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+    &lt;command type="scenepass" pass="postopaque" /&gt;
+    &lt;command type="scenepass" pass="refract"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>then make two scenes, with cameras and some objects.<br/>
+in sceneA you have usual perspective camera, 3d world…<br/>
+in sceneB you must setup camera as ortho and adjust scale, locate some objects before view of camera they will be render as images, add some light<br/>
+save this two scenes.</p>
+<p>this my code for setup example:</p>
+<pre><code class="lang-auto">#include "common.h"
+#include "main.h"
+
+DEFINE_APPLICATION_MAIN(MyApp);
+
+MyApp::MyApp(Context* context) : Application(context)
+{
+		engineParameters_["WindowTitle"] = GetTypeName();
+		engineParameters_["FullScreen"] = false;
+		engineParameters_["Headless"] = false;
+		engineParameters_["WindowWidth"] = 1280;
+		engineParameters_["WindowHeight"] = 720;
+		engineParameters_["LogName"] = GetSubsystem&lt;FileSystem&gt;()-&gt;GetAppPreferencesDir("urho3d", "logs") + GetTypeName() + ".log";
+		engineParameters_["RenderPath"] = "Bin\CoreData\RenderPaths\Forward.xml";
+}
+
+void MyApp::Setup()
+{
+        // Called before engine initialization. engineParameters_ member variable can be modified here
+}
+
+void MyApp::Start()
+{
+	Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+	Renderer* renderer = GetSubsystem&lt;Renderer&gt;();
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    // Called after engine initialization. Setup application &amp; subscribe to events here
+    SubscribeToEvent(E_KEYDOWN, HANDLER(MyApp, HandleKeyDown));
+	
+	scene1 = SharedPtr&lt;Scene&gt;(new Scene(context_));
+	File sceneFile(context_, GetSubsystem&lt;FileSystem&gt;()-&gt;GetProgramDir() + "Data/Scenes/SceneA.xml", FILE_READ);
+	scene1-&gt;LoadXML(sceneFile);
+	
+	scene2 = SharedPtr&lt;Scene&gt;(new Scene(context_));
+	File sceneFile2(context_, GetSubsystem&lt;FileSystem&gt;()-&gt;GetProgramDir() + "Data/Scenes/SceneB.xml", FILE_READ);
+	scene2-&gt;LoadXML(sceneFile2);
+
+	camera1Node = scene1-&gt;GetChild("cameraNode", true);
+	camera2Node = scene2-&gt;GetChild("cameraNode", true);
+
+	camera1 = camera1Node-&gt;GetComponent&lt;Camera&gt;();
+	camera2 = camera2Node-&gt;GetComponent&lt;Camera&gt;();
+
+	viewport1 = new Viewport(context_, scene1, camera1);
+	viewport2 = new Viewport(context_, scene2, camera2);
+
+
+	overlayRenderPath = SharedPtr&lt;RenderPath&gt;(new RenderPath());
+	overlayRenderPath-&gt;Load(cache-&gt;GetResource&lt;XMLFile&gt;("RenderPaths/ForwardTest.xml"));
+	viewport2-&gt;SetRenderPath(overlayRenderPath);
+
+
+	renderer-&gt;SetNumViewports(2);
+	renderer-&gt;SetViewport(0, viewport1);
+	renderer-&gt;SetViewport(1, viewport2);	
+}
+
+void MyApp::Stop()
+{
+        // Perform optional cleanup after main loop has terminated
+}
+    
+void MyApp::HandleKeyDown(StringHash eventType, VariantMap&amp; eventData)
+{
+        using namespace KeyDown;
+
+        // Check for pressing ESC. Note the engine_ member variable for convenience access to the Engine object
+        int key = eventData[P_KEY].GetInt();
+        if (key == KEY_ESC)
+            engine_-&gt;Exit();
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Thanks, deleting the entire clear command line worked.  Just incase though, when cadaver  said “If you get trouble with Z-buffering, then you can make the second renderpath clear depth but not color.”, how would I go about doing that?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i guess like that<br/>
+<br/>
+you just preserve in clear command only depth &amp; stencil clearning<br/>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>If it’s supposed to be like that then it’s bugged cus it didn’t work.  No worries though, for this project what worked is enough, perhaps in the future I’ll revisit the problem.  Thanks for the help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>When I do  in Forward.xml renderpath I observe the background not getting cleared (ghost effect), so it should work. Not sure if it can fail in a more complex case though. You could examine the clearing RenderPathCommand in code and make sure its clearFlags_ don’t have CLEAR_COLOR bit set.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>How can it be achieved with deferred rendering? Disabling color clear just results in a black background.</p>
+<p>It does work with forward.</p>
+<p>Also I noticed that having Bloom effects adds a black tint where it should be transparent.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>Hi</p>
+<p>I’m trying to achieve the same thing, it works using previous example, but how deal blending (add, substract, mul, etc…) or add transparency between viewports ?</p>
+<p>thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I suppose in your case you don’t need set second viewport to renderer instead this you probably need add second(overlay RT) to cache.AddManualResource() to allow use it in RenderPath.<br/>
+Then you add quad command with lines like this:</p>
+<p><code>    &lt;command type="quad" vs="YourCustomShaderOrJustCopyBufferShader" ps="YourCustomShaderOrJustCopyBufferShader" blend="add/substract/alpha" output="viewport"&gt;
+        &lt;texture unit="diffuse" name="camera2RT" /&gt; // same name that put into cache.AddManualResource() 
+    &lt;/command&gt; </code></p>
+<p>and doing blending overlay scene with main scene. May be you also need create custom shader for quad command to discard pixels by some reason to avoid blending in empty areas of overlay RT or by some another mask RT(or free color channel in already existing RTs).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>Thanks, It works as you said.</p>
+<pre><code class="lang-auto">SharedPtr&lt;Texture2D&gt; renderTexture(new Texture2D(context_));
+renderTexture-&gt;SetSize(graphics-&gt;GetWidth(), graphics-&gt;GetHeight(), Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+renderTexture-&gt;SetFilterMode(Urho3D::FILTER_DEFAULT);
+renderTexture-&gt;SetName("myrt");
+cache-&gt;AddManualResource(renderTexture);    
+
+SharedPtr&lt;RenderSurface&gt; surface(renderTexture-&gt;GetRenderSurface());
+SharedPtr&lt;Viewport&gt; rttViewport(new Viewport(context_, scene2, camera2));
+surface-&gt;SetViewport(0, rttViewport);
+surface-&gt;SetUpdateMode(SURFACE_UPDATEALWAYS);</code></pre>
+<p>and renderpath :</p>
+<p><code>
+&lt;command type="quad" vs="CopyFramebufferFlipped" ps="CopyFramebufferFlipped" blend="add" output="viewport"&gt;
+  &lt;texture unit="diffuse" name="myrt" /&gt;
+&lt;/command&gt;</code></p>
+<p>I used CopyFramebuffer shader but I had to flip uv vertically (opengl).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>I used CopyFramebuffer shader but I had to flip uv vertically (opengl).<br/>
+You need flip TexCoords in case using of gl renderer in shader with help something like this:</p>
+</blockquote>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[quote=“dakilla”]<br/>
+I used CopyFramebuffer shader but I had to flip uv vertically (opengl).[/quote]</p>
+<p><a href="http://urho3d.github.io/documentation/HEAD/_a_p_i_differences.html">urho3d.github.io/documentation/H … ences.html</a></p>
+<aside class="quote">
+<blockquote>
+<p>To ensure similar UV addressing for render-to-texture viewports on both APIs, on OpenGL texture viewports will be rendered upside down.</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>Hi</p>
+<p>I 'm still not comfortable with renderpath, I would like an advice, please.<br/>
+I’m trying to use a custom blending shader for layering scenes (rendered each in rendertargets) but result is not as I expected.</p>
+<p>I thought to use the ‘mixed’ rendertarget as blend cascaded result  (output for the 2 first quads) and to use it also as an input in the second quad (in the first quad it will be empty).<br/>
+The final quad, is for copying final ‘mixed’ to the viewport.</p>
+<p>MergingShader just do some math operations using samplers 0 &amp; 1 (texture unit 0 and 1).</p>
+<p>But sampler 0 (texture unit=“0” name="mixed) always seems to return a black color, why ??</p>
+<p>My renderpath  :</p>
+<p>[code]</p>
+<pre><code>&lt;command type="quad" tag="mytag" vs="MergingShader" ps="MergingShader" blend="replace" output="mixed"&gt;
+    &lt;texture unit="0" name="mixed" /&gt;
+    &lt;texture unit="1" name="rt1" /&gt;
+    &lt;parameter name="BlendRatio" value="0 0.5" /&gt;"
+    &lt;parameter name="ClearColor" value="0 0 0 1" /&gt;"
+    &lt;parameter name="MergeMode" value="5" /&gt;"
+    &lt;parameter name="FlipUV" value="true" /&gt;"
+&lt;/command&gt;
+
+&lt;command type="quad" tag="mytag" vs="MergingShader" ps="MergingShader" blend="replace" output="mixed"&gt;
+    &lt;texture unit="0" name="mixed" /&gt;
+    &lt;texture unit="1" name="rt2" /&gt;
+    &lt;parameter name="BlendRatio" value="0.5 0.5" /&gt;"
+    &lt;parameter name="ClearColor" value="0 0 0 1" /&gt;"
+    &lt;parameter name="MergeMode" value="0" /&gt;"
+    &lt;parameter name="FlipUV" value="true" /&gt;"
+&lt;/command&gt; 
+</code></pre>
+<p>[/code]</p>
+<p>Note : In this example I only have two senes, but in real case it is generated programmaticcally and I can have up to 16 scenes or more (why I blend  cascaded result in mixed instead of using a single quad with multiple texture units)</p>
+<p>thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You cannot sample and render to an RT at the same time.</p>
+<p>There’s a difference of handling the final destination rendertarget “viewport” and named texture rendertargets you have created yourself. The viewport RT will be pingponged automatically by creating an extra texture, since it’s so common and often needed by postprocess effects chains. But for your named RT’s the engine won’t guess how you want this handled. Rather you will have to manage the pingponging (if any is needed) manually by e.g. creating a “mixed2” RT and ensuring you never sample and render the same RT simultaneously.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>Ok I see.<br/>
+It works using a mixed2 RT and switching alternately.<br/>
+Thanks <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OMID-313</div>
+          <div class="post_content">
+<p>Thanks <span class="mention">@codingmonkey</span> for this helpful post.</p>
+<p>Would you please help converting this code to actionscript code?<br/>
+Because I’m using Urho on Raspberry Pi.</p>
+<p>Thanks for your time and help.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

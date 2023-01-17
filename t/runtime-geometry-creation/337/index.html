@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Runtime Geometry Creation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Runtime Geometry Creation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>First, as sort of an introduction of myself to the forums, I have a basic question…<br/>
+Is it possible to create geometry on the fly? Even something simple like a grid with x horizontal division and y vertical division?<br/>
+Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>I did that very thing today.  I had written a procedual dungeon creator combining various tile pieces as seperate tiles of geometry.  But having thousands of small items, while well batched, did stress the cpu performance.  It was also hard to cheat the physics.   So I am trying a new approach using procedural geometry and the idea is to sample textures as much as posible.  Anywho enough blabbing, here is the code:</p>
+<pre><code class="lang-auto">	void GenerateGeometry(PODVector&lt;TileInstance&gt; data)
+	{
+		_geometry = new CustomGeometry(context_);  // SharedPtr&lt;CustomGeometry&gt; held by class
+		_geometry-&gt;BeginGeometry(0, TRIANGLE_LIST);
+		for(unsigned int i=0; i &lt; data.Size(); i++)
+		{
+			TileInstance tile = data[i];
+			// tri 1
+			_geometry-&gt;DefineVertex(Vector3(tile.x, 0, tile.y));
+			_geometry-&gt;DefineTexCoord(Vector2(0.0, 0.0));
+
+			_geometry-&gt;DefineVertex(Vector3(tile.x, 0, tile.y+1));
+			_geometry-&gt;DefineTexCoord(Vector2(0.0, 1.0));
+
+			_geometry-&gt;DefineVertex(Vector3(tile.x+1, 0, tile.y));
+			_geometry-&gt;DefineTexCoord(Vector2(1.0, 0.0));
+
+			// tri 2
+			_geometry-&gt;DefineVertex(Vector3(tile.x, 0, tile.y+1));
+			_geometry-&gt;DefineTexCoord(Vector2(0.0, 1.0));
+
+			_geometry-&gt;DefineVertex(Vector3(tile.x+1, 0, tile.y+1));
+			_geometry-&gt;DefineTexCoord(Vector2(1.0, 1.0));
+
+			_geometry-&gt;DefineVertex(Vector3(tile.x+1, 0, tile.y));
+			_geometry-&gt;DefineTexCoord(Vector2(1.0, 0.0));
+		}
+		_geometry-&gt;Commit();
+	}
+</code></pre>
+<p>Hopefully my C++ isn’t bad.  I am still very green to c/c++ and I am trying to code only in c++ for game stuff to man me up.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>magnificent.<br/>
+I guess I’m not hard enough, cause I’m gonna have to plug this into angelscript.<br/>
+Thanks for pointing me in a direction. I thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>Be sure to define tri vertexes in clockwise manner.  The winding determains the direction the tri is facing.  Clockwise gives you an outward facing tri.  Also define the vertex first.  All proceeding commands affect the vertex just defined.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>How do you then add the custom geometry to a scene node and render it? So far I’ve got:</p>
+<pre><code class="lang-auto">//create scene node
+Node* node = scene_-&gt;CreateChild("Object");
+node-&gt;SetPosition(Vector3(0.0f, 0.0f, 0.0f));
+StaticModel* object = node-&gt;CreateComponent&lt;StaticModel&gt;();
+
+CustomGeometry*  _geometry = new CustomGeometry(context_); 
+_geometry-&gt;BeginGeometry(0, TRIANGLE_LIST);
+
+// tri 1
+_geometry-&gt;DefineVertex(Vector3(-1, 0, 0));
+_geometry-&gt;DefineTexCoord(Vector2(0.0, 0.0));
+
+_geometry-&gt;DefineVertex(Vector3(1, 0, 0));
+_geometry-&gt;DefineTexCoord(Vector2(0.0, 1.0));
+
+_geometry-&gt;DefineVertex(Vector3(1, 0, 1));
+_geometry-&gt;DefineTexCoord(Vector2(1.0, 0.0));
+
+// tri 2
+_geometry-&gt;DefineVertex(Vector3(-1, 0, 0));
+_geometry-&gt;DefineTexCoord(Vector2(0.0, 1.0));
+
+_geometry-&gt;DefineVertex(Vector3(1, 0, 1));
+_geometry-&gt;DefineTexCoord(Vector2(1.0, 1.0));
+
+_geometry-&gt;DefineVertex(Vector3(-1, 0, 1));
+_geometry-&gt;DefineTexCoord(Vector2(1.0, 0.0));
+
+_geometry-&gt;Commit();
+_geometry-&gt;GetLodGeometry(0,0);
+
+Model* model = new Model(context_);
+model-&gt;SetGeometry(0, 0, _geometry-&gt;GetLodGeometry(0,0));
+
+object-&gt;SetModel(model);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/168_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gwald</div>
+          <div class="post_content">
+<p>[quote=“godan”]How do you then add the custom geometry to a scene node and render it? So far I’ve got:<br/>
+[/quote]</p>
+<p>I’m still new, not 100% sure but looking at your geometry data, looks like your creating texture coords without setting a texture(material)?</p>
+<pre><code class="lang-auto"></code></pre>
+<p>Also putting the node in the middle of the scene could be hard to see if your camera is at 0,0,0 too</p>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There are two ways to go about runtime geometry creation. They are not intended to be mixed.</p>
+<ol>
+<li>
+<p>Easy way to display one unique object with unindexed geometry. Can be used from scripting. Create a CustomGeometry component to a scene node; you don’t need other components. (In this case, do not try to use the CustomGeometry’s geometry to build a Model resource. It may work, but is unsupported)</p>
+</li>
+<li>
+<p>The hard way, but allows more freedom. Unindexed or indexed geometry. C++ only. Create a Model, fill vertex + index buffers. Use eg. StaticModel component to show it. There’s a from-scratch example now in <a >github.com/urho3d/Urho3D/blob/m … ometry.cpp</a>. Note that you need an updated master branch for the example to work as is; previously you needed to call model-&gt;SetNumGeometryLodLevels() for each geometry, now 1 LOD level is assumed and you no longer require the call in that case.</p>
+</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

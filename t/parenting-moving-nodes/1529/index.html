@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Parenting moving nodes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Parenting moving nodes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi what would be the correct way of parenting moving nodes? I am trying to parent the player to another moving node but it doesn’t work. It either explodes or some weird scales start to stretch the player. I am doing the test with the character controller from the example <span class="bbcode-b">18_CharacterDemo</span> .</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You should not have scaling in the parent chain at all if you want to do that. (Rather add a separate mesh scaling node if a parent needs to both display a scaled mesh and hold children – in this case you scale only the mesh node)</p>
+<p>The 3D physics should support moving parented objects (apply world transforms in correct parent -&gt; child order) but in general it’s not recommended; rigid bodies represent freestanding objects and constraints should rather be used to tie them together.</p>
+<p>For something like player riding in a car I’d recommend disabling the rigidbody when parenting to the vehicle, then re-enabling when exiting, to make sure the player’s motion doesn’t interfere. Particularly if the player collision interpenetrates the vehicle collision, the simulation is quite sure to explode.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks cadaver. The player needs to still move while on the node for example a platform. In unity the same thing is achieved without exploding the simulation. For example this works like a charm and it is stable with moving rigid body: <a data-bbcode="true" href="https://github.com/mzijewel/Unity3D_StayOnMovingPlatform/blob/master/Assets/Scripts/Move.cs" rel="nofollow noopener">https://github.com/mzijewel/Unity3D_StayOnMovingPlatform/blob/master/Assets/Scripts/Move.cs</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Tested quickly implementing moving platforms to CharacterDemo and using player parenting. You’re right that something odd happens; it’s possible the parented rigidbody transform applying has been broken, as it’s rarely tested.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Tested this, and came to the conclusion that there’s some deep magic going on with Bullet bodies’ interpolation-transform. When a parent object moves, RigidBody::SetPosition() &amp; RigidBody::SetRotation() end up being called, which reset both the actual &amp; the interpolation-transform of the child Bullet body.</p>
+<p>It seems that this is bad to do outside of FixedUpdate(), which means, outside the actual physics steps.</p>
+<p>When I changed my moving platforms to move inside FixedUpdate(), strange things no longer happened.</p>
+<p>I don’t want to make changes to the code, because for all other cases the correct thing to do is to set also the interpolation-transform if a rigidbody is moved manually. Otherwise there could be visual jitter.</p>
+<p>However, instead of reparenting player when on a platform, I would rather recommend keep tracking of the last platform you’re standing on, for example via a raycast, and adding its position changes to the player manually. This way when e.g. should the platform ever be destroyed, the player is not destroyed along with it.</p>
+<p>If anyone else comes up with a solid solution to this (of course it would be nice to never have strange physics things happening), a PR would be welcome. But it seems my Bullet understanding is not enough for this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks for looking into it. I am trying to update the transform in FixedUpdate but it still not working as exepcted. Please look at my sample code here: <a data-bbcode="true" href="https://github.com/sabotage3d/MovingPlatforms/blob/master/Source/Character.cpp#L129" rel="nofollow noopener">https://github.com/sabotage3d/MovingPlatforms/blob/master/Source/Character.cpp#L129</a>. I am switching between the normal parenting and computing the parent transform myself. They both have issues. Would you mind sharing your sample to check what I am doing wrong?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I worked with the physics and concluded, that manually manipulating nodes with RigidBodies is VERY bad idea. Try to moving platforms only with applaing impulses. Also try increase friction when character is stay and decrease, when charakter is moving. Then reparenting is not need.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Well the same thing works perfectly in Unity and other engines. For hybrid character controllers it is mandatory to have the option to transform the rigid body manually. Look at any Unity game using platforms they all are using parenting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/66_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">szamq</div>
+          <div class="post_content">
+<p>I managed to implement moving with platforms in my game.<br/>
+If you are using rigidbody player be sure to set position not on the node but on the rigidbody. It is different than setting the position of node.</p>
+<p>RigidBody@ rb=node.GetComponent(“RigidBody”);<br/>
+rb.position=rb.position+posDiff;</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>During my tests I can’t see any real difference between moving the rigid body and the node. The platform is kinematic but there is still a small disconnection between the rigid body and the node visible in the debug draw it looks like they are out of sync. If I do simple position difference we can parent the character but we cannot move while on the platform: <a data-bbcode="true" href="https://github.com/sabotage3d/MovingPlatforms/blob/master/Source/Character.cpp#L129" rel="nofollow noopener">https://github.com/sabotage3d/MovingPlatforms/blob/master/Source/Character.cpp#L129</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

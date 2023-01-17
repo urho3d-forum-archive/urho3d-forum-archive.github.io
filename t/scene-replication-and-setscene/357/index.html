@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Scene replication and SetScene()</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Scene replication and SetScene()</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Firegorilla</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I was trying to get scene replication to work, but I cant quite figure it out. I have the client and server side on the same application. I can connect and receive a message just fine, but from before I connect to after, my scene stays the same, and the data from the scene node doesn’t transfer over. Based on the documentation, I figured it would be automatic. However, I noticed in the scene replication sample, there is a call to SetScene(). I included it in the server side, right before I send the confirmation message to the client, but it doesn’t seem to make a difference. Anyone have any idea as to why it is able to connect and receive messages, but is not replicating the scene? I am completely stumped.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>How do you create your nodes and components in your scene? Are they created using ‘replicated’ mode?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Firegorilla</div>
+          <div class="post_content">
+<p>I am loading them from an XML file, which has no attributes for local or replicated. I figured that, because the default in the code is replicated, it would create replicated nodes. Additionally, to test it, I create a zone component to the child of the scene with fog color white, but when I render, it is still black. I think that it is all on replicated, but still not working</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>There is no such attribute. The mode is determined by the node/component ID range. Here is the snippet of the documentation regarding ‘scene replication’ found in <a href="http://urho3d.github.io/documentation/a00036.html">urho3d.github.io/documentation/a00036.html</a>.</p>
+<aside class="quote">
+<blockquote>
+<p>The CreateMode translates into two different node and component ID ranges - replicated ID’s range from 0x1 to 0xffffff, while local ID’s range from 0x1000000 to 0xffffffff. This means there is a maximum of 16777215 replicated nodes or components in a scene.</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Firegorilla</div>
+          <div class="post_content">
+<p>All of my node IDs (serverside) are in the 1-60 ish range. Moreover, I save the scene elsewhere, and it keeps all node ID’s in the 1-60ish range, which would mean they are all replicated I think?</p>
+<p>I did some more testing. I have it set up so that the client scene, before connecting, starts white, and the server scene has a blue zone (zones with fog color). However, when I connect to the server, it turns the scene black. When I comment out SetScene(), it stays white. Perhaps there is something wrong in the way it connects, or how set scene is used?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Sorry for not being more helpful but since you did not attach any of your code or sample of your XML scene, it is difficult to forum reader to help to troubleshoot. I assume you have checked out the Scene Replication demo in the samples. I suppose you can easily modify it to load your XML scene instead and see if the network replication still work. If it does then you have problem with your code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Firegorilla</div>
+          <div class="post_content">
+<p>Yeah, sorry about that. I will try and make it work with the sample now. The code is a bit messy, but here it is:<br/>
+Client.cpp</p>
+<p>[code]<span class="hashtag">#include</span> “Client.h”</p>
+<p><span class="hashtag">#include</span> “Camera.h”<br/>
+<span class="hashtag">#include</span> “CoreEvents.h”<br/>
+<span class="hashtag">#include</span> “NetworkEvents.h”<br/>
+<span class="hashtag">#include</span> “Octree.h”<br/>
+<span class="hashtag">#include</span> “Renderer.h”<br/>
+<span class="hashtag">#include</span> “Zone.h”</p>
+<p>Client::Client(Context * context) : Object(context), context_(context), network_(new Network(context)), clientScene_(new Scene(context))<br/>
+{<br/>
+clientScene_-&gt;Clear(true, false);<br/>
+connected_ = false;<br/>
+SubscribeToEvent(E_NETWORKMESSAGE, HANDLER(Client, HandleNetworkMessage));<br/>
+clientScene_-&gt;CreateComponent();<br/>
+Zone * temp = clientScene_-&gt;CreateChild()-&gt;CreateComponent();<br/>
+temp-&gt;SetFogColor(Color::WHITE);<br/>
+input_ = context-&gt;GetSubsystem();<br/>
+Camera * cam = clientScene_-&gt;CreateChild()-&gt;CreateComponent();<br/>
+//	Camera * cam = controlledNode_-&gt;CreateComponent(LOCAL);<br/>
+//	Renderer * r = GetSubsystem();</p>
+<pre><code>GetSubsystem&lt;Renderer&gt;()-&gt;SetViewport(0, new Viewport(context_, clientScene_, cam));
+</code></pre>
+<p>}</p>
+<p>Client::~Client()<br/>
+{<br/>
+}</p>
+<p>bool Client::Connect(String IP, int port = 7346)<br/>
+{<br/>
+connected_ = network_-&gt;Connect(IP, port, clientScene_);<br/>
+connection_ = network_-&gt;GetServerConnection();<br/>
+if (connection_)<br/>
+{<br/>
+//connection_-&gt;SetScene()<br/>
+}<br/>
+//clientScene_-&gt;CreateComponent(LOCAL);<br/>
+//Zone * temp = clientScene_-&gt;CreateChild()-&gt;CreateComponent();<br/>
+//temp-&gt;SetFogColor(Color::WHITE);<br/>
+return connected_;<br/>
+}<br/>
+void Client::Disconnect()<br/>
+{</p>
+<p>}</p>
+<p>void Client::HandleNetworkMessage(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+//assigning node<br/>
+//connection_-&gt;SetScene()<br/>
+if (eventData[NetworkMessage::P_MESSAGEID].GetInt() == 31)<br/>
+{<br/>
+VectorBuffer b = eventData[NetworkMessage::P_DATA].GetBuffer();<br/>
+controlledNode_ = clientScene_-&gt;GetNode(b.ReadUInt());<br/>
+//CreateCamera();<br/>
+}<br/>
+}</p>
+<p>void Client::CreateCamera()<br/>
+{<br/>
+Camera * cam = clientScene_-&gt;CreateChild()-&gt;CreateComponent();<br/>
+//	Camera * cam = controlledNode_-&gt;CreateComponent(LOCAL);<br/>
+//	Renderer * r = GetSubsystem();<br/>
+GetSubsystem()-&gt;SetViewport(0, new Viewport(context_, clientScene_, cam));<br/>
+}[/code]</p>
+<p>Server.cpp</p>
+<p>[code]<span class="hashtag">#include</span> “Server.h”</p>
+<p><span class="hashtag">#include</span> “CoreEvents.h”<br/>
+<span class="hashtag">#include</span> “File.h”<br/>
+<span class="hashtag">#include</span> “FileSystem.h”<br/>
+<span class="hashtag">#include</span> “NetworkEvents.h”<br/>
+<span class="hashtag">#include</span> “Octree.h”<br/>
+<span class="hashtag">#include</span> “PhysicsWorld.h”<br/>
+<span class="hashtag">#include</span> “Zone.h”</p>
+<p>Server::Server(Context * context) : Object(context), context_(context), network_(new Network(context)), serverScene_(new Scene(context))<br/>
+{<br/>
+SubscribeToEvent(E_UPDATE, HANDLER(Server, HandleInput));<br/>
+SubscribeToEvent(E_CLIENTCONNECTED, HANDLER(Server, HandleConnection));<br/>
+Zone * temp = serverScene_-&gt;CreateChild()-&gt;CreateComponent();<br/>
+temp-&gt;SetFogColor(Color::BLUE);<br/>
+}</p>
+<p>Server::~Server()<br/>
+{<br/>
+}</p>
+<p>void Server::InitializeScene(XMLElement Scene, bool CreateOtherComponents)<br/>
+{<br/>
+if (CreateOtherComponents)<br/>
+{<br/>
+serverScene_-&gt;CreateComponent();<br/>
+serverScene_-&gt;CreateComponent();<br/>
+}<br/>
+serverScene_-&gt;InstantiateXML(Scene, Vector3::ZERO, Quaternion());<br/>
+File saveFile(context_, GetSubsystem()-&gt;GetProgramDir() + “SERVERSCENE.xml”, FILE_WRITE);<br/>
+serverScene_-&gt;SaveXML(saveFile);<br/>
+}</p>
+<p>bool Server::InitializeServer(int port = 7346)<br/>
+{<br/>
+return network_-&gt;StartServer(port);<br/>
+}</p>
+<p>void Server::HandleInput(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+Vector&lt;SharedPtr&gt;&amp; connections = network_-&gt;GetClientConnections();<br/>
+for (int i = 0; i &lt; connections.Size(); ++i)<br/>
+{<br/>
+Connection * currentConnection = connections[i];<br/>
+PlayerController * currentController = controllernodes[currentConnection]-&gt;GetComponent();<br/>
+}<br/>
+}</p>
+<p>void Server::HandleConnection(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+//This creates the player controller and adds the connection to it.<br/>
+Node * controllernode = PlayerController::CreatePlayer(Vector3::ZERO, serverScene_);<br/>
+//PlayerController * controller = controllernode-&gt;GetComponent();<br/>
+Connection * connection = static_cast&lt;Connection*&gt;(eventData[ClientConnected::P_CONNECTION].GetPtr());<br/>
+//	connection-&gt;SetScene(serverScene_);<br/>
+controllernodes[connection] = controllernode;<br/>
+VectorBuffer message;<br/>
+message.WriteUInt(controllernode-&gt;GetID());<br/>
+connection-&gt;SendMessage(31, true, true, message);<br/>
+}[/code]</p>
+<p>Edit: Just checked, it loads fine in the scene replication demo. I guess its a problem with my code then.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

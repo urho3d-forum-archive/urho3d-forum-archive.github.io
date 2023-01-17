@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[BAD IDEA] add copy constructor to Material and Model class</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[BAD IDEA] add copy constructor to Material and Model class</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Edit: There are Clone() functions inside the Material and Model classes. Could be better to also have copy constructors to follow typical C++ style. I assumed not having copy constructor meant “is not copyable”, but they are.<br/>
+Edit2: This was a bad idea. I’ve used to much Qt… ITT: me complaining about Urho not being like Qt but being better…</p>
+<p>It would be nice if Urho had directly copyable materials (like with copy constructors). For example to give the same model different shader parameters (like for custom team colors or whatever).<br/>
+I wrote an (incomplete) function that copies a material by creating a new one and copying the attributes from the original to the new one:</p>
+<pre><code class="lang-auto">Material* copy_material(Material* mat)
+{
+    Material* ret=new Material(mat-&gt;GetContext());
+    for(int i=0;i&lt;14;i++)  // there are 14 entries in the TextureUnit enum in GraphicsDefs.h
+    {
+        Texture* t=mat-&gt;GetTexture((TextureUnit)i);
+        ret-&gt;SetTexture((TextureUnit)i,t);
+    }
+    for(int i=0;i&lt;mat-&gt;GetNumTechniques();i++)
+        ret-&gt;SetTechnique(i,mat-&gt;GetTechnique(i));
+    return ret;
+}</code></pre>
+<p>Example usage: giving each material (aka each of the 400 cubes) a different MatDiffColor:</p>
+<pre><code class="lang-auto">for(int x=-10;x&lt;10;x++)
+    for(int y=-10;y&lt;10;y++)
+    {
+        Node* boxNode_=scene_-&gt;CreateChild("Box");
+        boxNode_-&gt;SetPosition(Vector3(x,-3,y));
+        StaticModel* boxObject=boxNode_-&gt;CreateComponent&lt;StaticModel&gt;();
+        boxObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+
+        Material* mat1=cache-&gt;GetResource&lt;Material&gt;("Materials/Stone.xml");
+        Material* mat2=copy_material(mat1);
+        mat2-&gt;SetShaderParameter("MatDiffColor",Color((x+10)/20.0f,(y+10)/20.0f,.5));  // the diffuse colors are between (0, 0, 0.5) and (1, 1, 0.5)
+        boxObject-&gt;SetMaterial(mat2);
+        boxObject-&gt;SetCastShadows(true);
+        boxNode_-&gt;SetScale(.9);
+    }</code></pre>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/fsmYGPO.jpg" rel="nofollow noopener" title=""><img alt="" height="474" src="../../../images2/8417417a2ed7998749722a0c1e968a04.jpg" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1171×806</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+There may be also other classes where it may be useful to have a copy option (which doesn’t exist yet).<br/>
+Is it a good idea to copy materials like that? Are textures &amp; techniques shared?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>One way to do it is to Load() the Material:</p>
+<pre><code class="lang-auto">Urho3D::XMLFile* file = GetSubsystem&lt;Urho3D::ResourceCache&gt;()-&gt;GetResource&lt;Urho3D::XMLFile&gt;("Materials/RocketDocument.xml");
+batchInfo.batch-&gt;material_ = new Urho3D::Material(context_);
+batchInfo.batch-&gt;material_-&gt;Load(file-&gt;GetRoot());		
+batchInfo.batch-&gt;material_-&gt;SetTexture(TU_DIFFUSE, batchInfo.texture);</code></pre>
+<p>However I do agree it would be nice to be able to Copy a material.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Did you see Material::Clone(): <a href="http://urho3d.github.io/documentation/1.32/class_urho3_d_1_1_material.html#af4a270694b5e998e19ff6e017bc5e274" rel="nofollow noopener">urho3d.github.io/documentation/1 … 017bc5e274</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>One way to do it is to Load() the Material:</p>
+</blockquote>
+</aside>
+<p>The material is not copied with already made changes. Which could be nice.<br/>
+Is the material, or are files in general, reloaded when reloading something from a file or are they shared/cached in some way?</p>
+<aside class="quote">
+<blockquote>
+<p>Did you see Material::Clone(): <a href="http://urho3d.github.io/documentation/1" rel="nofollow noopener">urho3d.github.io/documentation/1</a> … 017bc5e274</p>
+</blockquote>
+</aside>
+<p>Oh didn’t see that one.<br/>
+Didn’t see any copy constructor so thought it would not be possible.<br/>
+Just tested Clone() and it seems to work, nice.</p>
+<p>Would still be a good idea to add a copy constructor that uses Clone() (with the default argument).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The copy constructor is intentionally left out of Object / RefCounted subclasses to make it harder to accidentally allocate them on the stack, which would result in a serious error as soon as you assigned them into an object, but the stack-scope would destroy them. Furthermore the Clone() function already returns the clone wrapped in a shared pointer, to direct toward the proper use and prevent memory leaks if you forgot to either assign it somewhere or delete the clone.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Ah, that makes sense. I’m so used to Qt’s model of managing widgets by himself and me using barely any pointer at all (stack&amp;RAII ftw).<br/>
+Then I got no better idea on how to do it. Changing topic title again.  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p>The RessourceCache does optimize multiple calls like cache-&gt;GetResource(“Models/Box.mdl”) so that the file is touched just once or is the file still checked for changed or newer versions and reloaded? Is there a behavior difference for different file types like Model/Texture?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>When a resource has been already loaded into memory, GetResource() will just perform a map lookup and should be very fast. No file access is performed in that case, and all resource types perform similarly. Resource live reload is not on by default but can be activated with ResourceCache::SetAutoReloadResources().</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Geom Shader branch</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Geom Shader branch</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Rather than try to update my old GS stuff I’ve started over (I wasn’t very happy with it back then anyways). In this implementation, I’ve opted that the VS and GS must always use the same constants (sort of moot in GL), though it’s a minor change if it has to change - but I don’t see the point until a case arises that it has to be. Realistically the VS-&gt;Hull-&gt;GS-&gt;Domain all need the same info.</p>
+<p><a href="https://github.com/JSandusky/Urho3D/tree/GeometryShaders" rel="nofollow noopener">Branch is here</a>. Both OpenGL and DX11 are there and it’s more or less done, just requires doing something <em>real</em> like particle expansion to make sure it holds up in practice and a bit more aggregating shaders together instead of separate listings (so Hull/Domain aren’t more mess).</p>
+<hr/>
+<p>Clone+perturb cube test (<em>GSTest.___</em> in the branch):</p>
+<p>HLSL:</p>
+<p><img alt="image" height="368" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/8/84affd393efb2ff8852bc9912656be90e6a4e6c2.jpg" width="690"/></p>
+<p>GLSL (different because I bumbled maxvertex ct in HLSL):</p>
+<p><img alt="image" height="368" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/0/0d506cf35329561822f314d54893968450ae3d38.png" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Tessellation is pretty much there, I didn’t get a chance to test it today but it’s at the point where it has to be tried out before anything remaining can really be identified.</p>
+<p>On GLES and D3D9 the bulk of the GS/TCS/TES code is <span class="hashtag">#ifdef</span>’ed out. It only remains in sparse places like <code>Graphics</code> where it doesn’t add any meaningful bloat and in function signatures where the parameters are checked and errors logged (<em>“Tessellation not supported by this GL context”</em>, etc). The <span class="hashtag">#ifdef</span>’ing does go against coding conventions in some places but that’s a tradeoff to keep the preprocessor blocks at a minimum instead of scattered all around (everything about GS/TCS/TES in one place instead of where it <em>should</em> be).</p>
+<p>OpenGL core profiles are now checked and the api named appropriately for 3.3 (GS), 4.0 (TCS/TES), and 4.3 (compute/ssbo).</p>
+<p>Likewise for DX11 with feature levels checked for whether geometry shaders are supported (10_0+) as well as hull/domain/compute shaders (11_0+). If feature level 11_0 or greater is detected then shaders will compile targeting shader-model 5 instead of shader-model 4 as this includes structured buffer support and other things needed for DX11 compute in the future.</p>
+<p>For naming I’ve settled on using the OpenGL naming scheme of TCS and TES while using the platform specific names in logged messages (ie. <em>“Failed to compile hull shader”</em> on DX11), my reasoning being that error googling will be easier when the correct term is right there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Tessellation works on DX11 now (6, 3 tess levels):</p>
+<p><img alt="image" height="368" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/d/d83da12dc79d7dc9698c06f503d1c73f04eddae8.png" width="690"/></p>
+<p>A bit buggy (a botched tess-shader eats the next draw too) and I need to clean up some mess in forcing patch topology. If you try to render with hull/domain shader bound and not using a patch topology … not only the GPU goes down, Windows goes down with it (at least on both my 980 and Intel HD).</p>
+<p>Prettier geometry shader (because tess isn’t very pretty):</p>
+<p><img alt="image" height="374" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/4/443a9c0e51f0e587d3a5f94e67ab1e0ce736ab4b.png" width="690"/></p>
+<p>A couple of bug-fixes to do but so far so good.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Great!<br/>
+BTW, what do you think about BGFX renderer?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Do you mean BGFX in general or a BGFX renderer for Urho?</p>
+<p><strong>In general:</strong></p>
+<p>I got to work with it recently (both as-is and in a gutted form with all the <em>bx</em> stripped away). It was being used as one of several controls to measure performance against so I had to port all of rendering to BGFX.</p>
+<p>I loved the struct basis rather than parameter heavy functions, I totally duped that in my own framework as it gives such a nice DirectX style feel that’s really natural. I’ll avoid badmouthing it, but it sits in this strange indeterminate place where it’s neither low-level nor high-level … which isn’t a place a 3rd party API should ever be.</p>
+<p>Except the shading <em>language</em> - that thing is a crime against humanity and is probably accelerating the heat-death of the universe. That thing made me angry enough to start a shading language project out of spite.</p>
+<p><strong>In Urho:</strong></p>
+<p>It doesn’t bring anything to the table beyond <em>“well, don’t have to maintain a mid-level renderer anymore”</em>. Switching to BGFX isn’t going to make the work going on in <code>View</code>, <code>Renderer</code>, or script bindings any simpler. It’s not going to rectify the issues with insignificant material changes constituting a new batch, provide materials/techniques, etc … solving problems is still work.</p>
+<p>In Urho3D the Direct3D11 specific code is 5,320 lines, Direct3D9 is 5,116, and OpenGL is 5,774 … sure there’s probably more elsewhere wrapped in preprocessor blocks but it’s still barely anything (that’s with counting { and } only lines to boot).</p>
+<p>The inflated perception of the renderer as a large beast is probably made worse with shaders existing in this nebulous state of <em>“they’re examples”</em> but actually massive catch-all programs - imparting a draconian feel that is stuffy compared to looking at trivial BGFX shaders that do 5%. Stack on some technique, texture, and material XML and the pain begins.</p>
+<p>The <em>missing</em> renderers are also really a non-issue IMO. If they were that desirable someone would’ve already done it. Vulkan has been around for 2 years now, <em>“no vulkan”</em> grumbles really don’t hold water … and again, BGFX doesn’t help there, or with DX12 either (rubbish implementation).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Thanks for answer!</p>
+<aside class="quote no-group" data-post="5" data-topic="4012" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Do you mean BGFX in general or a BGFX renderer for Urho?</p>
+</blockquote>
+</aside>
+<p>I meant both.</p>
+<aside class="quote no-group" data-post="5" data-topic="4012" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>but it sits in this strange indeterminate place where it’s neither low-level nor high-level</p>
+</blockquote>
+</aside>
+<p>I noticed it too. AFAIK it’s needed for fine optimization of things for different platforms…<br/>
+I dislike how BGFX handles uniforms, but I’m afraid it would be other issues if BGFX would be just command player w/o this sorting and grouping.</p>
+<aside class="quote no-group" data-post="5" data-topic="4012" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Except the shading language - that thing is a crime against humanity and is probably accelerating the heat-death of the universe. That thing made me angry enough to start a shading language project out of spite.</p>
+</blockquote>
+</aside>
+<p>Y? Generic SL is probably most important thing in renderer (except compute shaders) that Urho misses.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="4012" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Y? Generic SL is probably most important thing in renderer (except compute shaders) that Urho misses.</p>
+</blockquote>
+</aside>
+<p>For that reason. It brings nothing else to the table except working in multiple places (at the cost of being a limited subset) and is just another macro/substitution setup. In contrast CG brings CGFX as an option, is an actual defined language - HLSL brought FX (which though deprecated will probably never die), etc.</p>
+<p>I’m admittedly a bad person for comment on that as I don’t see 2 or even 4 shading languages as serious of a problem as settling on a LCD set of common functionality/patterns.</p>
+<p>Who is the shading language really even for? The shaders should face the programmer, the properties of the shader should face the designer.</p>
+<p>I’ve pretty much gone entirely visual anymore, doing something similar to the TFX system in Destiny <a href="http://advances.realtimerendering.com/destiny/gdc_2017/index.html" rel="noopener nofollow ugc">ARR slides</a>. Has been pretty trivial, except for the <em>linking</em>, tying the disparate ends together is super-duper hard hard-coding land. Miserable land of  no winning there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Tessellation now works in OpenGL:</p>
+<p><img alt="image" height="368" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/0/03f8b8ed31113bc52697f943840f3bc8176e4be3.png" width="690"/></p>
+<p>I didn’t push a shader because while it only took a few minutes to wrap it up I gutted the daylights of the OGL shaders as I was troubleshooting, so my shader became too much of a hairy ball of <span class="hashtag">#line</span> statements and other assorted nastiness.</p>
+<p>Using tessellation on OGL requirs setting the <span class="hashtag">#version</span> number in shaders to a target that supports the necessary constructs (ie. gl_InvocationID undefined error means the version is too low).</p>
+<p><strong>To Do</strong></p>
+<ul>
+<li>Up until now GLSL versioning hasn’t really been an issue
+<ul>
+<li>need to sort something out, ie. 400 but not 410 supported, 410 but not 400, etc</li>
+</ul>
+</li>
+<li>
+<s>Patch primitive types</s>
+<ul>
+<li>If tessellation is active geometry must be rendered as patches (GL will silently fail, DX will seize the system)</li>
+<li>Currently I override as a 3-point patch if tessellation shaders are bound, I expect to leave that as default and add a PATCH_QUAD_LIST primitive that can be used explicitly where quads are desired (like terrain), higher primitives are off into a land of</li>
+<li>Higher than quads is off into “<em>very specialized use case, you must know what you’re doing if you want it</em>” land</li>
+</ul>
+</li>
+<li>
+<s>Considerations for stream-output</s>
+<ul>
+<li>That’s an entire project in itself, it’s viable just a large scope endeavor</li>
+</ul>
+</li>
+<li>Reference shaders (probably just for working with the LitSolid shaders)
+<ul>
+<li><s>Unlit Particle</s></li>
+<li>Lit Particle</li>
+<li>Lit Solid</li>
+</ul>
+</li>
+<li><s>Billboard set particle expansion in GS option</s></li>
+<li><s>Support GS/HS/DS on renderpath quad commands</s></li>
+</ul>
+<p>Commentary welcomed on the points above as well as the branch.</p>
+<p>I won’t be touching it for a while as this is a good empty weekend for me to sit down and write  a DirectX12 renderer … so I’ll probably come back to this in a week once I have that working.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Egorbo</div>
+          <div class="post_content">
+<p>Amazing, looking forward to seeing GS in the main branch <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Wrapping up particles this evening. Implemented as adding a <em>“Generate Points”</em> option to BillboardSet that will have it generate a POINT_LIST instead of a triangle list with the size/UV coordinates packed as XY=min, ZW=max.</p>
+<p>Two <em>Disco</em> instances, one using regular quads and the other emitting as points that are expanded in geometry shader:</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"  rel="nofollow noopener" title="pRiYwcQ.png"><img alt="image"  height="368" src="../../../images2/be93b0bdba29d7e767e85983648048e8.png"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">pRiYwcQ.png</span><span class="informations">1920×1024 247 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Applicable to everything using UnlitParticle shaders, I’ll get to LitParticle later.</p>
+<p>Nothing auto-magical, still requires setting a material and technique as usual:</p>
+<pre><code>&lt;technique vs="UnlitParticle" ps="UnlitParticle" gs="UnlitParticle" 
+    vsdefines="VERTEXCOLOR" gsdefines="VERTEXCOLOR" psdefines="DIFFMAP VERTEXCOLOR ADDITIVE"&gt;
+    &lt;pass name="alpha" depthwrite="false" blend="add" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<p>… so pretty much the same to use.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>General status:</p>
+<ul>
+<li>DX11 cbuffers actually work now (I botched that so hard)</li>
+<li>Techniques set support flags for GS and tessellation requirements so technique selection can bypass unsupported techniques
+<ul>
+<li>Of course it can’t do anything about supported primitives (quad-patches, points for expansion, etc)</li>
+</ul>
+</li>
+<li>Lighting shader permutations are generated … no idea WTF I was thinking omitting those
+<ul>
+<li>Particles are now 1:1 identical for both Unlit and Lit, I’ll push those shaders later after some cleanup</li>
+</ul>
+</li>
+</ul>
+<p>Here’s some happy GS particles verifying the whole pipe is healthy:</p>
+<p><img alt="LitGSParticle" height="355" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/8/86bcf8d6026ec96083330b8b307159eaa9697dbc.gif" width="690"/></p>
+<p>Probably a week out before I’ll submit a PR.</p>
+<ul>
+<li>Remaining
+<ul>
+<li>Documentation updates
+<ul>
+<li>I’ve been lagging on that</li>
+</ul>
+</li>
+<li>Two tessellation example materials derived from UnlitSolid
+<ul>
+<li>A simple phong subdivision</li>
+<li>Displacement mapping</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Definitely won’t be doing (at least for the foreseeable future)
+<ul>
+<li>GS expansion for beams, the smorgasbord of options is way too huge to even go there</li>
+<li>LitSolid tessellation
+<ul>
+<li>lighting is pain and LitSolid shaders are long past nuts</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>Although point expanded billboards create an awkward loop of “<em>here’s this trait in a component that I can only use based on specific material properties, which come from the particle effect resource I give the emitter, that material also has to use a technique whose shaders are configured to work with a particular input … okay</em>” - I’m at a loss for what to do about it that isn’t either draconian or just shifting that brittleness elsewhere.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Pushed phong-tessellation shaders for both HLSL and GLSL, shader is <strong>Tess_Unlit</strong>. Material located in <code>Materials/Demo/Tess_Distance_Kachujin.xml</code>. Should probably rename that folder to <em>UsageDemos</em> or something that is a little clearer that indicates that contents are just <em>“this is an example of how you use this stuff”</em> and not a first-class-citizen demo.</p>
+<p>They use a <code>TessParams</code> float4 for controlling the traits.</p>
+<ul>
+<li>X: maximum tessellation level (clamped at a max of 16 so accidents don’t result in murder)</li>
+<li>Y: distance at which tessellation begins (outside of that is always as-is)</li>
+<li>Z: offset adjustment to shift the distance, so you don’t have to get right on top of it to hit the<br/>
+max</li>
+<li>W: phong smoothing power, 0.3 - 0.7 is sane - beyond 1.0 and <em>stairs</em> get introduced</li>
+</ul>
+<p>The <span class="hashtag">#defines</span> <code>TESS_PHONG</code> activates the phong-smoothing and <code>TESS_FIXED</code> disables the distance levels, in which case it uses the maximum tess-level at all times.</p>
+<p>The shader only performs backface culling, the information required for frustum or behind-camera culling isn’t currently passed off to shaders.</p>
+<p>Untessellated:</p>
+<p><img alt="Urho3D_editor_-_Untitled_2018-03-11_16-33-21" height="368" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/a/a858e2ba625e576e7065c10b8ffb84431bda75ca.jpg" width="690"/></p>
+<p>Tessellated (just one extra level) at 0.3 smoothing power:</p>
+<p><img alt="Urho3D_editor_-_Untitled_2018-03-11_16-34-07" height="368" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/a/a679f1d319ac292fc89ca105b25694ccea39bd58.jpg" width="690"/></p>
+<p>Obviously normals have to be identical across seams so models that aren’t, like the Ninja, are crack-city.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Hello Jonathan,</p>
+<p>Any ETA for the PR to be ready ? Im very interested by this <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>Keep up your good work. Your work is very usefull for the Urho community.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="13" data-topic="4012" data-username="franck22000">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2cdc52013f8a4e9b5ebce773a63acafd.png" width="20"/> franck22000:</div>
+<blockquote>
+<p>Any ETA for the PR to be ready ? Im very interested by this <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+</blockquote>
+</aside>
+<p>Probably towards the end of the weekend.</p>
+<p>I doubt this will be a quick PR to get merged, I expect it could take a week or longer given the breadth of the changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Particle shaders have been published:</p>
+<aside class="onebox githubcommit">
+<header class="source">
+<a href="https://github.com/JSandusky/Urho3D/commit/f1126f0b1010a85b5311a838e11aa8c555fb6d96" rel="nofollow noopener" target="_blank">github.com/JSandusky/Urho3D</a>
+</header>
+<article class="onebox-body">
+<h4>
+<a href="https://github.com/JSandusky/Urho3D/commit/f1126f0b1010a85b5311a838e11aa8c555fb6d96" rel="nofollow noopener" target="_blank">Add point-expanded particle shaders using geometry shader</a>
+</h4>
+<div class="date">
+  by <a href=""></a>
+  on <a href="https://github.com/JSandusky/Urho3D/commit/f1126f0b1010a85b5311a838e11aa8c555fb6d96" rel="nofollow noopener" target="_blank">08:58PM - 31 Mar 18</a>
+</div>
+<div class="github-commit-stats">
+  changed <strong>16 files</strong>
+  with <strong>600 additions</strong>
+  and <strong>148 deletions</strong>.
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p><code>GS_Burst</code> particle effect is setup to use geometry shader point-expansion. Setting up your own techniques for point-expansion requires adding a <code>POINTEXPAND</code> definition to the VS and GS defines, as well as specifying the LitParticle / UnlitParticle shaders for the GS stage.</p>
+<p>The ParticleEmitter component also needs the new <code>Generate Points</code> attribute set so it’ll use point emission mode.</p>
+<p>Commentary welcome, particularly on how the GLSL split is handled. If anyone tries it out let me know if anything is broken.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p><span class="mention">@weitjong</span> <span class="mention">@Eugene</span> would you prefer the PR as is with many commits or would you prefer it collapsed down into one monolithic commit?</p>
+<p>I don’t have a problem with a <em>dead</em> PR for review purposes followed by collapsing it down for a final one.</p>
+<p>There was some swing. In particular, I originally avoided having GLES2/DX9 unaware of the additional shader stages, but supporting technique selection based on platform support and scripting forced me to reverse that.</p>
+<p>I’m not strictly attached to the particle/BillboardSet changes, not going to cry if those have to be split off and put into a <em>to revisit</em> or such. Really just a solid proof of a complex case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>IMO 10-20-30 commits are fine to be merged as is.<br/>
+Aand anyway, let’s start here</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks in advance for the PR. If the commit messages are decent, i.e. you are comfortable to have them made public then they should be ok. Only on rare situation we are forced to request for squashing the commits. The choice is yours to make.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Not going to move forward with this. I’ll leave the fork up though.</p>
+<p>The community is still a poisonous pit of OSS evangelism and I don’t want to be a part of that. Like the RakNet stuff before, IDC what is done with it.</p>
+<p>Most are incapable of using this stuff anyway, so it’s just a headache if it were merged as they can’t be bothered to turn on the debug layer to troubleshoot. Tesselation and GS do not tolerate incompetence, there’s a lot of that around here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>I can not comment much on share in this thread as i have not looked through it, but it does look potentially useful and we are extremely thankful for your contribution.</p>
+<aside class="quote no-group" data-post="19" data-topic="4012" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>a poisonous pit of OSS evangelism</p>
+</blockquote>
+</aside>
+<p>This is mean.</p>
+<p>I probably should not, but here we go…</p>
+<p>This is OSS project. A colossal amount of work are given free to everyone (you included). Naturally it is expected for community members to contribute back. You do not have to however. There are plenty of closed projects showed off in showcase forum and noone bats an eye about closed projects. If you received unexpected responses triggering this reaction then maybe it was your failure in communication?</p>
+<p>I have not noticed anything bad said towards yourself. All discussions in this forum are respectful. This is not the first time you have a temper outburst though. There were rage-deleted repositories and now there is name-calling. Considering that maybe you should conduct yourself in more respectful manner publicly. Noone wronged you here to deserve to be called “poisonous pit”.</p>
+<p>A word on incompetence claims: the less people know the more they <em>think</em> they know.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cosar</div>
+          <div class="post_content">
+<p>What happened? Anything we can do to help?<br/>
+I was looking forward for this branch to be merged. I’m not a contributor to this project because of time constrains, but so far the community was quite friendly. Maybe you can share with the rest of us what the issue is and we might be able to help somehow.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Just curious. Is there any TODO list related to this branch?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p><span class="mention">@Eugene</span> just a “does compile” check for RaspPi and Mobile. Otherwise it should be good. I did a few checks by faking a GLES target for checking some of the <span class="hashtag">#ifdefs</span> but those are at least a dozen commits behind.</p>
+<p>The BillboardSet changes are ambiguous, I think they’re safe to drop (they’re technically safe to drop) as those changes pose problems for the Urho3D particle editor that doesn’t give you access to the nodes/components of the preview for setting the switches involved in tripping the GPU expansion of particles.</p>
+<p>I had expected it to take 2 - 4 weeks to get merged. It raises a lot questions, in places like the dubious AA handling in line drawing, etc.</p>
+<p><strong>To be super-specific:</strong> the final item pre-PR was just making sure at least a droid build worked. I fought with it for a few days but did surrender as I couldn’t get CMake to do squat there</p>
+<p><span class="mention">@rku</span> unless I’m blind there’s no name-calling up there (speaking of that I’d appreciate an admin giving me back my old name of ‘Sinoid’). I went out of my way to point out that this is fairly advanced stuff and likely far outside of the capability of most.</p>
+<p><em>begin sarcasm - for your long-winded comment of existential nothing</em></p>
+<p>On the contrary, I want to know where you live because apparently, a person can live for free there with zero need to pay bills. Just doing zilly for fun. That, is name calling.</p>
+<p><em>end sarcasm</em></p>
+<p>I don’t have a real beef with you, you flatly never listened to squat I said, so there really can’t be a beef as you clearly had earplugs in the whole time. There was never a counter-voice to your extremism, so I opt for bail again rather than surrender - not going to do anything that helps splinter forks.</p>
+<hr/>
+<p>You basically have to use DX and <strong>HAVE</strong> to turn on the debug logging in the control panel if you so much as want to touch any of this. It’s not faint of heart material, OpenGL has squat to help you through it - which makes it a big cluster-mess if RenderDoc fails to save your bacon - which it will fail.</p>
+<p>You’re probably completely unaware that DX requires perfect alignment of outputs to inputs and that semantics are generally meaningless aside from the VS input, you’ll get to meet those woes the instant you touch GS/HS/DS. As I said, well outside of average capability.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

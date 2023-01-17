@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to fetch sDiffMap in VertexShader?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to fetch sDiffMap in VertexShader?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi folks!<br/>
+Today i’m trying write some vertex shader and it must fetch the diffmap for vertex displacement<br/>
+i’m copy the libSolid.hlsl and doing some fixes into it.<br/>
+the first of all i try to find how dx9 doing fetch from textures in vertex shader and find this tut<br/>
+<a href="http://http.developer.nvidia.com/GPUGems2/gpugems2_chapter18.html">http.developer.nvidia.com/GPUGem … ter18.html</a><br/>
+i find this</p>
+<p><code>float4 main(float4 position : POSITION,
+  uniform sampler2D tex0,
+</code><br/>
+so i decide just add sampler2D sDiffMap : COLOR for VS in parameters</p>
+<p><code>void VS(float4 iPos : POSITION,
+    float3 iNormal : NORMAL,
+    float2 iTexCoord : TEXCOORD0,
+    sampler2D sDiffMap : COLOR,
+    #if defined(LIGHTMAP) || defined(AO)
+        float2 iTexCoord2 : TEXCOORD1,
+    #endif
+    #ifdef NORMALMAP
+        float4 iTangent : TANGENT,
+    #endif
+    #ifdef SKINNED
+        float4 iBlendWeights : BLENDWEIGHT,
+        int4 iBlendIndices : BLENDINDICES,
+    #endif</code></p>
+<p>vertex displace</p>
+<pre><code class="lang-auto">    float4x3 modelMatrix = iModelMatrix;
+    float3 dcolor = tex2Dlod (sDiffMap, float4(iTexCoord.xy, 0,0));
+    float displace = (dcolor.r * cChannelFactor.r + dcolor.g * cChannelFactor.g + dcolor.b * cChannelFactor.b );
+    float3 dispPos = iPos.xyz + iNormal.xyz * displace * cDisplacement;   
+     
+    float3 worldPos = mul(dispPos, modelMatrix);
+    oPos = GetClipPos(worldPos);
+    oNormal = GetWorldNormal(modelMatrix);  
+    oWorldPos = float4(worldPos, GetDepth(oPos));</code></pre>
+<p>also i’m add some uniforms for vs and ps in uniforms.hlsl</p>
+<p><code>uniform float4 cChannelFactor;
+uniform float cDisplacement;
+uniform float2 cRange;</code></p>
+<p>but i’m got an editor’s crush then trying to open my scene, with object that have this custom draw tech.</p>
+<p>i guess there not so simple way to doing fetch in dx9 ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I can confirm that I see odd things happening when I attempt to do vertex texture fetch with D3D9. This will require further investigation, but for now (without debugging/fixing the problem deeper yourself) you can assume you can’t really do working VTF.</p>
+<p>I tried the following modified TerrainBlend shader, which is supposed to sample the weight map in VS and bring that color over for the PS to use, but the result was that only a single quad of the terrain would get rendered, and it would move incorrectly along with the camera position.</p>
+<pre><code class="lang-auto">#include "Uniforms.hlsl"
+#include "Samplers.hlsl"
+#include "Transform.hlsl"
+#include "ScreenPos.hlsl"
+#include "Lighting.hlsl"
+#include "Fog.hlsl"
+
+sampler2D sWeightMap0 : register(S0);
+sampler2D sDetailMap1 : register(S1);
+sampler2D sDetailMap2 : register(S2);
+sampler2D sDetailMap3 : register(S3);
+
+uniform float2 cDetailTiling;
+
+void VS(float4 iPos : POSITION,
+    float3 iNormal : NORMAL,
+    float2 iTexCoord : TEXCOORD0,
+    out float4 oColor: TEXCOORD0,
+    out float4 oPos : POSITION)
+{
+    float4x3 modelMatrix = iModelMatrix;
+    float3 worldPos = GetWorldPos(modelMatrix);
+    float2 texCoord = GetTexCoord(iTexCoord);
+
+    oColor = tex2Dlod(sWeightMap0, float4(texCoord, 0.0, 0.0));
+    oPos = GetClipPos(worldPos);
+}
+
+void PS(float4 iColor : TEXCOORD0,
+    out float4 oColor : COLOR0)
+{
+    oColor = iColor;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>thanks, now i even see something without editor’s crash )<br/>
+after adding: sampler2D sDispMap : register(S0); to shader head<br/>
+but also see strange these bugs if i move camera</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>One possibility is that using vertex fetch somehow throws off the shader analysis that Urho does with MojoShader, in which case Urho no longer knows how to stuff the correct shader constants into registers. In this case a potential fix would be to update MojoShader.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>well i’m update the mojoShader from this repo <a href="https://github.com/flibitijibibo/MojoShader">github.com/flibitijibibo/MojoShader</a><br/>
+but it still have a some problem with strange deforms when the camera moves</p>
+<p>lately i found this note<br/>
+<a href="http://www.robertwrose.com/2005/05/vertex-texture-sampling-notes.html">robertwrose.com/2005/05/vert … notes.html</a><br/>
+and i guess that need other format of texture with f32 for each channel for vector<br/>
+or this issue real metter only for if you doing write from vertex shader to texture?</p>
+<p>i found something<br/>
+float4 dispPos = iPos.xyzw;<br/>
+befor i use float3</p>
+<p>also i’m check that simple displace by normal works well<br/>
+float4 dispPos = float4(iPos.xyz + iNormal.xyz * cDisplacement, iPos.w);<br/>
+float3 worldPos = mul(dispPos, modelMatrix);</p>
+<p><a data-bbcode="true" href="http://savepic.su/5307617.htm"><img alt="" height="" src="../../../images2/3dd3b6f0163b0106f35f16f5b74ac993.png" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i found what in this topic <a href="http://www.gamedev.net/topic/631832-vertex-texture-fetch-sm30/">gamedev.net/topic/631832-ver … etch-sm30/</a><br/>
+Tispe solve his problem with one thing, changed code:<br/>
+pGraphicsDevice-&gt;GetDevice()-&gt;SetTexture(1, pAnimationTexture);<br/>
+Changed to:<br/>
+pGraphicsDevice-&gt;GetDevice()-&gt;SetTexture(D3DVERTEXTEXTURESAMPLER0, pAnimationTexture);</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Ok, I believe this needs some thinking to support properly, because so far the texture units have been assumed to be pixel shader only, or shared between the stages (OpenGL works that way.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i’m made some addings and fixes to<br/>
+D3DTexture.h</p>
+<pre><code class="lang-auto">class URHO3D_API Texture : public Resource, public GPUObject
+{
+public:
+    /// Construct.
+    Texture(Context* context);
+    /// Destruct.
+    virtual ~Texture();
+    
+    unsigned VTF_SAMPLER;
+    
+    /// Set number of requested mip levels. Needs to be called before setting size.
+    void SetNumLevels(unsigned levels);</code></pre>
+<p>and to D3DGraphics.cpp in proc SetTexture()</p>
+<pre><code class="lang-auto">    if (texture != textures_[index])
+    {
+        if (texture)
+			if (texture-&gt;VTF_SAMPLER == 0)
+				impl_-&gt;device_-&gt;SetTexture(index, (IDirect3DBaseTexture9*)texture-&gt;GetGPUObject());
+			else
+				impl_-&gt;device_-&gt;SetTexture(texture-&gt;VTF_SAMPLER, (IDirect3DBaseTexture9*)texture-&gt;GetGPUObject());
+        else
+            impl_-&gt;device_-&gt;SetTexture(index, 0);
+      
+		textures_[index] = texture;
+	}</code></pre>
+<p>then build engine with this changes</p>
+<p>in my test project i’m manualy get texture from material and set texture-&gt;VTF_SAMPLER to D3DVERTEXTEXTURESAMPLERn</p>
+<pre><code class="lang-auto">		StaticModel* model = node-&gt;GetComponent&lt;StaticModel&gt;();
+		Material* mat = model-&gt;GetMaterial(0);
+		Texture* tex = mat-&gt;GetTexture(TU_NORMAL);
+
+#define D3DDMAPSAMPLER 256
+#define D3DVERTEXTEXTURESAMPLER0 (D3DDMAPSAMPLER+1)
+#define D3DVERTEXTEXTURESAMPLER1 (D3DDMAPSAMPLER+2)
+#define D3DVERTEXTEXTURESAMPLER2 (D3DDMAPSAMPLER+3)
+#define D3DVERTEXTEXTURESAMPLER3 (D3DDMAPSAMPLER+4)
+
+		tex-&gt;VTF_SAMPLER = D3DVERTEXTEXTURESAMPLER1;
+		mat-&gt;SetTexture(TU_NORMAL, tex);</code></pre>
+<p>shader code<br/>
+sampler2D sDispMap : register(S1); // normal sampler store dispalacemap</p>
+<p>float4x3 modelMatrix = iModelMatrix;<br/>
+float3 dcolor = tex2Dlod(sDispMap, float4(iTexCoord.xy, 0,0));</p>
+<p>float displace = (dcolor.r * cChannelFactor.r + dcolor.g * cChannelFactor.g + dcolor.b * cChannelFactor.b );<br/>
+float4 dispPos = float4(iPos.xyz + iNormal.xyz * displace * cDisplacement, iPos.w);<br/>
+//float4 dispPos = float4(iPos.xyz + iNormal.xyz * cDisplacement, iPos.w); // this displace works fine</p>
+<p>float3 worldPos = mul(dispPos, modelMatrix);</p>
+<p>but it still have same problems. i guess that this not enough.<br/>
+maybe also need to check texture format somehow, that supported VTF</p>
+<p>in the mirror the displaced sphere looks more realistic sometimes<br/>
+[video]<a href="http://youtu.be/0foxxAmJkfE%5B/video%5D">http://youtu.be/0foxxAmJkfE[/video]</a></p>
+<p>add:<br/>
+found this topic<br/>
+<a href="https://msdn.microsoft.com/en-us/library/windows/desktop/bb219748(v=vs.85)">msdn.microsoft.com/en-us/librar … 48(v=vs.85</a>.aspx<br/>
+with this tip:</p>
+<p>[quote]?Not all formats can be used as displacement maps but only those that support the D3DUSAGE_DMAP. The application can query that with the CheckDeviceFormat CheckDeviceFormat.<br/>
+[/quote]<br/>
+i think that need somehow enforce the texture to use this flag when it create</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Today i’m add this query proc. it must return an vector of supported formats that works with VTF on my gpu.</p>
+<pre><code class="lang-auto">		SharedPtr&lt;Texture2D&gt; t = SharedPtr&lt;Texture2D&gt;(new Texture2D(context_));
+		File textureFile(context_, GetSubsystem&lt;FileSystem&gt;()-&gt;GetProgramDir() + "Data/Textures/rgb-compose.png",FILE_READ);
+		t-&gt;vtf = D3DVERTEXTEXTURESAMPLER0;
+		t-&gt;Load(textureFile);		
+		Vector&lt;unsigned&gt; vv;
+		t-&gt;FindSupportedVertexTextureFormat(vv);</code></pre>
+<p>result’s are</p>
+<pre><code>D3DFMT_A8R8G8B8             = 21,
+D3DFMT_R16F                 = 111,
+D3DFMT_G16R16F              = 112,
+D3DFMT_A16B16G16R16F        = 113,
+D3DFMT_R32F                 = 114,
+D3DFMT_G32R32F              = 115,
+D3DFMT_A32B32G32R32F        = 116,
+</code></pre>
+<p>the proc that do query for test i’m placed just in the texture2D class <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<pre><code class="lang-auto">unsigned Texture2D :: FindSupportedVertexTextureFormat(Vector&lt;unsigned&gt;&amp; formats) 
+{
+	IDirect3DDevice9* device = graphics_-&gt;GetImpl()-&gt;GetDevice();
+	usage_ = D3DUSAGE_QUERY_VERTEXTEXTURE;
+	
+	for (unsigned fc = D3DFMT_R8G8B8; fc &lt; 120; fc++) {
+		if (graphics_-&gt;GetImpl()-&gt;CheckFormatSupport((D3DFORMAT)fc, usage_, D3DRTYPE_TEXTURE)) 
+		{
+			formats.Push(fc);
+		}
+	}
+
+	return 0;
+}</code></pre>
+<p>and now i’m trying to find the way to store my texture(1024*1024 png with 24 bit’s) in one of format that support Vertex Fetch.</p>
+<p>add:<br/>
+find some old topic there folks had an same problems: <a href="https://monogame.codeplex.com/discussions/428213">monogame.codeplex.com/discussions/428213</a><br/>
+as you say before the main problem can be in MojoShader.<br/>
+what he do in the engine, that functionality ?<br/>
+can be engine live without it ?<br/>
+or maybe may do so that under Win Platform shaders compiled with diretly with directx D3DCompile() ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>well, today i’m trying do this vertex texture fetch on gl-renderer and it’s work’s on gl.</p>
+<p>[video]<a href="http://www.youtube.com/watch?v=N_qvbcb0mVs%5B/video%5D">http://www.youtube.com/watch?v=N_qvbcb0mVs[/video]</a></p>
+<p>change model from sphere to icosphere (with subdiv apply) also set smooth normal for geometry<br/>
+new<br/>
+<a data-bbcode="true" href="http://savepic.su/5424860.htm"><img alt="" height="" src="../../../images2/cb18b5547df28158f0a7a3ebbc10ebe3.png" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>I’m not sure how this got concluded, for the rest of us.</p>
+<p>As of now, does Urho3D support Sample2D (or texture2D) from the Vertex Shader?  It SURE WOULD BE NICE.</p>
+<p>For a terrain heightmap, it’s far more efficient to just encode a HeightMap into a Texture2D/image, and then inside the Vertex Shader, use this heightmap to offset the Y value.   Then you can employ a static Grid-mesh and apply a dynamic XZ offset to correctly position it horizontally.</p>
+<p>The alternative requires us to duplicate the Vertex Buffer, which is 20 bytes per vertex, instead of only 4-bytes per vertex for the HeightMap Image approach.   (20% of the byte size in GPU - plus it’s easier on the CPU building the heightmap).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Should work out of the box. You need to add the texture and sampler to the VS code. The default shaders are setup so that if <code>COMPILEPS</code> isn’t defined (compiling a pixel shader) then there are no textures/samplers being defined, so you have to define them yourself (or fiddle the master shaders) and use the appropriate register/name for the texture you wish to see (See <code>Samplers.glsl/hlsl</code>).</p>
+<p>D3D11 goes out of its way to always set them to be available. I can’t recall what D3D9 does there.</p>
+<p>In OpenGL the driver manages it based on what the compiled program does.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>A couple years ago I did a <a href="https://github.com/JTippetts/Urho3DGrassTest">little experiment</a> with a grass/vegetation shader that used a texture fetch in the VS. It pretty much does work out of the box as <span class="mention">@JSandusky</span> said. One potential gotcha in my case was culling, since the vertex shader displacement would push the vertices beyond the ‘natural’ bounding box so the meshes were getting culled. Had to work around that a little bit. Also, remember that you have to specify the mip level in the texture fetch call, since the vertex shader doesn’t have any of the info needed to make that determination. For example, in GLSL you use textureLod(tex,uv,miplevel). HLSL is probably similar.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>I created a new/fresh topic, since this one is old and I can’t really mark “solution”.</p>
+<p>Here is the new thread.  For me, it’s not working out-of-box.   If you can go to the new thread and tell me where I went wrong, that would be great.</p>
+<p><a href="https://discourse.urho3d.io/t/how-to-sample-texture2d-from-vertexshader/6740">https://discourse.urho3d.io/t/how-to-sample-texture2d-from-vertexshader/6740</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Yeah, has to be either Load, SampleLevel, or SampleGrad.</p>
+<p>There’s a few more available in a few cases for Gather/SampleCmpLevelZero/etc but Urho defaults to <code>vs_4_0</code> so you can’t use those.</p>
+<p>MSDN D3D11 docs give you a table at the bottom for all of the Texture/Buffer objects that mark which stages which function is available in. Only a few of them omit it (SampleCmpLevelZero).</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

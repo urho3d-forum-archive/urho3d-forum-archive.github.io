@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to get spotlight rotation and aperture in shader?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to get spotlight rotation and aperture in shader?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>I’m doing volumetric light scattering for deferred lighting (GLSL). Taking from this tutorial: <a href="http://blog.mmacklin.com/2010/05/29/in-scattering-demo/" rel="nofollow noopener">blog.mmacklin.com/2010/05/29/in-scattering-demo/</a></p>
+<p>I’ve got everything sort of working for point lights and almost for spotlights with default rotation and fov. Thing is,  for spotlights I need transformation matrix(position and rotation) and aperture (spot FOV), to draw a proper volumetric cone.<br/>
+I tried to use <span class="bbcode-b">cLightMatricesPS[0]</span>, but as I understand it is not a proper transform matrix, but some special one, that also has fov transformation in it. I also tried inversed <span class="bbcode-b">iModelMatrix</span>, but also with no luck.</p>
+<p>While poking randomly, I was able to create a matrix that works with Miles Macklin’s code, but only for spotlights with default rotation. Here it is:</p>
+<p><code>
+mat4 mymat = mat4(vec4( 1. , 0. , 0. , 0. ),
+                  vec4( 0. , 1. , 0. , 0. ),
+                  vec4( 0. , 0. , -1. , 0. ),
+                  vec4( -cLightPosPS.x ,-cLightPosPS.y , cLightPosPS.z , 1. ));</code></p>
+<p>I will appreciate any hints and suggestions on how to get proper transform matrix. Should iModelMatrix work? Or does it also have additional information (like scale as range) in it?<br/>
+As for fov, I have no idea where to get it. I thought, there should be an uniform for it, but there is not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Just in case, here is the function I need to feed with said parameters. It calculates intersection of ray and a cone.</p>
+<p>[spoiler][code]void IntersectCone(vec3 rayOrigin, vec3 rayDir, mat4 invConeTransform, float aperture, float height, out float minT, out float maxT)<br/>
+{<br/>
+vec4 localOrigin = invConeTransform * vec4(rayOrigin, 1.0);<br/>
+vec4 localDir = invConeTransform * vec4(rayDir, 0.0);<br/>
+// could perform this on the cpu<br/>
+float tanTheta = tan(aperture);<br/>
+tanTheta *= tanTheta;</p>
+<pre><code>float a = localDir.x*localDir.x + localDir.y*localDir.y - localDir.z*localDir.z*tanTheta;
+float b = 2.0*(localOrigin.x*localDir.x + localOrigin.y*localDir.y - localOrigin.z*localDir.z*tanTheta);
+float c = localOrigin.x*localOrigin.x + localOrigin.y*localOrigin.y - localOrigin.z*localOrigin.z*tanTheta;
+
+SolveQuadratic(a, b, c, minT, maxT);
+
+float y1 = localOrigin.z + localDir.z*minT;
+float y2 = localOrigin.z + localDir.z*maxT;
+
+// should be possible to simplify these branches if the compiler isn't already doing it
+
+if (y1 &gt; 0.0 &amp;&amp; y2 &gt; 0.0)
+{
+	// both intersections are in the reflected cone so return degenerate value
+	minT = 0.0;
+	maxT = -1.0;
+}
+else if (y1 &gt; 0.0 &amp;&amp; y2 &lt; 0.0)
+{
+	// closest t on the wrong side, furthest on the right side =&gt; ray enters volume but doesn't leave it (so set maxT arbitrarily large)
+	minT = maxT;
+	maxT = 10000.0;
+}
+else if (y1 &lt; 0.0 &amp;&amp; y2 &gt; 0.0)
+{
+	// closest t on the right side, largest on the wrong side =&gt; ray starts in volume and exits once
+	maxT = minT;
+	minT = 0.0;
+}
+</code></pre>
+<p>}[/code][/spoiler]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>And yes, it appears that iModelMatrix is affected by fov.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Spotlight attenuation in Urho is based on a projector texture, the texture transform matrix (in case of deferred rendering) is cLightMatricesPS[0] and should transform world space position to the projector coordinates. Otherwise the cone angle isn’t being transmitted as a uniform.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Thank you for reply.</p>
+<p>So I guess, I need to dive into C++, to add this as uniforms.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

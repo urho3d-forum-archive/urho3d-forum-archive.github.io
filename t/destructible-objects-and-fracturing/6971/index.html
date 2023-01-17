@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Destructible Objects and Fracturing</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Destructible Objects and Fracturing</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Was able to make these really nice looking destructible blocks today. Found a fairly quick way to do so that wasn’t tedious.</p><div class="onebox lazyYT lazyYT-container" data-parameters="feature=oembed&amp;wmode=opaque" data-youtube-id="omkTRy9J-0s" data-youtube-title="Destructible Object Test">
+<a href="https://www.youtube.com/watch?v=omkTRy9J-0s" rel="noopener nofollow ugc" target="_blank">
+<img class="ytp-thumbnail-image" height="360" src="../../../images2/95ff93b5043e925dd8124237e636abdb.jpg" title="Destructible Object Test" width="480"/>
+</a>
+</div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>How did you do it? A Voronoi fracture of a convex hull? i.e. like this:</p>
+<div class="onebox lazyYT lazyYT-container" data-parameters="feature=oembed&amp;wmode=opaque" data-youtube-id="0_qVjLGuT6E" data-youtube-title="Voronoi Fracture and Shatter usage examples - Blender &amp; Bullet Physics">
+<a href="https://www.youtube.com/watch?v=0_qVjLGuT6E" rel="noopener nofollow ugc" target="_blank">
+<img class="ytp-thumbnail-image" height="360" src="../../../images2/0c217d850771bef60657d326f2198e77.jpg" title="Voronoi Fracture and Shatter usage examples - Blender &amp; Bullet Physics" width="480"/>
+</a>
+</div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Not exactly. I’m using cell fractured pieces from a cube but all randomly placed and chosen. They won’t fit to the same cube again, but they look like they do.</p>
+<p>I did:</p>
+<ol>
+<li>annotation pen (on surface) in blender, scribbled around, then did a cell fracture of annotations to make a bunch of pieces out of it</li>
+<li>Alt + G set all selected pieces to origin</li>
+<li>Used a script to batch export all of them at once</li>
+<li>Batch renamed them to 1.fbx, 2.fbx, etc</li>
+<li>Used a simple bash script I made to batch convert to mdl with Asset Importer. This was easier because the filenames could be the ${i} in the script’s loop</li>
+<li>Simple loop to load all mdl’s to a table when I might need them</li>
+<li>On node collision (above a force threshold) I remove the cube, and insert an appropriate number of randomly chosen/placed pieces in its place</li>
+<li>Lastly, I apply a force that is both a little random and influenced by the impacting body</li>
+</ol>
+<p>I think this is great because it’s always different and looks fairly real. For my purposes, the whole block can break on impact. I don’t need partial fractures or anything. What’s nice is I can easily add a ton more pieces without any tedious exporting, importing, or anything like that. I’m going to make a separate list of random tiny pieces and sprinkle those around the exact collision point to make a little extra fancy dust and realism.</p>
+<p>Here’s the blender batch export script I’m using:</p>
+<pre><code class="lang-auto"># ##### BEGIN GPL LICENSE BLOCK #####
+#
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation; either version 2
+#  of the License, or (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software Foundation,
+#  Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+# ##### END GPL LICENSE BLOCK #####
+# &lt;pep8 compliant&gt;
+
+bl_info = {
+    "name": "Batch export FBX files",
+    "author": "brockmann",
+    "version": (0, 1, 0),
+    "blender": (2, 80, 0),
+    "location": "File &gt; Import-Export",
+    "description": "Batch Export Objects in Selection to FBX",
+    "warning": "",
+    "wiki_url": "",
+    "tracker_url": "",
+    "category": "Import-Export"}
+
+
+import bpy
+import os
+
+from bpy_extras.io_utils import ExportHelper
+
+from bpy.props import (BoolProperty,
+                       FloatProperty,
+                       StringProperty,
+                       EnumProperty,
+                       CollectionProperty
+                       )
+
+
+class Batch_FBX_Export(bpy.types.Operator, ExportHelper):
+    """Batch export objects to fbx files"""
+    bl_idname = "export_scene.batch_fbx"
+    bl_label = "Batch export FBX"
+    bl_options = {'PRESET', 'UNDO'}
+
+    # ExportHelper mixin class uses this
+    filename_ext = ".fbx"
+
+    filter_glob = StringProperty(
+            default="*.fbx",
+            options={'HIDDEN'},
+            )
+
+    # List of operator properties, the attributes will be assigned
+    # to the class instance from the operator setting before calling.
+
+    # context group
+    use_selection_setting: BoolProperty(
+            name="Selection Only",
+            description="Export selected objects only",
+            default=True,
+            )
+
+    use_mesh_modifiers_setting: BoolProperty(
+            name="Apply Modifiers",
+            description="Apply modifiers (preview resolution)",
+            default=True,
+            )
+    axis_forward_setting: EnumProperty(
+            name="Forward",
+            items=(('X', "X Forward", ""),
+                   ('Y', "Y Forward", ""),
+                   ('Z', "Z Forward", ""),
+                   ('-X', "-X Forward", ""),
+                   ('-Y', "-Y Forward", ""),
+                   ('-Z', "-Z Forward", ""),
+                   ),
+            default='-Z',
+            )
+    axis_up_setting: EnumProperty(
+            name="Up",
+            items=(('X', "X Up", ""),
+                   ('Y', "Y Up", ""),
+                   ('Z', "Z Up", ""),
+                   ('-X', "-X Up", ""),
+                   ('-Y', "-Y Up", ""),
+                   ('-Z', "-Z Up", ""),
+                   ),
+            default='Y',
+            )
+    global_scale_setting: FloatProperty(
+            name="Scale",
+            min=0.01, max=1000.0,
+            default=1.0,
+            )
+
+    def execute(self, context):                
+
+        # get the folder
+        folder_path = os.path.dirname(self.filepath)
+
+        # get objects selected in the viewport
+        viewport_selection = context.selected_objects
+
+        # get export objects
+        obj_export_list = viewport_selection
+        if self.use_selection_setting == False:
+            obj_export_list = [i for i in context.scene.objects]
+
+        # deselect all objects
+        bpy.ops.object.select_all(action='DESELECT')
+
+        for item in obj_export_list:
+            item.select_set(True)
+            if item.type == 'MESH':
+                file_path = os.path.join(folder_path, "{}.fbx".format(item.name))
+
+                # FBX settings
+                bpy.ops.export_scene.fbx(
+                        filepath=file_path, 
+                        use_selection=self.use_selection_setting, 
+                        use_active_collection=False, 
+                        global_scale=self.global_scale_setting, 
+                        apply_unit_scale=True, 
+                        apply_scale_options='FBX_SCALE_NONE', 
+                        bake_space_transform=False, 
+                        object_types={'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE', 'MESH', 'OTHER'}, 
+                        use_mesh_modifiers=self.use_mesh_modifiers_setting, 
+                        use_mesh_modifiers_render=True, 
+                        mesh_smooth_type='OFF', 
+                        use_subsurf=False, 
+                        use_mesh_edges=False, 
+                        use_tspace=False, 
+                        use_custom_props=False, 
+                        add_leaf_bones=True, primary_bone_axis='Y', 
+                        secondary_bone_axis='X', 
+                        use_armature_deform_only=False, 
+                        armature_nodetype='NULL', 
+                        bake_anim=True, 
+                        bake_anim_use_all_bones=True, 
+                        bake_anim_use_nla_strips=True, 
+                        bake_anim_use_all_actions=True, 
+                        bake_anim_force_startend_keying=True, 
+                        bake_anim_step=1, 
+                        bake_anim_simplify_factor=1, 
+                        path_mode='AUTO', 
+                        embed_textures=False, 
+                        batch_mode='OFF', 
+                        use_batch_own_dir=True, 
+                        use_metadata=True, 
+                        axis_forward=self.axis_forward_setting, 
+                        axis_up=self.axis_up_setting
+                        )
+
+            item.select_set(False)
+
+        # restore viewport selection
+        for ob in viewport_selection:
+            ob.select_set(True)
+
+        return {'FINISHED'}
+
+
+# Only needed if you want to add into a dynamic menu
+def menu_func_import(self, context):
+    self.layout.operator(Batch_FBX_Export.bl_idname, text="FBX Batch Export (.fbx)")
+
+
+def register():
+    bpy.utils.register_class(Batch_FBX_Export)
+    bpy.types.TOPBAR_MT_file_export.append(menu_func_import)
+
+
+def unregister():
+    bpy.utils.unregister_class(Batch_FBX_Export)
+    bpy.types.TOPBAR_MT_file_export.remove(menu_func_import)
+
+
+if __name__ == "__main__":
+    register()
+
+    # test call
+    #bpy.ops.export_scene.batch_fbx('INVOKE_DEFAULT')
+</code></pre>
+<p>And a simple bash script</p>
+<pre><code class="lang-auto">#!/bin/bash
+
+for (( i=1;i&lt;117;i++)); do
+
+	/home/evol/BuildGame/bin/tool/./AssetImporter model /home/evol/${i}.fbx /home/evol/BuildGame/Data/Models/Fragments/${i}.mdl -nt -nm
+
+done
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>I’ve been using this with some success for bigger stuff: <a class="inline-onebox" href="https://blendermarket.com/products/ossim/docs" rel="noopener nofollow ugc">Ossim - Simulation Baking Tool (now with 2.91 support) - Blender Market</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>This one is also useful for body parts and less rocky stuff: <a class="inline-onebox" href="https://blendermarket.com/products/noisy-cutter" rel="noopener nofollow ugc">Noisy-Cutter - Blender Market</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Whoa I love the way the cuts look on wood! I’m going to try this with a crate object or something</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

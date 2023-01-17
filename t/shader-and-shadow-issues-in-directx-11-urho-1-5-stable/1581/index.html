@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Shader and shadow issues in DirectX 11 (Urho 1.5 Stable)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Shader and shadow issues in DirectX 11 (Urho 1.5 Stable)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Maybe this is already known:<br/>
+<img alt="" height="498" src="../../../images2/aec5451c81424469ec30395bf04f6f30.jpg" width="652"/><br/>
+Those black lines are only there in DirectX 11. OpenGL and DX9 work fine.</p>
+<p>Sometimes this is accompanied by errors such as:</p>
+<p>[quote][Mon Dec 14 14:20:25 2015] ERROR: Failed to create input layout for shader Shadow(), missing element mask 8<br/>
+[Mon Dec 14 14:20:25 2015] ERROR: Failed to create input layout for shader Shadow(SKINNED), missing element mask 8<br/>
+[Mon Dec 14 14:20:26 2015] ERROR: Failed to create input layout for shader level_1_terrain(DIRLIGHT PERPIXEL SHADOW VERTEXCOLOR), missing element mask 8[/quote]<br/>
+(these errors are from a different project with custom shaders)</p>
+<p>The black line appear in this project: <a href="https://github.com/gawag/UrhoSampleProject" rel="nofollow noopener">github.com/gawag/UrhoSampleProject</a><br/>
+It only uses default shaders&amp;techniques.<br/>
+That terrain is the default Urho terrain (same material&amp;textures).</p>
+<p>The printed errors seem to depend on the Urho version. Some GitHub pulls have them, some not. There seems to be some activity in that area in the last days.<br/>
+But what about the lines?</p>
+<p>The Urho samples look fine.<br/>
+The lines are also there when removing the skybox, the planet, the torch (with it’s light source and effects), the postprocess effects and the sun billboard.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This will need to be documented (I thought it already was), but it’s a limitation of D3D11. A model will not render if the shader uses vertex attributes it doesn’t have. The error tells you which element is missing.</p>
+<pre><code class="lang-auto">static const unsigned MASK_TEXCOORD1 = 0x8;</code></pre>
+<p>E.g. the LitSolid shader allows the NOUV define to prevent reading texture coords, and this is defined by the NoTexture family of techniques, but the shadow shader presently doesn’t have this.</p>
+<p>Those lines look like shadow acne, which would point to shadow bias not being strong enough.</p>
+<p>EDIT: use of NOUV is added to Shadow &amp; Depth shaders in the master branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Ah the shadow bias again. Didn’t think of that due to OpenGL and D3D9 being fine. Me and those shadow parameters… Had a thread about that quite a while ago.<br/>
+Changed the bias from 0.00000025 to 0.00002 and the stripes are gone.<br/>
+Is there some kind of rule of thumb how to set those parameters? Now the shadows are starting too far away from the model (peter paning) and that’s quite depending on the looking angle and position (flickering).<br/>
+Currently my parameters are<br/>
+light-&gt;SetShadowBias(BiasParameters(0.00002f,0.5f));<br/>
+light-&gt;SetShadowCascade(CascadeParameters(10.0f,50.0f,200.0f,400.0f,0.8f));<br/>
+If the first parameter is higher (like 0.0002) there are no more shadows. If it’s lower (like 0.000002) the stripes are there again.<br/>
+The second bias parameter doesn’t seem to change anything.<br/>
+Found this: <a href="http://docs.unity3d.com/Manual/ShadowOverview.html" rel="nofollow noopener">docs.unity3d.com/Manual/ShadowOverview.html</a> Though in my case there are either stripes or peter paning, or both at the same time. Is there still no solution to this?</p>
+<p>Looking into the error issue later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bvanevery</div>
+          <div class="post_content">
+<p>BTW I definitely had a CMake stale build issue on this today, on my cheesiest Intel integrated GPU laptop.  Pulled what I thought was new Urho3D, built and installed it but not cleanly.  Ended up with a log full of errors about read-only depth stencil.  Knew that was impossible for a recent build because my other machine had those demoted to warnings only and rendered fine.  Nuked my Urho3D build and install directories, nuked UrhoSampleProject build directory, built everything from scratch.  Now everything works fine.</p>
+<p>Moral of the story is CMake can only handle so much “automatic” adjustment of the build.  I think, especially if the CMake build itself changes much, it’ll eventually just barf.  That’s why one does out-of-source builds, so it’s easy to nuke the build and start over clean.</p>
+<p>I’m surprised that both the AMD and Intel integrated GPUs are running at 10 FPS, whether in Debug or Release.  The AMD part has been consistently 2x faster than the Intel on other tests, like Unigine Valley.  I suppose it’s possible that Urho3D’s shadowing exercises GPU capabilities that are equally crappy on both though.  I will drag out my bigger laptop that has a dedicated NVIDIA GeForce 8600M GT in it, to see if it runs any faster.  All 3 machines have roughly similar CPU-side capabilities.</p>
+<p>GeForce does 15+ FPS in Debug and Release.  So, faster, but not fast.  I know this is old HW but I had hoped for better on seemingly such a trivial demo.  I do recall various DirectX SDK demos that choked the crap out of that card back in the day though.  Now I suppose I can learn what all my cheesy old HW can and cannot do.</p>
+<p>I don’t know if it’s related to the performance, but this is all DX10 or DX10.1 class HW, running a DX11 API on top of it.  <a data-bbcode="true" href="https://mynameismjp.wordpress.com/2010/11/14/d3d11-features/" rel="nofollow noopener">This says</a> read-only depth-stencil views were introduced in DX11, so my HW may not be able to support simultaneous writeable and read-only views.</p>
+<p>[quote]<br/>
+4. Read-only depth-stencil views: D3D10 let you bind depth-stencil buffers as shader resource views so that you could sample them in the pixel shader, but came with the restriction that you couldn?t have them simultaneously bound to the pipeline as both views simultaneously. That?s fine for SSAO or depth of field, but not so fine if you want to do deferred rendering and use depth-stencil culling. D3D10.1 added the ability to let you copy depth buffers asynchronously using the GPU, but that?s still not optimal. D3D11 finally makes everything right in the world by letting you create depth-stencil views with a read-only flag. So basically you can just create two DSV?s for your depth buffer, and switch to the read-only one when you want to do depth readback.[/quote]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

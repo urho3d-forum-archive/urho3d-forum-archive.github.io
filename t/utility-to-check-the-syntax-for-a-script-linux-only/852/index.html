@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Utility to check the syntax for a script [Linux only]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Utility to check the syntax for a script [Linux only]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>I have made this simple Urho3D application that just gets an Script name as a parameter, compiles it and then exits. All is done in headless mode.</p>
+<p>The goal is having a tool that just checks the syntax for a given Script. Having this, combined with a simple Unix script to filter the output and just show compiler errors I’ve been able to check for compiler errors just by pressing F6 on vim <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>Here’s the Urho3D application code:</p>
+<p>SyntaxChecker.h:</p>
+<pre><code class="lang-auto">#pragma once
+
+#include &lt;Urho3D/Urho3D.h&gt;
+#include &lt;Urho3D/Engine/Application.h&gt;
+
+using namespace Urho3D;
+
+class SyntaxChecker : public Urho3D::Application {
+   OBJECT(SyntaxChecker);
+
+public:
+   SyntaxChecker(Urho3D::Context*);
+
+   virtual void Setup();
+   virtual void Start();
+   virtual void Stop() {}
+
+private:
+   
+   SharedPtr&lt;Context&gt; context;
+   String scriptName;
+};</code></pre>
+<p>SyntaxChecker.cpp</p>
+<pre><code class="lang-auto">#include &lt;Urho3D/Engine/Engine.h&gt;
+#include &lt;Urho3D/Resource/ResourceCache.h&gt;
+#include &lt;Urho3D/Script/ScriptFile.h&gt;
+#include &lt;Urho3D/Script/Script.h&gt;
+#include "CustomComponents.h"
+
+using namespace Urho3D;
+
+DEFINE_APPLICATION_MAIN(SyntaxChecker)
+
+SyntaxChecker::SyntaxChecker(Urho3D::Context* context) : Application(context){
+    this-&gt;context = context;
+}
+
+void SyntaxChecker::Setup(){
+    engineParameters_["Headless"] = true;
+    
+    context_-&gt;RegisterSubsystem(new Script(context_));
+    asIScriptEngine* engine = GetSubsystem&lt;Script&gt;()-&gt;GetScriptEngine();
+    
+    //Register here your custom script and object methods
+    //if you happen to have them
+    
+    const Vector&lt;String&gt;&amp; arguments = GetArguments();
+    scriptName = arguments[0];
+}
+
+void SyntaxChecker::Start(){
+    
+    ScriptFile* e = context-&gt;GetSubsystem&lt;ResourceCache&gt;()-&gt;
+        GetResource&lt;ScriptFile&gt;("Scripts/"+scriptName);
+    engine_-&gt;Exit();
+}</code></pre>
+<p>This should build fine as of 1.32 (and the most recent commit I have, actually).</p>
+<p>This will basically load the engine and then exit. If there was a compiler error, it should’ve been logged. The executable receives the Script path as its first paramer. Now to filter the output I use the following bash script (this is placed next to the executable):</p>
+<p><a href="http://syncheck.sh" rel="nofollow noopener">syncheck.sh</a>:</p>
+<pre><code class="lang-auto">#!/bin/bash
+
+s=$(echo $1 | sed s/'.*\/Scripts\/\(.*\)'/'\1'/g)
+echo Checking syntax for $s
+./SyntaxChecker $s 2&gt;&amp;1 | awk '/ERROR/{print;}' | sed s/'\[.*\]\s'/''/g</code></pre>
+<p>This script does two things, first it takes a full (or relative) path as an argument and passes it to the Urho application I just posted and then it runs the application with the correct path. It’s assumed that all the scripts are under the “Scripts” directory, note that if there are multiple “Scripts” folders in the path this will fail (I’m not that good with regex, but this can be fixed).</p>
+<p>Lastly, I added this to my .vimrc in order to bind F6 to check the syntax for the current script:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>And that’s all folks! When I have time I’ll just get rid of all the bash and do everything with Urho to ensure compatibility in all platforms.</p>
+<p>This can be basically used as an application that returns all the errors in a file, so it can be the base of a sublime, vim or similar editors’ plugin to highlight errors and things like that, and that was my idea on the first place. If anyone does something similar please share it!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

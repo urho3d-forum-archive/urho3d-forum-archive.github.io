@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Oopsed/Solved] Toggleable mouse cursor</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Oopsed/Solved] Toggleable mouse cursor</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>The mouse cursor behavior gets kinda ridiculous when having set a shape (not using the OS default). Basically I just want to be able to toggle between “mouse cursor mode” and “camera/movement mode” like many games do.</p>
+<pre><code class="lang-auto">SharedPtr&lt;Cursor&gt; cursor;
+...
+// starting phase
+XMLFile* style = cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml");
+UI* ui=GetSubsystem&lt;UI&gt;();
+ui-&gt;GetRoot()-&gt;SetDefaultStyle(style);
+cursor=new Cursor(context_);
+cursor-&gt;SetStyleAuto(style);
+ui-&gt;SetCursor(cursor);
+GetSubsystem&lt;Input&gt;()-&gt;SetMouseVisible(true);
+...
+// in my toggle function
+GetSubsystem&lt;Input&gt;()-&gt;SetMouseGrabbed(!GetSubsystem&lt;Input&gt;()-&gt;IsMouseGrabbed());  // toggle grabbing of mouse
+GetSubsystem&lt;Input&gt;()-&gt;SetMouseVisible(!GetSubsystem&lt;Input&gt;()-&gt;IsMouseVisible());       // ignore mouse cursor (the cursor is still visible but weird when having set a cursor)
+if(GetSubsystem&lt;UI&gt;()-&gt;GetCursor())                                                                               // toggle the set cursor to 0 to have the default OS cursor again, which is hidden via SetMouseVisible
+    GetSubsystem&lt;UI&gt;()-&gt;SetCursor(0);
+else
+    GetSubsystem&lt;UI&gt;()-&gt;SetCursor(cursor);</code></pre>
+<p>Maybe I’m missing something but such a mode switch shouldn’t be that complicated and hard to do as it currently is.<br/>
+What about a ui-&gt;SetCursorActive(bool) that does basically ui-&gt;SetCursor(0) and Input-&gt;SetMouseVisible(false) in the false case or SetCursor(last_cursor) and Input-&gt;SetMouseVisible(true) in the true case?<br/>
+There could be also ui-&gt;EnableCursor() and ui-&gt;DisableCursor().<br/>
+Am I doing it right and is this intended to be like this?</p>
+<p>Urho version is the newest from GitHub and 1.5 behaves the same.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>The easy way is to use Input-&gt;SetMouseMode(MM_ABSOLUTE) for your UI mode, and Input-&gt;SetMouseMode(MM_RELATIVE) for your FPS mode, or sim ply toggling UI cursor visiblity.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ hd_:</div>
+<blockquote>
+<p>The easy way is to use Input-&gt;SetMouseMode(MM_ABSOLUTE) for your UI mode, and Input-&gt;SetMouseMode(MM_RELATIVE) for your FPS mode, or sim ply toggling UI cursor visiblity.</p>
+</blockquote>
+</aside>
+<p>Just toggling visibility doesn’t help because when the cursor is set, it is still drawn even when the OS cursor is invisible.</p>
+<p>With SetMouseMode I could change my toggle function to:</p>
+<pre><code class="lang-auto">if(GetSubsystem&lt;Input&gt;()-&gt;GetMouseMode()==MM_RELATIVE)
+{
+    GetSubsystem&lt;Input&gt;()-&gt;SetMouseMode(MM_ABSOLUTE);
+    GetSubsystem&lt;UI&gt;()-&gt;SetCursor(cursor);
+}
+else
+{
+    GetSubsystem&lt;Input&gt;()-&gt;SetMouseMode(MM_RELATIVE);
+    GetSubsystem&lt;UI&gt;()-&gt;SetCursor(0);
+}</code></pre>
+<p>The SetCursor is still weird but it is required. This is a bit better though, but the Cursor being always visible when set to non-OS, via SetCursor, is still odd.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I think hd_ is correct. The cursor is just like any UI-element, so setting the cursor visibility to false should hide the cursor without calling SetCursor(0). Also take note that like OS cursor, the software-rendered cursor will also attempt to return back to its so-called normal shape.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>I think hd_ is correct. The cursor is just like any UI-element, so setting the cursor visibility to false should hide the cursor without calling SetCursor(0). Also take note that like OS cursor, the software-rendered cursor will also attempt to return back to its so-called normal shape.</p>
+</blockquote>
+</aside>
+<p>Oh! I didn’t see that it’s a UIElement and has a SetVisible(bool). I thought the only “sane looking option” was input-&gt;SetMouseVisible(bool).<br/>
+No Idea how I missed that.  <img alt=":blush:" class="emoji" src="../../../images2/f5e2a5ef6206a15962e2ec428f87e9a2.png" title=":blush:"/><br/>
+Now a switch function could look like:</p>
+<pre><code class="lang-auto">if(GetSubsystem&lt;Input&gt;()-&gt;GetMouseMode()==MM_RELATIVE)
+{
+    GetSubsystem&lt;Input&gt;()-&gt;SetMouseMode(MM_ABSOLUTE);
+    cursor-&gt;SetVisible(true);
+}
+else
+{
+    GetSubsystem&lt;Input&gt;()-&gt;SetMouseMode(MM_RELATIVE);
+    cursor-&gt;SetVisible(false);
+}</code></pre>
+<p>That looks decent.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

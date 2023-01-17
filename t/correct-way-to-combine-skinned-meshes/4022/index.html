@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Correct way to combine skinned meshes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Correct way to combine skinned meshes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Im using combinned meshes on my game, example: armor its one model, and head its another. Than, I combine the both, and set just one animation for both.</p>
+<p>I would like to know if I doing this in correct and better way:</p>
+<pre><code>Node* modelNode = scene_-&gt;CreateChild("Pike");
+modelNode-&gt;SetPosition(Vector3(Random(40.0f) - 20.0f, 0.0f, Random(40.0f) - 20.0f));
+modelNode-&gt;SetRotation(Quaternion(0.0f, Random(360.0f), 0.0f));
+
+auto* modelArmor = modelNode-&gt;CreateComponent&lt;AnimatedModel&gt;();
+modelArmor-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Pike/model.mdl"));
+modelArmor-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Models/Pike/Materials/mat1.xml"));
+modelArmor-&gt;SetCastShadows(true);
+
+auto* modelHead = modelNode-&gt;CreateComponent&lt;AnimatedModel&gt;();
+modelHead-&gt;SetModel( cache-&gt;GetResource&lt;Model&gt;( "Models/Pike/head.mdl" ) );
+modelHead-&gt;SetMaterial( cache-&gt;GetResource&lt;Material&gt;( "Models/Pike/Materials/mat1.xml" ) );
+modelHead-&gt;SetCastShadows( true );
+
+auto * animationController = modelNode-&gt;CreateComponent&lt;AnimationController&gt;();
+animationController-&gt;PlayExclusive( "Models/Pike/anim.ani", 0, true, 0.0f );
+</code></pre>
+<p>Im asking this, because all characters will works this way, and need to know if Im using the better way on on performance issues (I dont want to drop so much the FPS).</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Yes, that is the suggested method. And yes, you should be concerned with performance doing it this way because for a <em>n</em> number of animated models you have with a <em>m</em> number of bones, you’re articulating <strong>n x m</strong> matrix multiplications per frame.  You can circumvent this by creating place-holder geometries (simple quads for example) in your main animated character model and swap in/out your armor at runtime.</p>
+<p>edit: here’s an example model: <a href="https://github.com/Lumak/Urho3D-Skinned-Armor/tree/master/bin/Data/SkinnedArmor/Girlbot">https://github.com/Lumak/Urho3D-Skinned-Armor/tree/master/bin/Data/SkinnedArmor/Girlbot</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hmm got it… have some great advantage using a model with all armors, and this way just set the desired armor at runtime? (I believe that u made something like this, but instead of armors, parts of armor).</p>
+<p>Do u know if Urho3D have some cache system or instance to make this system better? Because if have two characters using same armor, the skinning is the same, so I dont know if Urho3D instance this to gain performance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4022" data-username="Lumak">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/> Lumak:</div>
+<blockquote>
+<p>And yes, you should be concerned with performance doing it this way because for a n number of animated models you have with a m number of bones, you’re articulating n x m matrix multiplications per frame.</p>
+</blockquote>
+</aside>
+<p>Quoting the documentation @</p>
+<p><a class="onebox" href="https://urho3d.github.io/documentation/1.5/_skeletal_animation.html:" rel="noopener nofollow ugc" target="_blank">https://urho3d.github.io/documentation/1.5/_skeletal_animation.html:</a></p>
+<blockquote>
+<p><strong>Combined skinned models</strong><br/>
+To create a combined skinned model from many parts (for example body + clothes), several AnimatedModel components can be created to the same scene node. <strong>These will then share the same bone nodes.</strong> The component that was first created will be the “master” model which drives the animations; the rest of the models will just skin themselves using the same bones. For this to work, all parts must have been authored from a compatible skeleton, with the same bone names. The master model should have all the bones required by the combined whole (for example a full biped), while the other models may omit unnecessary bones. Note that if the parts contain compatible vertex morphs (matching names), the vertex morph weights will also be controlled by the master model and copied to the rest.</p>
+</blockquote>
+<p>Also, GPU skinning is a thing and bones * nodes is pretty much irrelevant - it’s the vertex count that matters in skinning … a weighted blend of matrices and a mult for every vertex. Thus, GPU skinning.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Here’s snippet of the UpdateSkinning fn.</p>
+<pre><code class="lang-auto">void AnimatedModel::UpdateSkinning()
+{
+    // Note: the model's world transform will be baked in the skin matrices
+    const Vector&lt;Bone&gt;&amp; bones = skeleton_.GetBones();
+    // Use model's world transform in case a bone is missing
+    const Matrix3x4&amp; worldTransform = node_-&gt;GetWorldTransform();
+
+    // Skinning with global matrices only
+    if (!geometrySkinMatrices_.Size())
+    {
+        for (unsigned i = 0; i &lt; bones.Size(); ++i)
+        {
+            const Bone&amp; bone = bones[i];
+            if (bone.node_)
+                skinMatrices_[i] = bone.node_-&gt;GetWorldTransform() * bone.offsetMatrix_;
+            else
+                skinMatrices_[i] = worldTransform;
+        }
+    }
+</code></pre>
+<p>This line in particular:<br/>
+<strong><em>skinMatrices_[i] = bone.node_-&gt;GetWorldTransform() * bone.offsetMatrix_;</em></strong><br/>
+is the <strong>m x n</strong> matrix multiplications per frame.  GPU skinning still requires <strong>skinMatrices_[]</strong> to be computed by the CPU (edit, added the CPU part).</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

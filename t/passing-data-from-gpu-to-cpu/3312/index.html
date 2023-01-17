@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Passing data from GPU to CPU</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Passing data from GPU to CPU</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>I need a way to pass some numbers from GPU back to CPU. First I tried:<br/>
+<code><br/>
+Image@ img =logTex.GetImage();<br/>
+Color px = img.GetPixel(0,0);<br/>
+</code></p>
+<p>It worked great for single pixel and I was able to pass four 8-bit numbers back into AngelScript. Problem is, If I try to read more pixels, performance will drop very fast. As I understand, code above stops whole pipeline (both CPU and GPU) for a moment to read a single pixel. And more pixels I read, the longer pipeline stays idle. Not cool.</p>
+<p>I know, there should be a better way to do it. Copy image? I don’t mind it to lag a few frames, I just want to pass more data from GPU without stalling whole render pipeline.</p>
+<p>Thanks in advance for any thoughts and suggestions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/123_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kostik1337</div>
+          <div class="post_content">
+<p>Are you doing GetImage() for each pixel?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><a href="https://github.com/1vanK/Urho3DBitmapFontGenerator">https://github.com/1vanK/Urho3DBitmapFontGenerator</a></p>
+<p><a href="https://github.com/1vanK/Urho3DBitmapFontGenerator/blob/master/Source/BFGenerator.cpp">https://github.com/1vanK/Urho3DBitmapFontGenerator/blob/master/Source/BFGenerator.cpp</a><br/>
+see BFGenerator::CalcField() how send texture with packed data to shaders and calc heavy matematics on GPU<br/>
+After it you always can use GetImage() for rendered Texture2D</p>
+<p>p.s. I read the question carefully and do not understand why img.GetPixel() is slow, image already on CPU</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="2" data-topic="3312">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b032fef93db80a84ba60ed10c6e1b100.png" width="20"/> kostik1337:</div>
+<blockquote>
+<p>Are you doing GetImage() for each pixel?</p>
+</blockquote>
+</aside>
+<p>No, here what I do for performance test:<br/>
+<code> <br/>
+Image@ img =logTex.GetImage();<br/>
+Array px(256);<br/>
+for(int i=0; i&lt;256; i++)<br/>
+{<br/>
+px[i] = img.GetPixel(i,0);<br/>
+}<br/>
+</code></p>
+<p>and numbers I’m getting (update):<br/>
+16   4.5ms<br/>
+32   7ms<br/>
+64   16ms<br/>
+128 20ms<br/>
+256 35ms</p>
+<aside class="quote" data-post="3" data-topic="3312">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>do not understand why img.GetPixel() is slow</p>
+</blockquote>
+</aside>
+<p>well, maybe I’m wrong, and it’s just AngelScrip does it slow. But since even smaller numbers affect frame time, I assumed it stalls whole pipeline.</p>
+<p>I should probably try C++. (Oh no! <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/>  )</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="4" data-topic="3312">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a79cca2c28c315c57d07fcab55ddae8.png" width="20"/> Bananaft:</div>
+<blockquote>
+<p>256 35ms</p>
+</blockquote>
+</aside>
+<p>This is surprisingly slow even for AS.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Hello again. So, I spent couple weeks learning C++. I added this code to to 10_RenderToTexture.cpp, it takes texture just rendered, copies it into image, and then converts image into Vector4 array.<br/>
+<code><br/>
+texImg = new Image(renderTexture-&gt;GetContext());<br/>
+texImg-&gt;SetSize(txSize, txSize, 4);<br/>
+renderTexture-&gt;GetData(0, texImg-&gt;GetData());<br/>
+for (int i = 0; i &lt; txSize; i++)<br/>
+{<br/>
+for (int j = 0; j &lt; txSize; j++)<br/>
+texData[i][j] = texImg-&gt;GetPixel(i, j).ToVector4();<br/>
+}<br/>
+</code></p>
+<p>It works insanely fast, 256x256 10ms 512x512 30ms in Debug, 1024x1024 (million pixels) 25ms in Release.<br/>
+Ad I guess 2k pixels (32x64) should cover all my needs and some more.</p>
+<p>I now just need a way to pass it into AS without loosing momentum. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

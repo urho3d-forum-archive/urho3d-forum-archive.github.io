@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ResourceCache fails to return a valid ScriptFile object UNLESS your AngelScript contains at least one class definition</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ResourceCache fails to return a valid ScriptFile object UNLESS your AngelScript contains at least one class definition</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I wrote a small AngelScript containing a free function.<br/>
+When I tried to load it via ResourceCache, I found it returned nullptr - even though the script compiled ok. I noticed that when I added a small dummy class to the script, all of a sudden I was getting a valid ScriptFile object from the ResourceCache, and I could call my free function.<br/>
+I was wondering why ResourceCache is making the assumption that a script module bereft of object classes is somehow invalid?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Do you get a “Failed to compile script module” in the log when you try to load the class-less file?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>No! the script compiled perfectly - just ResourceCache refused to hand back the ScriptFile object unless I added the following unreferenced dummy class:</p>
+<pre><code class="lang-auto">class dummy{
+     int x;
+     int y;
+}
+
+int MyFreeFunction( ... </code></pre>
+<p>Once I added the dummy class, ResourceCache was happy to give me access to the compiled module, and let me execute my free function… seems like ResourceCache has some requirement that a script must contain a class definition, even if it’s never referenced…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Really strange. I don’t see how that can happen if you’re seeing the “Compiled script module [name]” message in the log. Unless someone else has some insight you might be left with just stepping through the GetResource call until you find where the loading fails.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Looks that way <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/><br/>
+To be honest, the workaround is not a deal-breaker, I just found it a little odd…<br/>
+I can reproduce the issue in about 3 lines of code, it’s repeatable.<br/>
+So can you.</p>
+<p>I wanted to clarify since the title of my post may be misleading…</p>
+<ul>
+<li>
+<p>Register the scripting subsystem with urho3d.<br/>
+Script* script=new Script(context_);<br/>
+context_-&gt;RegisterSubsystem(script);</p>
+</li>
+<li>
+<p>Create an angelscript textfile, containing a dummy function.<br/>
+void ThisDoesNothingButCompilesFine { } and save it in your resource folder.</p>
+</li>
+<li>
+<p>Try to  access the script file via resourcecache:<br/>
+ScriptFile* file = GetSubsystem()-&gt;GetResource(“Scripts/TestScript.as”);</p>
+</li>
+</ul>
+<p>Without a dummy class in the script file, I am betting you get file==nullptr, while the log suggests that compile was successful.</p>
+<p>I did tests with various forms of function declaration, the resourcecache lets us down every time, except if there is at least one class somewhere in the script, even if we never mention it anywhere else.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Stepping through GetResource is not a great option for a couple of reasons.</p>
+<ul>
+<li>CodeBlocks on Linux is super slow when symbolic lookups are enabled</li>
+<li>I link to a static, release build of the lib in most cases</li>
+<li>I’m still new to using GDB outside of an IDE</li>
+</ul>
+<p>It’s actually faster for me to google the sourcecode to that class, and stare down the code for that method, in most cases anyway. It’s even faster than digging around in the sourcecode itself, which I already have, obviously. But with less motions of my body, I can often deduce the answer using nothing more than google and searching the plaintext of the sourcecode for keywords.</p>
+<p>Usually, if something crashes, I can just hop into the disassembler, see where I landed, examine my cpu registers, and deduce the issue, like a boss. But if I am returned a bad state with no errors generated, and it does not crash (hey maybe there is an exception handler chain?) then it gets harder to do that without, as you suggested, actually stepping through the code.</p>
+<p>I hate silent errors - exception handling is often a culprit, but I really hate late error checking where no last moment error information was provided at all.</p>
+<p>“Hey, everything is good” - here is your nullptr. Have a nice day.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1929_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">guk_alex</div>
+          <div class="post_content">
+<p>There are a bunch of places inside GetResource and down the Resource class where nullptr can be returned. It certainly will be faster to simply stepping through the code with debugger (or setting brakepoints in certain places) then guessing why that could happen.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Why the (very rude expression in four letter terms) is no error information emitted in these cases? I mean - really? We are the point of error, we have error logging, and we did what? I find this dismal, useless and definitely not good enough. This is not how we grow, this is how we hide.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

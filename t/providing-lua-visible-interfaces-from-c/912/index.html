@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Providing lua-visible interfaces from C++</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Providing lua-visible interfaces from C++</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">j15r</div>
+          <div class="post_content">
+<p>All,</p>
+<p>Apologies if there’s obvious documentation on this, but I can’t seem to find it. I’m attempting to build a game that’s implemented in a mixture of Lua and C++. Unsurprisingly, my intent is to implement the coarse-grained game logic in Lua, with performance-critical bits in C++. So far, I’ve had not trouble implementing custom Drawable components in C++ (kudos to the team for making bootstrapping a C++ project far easier than I’m accustomed to!), but I’ve hit a bit of a snag in the Lua integration.</p>
+<p>Calling simple Lua scripts is easy enough. Where I’m having trouble is in exposing interfaces to my custom components to script code. I believe I understand the structure and logic used for the built-in classes – as I understand it, there’s a .pkg definition file for each exposed interface, run through tolua++ to generate, e.g., NodeLuaAPI.cpp, which appears to include all the necessary Lua binding logic. So far, so good.</p>
+<p>However, when I attempt to do the same for my own custom classes, I hit build issues at every turn, giving me the impression I’m fundamentally misunderstanding something. The package definitions seem straightforward enough. But the compiled output (via ToCppHook.lua) <span class="hashtag">#includes</span> &lt;tolua++.h&gt;, “lua.h”, and “LuaScript/ToLuaUtils.h”. These references appear to assume that they’ll be running within the Urho3D source build, not external projects (e.g., otherwise, I’d expect to see <span class="hashtag">#include</span> “Urho3D/LuaScript/ToLuaUtils.h”).</p>
+<p>My next step was to hope that ToCppHook.lua was not actually necessary (it might be the case that the stuff for PODVector, et al, in there is only needed for the library itself), so I dropped the {-L […]/ToCppHook.lua from my tolua++ invocation. If I also add Source/ThirdParty/Lua/src to my include path, then manually call {tolua_MyThing_open(luaScript-&gt;GetState());} during startup, then (yay!) it actually works, and I can call {node:CreateComponent(“MyThing”)} without it crashing in the lua binding code.</p>
+<p>My question is this – am I swimming upstream on this approach, and/or is there a simpler way to achieve my goals? I feel like my build’s more than a little precarious, reaching around into the Urho3D source tree for include paths for lua.h, and I have the sneaking suspicion that dropping ToCppHook.lua from the tolua++ invocation is causing problems I haven’t hit yet. Any guidance or pointers would be greatly appreciated. And if it happens that this is a legitimate-but-not-well-supported use-case, I’m glad to lend a hand in supporting it.</p>
+<p>Thanks in advance,<br/>
+joel.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>In regard to ‘add Source/ThirdParty/Lua/src’ to include path - It is not clear whether you are using the Urho3D 1.32 release or the Urho3D master branch. If it is the latter and if you have used the provided FindUrho3D CMake module in your external project then the problem can be fixed by enabling the URHO3D_LUA build option when you configure/generate your external project files. The latest master branch has a commit which “install” the Lua/LuaJIT and tolua++ header files and let the FindUrho3D module to add the Lua include dir into the include search path for external project. See <a >github.com/urho3d/Urho3D/issues/610</a> for more detail.</p>
+<p>In regard to ToCppHook.lua assumption - You have made a good observation there. It will be beneficial to change this script to accept extra parameter to indicate whether it should emit cpp source code for <span class="bbcode-b">building</span> Urho3D library or for <span class="bbcode-b">using</span> Urho3D library, i.e. alternating the include statement between “LuaScript/ToluaUtils.h” and &lt;Urho3D/LuaScript/ToluaUtils.h&gt;, for example. Alternatively, for a quicker fix, you can just customize this hook to suit your own project need and invoke tolua++ tool with your custom version. I would not, however, advice you to bypass it altogether because besides losing on the performance of using Lua’s table, I am not sure what else would break in the Lua bindings without it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">j15r</div>
+          <div class="post_content">
+<p>Thanks – I just realized that I hadn’t been running cmake in my local build with -D URHO3D_LUA. Doing so appears to have added Build/include/ThirdParty/Lua to my include path, which resolves part of the problem. But …/ThirdParty/toluapp is not on the include path. Looking at <a  rel="nofollow noopener">github.com/urho3d/Urho3D/commit … 4b1a604f3f</a>, I <em>think</em> it just needs include/ThirdParty/toluapp added to the <code>if (URHO3D_LUA)</code> bit. This patch does correctly add the toluapp symlink to the Build/include output, so it’s pretty close.</p>
+<p>Regarding ToCppHook.lua, what I have is actually working so far, but I’ll try to find some time soon to look at it more closely. I should be able to get a patch together to make it reasonably simple to create a combination C++/Lua project. If anyone thinks it would be useful, I could also create a sample project explaining how to get bootstrapped for that case, which I suspect is pretty common. I’ll probably need someone to review the intricacies of extending Drawable to make sure I didn’t screw anything up – I’m still getting my sea legs in the framework’s APIs and assumptions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The “ThirdParty/toluapp” is not needed in the include search path specifically. It is because the generated CPP source file should have the tolua++.h header file included in this way: “<span class="hashtag">#include</span> &lt;toluapp/tolua++.h&gt;”. This form is correct regardless of whether we are building Urho3D library or using Urho3D library. All we just need to ensure is that when building we have “${CMAKE_BINARY_DIR}/${DEST_INCLUDE_DIR}/ThirdParty” in the include search path and when using we have “${URHO3D_HOME}/include/${PATH_SUFFIX}/ThirdParty” in the include search path.</p>
+<p>I am looking forward for your sample project. Thanks in advance for your plan to sharing it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">j15r</div>
+          <div class="post_content">
+<p>I missed that bit – ToCppHook.lua includes the nasty search and replace that fixes that. That was the impetus I needed to hoist out ToCppHook.lua and adjust the include paths. Turns out that wasn’t a big deal, and everything works now in my project’s build tree. Now the only slightly smelly part is having to copy most of ToCppHook, but that’s eminently tolerable for the time being.</p>
+<p>Thanks again for your help!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>There is a small patch in the latest master branch now to address your last issue. You should be able to reuse the ToCppHook.lua now as it is.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">j15r</div>
+          <div class="post_content">
+<p>Cool, thanks – the only remaining problem is that it’s missing an <span class="hashtag">#include</span> &lt;Urho3D/Urho3D.h&gt;, which is required to avoid compile errors in ToluaUtils.h.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Yes, of course. It will be included soon.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

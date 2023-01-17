@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Input key up event error on Linux platform</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Input key up event error on Linux platform</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hypnotize</div>
+          <div class="post_content">
+<p>Hey,</p>
+<p>I’m a seazoned HTML5 game developer that decided to go into c++ games. I have noticed a strange behavior of Urho3d events behavior. I took code from this example and compiled it and when any key is being held both events E_KEYUP and E_KEYDOWN fire. What I would like to get is only the key up events. The weird thing is that i took the newest version of SDL2 and compiled it and it works absolutely perfect. Maybe there is something I don’t know about URHO3D or I’m doing something wrong?<br/>
+This is my code example:</p>
+<pre><code class="lang-auto">#include &lt;string&gt;
+#include &lt;memory&gt;
+#include &lt;fstream&gt;
+#include &lt;sstream&gt;
+#include &lt;iostream&gt;
+
+#include &lt;Urho3D/Urho3D.h&gt;
+#include &lt;Urho3D/Core/CoreEvents.h&gt;
+#include &lt;Urho3D/Engine/Application.h&gt;
+#include &lt;Urho3D/Engine/Engine.h&gt;
+#include &lt;Urho3D/Input/Input.h&gt;
+#include &lt;Urho3D/Input/InputEvents.h&gt;
+#include &lt;Urho3D/Resource/ResourceCache.h&gt;
+#include &lt;Urho3D/Resource/XMLFile.h&gt;
+#include &lt;Urho3D/IO/Log.h&gt;
+#include &lt;Urho3D/UI/UI.h&gt;
+#include &lt;Urho3D/UI/Text.h&gt;
+#include &lt;Urho3D/UI/Font.h&gt;
+#include &lt;Urho3D/UI/Button.h&gt;
+#include &lt;Urho3D/UI/UIEvents.h&gt;
+#include &lt;Urho3D/UI/Window.h&gt;
+#include &lt;Urho3D/Scene/Scene.h&gt;
+#include &lt;Urho3D/Scene/SceneEvents.h&gt;
+#include &lt;Urho3D/Graphics/Graphics.h&gt;
+#include &lt;Urho3D/Graphics/Camera.h&gt;
+#include &lt;Urho3D/Graphics/Renderer.h&gt;
+#include &lt;Urho3D/Graphics/DebugRenderer.h&gt;
+#include &lt;Urho3D/Graphics/Octree.h&gt;
+
+using namespace Urho3D;
+
+/// SampleApplication main class mainly used for setup. The control is then given to the game states (starting with gs_main_menu).
+class MultiverseApp : public Application{
+public:
+    
+    SharedPtr&lt;Scene&gt; scene_;
+    Node* cameraNode_;
+    Urho3D::Text* window_text;
+    SharedPtr&lt;Urho3D::Window&gt; window;
+    Urho3D::Camera* camera_;
+
+    MultiverseApp(Context * context) : Application(context) {}
+
+    virtual void Setup() {
+        engineParameters_["FullScreen"]=false;
+        engineParameters_["WindowTitle"] = "Multiverse";
+        engine_-&gt;SetMaxFps(60);
+        GetSubsystem&lt;Input&gt;()-&gt;SetMouseVisible(true);
+    }
+
+    virtual void Start(){
+        
+        ResourceCache* cache=GetSubsystem&lt;ResourceCache&gt;();
+        GetSubsystem&lt;UI&gt;()-&gt;GetRoot()-&gt;SetDefaultStyle(cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml"));
+
+        scene_=new Scene(context_);
+        scene_-&gt;CreateComponent&lt;Octree&gt;();
+        scene_-&gt;CreateComponent&lt;DebugRenderer&gt;();
+        
+
+        cameraNode_=scene_-&gt;CreateChild("Camera");
+        cameraNode_-&gt;SetPosition(Vector3(0,0,0));
+        cameraNode_-&gt;SetDirection(Vector3::FORWARD);
+        camera_=cameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+
+        Renderer* renderer=GetSubsystem&lt;Renderer&gt;();
+        SharedPtr&lt;Viewport&gt; viewport(new Viewport(context_,scene_,cameraNode_-&gt;GetComponent&lt;Camera&gt;()));
+        renderer-&gt;SetViewport(0,viewport);
+        renderer-&gt;SetShadowMapSize(1024);
+
+        SubscribeToEvent(E_KEYDOWN,URHO3D_HANDLER(MultiverseApp, passKeyDown ));
+        SubscribeToEvent(E_KEYUP,URHO3D_HANDLER(MultiverseApp, passKeyUp ));
+
+        window=new Window(context_);
+        GetSubsystem&lt;UI&gt;()-&gt;GetRoot()-&gt;AddChild(window);
+        window-&gt;SetStyle("Window");
+        window-&gt;SetSize(600,170);
+        window-&gt;SetColor(Color(1,1,1));
+        window-&gt;SetAlignment(HA_LEFT,VA_TOP);
+
+        window_text=new Text(context_);
+        window_text-&gt;SetFont(cache-&gt;GetResource&lt;Font&gt;("Fonts/Anonymous Pro.ttf"),14);
+        window_text-&gt;SetColor(Color(1,1,1));
+        window_text-&gt;SetAlignment(HA_LEFT,VA_TOP);
+        window-&gt;AddChild(window_text);
+
+    }
+
+    virtual void Stop() { }
+
+    void HandleUpdate(StringHash eventType, VariantMap&amp; eventData){
+        
+        float timeStep=eventData[Update::P_TIMESTEP].GetFloat();
+
+        std::string str="WASD, mouse and shift to move. T to toggle fill mode,\nG to toggle GUI, Tab to toggle mouse mode, Esc to quit.\n";
+        {
+            std::ostringstream ss;
+            ss&lt;&lt;1/timeStep;
+            std::string s(ss.str());
+            str.append(s.substr(0,6));
+        }
+        str.append(" FPS ");
+        String s(str.c_str(),str.size());
+        window_text-&gt;SetText(s);
+        
+    }
+
+    void passKeyDown(StringHash eventType, VariantMap&amp; eventData) {
+        if (eventType == E_KEYDOWN) {
+        
+            std::cout &lt;&lt; "key down 1" &lt;&lt; std::endl;
+        
+        }else if (eventType == E_KEYUP){
+        
+            std::cout &lt;&lt; "key up 1" &lt;&lt; std::endl;
+        
+        }
+    }
+    void passKeyUp(StringHash eventType,VariantMap&amp; eventData) {
+        using namespace KeyUp;
+        int key=eventData[P_KEY].GetInt();
+        
+        if (eventType == E_KEYDOWN) {
+        
+            std::cout &lt;&lt; "key down 2" &lt;&lt; std::endl;
+        
+        }else if (eventType == E_KEYUP){
+        
+            std::cout &lt;&lt; "key up 2" &lt;&lt; std::endl;
+        
+        }
+    }
+    
+};
+
+URHO3D_DEFINE_APPLICATION_MAIN(MultiverseApp);</code></pre>
+<p>Please take a look at the console output from this example. The keyup events should be fired only in case of actually releasing the key. And it is firing all the time with key pressed down. Any idea what is going on?</p>
+<p>I subscribe to E_KEYUP</p>
+<pre><code class="lang-auto"></code></pre>
+<p>and hadle it with a method:</p>
+<p>[code]void passKeyUp(StringHash eventType,VariantMap&amp; eventData) {<br/>
+using namespace KeyUp;<br/>
+int key=eventData[P_KEY].GetInt();</p>
+<pre><code>    if (eventType == E_KEYDOWN) {
+    
+        std::cout &lt;&lt; "key down 2" &lt;&lt; std::endl;
+    
+    }else if (eventType == E_KEYUP){
+    
+        std::cout &lt;&lt; "key up 2" &lt;&lt; std::endl;
+    
+    }
+}[/code]
+</code></pre>
+<p>Yet the event on keypressed is still firing</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>We have a regression issue currently in our master branch after the commit to merge the SDL 2.0.5 upgrade. I thought I have already fixed it but apparently not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hypnotize</div>
+          <div class="post_content">
+<p>Ok,</p>
+<p>so this is getting us somewhere! <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>My assumption is that you were able to compile this example and reproduced the issues right? Is there any way I could help? I tried to look into the source code but I’m still not comfortable enough with Urho3D to fix it and push it upstream with a pull request.</p>
+<p>If this helps I’m running on:</p>
+<p>[quote]No LSB modules are available.<br/>
+Distributor ID:	Ubuntu<br/>
+Description:	Ubuntu 16.04.1 LTS<br/>
+Release:	16.04<br/>
+Codename:	xenial</p>
+<p>With gcc:<br/>
+gcc --version<br/>
+gcc (Ubuntu 5.4.0-6ubuntu1~16.04.4) 5.4.0 20160609[/quote]</p>
+<p>Hope this helps anyone or that anyone else would not be surprised with the current behavior of events.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I did not use your code but as I said this is a known issue with Linux build after we merge SDL 2.0.5 upgrade. The issue is tracked in our GitHub issue tracker. I have performed a wrong fix and I have now reverted it back because it did not fix the regression issue completely as you have pointed out. I will make another attempt to fix it tomorrow (as it is kind of late here for me), assuming it has not be fixed by Lasse by then.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>A quick fix was committed in the master branch last night. It requires ibus development package installed though. Still not too happy with this because in the past we don’t need ibus. So, something else must have been changed on the SDL side that makes it depends on ibus to behave properly. I could be wrong though. Will investigate further when I have time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hypnotize</div>
+          <div class="post_content">
+<p>Great!</p>
+<p>In this case I will build the library with the commit and try it out! Thank you for your help.  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Please use the latest commit instead (<a >github.com/urho3d/Urho3D/commit … b1fbd68026</a>). No need ibus-devel package anymore for it to behave as before.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

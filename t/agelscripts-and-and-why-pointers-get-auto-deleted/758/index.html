@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Agelscript&rsquo;s @ and @+ and why pointers get auto deleted</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Agelscript&rsquo;s @ and @+ and why pointers get auto deleted</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">setzer22</div>
+          <div class="post_content">
+<p>Hello everyone!</p>
+<p>I’ve had an issue with my code, and even though I’ve fixed it I don’t get why it failed before and why it works now. I’ll try to explain a basic scenario where this happens.</p>
+<p>There’s a C++ component CComponent that stores a matrix (Vector&lt;Vector&gt;) as a member field (not a pointer but the actual matrix). There’s a CComponent instance in the current scene and neither the component nor its node get deleted.</p>
+<p>StructType holds a couple of integers and bools and a SharedPtr<a>Urho3D::Node</a>. Also, CComponent has two functions: retrieveNode(i,j) and storeNode(i,j,Node* node) that do exactly what their names say, get and set a node reference from a position in the matrix for a CComponent instance.</p>
+<p>Now, retrieveNode and storeNode are registered as: Node@ retrieveNode(int i, int j) and void storeNode(int i, int j, Node@ node), to the script API, and here comes the problem.</p>
+<p>From a script (ScriptA) I get a node from the scene subsystem and do this:</p>
+<pre><code class="lang-auto">Node@ node = scene.getNode(id)
+ccomponent_instance.storeNode(i,j,node);</code></pre>
+<p>And from a script B, I do:</p>
+<pre><code class="lang-auto">void Update(float timeStep) {
+    ...
+    Node@ node = ccomponent_instance.retrieveNode(i,j);
+    //do things to that node, like getting a component and asking for values, nothing unusual
+}</code></pre>
+<p>The thing is that each time I retrieve a node pointer from CComponent its refcount decreases by one, until it gets to 0 and then the pointer gets auto-deleted, I checked that by printing the Refs() value for the node before returning it in CComponent.</p>
+<p>I checked the source where the ScriptAPI is being registered to see if I was missing something and I saw that all references to class pointers like Node* were declared like Node@+, changing that fixed the issue and now the RefCount remains the same after calling the function from a Script several times.</p>
+<p>I think the @+ is the right way to do it, and I’ve been able to read from the AngelScript documentation that it’s an “Auto handle”, but I don’t quite get what that means and how AddRef and ReleaseRef are actually implemented in Urho.</p>
+<p>Could anyone please clarify this to me a bit more? I’m kind of lost…</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

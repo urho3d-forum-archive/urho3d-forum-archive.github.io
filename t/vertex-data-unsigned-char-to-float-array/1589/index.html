@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Vertex data unsigned char* to float array</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Vertex data unsigned char* to float array</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi guys,<br/>
+I have a bit of a headache converting unsigned char* to float array from a vertex buffer in Urho3d. I cannot figure out the offsets if I have position, normal and uvs coming from vertex data: <code>unsigned char* vertexData = (unsigned char*)vertexBuffer-&gt;Lock(0, vertexCount);</code><br/>
+At the moment I can only get the positions offset like this: <code>const Urho3D::Vector3&amp; p = *reinterpret_cast&lt;const Urho3D::Vector3*&gt;(vertexData + i * vertexSize);</code><br/>
+Is there any neat way to convert the vertex data to array of floats?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kyle00</div>
+          <div class="post_content">
+<p>Something like this for other elements?</p>
+<p>[spoiler][code]<br/>
+m_vGeomData.Clear();<br/>
+const unsigned char <em>pVertexData = (const unsigned char</em>)pVbuffer-&gt;Lock(0, pVbuffer-&gt;GetVertexCount());</p>
+<pre><code>// copy geom data
+if ( pVertexData )
+{
+    unsigned uElementMask = pVbuffer-&gt;GetElementMask();
+    unsigned numVertices = pVbuffer-&gt;GetVertexCount();
+    unsigned vertexSize = pVbuffer-&gt;GetVertexSize();
+
+    m_vGeomData.Resize( numVertices );
+
+    for ( unsigned i = 0; i &lt; numVertices; ++i )
+    {
+        unsigned char *pDataAlign = (unsigned char *)(pVertexData + i * vertexSize);
+        GeomData geom;
+
+        if ( uElementMask &amp; MASK_POSITION )
+        {
+            Vector3 &amp;vPos = *reinterpret_cast&lt;Vector3*&gt;( pDataAlign );
+            pDataAlign += sizeof( Vector3 );
+            geom.m_vPosition = vPos;
+        }
+        if ( uElementMask &amp; MASK_NORMAL )
+        {
+            Vector3 &amp;vNorm = *reinterpret_cast&lt;Vector3*&gt;( pDataAlign );
+            pDataAlign += sizeof( Vector3 );
+            geom.m_vNormal = vNorm;
+        }
+        if ( uElementMask &amp; MASK_COLOR )
+        {
+            pDataAlign += sizeof( unsigned );
+        }
+        if ( uElementMask &amp; MASK_TEXCOORD1 )
+        {
+            Vector2 &amp;vUV = *reinterpret_cast&lt;Vector2*&gt;( pDataAlign );
+            pDataAlign += sizeof( Vector2 );
+            geom.m_vUV = vUV;
+        }
+        if ( uElementMask &amp; MASK_TEXCOORD2 )
+        {
+            pDataAlign += sizeof( Vector2 );
+        }
+        if ( uElementMask &amp; MASK_CUBETEXCOORD1 )
+        {
+            pDataAlign += sizeof( Vector2 );
+        }
+        if ( uElementMask &amp; MASK_CUBETEXCOORD2 )
+        {
+            pDataAlign += sizeof( Vector2 );
+        }
+        if ( uElementMask &amp; MASK_TANGENT )
+        {
+            Vector4 &amp;tangent = *reinterpret_cast&lt;Vector4*&gt;( pDataAlign );
+            geom.m_vTangent = tangent;
+        }
+
+}
+</code></pre>
+<p>[/code][/spoiler]</p>
+<p>For (float*), just reinterpret_cast to &lt;float*&gt;</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I believe the code is going to be ugly in any case, and you’ll just need to try to come up with the least ugly casting. Certainly I don’t recommend any copying to a float array, because that would cost performance. Also note that not all elements are floats, for example colors and blend indices. You can look for existing code e.g. in AnimatedModel.cpp where it applies morphs to a vertex buffer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks a lot guys. Kyle00 your solution works well I couldn’t figure it out on my own. The confusing bit is that the VertexBuffer Lock method gives us the vertex data as unsigned char*  the same as the GetRawData method in the Geometry class, but when we need to set the data back using the SetData method we need a float array. Can we just have a new method GetData that returns a float array it will make code a lot neater or just an overload of GetRawData method of the Geometry class? Please correct me if I am missing something.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>VertexBuffer::SetData() accepts a void pointer, meaning any type is fine. Are you thinking of setting shader uniforms?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

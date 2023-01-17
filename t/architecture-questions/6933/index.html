@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Architecture Questions</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Architecture Questions</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>I seem to have painting myself into a corner.</p>
+<p>I have a number of classes such as:<br/>
+<code>Game</code><br/>
+<code>Level</code><br/>
+<code>Player</code><br/>
+<code>Creates</code><br/>
+<code>Weapon</code><br/>
+<code>Activated</code></p>
+<p>The gist of it goes <code>Game</code> is my <code>class Game : public Urho3D::Application { ... }</code>. Within <code>Game</code> exists <code>Level</code>. Within <code>Level</code> is <code>Player</code> and <code>Crates</code>. Within <code>Player</code> is <code>Weapon</code> and <code>Activated</code>.</p>
+<p>To put it another way:</p>
+<p><code>Game</code><br/>
+ → <code>Level</code><br/>
+ → --&gt; <code>Player</code><br/>
+ → --&gt; → <code>Weapon</code><br/>
+ → --&gt; → <code>Activated</code><br/>
+ → --&gt; <code>Crates</code></p>
+<p>This design allows data to flow “down the chain” (from <code>Game</code> to <code>Level</code> to <code>Player</code> to <code>Weapon</code>, for example) but not back up. I have some collision events in there that allow “free-flowing data” but they only know about the nodes themselves, not the class that own them. For example, if a player is hit by another players bullet the event only tells me the two nodes involved (the player node and the bullet node), not the player that fired it. This allows me to assign damage to the player hit but not who fired the bullet.</p>
+<p>How can I solve this using Urho3D primitives? I see something called tags but that also deals with nodes, not the owning class/player (unless I am missing something). Is there something that allows me to attach points to events, for example (or is that bad practice)? Maybe I could somehow attach a <code>this</code> pointer to a node who I know who is who?</p>
+<p>I have my players running around the level, shooting each other, tracking health, but no way to, for example, keep score about who damaged who.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I would just add a <code>WeakPtr&lt;Player&gt; owner_</code> to the Bullet class. Then when the two collide you can access who owns (fired) the bullet from the Node containing the Bullet component. I’m assuming in that that both the Player and the Bullet are components so that you can access them from the Node.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>I think I designed this in a not very Urho3D-friendly way. I have:</p>
+<pre><code class="lang-auto">class Weapon : public Urho3D::Object {
+	protected:
+...
+		Urho3D::SharedPtr&lt; Urho3D::Terrain &gt; terrain_;
+		Urho3D::SharedPtr&lt; Urho3D::Node &gt; playerTurrentNode_;
+
+		std::list&lt; Projectile &gt; projectiles_;
+
+	public:
+		virtual void Start( void );
+		virtual void Stop( void );
+		virtual void Update( Urho3D::StringHash, Urho3D::VariantMap&amp; ) = 0;
+...
+};
+</code></pre>
+<pre><code class="lang-auto">class WeaponCannon : public Weapon {
+	public:
+		using Weapon::Weapon;
+
+		void Update( Urho3D::StringHash, Urho3D::VariantMap&amp; );
+};
+</code></pre>
+<pre><code class="lang-auto">class Player : public Urho3D::Object {
+	private:
+...
+		std::unique_ptr&lt; Weapon &gt; weapon_;
+		std::unique_ptr&lt; Activated &gt; activated_;
+		std::unique_ptr&lt; Passive &gt; passive_;
+
+	public:
+		void Update( Urho3D::StringHash, Urho3D::VariantMap&amp; );
+...
+};
+</code></pre>
+<pre><code class="lang-auto">class Level : public Base {
+	private:
+...
+		std::unique_ptr&lt; Player &gt; players_[ PLAYER_COUNT ];
+		std::unique_ptr&lt; Crate &gt; crates_[ CRATE_COUNT ];
+
+	public:
+		using Base::Base;
+
+		void Update( Urho3D::StringHash, Urho3D::VariantMap&amp; );
+...
+};
+</code></pre>
+<p>Cannon balls, for example, are created like this in <code>WeaponCannon::Update</code> (this is just to prototype):</p>
+<pre><code class="lang-auto">auto objectNodePosition = this-&gt;playerTurrentNode_-&gt;GetWorldPosition();
+auto objectNodeRotation = this-&gt;playerTurrentNode_-&gt;GetRotation().YawAngle();
+
+auto* cache = GetSubsystem&lt; Urho3D::ResourceCache &gt;();
+
+auto* node = this-&gt;scene_-&gt;CreateChild( "CannonBall" );
+node-&gt;SetPosition( Urho3D::Vector3( objectNodePosition.x_ + sin( objectNodeRotation * M_PI / 180 ) * 75, this-&gt;terrain_-&gt;GetHeight( objectNodePosition ), objectNodePosition.z_ + cos( objectNodeRotation * M_PI / 180 ) * 75 ) );
+node-&gt;SetScale( Urho3D::Vector3( 25, 25, 25 ) );
+node-&gt;Rotate( Urho3D::Quaternion( Urho3D::Vector3( 0.0f, objectNodeRotation, 0.0f ) ) );
+
+auto* staticModel = node-&gt;CreateComponent&lt; Urho3D::StaticModel &gt;();
+staticModel-&gt;SetModel( cache-&gt;GetResource&lt; Urho3D::Model &gt;( "Models/Sphere.mdl" ) );
+staticModel-&gt;SetMaterial( cache-&gt;GetResource&lt; Urho3D::Material &gt;( "Materials/Stone.xml" ) );
+
+auto* rigidBody = node-&gt;CreateComponent&lt; Urho3D::RigidBody &gt;();
+rigidBody-&gt;SetMass( 0.25f );
+rigidBody-&gt;SetFriction( 1.0f );
+rigidBody-&gt;SetCollisionEventMode( Urho3D::COLLISION_ALWAYS );
+auto* shape = node-&gt;CreateComponent&lt; Urho3D::CollisionShape &gt;();
+shape-&gt;SetSphere( 1.0f );
+
+auto* sound = cache-&gt;GetResource&lt; Urho3D::Sound &gt;( "Sound/WeaponCannon.ogg" );
+auto* soundNode = this-&gt;scene_-&gt;CreateChild();
+auto* soundSource = soundNode-&gt;CreateComponent&lt; Urho3D::SoundSource &gt;();
+soundSource-&gt;Play( sound );
+soundSource-&gt;SetGain( 0.25f );
+soundSource-&gt;SetAutoRemoveMode( Urho3D::REMOVE_NODE );
+
+Projectile projectile( Urho3D::SharedPtr&lt; Urho3D::Node &gt;( node ), objectNodeRotation );
+this-&gt;projectiles_.push_back( projectile );
+</code></pre>
+<p>Each class just passes whatever is needed down the chain of classes.</p>
+<p>I need to re-think this whole thing, the Urho3D way. Plus understand what the Urho3D way is.</p>
+<p><strong>Edit</strong><br/>
+In sample <em>05_AnimatingScene</em> I see custom components (<code>context-&gt;RegisterFactory&lt;Rotator&gt;()</code> and <code>auto* rotator = boxNode-&gt;CreateComponent&lt;Rotator&gt;()</code>). I still study this sample.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>You can send custom events. This is how i done in my game. You can send a BULLETHIT event and store the appropriate data in the eventData variant map.<br/>
+Also i have a ProjectileManager component that handles all the projectiles that exist in the game. The projectiles can be bullets rockets etc (the manager handles what happens if the projectile hits different materials like flesh , transparent objects , wood glass etc) and when the projectile hits something the event is sent (who shot it , what was hit , direction , damage , etc)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>I am not understanding custom components. I found <a href="https://urho3d.io/documentation/HEAD/_scene_model.html" rel="noopener nofollow ugc">some documentation</a> but it does not explain what I need it to explain.</p>
+<p>When I try to add <code>node-&gt;CreateComponent( "Player", Urho3D::LOCAL, 0 )</code> to a node I get <em>ERROR: Could not create unknown component type 72A5FDC1</em>. When I try to add <code>node-&gt;CreateComponent&lt; Player &gt;( Urho3D::LOCAL, 0 )</code> I get <em>‘GetTypeStatic’ is not a member of ‘Weapon’</em> (I assume this is a virtual function I need to overwrite but I do not know the signature(s)).</p>
+<p>I am trying to go off the <a href="https://urho3d.io/documentation/HEAD/class_urho3_d_1_1_node.html" rel="noopener nofollow ugc">node documentation</a> best I can. I am sure there is another page somewhere explaining what I am missing. I just have not found it yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>You need to make your classes inherit from Component to use them as components. In addition, you need to register the class with the Context so it knows how to create them. I believe it’s <code>Context::RegisterFactory&lt;Player&gt;()</code>. You would also need to add a constructor that takes only a <code>Context*</code>. Or, if you don’t need to be able to create them on a node, you can leave your constructors and just call AddComponent with a pointer to your component (which must be stored in a SharedPtr).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>Right now my <code>Player</code> class looks like this:</p>
+<pre><code class="lang-auto">class Player : public Urho3D::Object {
+...
+	public:
+		Player( Urho3D::Context* context, Urho3D::Scene* scene ) : Urho3D::Object( context ) {
+			this-&gt;context_ = context;
+			this-&gt;scene_ = scene;
+		};
+...
+};
+</code></pre>
+<p>when (I think) I need the <code>Player::Player</code> signature to look like this:<br/>
+<code>Player( Urho3D::Context* context ) : Urho3D::Object( context ) { ... };</code></p>
+<p>Is there a way to get an existing scene from a context object alone? I do not see anything in <a href="https://urho3d.io/documentation/HEAD/class_urho3_d_1_1_context.html" rel="noopener nofollow ugc">the documentation</a> that might help.</p>
+<p>Or am I thinking about this wrong? Should not the entire <code>Player</code> class be changed but a more specific class just for just purpose? A <code>PlayerPointer</code> class or something (with a better name).</p>
+<p>I am also looking into this <code>AddComponent()</code> idea but a quick <em>grep</em> of the samples turns up nothing. Plus “<a href="https://urho3d.io/documentation/HEAD/class_urho3_d_1_1_node.html#a3792a0c2e23b120ac879c2931d6f9dc4" rel="noopener nofollow ugc">Using this function from application code is discouraged…</a>”.</p>
+<p>Ultimately I just want to get a pointer attached to a node so when a collision event happens I know who is responsible.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>Sorry, not wanting to hijack your thread, but I think this type of architectural documentation is what would be useful for Urho newcomers. How to do things the “Urho” way, how to grow projects bigger than a sample. Even if just a “roll a ball” thing, but with proper architecture, game design patterns, etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I’m proposing you change it to inherit from Component instead of from Object:</p>
+<pre><code class="lang-auto">class Player : public Urho3D::Component {
+...
+	public:
+		Player( Urho3D::Context* context ) : Urho3D::Object( context ) {
+			this-&gt;context_ = context;
+			// Scene is set when you add the component to a node
+		};
+...
+};
+</code></pre>
+<p>You can have multiple scenes, so while you could register one as a subsystem with the Context, it would probably be better in the long run to not do so, and make it a component within a scene instead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="8" data-topic="6933" data-username="lebrewer">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b70f3a46aaf7920798073a7789143970.png" width="20"/> lebrewer:</div>
+<blockquote>
+<p>How to do things the “Urho” way…</p>
+</blockquote>
+</aside>
+<p>There are many great books on the topic but I agree. Something from the Urho3D community would be Urho3D specific and take a lot of the guess work out of it (which pattern do I use where, etc).</p>
+<p>In the-- hopefully not too-distant-- future one of us could write it.</p>
+<aside class="quote no-group" data-post="9" data-topic="6933" data-username="SirNate0">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fb52f23a6782e890737d90432eac55f2.png" width="20"/> SirNate0:</div>
+<blockquote>
+<p><code>Scene is set when you add the component to a node</code></p>
+</blockquote>
+</aside>
+<p>I think my whole architecture is just wrong. It has gotten me to a point where I have players running around, shooting each other, doing damage, etc. They just need a way to communicate with each other. Going to have to play with what gets instantiated where (the <code>scene</code>, for example).</p>
+<p>I will play it with some more and check in later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>You can create your Game class as a Subsystem. This way you can access it everywhere in you code ( even inside UI elements) by calling GetSubsystem(); Of course in this case the scene, camera and other elements should be created inside this subsystem. You should also expand your Game subsystem with a GetRootScene(); to access the scene and GetMainCamera() by getting the camera etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="11" data-topic="6933" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<p>This way you can access it everywhere in you code […] by calling GetSubsystem()</p>
+</blockquote>
+</aside>
+<p>"Through any (subclass of) <code>Object</code> within the same <code>Context</code>" would be more accurate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>For anyone looking at this thread later here is what I ended up doing:<br/>
+I turned everything (except the weapons and projectiles) into <code>Component</code>s. Once they are part of a node they are really easy to get to during a collision event. For example:</p>
+<pre><code class="lang-auto">void Level::HandleObjectCollisionStart( Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData ) {
+	auto* rigidBody1 = static_cast&lt; Urho3D::RigidBody* &gt;( eventData[ Urho3D::NodeCollisionStart::P_BODY ].GetPtr() );
+	auto* node1 = rigidBody1-&gt;GetNode();
+	auto* player1 = rigidBody1-&gt;GetComponent&lt; Player &gt;();
+	const auto name1 = node1-&gt;GetName();
+
+	auto* rigidBody2 = static_cast&lt; Urho3D::RigidBody* &gt;( eventData[ Urho3D::NodeCollisionStart::P_OTHERBODY ].GetPtr() );
+	auto* node2 = rigidBody2-&gt;GetNode();
+	const auto name2 = node2-&gt;GetName();
+
+	if ( name2 == "CannonBall" ) {
+		if ( player1-&gt;TakeDamage( WEAPON_CANNON_DAMAGE ) )
+			player1-&gt;Respawn( node1, this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;() );
+
+		this-&gt;PlaySound( "Sound/Hit.ogg" );
+	}
+	else if ( name2 == "Rocket" ) {
+		if ( player1-&gt;TakeDamage( WEAPON_ROCKET_DAMAGE ) )
+			player1-&gt;Respawn( node1, this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;() );
+
+		this-&gt;PlaySound( "Sound/Hit.ogg" );
+	}
+	else if ( name2 == "RocketBarrage" ) {
+		if ( player1-&gt;TakeDamage( WEAPON_ROCKETBARRAGE_DAMAGE ) )
+			player1-&gt;Respawn( node1, this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;() );
+
+		this-&gt;PlaySound( "Sound/Hit.ogg" );
+	}
+	else if ( name2 == "Bullet" ) {
+		if ( player1-&gt;TakeDamage( WEAPON_MACHINEGUN_DAMAGE ) )
+			player1-&gt;Respawn( node1, this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;() );
+
+		this-&gt;PlaySound( "Sound/Hit.ogg" );
+	}
+	else if ( name2 == "Crate" ) {
+		player1-&gt;RandomWeapon();
+
+		this-&gt;PlaySound( "Sound/PickUp.ogg" );
+	}
+};
+</code></pre>
+<p>(Notice the <code>GetComponent&lt; Player &gt;()</code> line for the player, for example.)</p>
+<p>Everything else (like who did damage to who) are shoved into the events themselves:</p>
+<pre><code class="lang-auto">void Level::Update( Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData ) {
+...
+	eventData[ scene ] = this-&gt;scene_;
+	eventData[ terrain ] = this-&gt;terrainNode_;
+	eventData[ playerComponent ] = playerComponent;
+	playerComponent-&gt;Update( eventType, eventData );
+...
+}
+</code></pre>
+<p>(<code>playerComponent-&gt;Update( eventType, eventData )</code> calls the update for weapons.)</p>
+<p>Remember to pass by reference where appropriate.</p>
+<p>It is a little hacky but seems safe to do and is very flexible.</p>
+<p>Do not take this as gospel, I am still new to all this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>You may want to check the <code>eventType</code> before accessing the data</p>
+<pre><code class="lang-auto">void Level::HandleObjectCollisionStart( Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData ) {
+    // check eventType
+	auto* rigidBody1 = static_cast&lt; Urho3D::RigidBody* &gt;( eventData[ Urho3D::NodeCollisionStart::P_BODY ].GetPtr() );
+...
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>Thank you for sharing your solution with us. As a beginner, this is pure gold.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>I am still working on a “global” example architecture for a blog post; Trying to help people who are new to the engine get their feet wet with some boilerplate. I have run into a strange issue.</p>
+<p>When I do:</p>
+<pre><code class="lang-auto">this-&gt;GetContext()-&gt;RegisterSubsystem&lt; Level &gt;();
+this-&gt;GetSubsystem&lt; Level &gt;()-&gt;Start();
+</code></pre>
+<p>everything works great. I get my level and my camera to zoom around with. It even prints “Level” like it should.</p>
+<p>When I change it to:</p>
+<pre><code class="lang-auto">this-&gt;GetContext()-&gt;RegisterSubsystem&lt; Level &gt;();
+this-&gt;GetSubsystem&lt; Level &gt;()-&gt;Start();
+
+this-&gt;GetContext()-&gt;RegisterSubsystem&lt; Balls &gt;();
+this-&gt;GetSubsystem&lt; Balls &gt;()-&gt;Start();
+</code></pre>
+<p>I get:</p>
+<pre><code class="lang-auto">u3da: /home/nick/Urho3D/build.linux/include/Urho3D/Audio/../Core/../Core/../Container/Ptr.h:133: T* Urho3D::SharedPtr&lt;T&gt;::operator-&gt;() const [with T = Urho3D::Scene]: Assertion `ptr_' failed.*
+*Aborted (core dumped)
+</code></pre>
+<p><em>Level</em> is defined as:</p>
+<pre><code class="lang-auto">#pragma once
+
+#include &lt;iostream&gt;
+
+#include &lt;Urho3D/Urho3DAll.h&gt;
+
+#include "constants.hpp"
+
+class Level : public Urho3D::Component {
+	private:
+		#ifdef __DEBUG__
+			bool drawDebug_;
+
+			void HandlePostRenderUpdate( Urho3D::StringHash, Urho3D::VariantMap&amp; );
+		#endif
+
+		Urho3D::SharedPtr&lt; Urho3D::Scene &gt; scene_;
+		Urho3D::SharedPtr&lt; Urho3D::Node &gt; cameraNode_;
+		Urho3D::SharedPtr&lt; Urho3D::Node &gt; terrainNode_;
+
+	public:
+		explicit Level( Urho3D::Context* context ) : Urho3D::Component( context ) {
+			#ifdef __DEBUG__
+				this-&gt;drawDebug_ = false;
+			#endif
+		};
+
+		virtual void Start( void );
+		virtual void Stop( void );
+		virtual void Update( Urho3D::StringHash, Urho3D::VariantMap&amp; );
+
+		#ifdef __DEBUG__
+			void setDebug( const bool );
+			bool getDebug( void );
+		#endif
+
+		Urho3D::SharedPtr&lt; Urho3D::Scene &gt; getScene( void );
+		Urho3D::SharedPtr&lt; Urho3D::Node &gt; getCamera( void );
+		Urho3D::SharedPtr&lt; Urho3D::Node &gt; getTerrain( void );
+
+		void rotateCamera( const float, const float );
+		void moveCamera( const Urho3D::Vector3&amp; );
+};
+</code></pre>
+<pre><code class="lang-auto">#include &lt;level.hpp&gt;
+
+#ifdef __DEBUG__
+	void Level::HandlePostRenderUpdate( Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData ) {
+		if ( this-&gt;drawDebug_ )
+			this-&gt;scene_-&gt;GetComponent&lt; Urho3D::PhysicsWorld &gt;()-&gt;DrawDebugGeometry( true );
+	};
+#endif
+
+void Level::Start( void ) {
+std::cout &lt;&lt; "Level" &lt;&lt; std::endl;
+	this-&gt;scene_ = new Urho3D::Scene( this-&gt;GetContext() );
+
+	#ifdef __DEBUG__
+		this-&gt;scene_-&gt;CreateComponent&lt; Urho3D::DebugRenderer &gt;();
+	#endif
+
+	this-&gt;scene_-&gt;CreateComponent&lt; Urho3D::Octree &gt;();
+
+	auto* cache = this-&gt;GetSubsystem&lt; Urho3D::ResourceCache &gt;();
+
+	auto* physicsWorld = this-&gt;scene_-&gt;CreateComponent&lt; Urho3D::PhysicsWorld &gt;();
+	physicsWorld-&gt;SetGravity( Urho3D::Vector3( 0, WORLD_GRAVITY, 0 ) );
+
+	this-&gt;cameraNode_ = new Urho3D::Node( this-&gt;GetContext() );
+	this-&gt;cameraNode_-&gt;SetTransform( Urho3D::Vector3( 0.0f, 250.0f, 0.0f ), Urho3D::Quaternion( 90.0f, 0.0f, 0.0f ) );
+	auto* camera = this-&gt;cameraNode_-&gt;CreateComponent&lt; Urho3D::Camera &gt;();
+	camera-&gt;SetFarClip( 500.0f );
+
+	auto* zoneNode = this-&gt;scene_-&gt;CreateChild( "Zone" );
+	auto* zone = zoneNode-&gt;CreateComponent&lt; Urho3D::Zone &gt;();
+	zone-&gt;SetBoundingBox( Urho3D::BoundingBox( Urho3D::Sphere( Urho3D::Vector3::ZERO, 200 ) ) );
+	zone-&gt;SetAmbientColor( Urho3D::Color( 0.15f, 0.15f, 0.15f ) );
+	zone-&gt;SetFogColor( Urho3D::Color( 0.0f, 0.0f, 0.0f ) );
+	zone-&gt;SetFogStart( 400.0f );
+	zone-&gt;SetFogEnd( 500.0f );
+
+	auto* lightNode = this-&gt;scene_-&gt;CreateChild( "Light" );
+	lightNode-&gt;SetDirection( Urho3D::Vector3( 0.8f, -1.0f, 0.8f ) );
+	auto* light = lightNode-&gt;CreateComponent&lt; Urho3D::Light &gt;();
+	light-&gt;SetLightType( Urho3D::LIGHT_DIRECTIONAL );
+	light-&gt;SetCastShadows( true );
+	light-&gt;SetSpecularIntensity( 1.0f );
+	light-&gt;SetColor( Urho3D::Color( 1.0f, 1.0f, 1.0f ) );
+
+	auto* skyNode = this-&gt;scene_-&gt;CreateChild( "Sky" );
+	auto* skybox = skyNode-&gt;CreateComponent&lt; Urho3D::Skybox &gt;();
+	skybox-&gt;SetModel( cache-&gt;GetResource&lt; Urho3D::Model &gt;( "Models/Box.mdl" ) );
+	skybox-&gt;SetMaterial( cache-&gt;GetResource&lt; Urho3D::Material &gt;( "Materials/Skybox.xml" ) );
+
+	this-&gt;terrainNode_ = this-&gt;scene_-&gt;CreateChild( "Terrain" );
+	this-&gt;terrainNode_-&gt;SetPosition( Urho3D::Vector3::ZERO );
+	auto* terrain = this-&gt;terrainNode_-&gt;CreateComponent&lt; Urho3D::Terrain &gt;();
+	terrain-&gt;SetPatchSize( 32 );
+	terrain-&gt;SetSpacing( Urho3D::Vector3( 1.0f, 0.25f, 1.0f ) );
+	terrain-&gt;SetSmoothing( true );
+	terrain-&gt;SetHeightMap( cache-&gt;GetResource&lt; Urho3D::Image &gt;( "Textures/HeightMap.png" ) );
+	terrain-&gt;SetMaterial( cache-&gt;GetResource&lt; Urho3D::Material &gt;( "Materials/Terrain.xml" ) );
+	terrain-&gt;SetOccluder( true );
+
+	auto* rigidBody = this-&gt;terrainNode_-&gt;CreateComponent&lt; Urho3D::RigidBody &gt;();
+	rigidBody-&gt;SetFriction( 0.1f );
+	rigidBody-&gt;SetCollisionLayerAndMask( LayerFlagsTerrain, LayerFlagsPlayer );
+
+	auto* collisionShape = this-&gt;terrainNode_-&gt;CreateComponent&lt; Urho3D::CollisionShape &gt;();
+	collisionShape-&gt;SetTerrain();
+
+	auto* renderer = this-&gt;GetSubsystem&lt; Urho3D::Renderer &gt;();
+	Urho3D::SharedPtr&lt; Urho3D::Viewport &gt; viewport( new Urho3D::Viewport( this-&gt;GetContext(), this-&gt;scene_, this-&gt;cameraNode_-&gt;GetComponent&lt; Urho3D::Camera &gt;() ) );
+	renderer-&gt;SetViewport( 0, viewport );
+
+	#ifdef __DEBUG__
+		SubscribeToEvent( Urho3D::E_POSTRENDERUPDATE, URHO3D_HANDLER( Level, HandlePostRenderUpdate ) );
+	#endif
+};
+
+void Level::Stop( void ) {
+	#ifdef __DEBUG__
+		UnsubscribeFromEvent( Urho3D::E_POSTRENDERUPDATE );
+	#endif
+};
+
+void Level::Update( Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData ) {};
+
+#ifdef __DEBUG__
+	void Level::setDebug( bool enable ) {
+		this-&gt;drawDebug_ = enable;
+	};
+
+	bool Level::getDebug( void ) {
+		return this-&gt;drawDebug_;
+	};
+#endif
+
+Urho3D::SharedPtr&lt; Urho3D::Scene &gt; Level::getScene( void ) {
+	return this-&gt;scene_;
+};
+
+Urho3D::SharedPtr&lt; Urho3D::Node &gt; Level::getCamera( void ) {
+	return this-&gt;cameraNode_;
+};
+
+Urho3D::SharedPtr&lt; Urho3D::Node &gt; Level::getTerrain( void ) {
+	return this-&gt;terrainNode_;
+};
+
+void Level::rotateCamera( const float pitch, const float yaw ) {
+	this-&gt;cameraNode_-&gt;SetRotation( Urho3D::Quaternion( pitch, yaw, 0.0f ) );
+};
+
+void Level::moveCamera( const Urho3D::Vector3&amp; vector3 ) {
+	this-&gt;cameraNode_-&gt;Translate( vector3 );
+};
+</code></pre>
+<p><em>Balls</em> is define as:</p>
+<pre><code class="lang-auto">#pragma once
+
+#include &lt;iostream&gt;
+
+#include &lt;Urho3D/Urho3DAll.h&gt;
+
+#include "constants.hpp"
+#include "level.hpp"
+
+class Balls : public Urho3D::Component {
+	private:
+		Urho3D::SharedPtr&lt; Urho3D::Node &gt; balls_[ BALLS_COUNT ];
+
+		void HandleObjectCollisionStart( Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData );
+
+	public:
+		explicit Balls( Urho3D::Context* context ) : Urho3D::Component( context ) {};
+
+		virtual void Start( void );
+};
+</code></pre>
+<pre><code class="lang-auto">#include &lt;balls.hpp&gt;
+
+void Balls::HandleObjectCollisionStart( Urho3D::StringHash eventType, Urho3D::VariantMap&amp; eventData ) {
+	auto* rigidBody1 = static_cast&lt; Urho3D::RigidBody* &gt;( eventData[ Urho3D::NodeCollisionStart::P_BODY ].GetPtr() );
+	auto* node1 = rigidBody1-&gt;GetNode();
+	const auto name1 = node1-&gt;GetName();
+
+	auto* rigidBody2 = static_cast&lt; Urho3D::RigidBody* &gt;( eventData[ Urho3D::NodeCollisionStart::P_OTHERBODY ].GetPtr() );
+	auto* node2 = rigidBody2-&gt;GetNode();
+	const auto name2 = node2-&gt;GetName();
+
+	if ( name2 == "Player" ) {
+		UnsubscribeFromEvent( node1, Urho3D::E_NODECOLLISIONSTART );
+
+		node1-&gt;Remove();
+	}
+};
+
+void Balls::Start( void ) {
+std::cout &lt;&lt; "Balls" &lt;&lt; std::endl;
+	for ( short int i = 0 ; i &lt; BALLS_COUNT ; i++ ) {
+		auto* cache = this-&gt;GetSubsystem&lt; Urho3D::ResourceCache &gt;();
+		auto* level = this-&gt;GetSubsystem&lt; Level &gt;();
+
+		this-&gt;balls_[ i ] = level-&gt;getScene()-&gt;CreateChild( "Ball" );
+		const auto&amp; ball = this-&gt;balls_[ i ];
+
+		Urho3D::Vector3 position( Urho3D::Random( -50, 50 + 1 ), 0.0f, Urho3D::Random( -50, 50 + 1 ) );
+		position.y_ = level-&gt;getTerrain()-&gt;GetComponent&lt; Urho3D::Terrain &gt;()-&gt;GetHeight( position ) + 10.0f;
+		ball-&gt;SetPosition( position );
+		ball-&gt;SetScale( Urho3D::Vector3( 10.0f, 10.0f, 10.0f ) );
+
+		auto* object = ball-&gt;CreateComponent&lt; Urho3D::StaticModel &gt;();
+		object-&gt;SetModel( cache-&gt;GetResource&lt; Urho3D::Model &gt;( "Models/Sphere.mdl" ) );
+		object-&gt;SetMaterial( cache-&gt;GetResource&lt; Urho3D::Material &gt;( "Materials/Stone.xml" ) );
+		object-&gt;SetCastShadows( true );
+
+		auto* rigidBody = ball-&gt;CreateComponent&lt; Urho3D::RigidBody &gt;();
+		rigidBody-&gt;SetMass( 1.0f );
+		rigidBody-&gt;SetFriction( 0.1f );
+		rigidBody-&gt;SetCollisionLayerAndMask( LayerFlagsBall, LayerFlagsTerrain | LayerFlagsPlayer );
+
+		auto* collisionShape = ball-&gt;CreateComponent&lt; Urho3D::CollisionShape &gt;();
+		collisionShape-&gt;SetSphere( 1, Urho3D::Vector3( 0, .5, 0 ) );
+
+		SubscribeToEvent( ball, Urho3D::E_NODECOLLISIONSTART, URHO3D_HANDLER( Balls, HandleObjectCollisionStart ) );
+	}
+};
+</code></pre>
+<p>I can not find where this issue is. It prints “<em>Level</em>” and “<em>Balls</em>” but then crashes. Even if I comment out the function bodies (except the <code>cout</code>) in <em>Balls</em> it still crashes but now with</p>
+<pre><code class="lang-auto">u3da: /home/nick/Urho3D/build.linux/include/Urho3D/Audio/../Core/../Core/../Container/Ptr.h:133: T* Urho3D::SharedPtr&lt;T&gt;::operator-&gt;() const [with T = Urho3D::Node]: Assertion `ptr_' failed.*
+*Aborted (core dumped)
+</code></pre>
+<p>What am I missing?</p>
+<p>Maybe there is the possibility of turning this into a Sample one day in the future (after a lot of work and some <a href="https://urho3d.io/documentation/HEAD/_coding_conventions.html" rel="noopener nofollow ugc">convention</a> changes.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Can you post a minimum reproducible example?</p>
+<p>Also, within class member functions, member variables and functions can be accessed without explicitly dereferencing the <code>this</code> pointer.</p>
+<pre><code class="lang-auto">class Foo final
+{
+public:
+    int get_x() { return x; }
+    //int get_x() { return this-&gt;x; }  //equivalent
+private:
+    int x{5};
+};
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="17" data-topic="6933" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<p>within class member functions, member variables and functions can be accessed without explicitly dereferencing the <code>this</code> pointer</p>
+</blockquote>
+</aside>
+<p>I know. I just like to be explicit. It is a personal quirk.</p>
+<aside class="quote no-group" data-post="17" data-topic="6933" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<p>Can you post a minimum reproducible example?</p>
+</blockquote>
+</aside>
+<p>I created a <a href="https://github.com/nickwebha/urho3d-architecture" rel="noopener nofollow ugc">GitHub repo</a>. The only relevant files are <em>world.[hpp/cpp]</em> and <em>balls.[hpp/cpp]</em>. I know it is supposed to be a minimum reproducible example but just ignore the rest of the files (I think).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Is this a minimum reproducible example? There seems to be a lot of code unrelated to the problem (e.g. does the problem persist if you remove the ‘Sky’?).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>Still working on a minimum reproducible example. It is proving hard to strip down due to its minimalist nature.</p>
+<p>I noticed two odd things.</p>
+<p>First, when I add:</p>
+<pre><code class="lang-auto">virtual Urho3D::StringHash GetType( void ) const;
+virtual const Urho3D::String&amp; GetTypeName( void ) const;
+virtual const Urho3D::TypeInfo* GetTypeInfo( void ) const;
+</code></pre>
+<pre><code class="lang-auto">Urho3D::StringHash Balls::GetType( void ) const {
+	return "Balls";
+};
+
+const Urho3D::String&amp; Balls::GetTypeName( void ) const {
+	static Urho3D::String name( "Balls" );
+
+	return name;
+};
+
+const Urho3D::TypeInfo* Balls::GetTypeInfo( void ) const {
+	return GetTypeInfoStatic();
+};
+</code></pre>
+<p>to <code>Balls</code> it compiles and runs. <code>Level</code> does not require this despite them both inheriting from <code>Urho3D::Component</code>.</p>
+<p>The second odd thing is <em>Level</em> is being printed to the console twice (notice the <code>cout</code>'s above) with:</p>
+<pre><code class="lang-auto">this-&gt;GetContext()-&gt;RegisterSubsystem&lt; Level &gt;();
+this-&gt;GetSubsystem&lt; Level &gt;()-&gt;Start();
+
+this-&gt;GetContext()-&gt;RegisterSubsystem&lt; Balls &gt;();
+this-&gt;GetSubsystem&lt; Balls &gt;()-&gt;Start();
+</code></pre>
+<p>If I comment out <code>this-&gt;GetSubsystem&lt; Balls &gt;()-&gt;Start()</code> it only prints <em>Level</em> once.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I’m pretty sure (after skimming the code, so I might be wrong) that your problem is that you’re missing the <code>URHO3D_OBJECT(Level,Component)</code> macro call from your classes that tells the library that they are different classes (the macro defines the virtual functions and such that are used to provide the keys for a a HashMap to store the Subsystems and the factories to create objects.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="21" data-topic="6933" data-username="SirNate0">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fb52f23a6782e890737d90432eac55f2.png" width="20"/> SirNate0:</div>
+<blockquote>
+<p>your problem is that you’re missing the <code>URHO3D_OBJECT(Level,Component)</code> macro</p>
+</blockquote>
+</aside>
+<p>That was it. I had no idea that existed. Not sure how, since they are all over the samples. Big oversight on my part.</p>
+<p>Thank you so much!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>Just wanted to put <a href="https://discourse.urho3d.io/t/minimalist-urho3d-architecture-boilerplate/">this</a> here.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

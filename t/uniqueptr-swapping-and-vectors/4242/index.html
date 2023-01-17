@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>UniquePtr swapping and vectors</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">UniquePtr swapping and vectors</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1471_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheTophatDemon</div>
+          <div class="post_content">
+<p>When compiling my project with Visual Studio 2015 (64-bit, project configured for C++11) I discovered some<br/>
+errors when working with UniquePtrs. I am using Urho3D 1.7.</p>
+<p>Firstly, attempting to swap two UniquePtrs like so:</p>
+<pre><code class="lang-auto">UniquePtr&lt;Thing&gt; thing;
+thing.Reset(new Thing());
+UniquePtr&lt;Thing&gt; thing2;
+thing.Swap(thing2);
+</code></pre>
+<p>Produces this error:<br/>
+<code>'Urho3D::UniquePtr&lt;Thing&gt;::Swap': function does not take 2 arguments	UrhoTest	c:\users\andso\desktop\tools\urho3d-1.6-binaries\include\urho3d\Container\Ptr.h	598</code><br/>
+(I know the folder says it’s version 1.6, but it’s 1.7. I did not wish to bother changing all of the environment variables just to rename it)</p>
+<p>With “Thing” being a simple class defined like so:</p>
+<pre><code class="lang-auto">class Thing 
+{
+public:
+	int diddly = 0;
+};
+</code></pre>
+<p>Secondly, I find that making a Urho3D::Vector of UniquePtrs does not work. I suspect this may be an intentional design tradeoff but I am unsure. My code looks like this:</p>
+<pre><code class="lang-auto">UniquePtr&lt;Thing&gt; thing;
+thing.Reset(new Thing());
+...
+Vector&lt;UniquePtr&lt;Thing&gt;&gt; things = Vector&lt;UniquePtr&lt;Thing&gt;&gt;();
+things.Push(thing); //From my understanding, move semantics will transfer ownership from "thing" to the vector
+</code></pre>
+<p>And the following error is produced:</p>
+<p><code>'Urho3D::UniquePtr&lt;Thing&gt;::operator =': cannot access private member declared in class 'Urho3D::UniquePtr&lt;Thing&gt;'	UrhoTest	c:\users\andso\desktop\tools\urho3d-1.6-binaries\include\urho3d\Container\Vector.h	526</code></p>
+<p>I have isolated these two issues into their own Urho3D project that I have uploaded <a href="https://drive.google.com/file/d/1850F6ZHvh99d5WO1Zmdf-aRqY0-lncgl/view?usp=sharing" rel="nofollow noopener">here</a>.<br/>
+(Because the project I’m working on is much too large)</p>
+<p>These issues are not urgent; I merely felt that I should report the problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Despite the fact that the engine switched to c++11, that does not really mean what you think it means. So far it just means you can safely use c++11 code in your pull request and not be rejected because of that.</p>
+<p>Other than slapping a bunch of <code>noexcept</code>, default initializatiom, auto deduction, range loops and the use of <code>std::function</code> in the event system. Not much was done to actually use c++11. And everything I mentioned was done automatically via tooling.</p>
+<p>Neither <code>UniquePtr</code>, nor <code>Vector</code> implement move semantics. I believe I saw a WIP pull request from <span class="mention">@Eugene</span> attempting something like that <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/pull/2310</a> And another abandoned one from another user <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/pull/2274</a></p>
+<p>Move semantics can be a little tricky if you build the engine as a DLL. Not sure how that plays out. Last time I checked, sharing memory across DLLs was not the best of idea. But maybe that’s limited to just the standard library. TBH, I haven’t studied much in that area to say for sure.</p>
+<p>So yeah, that <code>cannot access private member declared in class</code> error message was probably due to the fact that <code>UniquePtr</code> does not implement move semantics and since it cannot be copied, the copy constructor and assignment operators were declared as private. At least now they’re deleted and the error message will be more clear if you attempt the same with a master version of the code <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/blob/master/Source/Urho3D/Container/Ptr.h#L531</a></p>
+<p>And also, this might not true:</p>
+<pre><code class="lang-cpp">UniquePtr&lt;Thing&gt; thing;
+thing.Reset(new Thing());
+...
+Vector&lt;UniquePtr&lt;Thing&gt;&gt; things = Vector&lt;UniquePtr&lt;Thing&gt;&gt;();
+things.Push(thing); //From my understanding, move semantics will transfer ownership from "thing" to the vector
+</code></pre>
+<p>Because <code>thing</code> is an lvalue, and unless the compiler tries to be smart (<em>or dumb if you think about it</em>), it shouldn’t try to move that lvalue unless explicitly specified. Like this:</p>
+<pre><code class="lang-cpp">things.Push(std::move(thing));
+</code></pre>
+<p>What if you want to use <code>thing</code> after you push it into the vector and expect move semantics to occur? Isn’t <code>thing</code> left in an unusable state after a move has taken place? If it was done correctly, ofc.</p>
+<p>As for that first error <code>function does not take 2 arguments</code>. I believe you’ve either omitted some details, the compiler wen’t crazy somehow or is just bad at reporting errors. Because it does not make sense in that context. Unless we talk about the <code>Urho::Swap</code> function used in the <code>Swap</code> method. Which is the only thing that comes to my mind when I see that error.</p>
+<p>I need to look at older code and see if something changed. Because that error message doesn’t make any sense with the code in the master.</p>
+<p><strong>EDIT</strong>: I think I’ve found the culprit of that weird <code>Swap</code> error message: <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/commit/b84239a3aeb2cbf9b04875d73ee47adfecb704f0#diff-4bb46169126ea0f8ac2273a595c59207</a></p>
+<p>That happened after the 1.7 release. If that’s what you’re using. I honestly recommend the master version. You’re missing out on a lot of fixes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="4242">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/45cd6ad74b0bba4a01105c816c8a1657.png" width="20"/> TheTophatDemon:</div>
+<blockquote>
+<p>Secondly, I find that making a Urho3D::Vector of UniquePtrs does not work</p>
+</blockquote>
+</aside>
+<p>This really annoyed me too.<br/>
+The fix is ready, I just don’t have time to finish and merge my PR.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1471_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheTophatDemon</div>
+          <div class="post_content">
+<p>Oh, alright. Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

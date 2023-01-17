@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Deferred shader things</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Deferred shader things</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>I’m trying to get this SSAO shader into urho: <a href="http://john-chapman-graphics.blogspot.com.au/2013/01/ssao-tutorial.html" rel="nofollow noopener">john-chapman-graphics.blogspot.c … orial.html</a></p>
+<p>It seems simple enough, find position in view space, make new points around that point in viewspace, convert to screen space to grab a depth sample for comparison. But I can’t seem to convert from viewspace (or world space) to screenspace in the pixel shader. Here is a simple example, although I did try a few other things already:</p>
+<p>[code]<span class="hashtag">#include</span> “Uniforms.hlsl”<br/>
+<span class="hashtag">#include</span> “Samplers.hlsl”<br/>
+<span class="hashtag">#include</span> “Transform.hlsl”<br/>
+<span class="hashtag">#include</span> “ScreenPos.hlsl”<br/>
+<span class="hashtag">#include</span> “Lighting.hlsl”<br/>
+<span class="hashtag">#line</span> 7</p>
+<p>void VS(float4 iPos : POSITION,<br/>
+out float4 oScreenPos : TEXCOORD0,<br/>
+out float3 oFarRay : TEXCOORD1,<br/>
+<span class="hashtag">#ifdef</span> ORTHO<br/>
+out float3 oNearRay : TEXCOORD2,<br/>
+<span class="hashtag">#endif</span><br/>
+out float4 oGBufferOffsets : TEXCOORD3,<br/>
+out float4x4 oViewProj : TEXCOORD4,<br/>
+out float4 oPos : OUTPOSITION)<br/>
+{<br/>
+float4x3 modelMatrix = iModelMatrix;<br/>
+float3 worldPos = GetWorldPos(modelMatrix);<br/>
+oPos = GetClipPos(worldPos);<br/>
+oScreenPos = GetScreenPos(oPos);<br/>
+oFarRay = GetFarRay(oPos) * oPos.w;<br/>
+oViewProj = cViewProj;<br/>
+oGBufferOffsets = cGBufferOffsets;<br/>
+<span class="hashtag">#ifdef</span> ORTHO<br/>
+oNearRay = GetNearRay(oPos) * oPos.w;<br/>
+<span class="hashtag">#endif</span><br/>
+}</p>
+<p>void PS(<br/>
+float4 iScreenPos : TEXCOORD0,<br/>
+float3 iFarRay : TEXCOORD1,<br/>
+<span class="hashtag">#ifdef</span> ORTHO<br/>
+float3 iNearRay : TEXCOORD2,<br/>
+<span class="hashtag">#endif</span><br/>
+float4 iGBufferOffsets : TEXCOORD3,<br/>
+float4x4 iViewProj : TEXCOORD4,<br/>
+out float4 oColor : OUTCOLOR0)<br/>
+{<br/>
+float depth = Sample2D(DepthBuffer, iScreenPos).r;<br/>
+<span class="hashtag">#ifdef</span> HWDEPTH<br/>
+depth = ReconstructDepth(depth);<br/>
+<span class="hashtag">#endif</span><br/>
+<span class="hashtag">#ifdef</span> ORTHO<br/>
+float3 worldPos = lerp(iNearRay, iFarRay, depth) / iScreenPos.w;<br/>
+<span class="hashtag">#else</span><br/>
+float3 worldPos = iFarRay * depth / iScreenPos.w;<br/>
+<span class="hashtag">#endif</span></p>
+<pre><code>float3 somePosition = worldPos.xyz;
+
+float4 cPos = mul(float4(somePosition, 1.0), iViewProj);
+
+float4 sPos =  float4(
+    cPos.x * iGBufferOffsets.z + iGBufferOffsets.x * cPos.w,
+    -cPos.y * iGBufferOffsets.w + iGBufferOffsets.y * cPos.w,
+    0.0,
+    cPos.w);
+
+oColor = float4(sPos.xy, 0.0, 1.0);
+// Trying to get:
+//oColor = float4(iScreenPos.xy, 0.0, 1.0);
+</code></pre>
+<p>}<br/>
+[/code]</p>
+<p>Seems like the ‘worldPos’ in this example is really viewPos ?</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The deferred shaders (or anything else that uses the camera near/far rays calculated in vertex shader) work in a “camera-centered world space” meaning you must add the camera position to get world space. Light world positions are adjusted accordingly in the batch preparation. This is rather confusing to get a negligible performance gain (one addition in PS) and since we don’t support pixel shader 2.0 anymore the instruction count shouldn’t be an issue, so I’d say it should be changed to true world space.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Am I mistaken to use the cViewProj matrix to try convert from world space to clip space? Am I maybe passing it along to the pixel shader incorrectly ? I get an error if I try to pass two matrices, or anything after a matrix. I feel like cViewProj is a unit matrix when I try to use it in the pixel shader.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I believe I’ve never passed matrices in interpolators, so can’t outright comment what is the right approach for that. cViewProj should be appropriate for world-&gt;clip conversion though. If you foresee it’s useful elsewhere you could also make it an actual pixel shader uniform (again, we’re no longer PS2.0, so it’s acceptable)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Thanks for the help ! I have exposed a cViewProjPS and have made progress on this.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

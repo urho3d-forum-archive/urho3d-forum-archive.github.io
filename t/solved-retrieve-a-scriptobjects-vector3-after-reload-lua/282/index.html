@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED]Retrieve a ScriptObject&rsquo;s Vector3 after reload [LUA]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED]Retrieve a ScriptObject&rsquo;s Vector3 after reload [LUA]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>I have some trouble retrieving a ScriptObject’s Vector3 after reloading a saved scene.<br/>
+Here is a simplified version of what I’m doing in lua:</p>
+<p>[spoiler][code]<br/>
+require “LuaScripts/Utilities/Sample”</p>
+<p>function Start()<br/>
+SampleStart()<br/>
+scene_ = Scene()<br/>
+SubscribeToEvent(“Update”, “HandleUpdate”)<br/>
+local node = scene_:CreateChild(“MyNode”)<br/>
+node:CreateScriptObject(“MyObject”)<br/>
+end</p>
+<p>MyObject = ScriptObject()</p>
+<p>function MyObject:Start()<br/>
+self.destination = Vector3(10, 0, 10)<br/>
+end</p>
+<p>function MyObject:Load(deserializer)<br/>
+self.destination = deserializer:ReadVector3()<br/>
+print(self.destination:ToString()) – Retrieval is OK<br/>
+end</p>
+<p>function MyObject:Save(serializer)<br/>
+serializer:WriteVector3(self.destination)<br/>
+end</p>
+<p>function MyObject:Update(timeStep)<br/>
+print(self.destination:ToString())<br/>
+end</p>
+<p>function HandleUpdate(eventType, eventData)<br/>
+if input:GetKeyPress(KEY_F5) then scene_:SaveXML(fileSystem:GetProgramDir()…“Data/Scenes/TempExport.xml”) end<br/>
+if input:GetKeyPress(KEY_F7) then scene_:LoadXML(fileSystem:GetProgramDir()…“Data/Scenes/TempExport.xml”) end<br/>
+end<br/>
+[/code][/spoiler]<br/>
+After reloading the scene, deserialization is OK but self.destination is immediately overwritten to an almost Vector3.ZERO</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/828_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">aster2013</div>
+          <div class="post_content">
+<p>You do not need write load and save functions for it. Self.desternation will be saved as attribute automatic.</p>
+<p>You can check your saved xml file.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks Aster.<br/>
+Unfortunately issue is still the same with or without load and save.</p>
+<p>By the way, how can you determine when a variable needs load and save?<br/>
+It’s cool to have it loaded/saved automatically.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/828_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">aster2013</div>
+          <div class="post_content">
+<p>Hi, mike,</p>
+<p>It is a bug in setting user type attribute, I have fixed it. You can check it. Thanks.</p>
+<p>You don’t need write your load and save function for attribute in Lua script object. But I prefer you write a setting for it. like:</p>
+<pre><code class="lang-auto">function MyObject:SetDestination(value)
+   self.destination = Vector3(value)
+end</code></pre>
+<p>The setter function name must with “<span class="bbcode-b">Set + VarianceName</span>” (first character need in upper).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Many thanks for helpful fix and tips  <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/></p>
+<p>Maybe we should remove unnecessary load/save variables in sample 18 (onGround, okToJump and inAirTimer) as they are misleading.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/828_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">aster2013</div>
+          <div class="post_content">
+<p>Don’t remove these functions, but you can remove the attribute load code, just keep controls.yaw and pitch.</p>
+<pre><code class="lang-auto">function Character:Load(deserializer)
+    self.controls.yaw = deserializer:ReadFloat()
+    self.controls.pitch = deserializer:ReadFloat()
+end
+
+function Character:Save(serializer)
+    serializer:WriteFloat(self.controls.yaw)
+    serializer:WriteFloat(self.controls.pitch)
+end
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Optimization of RenderPath/Lot of Viewports/Fisheye</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Optimization of RenderPath/Lot of Viewports/Fisheye</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bart</div>
+          <div class="post_content">
+<p>Hi All!</p>
+<p>I would like to know if you get any idea on optimisation of rendering process when rendering a lot of views. My objective is to create a fisheye camera with 180? FOV (or more). I succeeded doing so using process descibed here:  <a data-bbcode="true" href="http://strlen.com/gfxengine/fisheyequake/" rel="nofollow noopener">http://strlen.com/gfxengine/fisheyequake/</a>. In short, you create 5 cameras instead of one, each 90? FOV and pointing in directions front, left, right, top, bottom (and optionally rear). The cameras originate in single point. Output of these cameras is rendered on sides of TextureCube. Then I sample it from the texture cube in a simple shader and display to output Texture2D. I share the code if anyone finds it useful:</p>
+<p>Sample(camera mounted on grill of brown car, 180? FOV):<br/>
+<img alt="" height="" src="../../../images2/311b5ab915f5863d047c967579e3820a.png" width=""/></p>
+<details>
+<summary>
+CubeCamera.h</summary>
+<pre><code class="lang-auto">#pragma once
+
+#include &lt;Urho3D/Container/Str.h&gt;
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Graphics/Camera.h&gt;
+#include &lt;Urho3D/Graphics/Graphics.h&gt;
+#include &lt;Urho3D/Graphics/RenderPath.h&gt;
+#include &lt;Urho3D/Graphics/RenderSurface.h&gt;
+#include &lt;Urho3D/Graphics/Texture2D.h&gt;
+#include &lt;Urho3D/Graphics/TextureCube.h&gt;
+#include &lt;Urho3D/Resource/ResourceCache.h&gt;
+#include &lt;Urho3D/Resource/XMLFile.h&gt;
+#include &lt;Urho3D/Scene/Scene.h&gt;
+
+using namespace Urho3D;
+
+class CubeCamera
+{
+
+public:
+    /// Construct.
+	CubeCamera(Context * context, Scene * scene, Node * parent_node, String name);
+
+	Texture2D * GetOutputTexture();
+
+protected:
+
+private:
+	Context * context_;
+	String name_;
+	Scene * scene_;
+	SharedPtr&lt;TextureCube&gt; cubeRenderTex_;
+	SharedPtr&lt;Texture2D&gt; cubeResultRenderTex_;
+	SharedPtr&lt;Viewport&gt; cubeViewport_;
+	SharedPtr&lt;Node&gt; parentNode_;
+	SharedPtr&lt;Node&gt; frontCubeCameraNode_;
+	SharedPtr&lt;Node&gt; leftCubeCameraNode_;
+	SharedPtr&lt;Node&gt; rightCubeCameraNode_;
+	SharedPtr&lt;Node&gt; topCubeCameraNode_;
+	SharedPtr&lt;Node&gt; bottomCubeCameraNode_;
+
+};
+</code></pre>
+</details>
+<details>
+<summary>
+CubeCamera.cpp</summary>
+<pre><code class="lang-auto">#include &lt;Urho3D/Urho3D.h&gt;
+
+#include "CubeCamera.h"
+
+#define CAM_W 1280
+#define CAM_H 1280
+#define CAM_FAR_CLIP 100.0f
+#define CUBE_SIZE 1280
+
+CubeCamera::CubeCamera(Context * context, Scene * scene, Node * parent_node, String name) :
+context_(context),
+scene_(scene),
+parentNode_(parent_node),
+name_(name)
+{
+	ResourceCache* cache = context-&gt;GetSubsystem&lt;ResourceCache&gt;();
+
+	// Create perpendicular cameras with FOV of 90deg
+	frontCubeCameraNode_ = parent_node-&gt;CreateChild(name + "FrontCubeSide");
+	frontCubeCameraNode_-&gt;Rotate(Quaternion(0.0f, Vector3::RIGHT), TS_PARENT);
+	Camera* frontCubeCamera = frontCubeCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+	frontCubeCamera-&gt;SetFarClip(CAM_FAR_CLIP);
+	frontCubeCamera-&gt;SetFov(90.0f);
+	leftCubeCameraNode_ = parent_node-&gt;CreateChild(name + "LeftCubeSide");
+	leftCubeCameraNode_-&gt;Rotate(Quaternion(-90.0f, Vector3::UP), TS_PARENT);
+	Camera* leftCubeCamera = leftCubeCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+	leftCubeCamera-&gt;SetFarClip(CAM_FAR_CLIP);
+	leftCubeCamera-&gt;SetFov(90.0f);
+	rightCubeCameraNode_ = parent_node-&gt;CreateChild(name + "RightCubeSide");
+	rightCubeCameraNode_-&gt;Rotate(Quaternion(90.0f, Vector3::UP), TS_PARENT);
+	Camera* rightCubeCamera = rightCubeCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+	rightCubeCamera-&gt;SetFarClip(CAM_FAR_CLIP);
+	rightCubeCamera-&gt;SetFov(90.0f);
+	topCubeCameraNode_ = parent_node-&gt;CreateChild(name + "TopCubeSide");
+	topCubeCameraNode_-&gt;Rotate(Quaternion(-90.0f, Vector3::RIGHT), TS_PARENT);
+	topCubeCameraNode_-&gt;Rotate(Quaternion(-90.0f, Vector3::FORWARD), TS_LOCAL);
+	Camera* topCubeCamera = topCubeCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+	topCubeCamera-&gt;SetFarClip(CAM_FAR_CLIP);
+	topCubeCamera-&gt;SetFov(90.0f);
+	bottomCubeCameraNode_ = parent_node-&gt;CreateChild(name + "BottomCubeSide");
+	bottomCubeCameraNode_-&gt;Rotate(Quaternion(90.0f, Vector3::RIGHT), TS_PARENT);
+	bottomCubeCameraNode_-&gt;Rotate(Quaternion(90.0f, Vector3::FORWARD), TS_LOCAL);
+	Camera* bottomCubeCamera = bottomCubeCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+	bottomCubeCamera-&gt;SetFarClip(CAM_FAR_CLIP);
+	bottomCubeCamera-&gt;SetFov(90.0f);
+
+	// Create cube texture (intermediate render target)
+	cubeRenderTex_ = new TextureCube(context);
+	cubeRenderTex_-&gt;SetSize(CUBE_SIZE, Graphics::GetRGBAFormat(), TEXTURE_RENDERTARGET);
+	cubeRenderTex_-&gt;SetName(name + "CubeTex");
+	cache-&gt;AddManualResource(cubeRenderTex_);
+
+	// Create render surfaces on individual sides of the cube texture
+	RenderSurface* surface = cubeRenderTex_-&gt;GetRenderSurface(CubeMapFace::FACE_POSITIVE_X);
+	SharedPtr&lt;Viewport&gt; cubeFrontViewport(new Viewport(context, scene, frontCubeCamera));
+	surface-&gt;SetViewport(0, cubeFrontViewport);
+	surface-&gt;SetUpdateMode(SURFACE_UPDATEALWAYS);
+	surface = cubeRenderTex_-&gt;GetRenderSurface(CubeMapFace::FACE_POSITIVE_Z);
+	SharedPtr&lt;Viewport&gt; cubeLeftViewport(new Viewport(context, scene, leftCubeCamera));
+	surface-&gt;SetViewport(0, cubeLeftViewport);
+	surface-&gt;SetUpdateMode(SURFACE_UPDATEALWAYS);
+	surface = cubeRenderTex_-&gt;GetRenderSurface(CubeMapFace::FACE_NEGATIVE_Z);
+	SharedPtr&lt;Viewport&gt; cubeRightViewport(new Viewport(context, scene, rightCubeCamera));
+	surface-&gt;SetViewport(0, cubeRightViewport);
+	surface-&gt;SetUpdateMode(SURFACE_UPDATEALWAYS);
+	surface = cubeRenderTex_-&gt;GetRenderSurface(CubeMapFace::FACE_POSITIVE_Y);
+	SharedPtr&lt;Viewport&gt; cubeTopViewport(new Viewport(context, scene, topCubeCamera));
+	surface-&gt;SetViewport(0, cubeTopViewport);
+	surface-&gt;SetUpdateMode(SURFACE_UPDATEALWAYS);
+	surface = cubeRenderTex_-&gt;GetRenderSurface(CubeMapFace::FACE_NEGATIVE_Y);
+	SharedPtr&lt;Viewport&gt; cubeBottomViewport(new Viewport(context, scene, bottomCubeCamera));
+	surface-&gt;SetViewport(0, cubeBottomViewport);
+	surface-&gt;SetUpdateMode(SURFACE_UPDATEALWAYS);
+
+	SharedPtr&lt;RenderPath&gt; cubeRenderPath = cubeFrontViewport-&gt;GetRenderPath()-&gt;Clone();
+	cubeRenderPath-&gt;Append(cache-&gt;GetResource&lt;XMLFile&gt;("PostProcess/FXAA3.xml"));
+	cubeRenderPath-&gt;SetEnabled("FXAA3", true);
+	
+	// Use RenderPath with FXAA3 enabled
+	cubeFrontViewport-&gt;SetRenderPath(cubeRenderPath);
+	cubeLeftViewport-&gt;SetRenderPath(cubeRenderPath);
+	cubeRightViewport-&gt;SetRenderPath(cubeRenderPath);
+	cubeTopViewport-&gt;SetRenderPath(cubeRenderPath);
+	cubeBottomViewport-&gt;SetRenderPath(cubeRenderPath);
+
+	// Render result image to single Texture2D
+	RenderPathCommand rrpc;
+	rrpc.type_ = CMD_QUAD;
+	rrpc.tag_ = "FisheyeCube";
+	rrpc.vertexShaderName_ = "FisheyeCube";
+	rrpc.pixelShaderName_ = "FisheyeCube";
+	rrpc.SetOutput(0, "viewport");
+	rrpc.SetTextureName(TU_DIFFUSE, name + "CubeTex");
+
+	RenderPath * rrp = new RenderPath();
+	rrp-&gt;AddCommand(rrpc);
+
+	cubeViewport_ = new Viewport(context_, scene_, frontCubeCameraNode_-&gt;GetComponent&lt;Camera&gt;(), rrp);
+
+	cubeResultRenderTex_ = new Texture2D(context_);
+	cubeResultRenderTex_-&gt;SetSize(CAM_W, CAM_H, Graphics::GetRGBAFormat(), TEXTURE_RENDERTARGET);
+	surface = cubeResultRenderTex_-&gt;GetRenderSurface();
+	surface-&gt;SetViewport(0, cubeViewport_);
+	surface-&gt;SetUpdateMode(SURFACE_UPDATEALWAYS);
+
+
+}
+
+Texture2D * CubeCamera::GetOutputTexture()
+{
+	return cubeResultRenderTex_;
+}
+</code></pre>
+</details>
+<details>
+<summary>
+FisheyeCube.hlsl</summary>
+<pre><code class="lang-auto">#include "Uniforms.hlsl"
+#include "Samplers.hlsl"
+#include "Transform.hlsl"
+#include "ScreenPos.hlsl"
+#include "Lighting.hlsl"
+
+#define M_PI 3.141592654
+
+void VS(float4 iPos : POSITION,
+	out float2 oScreenPos : TEXCOORD0,
+	out float4 oPos : OUTPOSITION)
+{
+	float4x3 modelMatrix = iModelMatrix;
+	float3 worldPos = GetWorldPos(modelMatrix);
+	oPos = GetClipPos(worldPos);
+	oScreenPos = GetScreenPosPreDiv(oPos);
+}
+
+void PS(float2 iScreenPos : TEXCOORD0,
+    out float4 oColor : OUTCOLOR0)
+{
+	float Z = -2.0*iScreenPos.x + 1.0;
+	float Y = -2.0*iScreenPos.y + 1.0;
+	float X = 0.85 * sqrt(1.0 - Y*Y - Z*Z);  //Manipulate coeffitient to get different "zoom"
+	X = X*X;                                            //Manipulate power to get different "zoom progression"
+	float3 vec = { X, Y, Z };
+
+	float3 color;
+
+	if (sqrt(Z*Z + Y*Y)&lt;=1.0)
+	{
+		oColor = float4(SampleCube(DiffCubeMap, vec).rgb, 1.0);
+	}
+	else
+	{
+		oColor = float4(0.0, 0.0, 0.0, 0.0);
+	}
+}
+</code></pre>
+</details>
+<p>Everything works, so far so good. Only issue I have with this is that it is quite demanding on the processing power, as there are many independent viewports that must be rendered. I would like to know wheter there are some ways to optimize the process. I get a huge rise in steps like ExecuteRenderPaths, RenderScenePass, an I would like to know wheter some of these steps could be combined to save time. Especially when the 5 views are sampled from the same point and are only rotated. I tried something to set multiple outputs in RenderCommands but without success. I’d like to know if there is principally anything I could do to improve efficiency.</p>
+<p>Thanks for ideas!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It should be possible to modify the View class to allow a “replay” of another View with a different camera matrix. This would only have the cost of actually rendering, skipping the redundant CPU-side work of culling, occlusion, light processing, batch queue building etc. However I don’t know the cleanest way how this should be exposed in the engine, considering that there’s a separation into the view preparation, and rendering at the end of frame.</p>
+<p>It would be rather easy if there would be imperative “Cull()” and “Render()” functions each taking a camera, and the “Render()” function taking the destination texture. However now there’s rather the mechanism of the engine detecting the necessary views during the frame, then rendering them in the end taking care of the dependencies.</p>
+<p>Btw. I like small cars so your example picture was very pleasing <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bart</div>
+          <div class="post_content">
+<p>Thanks for the info. So that means I would have to create my own fork of the engine, which is something I’d rather avoid. Unless you come up with a clean way how to implement this, I would enjoy to implement it then and share with others. Will take look in the engine code tomorrow, if I am able to comprehend it in the first place  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>Another idea: would it be possible to implement this in a shader code? First rendering 180deg view to have correct culling, shadows, etc, then having a vertex shader chop it up into 5 different rendertargets (cube faces) and then joining it the way I already do? But that would require manipulating camera matrix in the VS, and I dont know if that is possible or is already too late?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Got interested in this and already implemented it in the master branch. There was some trickiness involved, and I don’t guarantee it’s 100% bugfree yet.</p>
+<p>Documentation will be added later, but the basic idea is that you can call Viewport::SetCullCamera() to set a separate camera for culling. When multiple viewports set the same cull camera, the view will only be prepared once. Obviously they will also need the same renderpath or the sharing will be disabled.</p>
+<p>Note that simply using the same camera (without SetCullCamera) on two viewports will not automatically trigger this optimization, as the viewports could be using the same camera with different auto aspect ratios and therefore different culling.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">boberfly</div>
+          <div class="post_content">
+<p>Thanks for implementing this cadaver! When I was doing some porting to Oculus Rift DK2 I was thinking along the lines of a ‘cull camera’ for an optimisation, where you’d have a camera matrix which is the size of the two eyes, then render with left/right eye matrices onto the same framebuffers using glViewport (to prevent so many framebuffer changes and 2x culling).</p>
+<p>I’ll open up that branch again and play with this change as well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bart</div>
+          <div class="post_content">
+<p>Hi, thanks for such quick implementation, you’re the best <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>However, I made a test and it is actually little slower than before. Although we can see drop in count of GetDrawables, ProcessLights, GetLightBatches and GetBaseBatches, the overall fps is lower. For comparison:</p>
+<p>4 fisheyes, SetCullCamera, No shadows (=27fps)</p>
+<div class="spoiler">
+<p><img alt="" height="" src="../../../images2/2f3576e98b8e84c1a1e8b8840c60699a.png" width=""/></p>
+</div>
+<p>4 fisheyes, No shadows (=30fps)</p>
+<div class="spoiler">
+<p><img alt="" height="" src="../../../images2/6d26a4b12ab721b1f04e05dc87c19b9e.png" width=""/></p>
+</div>
+<p>4 fisheyes, SetCullCamera, Shadows (=13fps)</p>
+<div class="spoiler">
+<p><img alt="" height="" src="../../../images2/0d5929aefafffad165c23ba23cdf70e9.png" width=""/></p>
+</div>
+<p>4 fisheyes, Shadows (=15fps)</p>
+<div class="spoiler">
+<p><img alt="" height="" src="../../../images2/3158db178aea7ff4dc1b5f4a49652b14.png" width=""/></p>
+</div>
+<p>These result numbers are quite stable, so I would trust it. Is there anything I could do to optimize the calculations in Render section, or is this strictly bound to each view? I am also curious about the Present step, what does it do, and why is it so much longer when shadows are enabled (45ms with shadows, 16ms without shadows)?</p>
+<p>Do you think my shader solution of the fisheye problem mentioned in my previous post would be viable or is it impossible for some reason? Could it be like this?:<br/>
+[ul][li]Create 180deg view - all verices get into gpu stream[/li]<br/>
+[li]In render path, run vertex shader 5 times, each time processing vertices from region of interest and transform them in such way that we get 5x 90deg camera view into 5 different render targets (cube sides). This is the trickiest part - is this even possible? [/li]<br/>
+[li]Unite these 5 rendertargets into one in pixel shader (i do this already). Output into viewport[/li][/ul]</p>
+<p>Thank you</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Urho doesn’t implement geometry shaders, so you can’t render into several rendertargets at the same time sensibly, only MRT output for e.g. deferred rendering.</p>
+<p>Actually I’m not surprised by this result, because now it means that the whole view’s objects are rendered for each fisheye face, which can result in a lot more triangles and draw calls (check your stats in the top-left corner!) In cubemap rendering the culling per face can help a lot to eliminate unnecessary objects, and furthermore the View is quite intelligent to e.g. disable shadows if there are no shadow casters / receivers visible. In this case the view preparation sharing would only help if you’re CPU bound and your GPU is so powerful that it can take the extra object rendering without much slowdown.</p>
+<p>The view preparation saving would be most significant in stereoscopic applications because in that case the views are nearly identical and there are no (or very little) wasted objects being drawn.</p>
+<p>If you can take a bit wrong output the fastest would be to just render a forward view, perhaps with extra-wide FOV, and use a pixel shader to incorrectly warp it into a fisheye.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bart</div>
+          <div class="post_content">
+<p>Ok, thank you very much for the claricifaction, thats what I needed to hear.</p>
+<p>Have a nice weekend!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

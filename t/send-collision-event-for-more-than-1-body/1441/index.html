@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Send collision event for more than 1 body</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Send collision event for more than 1 body</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Hopefully I’m not doing something wrong, but what I noticed is that NodeCollision event only fires once for each node, even if it collides with more than 1 other node.</p>
+<p>In my case I’m shooting a projectile which is a trigger body.<br/>
+On NodeCollision if the other node is the shooter of the projectile the collision is skipped, so collision with the shooter is avoided.<br/>
+I noticed that if the player shoots a projectile straight down, it won’t collide with the floor until it’s no longer in contact with the player.<br/>
+That causes bugs for example with explosive projectiles that need to make sure they have line of sight with damageable objects because it will penetrate into the ground.</p>
+<p>Right now my workaround is doing GetRigidBodies(projectile_body) when colliding with the shooter, to check if there’s any collision with other bodies, which is re-testing for collisions.<br/>
+An elegant solution would be to have all the collisions available, either via multiple NodeCollision events, or an event that lists all the nodes.<br/>
+The most elegant solution is to completely ignore collision between the shooter and the projectile (layers aren’t suitable because there could be many different shooters &amp; projectiles).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Collision pairs should be treated as separate, so this sounds like a logic bug in PhysicsWorld::SendCollisionEvents(). I recommend stepping through it and seeing if it early-outs in a wrong place. Alternatively, Bullet is just being stupid.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I didn’t debug because I’m using Urho as external library.<br/>
+Looking at PhysicsWorld::SendCollisionEvents() it seems like it should work fine - creating unique pairs and only skipping if the nodes/bodies are removed.</p>
+<p>I looked at Bullet’s wiki and found this:<br/>
+<a href="http://bulletphysics.org/mediawiki-1.5.8/index.php/Collision_Callbacks_and_Triggers#Contact_Information" rel="nofollow noopener">bulletphysics.org/mediawiki-1.5. … nformation</a><br/>
+"The best way to determine if collisions happened between existing objects in the world, is to iterate over all contact manifolds. This should be done during a simulation tick (substep) callback, because contacts might be added and removed during several substeps of a single stepSimulation call."</p>
+<p>PhysicsWorld::SendCollisionEvents() is called in the PostStep(), so maybe the collision gets removed in the substeps?<br/>
+A possible solution could be to populate the pairs hashmap in the substeps, and send the events in the PostStep().</p>
+<p>Though a simple test case is required to verify that missing substep contacts is real.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>PostStep is called for each substep.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I’m not able to replicate your problem in CharacterDemo. I make the character drop “bullets” and log the collided nodes in the bullet script’s FixedPostUpdate.</p>
+<p>This was inserted to somewhere in the camera/controls per-frame code:</p>
+<pre><code class="lang-auto">        if (input.mouseButtonPress[MOUSEB_LEFT])
+            SpawnObject();</code></pre>
+<p>And the new code:</p>
+<pre><code class="lang-auto">void SpawnObject()
+{
+    Node@ boxNode = scene_.CreateChild("SmallBox");
+    boxNode.position = characterNode.position + Vector3(0,1,0);
+    boxNode.rotation = characterNode.rotation;
+    boxNode.SetScale(0.25f);
+    StaticModel@ boxObject = boxNode.CreateComponent("StaticModel");
+    boxObject.model = cache.GetResource("Model", "Models/Box.mdl");
+    boxObject.material = cache.GetResource("Material", "Materials/StoneEnvMapSmall.xml");
+    boxObject.castShadows = true;
+
+    RigidBody@ body = boxNode.CreateComponent("RigidBody");
+    body.mass = 0.25f;
+    body.friction = 0.75f;
+    body.trigger = true;
+    CollisionShape@ shape = boxNode.CreateComponent("CollisionShape");
+    shape.SetBox(Vector3(1.0f, 1.0f, 1.0f));
+
+    boxNode.CreateScriptObject(scriptFile, "Bullet");
+}
+
+class Bullet : ScriptObject
+{
+    Array&lt;String&gt; collidingObjects;
+
+    void Start()
+    {
+        SubscribeToEvent(node, "NodeCollision", "HandleNodeCollision");
+    }
+
+    void HandleNodeCollision(StringHash type, VariantMap&amp; data)
+    {
+        Node@ otherNode = data["OtherNode"].GetPtr();
+        collidingObjects.Push(otherNode.name);
+    }
+
+    void FixedUpdate(float dt)
+    {
+        collidingObjects.Clear();
+    }
+
+    void FixedPostUpdate(float dt)
+    {
+        if (collidingObjects.length &gt; 0)
+        {
+            String objectNames;
+            for (uint i = 0; i &lt; collidingObjects.length; ++i)
+                objectNames += collidingObjects[i] + " ";
+            Print("Collisions " + collidingObjects.length + ": " + objectNames);
+        }
+    }
+}</code></pre>
+<p>The log output would look like expected, when the bullet intersects momentarily both the Jack and the floor:</p>
+<pre><code class="lang-auto">Collisions 1: Jack 
+Collisions 1: Jack 
+Collisions 1: Jack 
+Collisions 1: Jack 
+Collisions 2: Jack Floor 
+Collisions 2: Jack Floor 
+Collisions 2: Jack Floor 
+Collisions 2: Jack Floor 
+Collisions 1: Floor 
+Collisions 1: Floor 
+Collisions 1: Floor</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I replicated your test and it works fine.<br/>
+When I was tweaking to fix it I did add both “body.collisionEventMode = COLLISION_ALWAYS;”, use CCD, and check line of sight to center of mass instead of node position (which in my case is the very bottom of the body, which caused problems).<br/>
+maybe one of them fixed it.</p>
+<p>My bad.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

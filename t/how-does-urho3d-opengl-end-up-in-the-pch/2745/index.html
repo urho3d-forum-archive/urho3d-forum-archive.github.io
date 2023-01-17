@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How does URHO3D_OPENGL end up in the PCH?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How does URHO3D_OPENGL end up in the PCH?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’ve been trying to understand how on earth the following code works:</p>
+<pre><code>#if defined(URHO3D_OPENGL)
+#   include "OpenGL/OGLGraphicsImpl.h"
+#   error GL was selected
+#elif defined(URHO3D_D3D11)
+#   include "Direct3D11/D3D11GraphicsImpl.h"
+#elif defined(URHO3D_D3D9)
+#   include "Direct3D9/D3D9GraphicsImpl.h"
+#else
+#   error No graphics API defined
+#endif
+</code></pre>
+<p>The output, of course, is: <code>error: GL was selected</code> as expected.</p>
+<p>URHO3D_OPENGL is never defined with add_definitions(). I realise it is defined in the precompiled header, but I’m at a loss as to how it ends up there.</p>
+<p>I want to add my own graphics API and want to make that an option.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="1" data-topic="2745">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/12a1dc2eccbee0e3555e7cc3e716f46e.png" width="20"/> TheComet:</div>
+<blockquote>
+<p>but I’m at a loss as to how it ends up there.</p>
+</blockquote>
+</aside>
+<p>Maybe during CMake generation?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>It is not clear to me at which context your question is. When building Urho3D library, the compiler define is added by CMake script. While using the library, some of them are already baked in the export header file. See also the discussion <a href="http://discourse.urho3d.io/t/auto-discover-var-does-not-find-urho3d-testing/2742">here</a>. URHO3D_TESTING and URHO3D_OPENGL are baked the same way.</p>
+<p>Whether the PCH is used or not, is irrelevant.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote" data-post="3" data-topic="2745">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>When building Urho3D library, the compiler define is added by CMake script.</p>
+</blockquote>
+</aside>
+<p>This is what’s unclear to me. Where specifically does this happen? Can you perhaps point me to a file/line?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Instead of telling you that, I could tell how to search for yourself. I believe something like this below should do it (not in front of a PC at the moment).<br/>
+git grep URHO3D_OPENGL – CMakeLists.txt</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’ve already done that and I mentioned in the first post that there is not a single occurrence of <code>add_definitions (-DURHO3D_OPENGL)</code>. This is the whole reason why I’m making this thread: I don’t understand how URHO3D_OPENGL is defined without the use of <code>add_definitions()</code>. What other mechanism is there in CMake that can add global defines?</p>
+<p>Here’s the output of <code>make VERBOSE=1</code>:</p>
+<blockquote>
+<p>[ 47%] Building CXX object Source/Urho3D/CMakeFiles/Urho3D.dir/LuaScript/LuaScriptInstance.cpp.o<br/>
+cd /home/thecomet/documents/programming/cpp/Urho3D/build_gl/Source/Urho3D &amp;&amp; /usr/bin/c++   -DGLEW_NO_GLU -DGLEW_STATIC -DHAVE_SINCOSF -DHAVE_STDINT_H -DTOLUA_RELEASE -DURHO3D_ANGELSCRIPT -DURHO3D_FILEWATCHER -DURHO3D_IS_BUILDING -DURHO3D_LOGGING -DURHO3D_LUA -DURHO3D_NAVIGATION -DURHO3D_NETWORK -DURHO3D_PHYSICS -DURHO3D_PROFILING -DURHO3D_STATIC_DEFINE -DURHO3D_THREADING -DURHO3D_URHO2D -I/home/thecomet/documents/programming/cpp/Urho3D/build_gl/Source/Urho3D -I/home/thecomet/documents/programming/cpp/Urho3D/Source/Urho3D -I/home/thecomet/documents/programming/cpp/Urho3D/build_gl/include/Urho3D/ThirdParty -I/home/thecomet/documents/programming/cpp/Urho3D/build_gl/include/Urho3D/ThirdParty/Bullet -I/home/thecomet/documents/programming/cpp/Urho3D/build_gl/include/Urho3D/ThirdParty/Detour -I/home/thecomet/documents/programming/cpp/Urho3D/build_gl/include/Urho3D/ThirdParty/Lua  -Wno-invalid-offsetof -march=native -ffast-math -pthread -fdiagnostics-color=auto -include “/home/thecomet/documents/programming/cpp/Urho3D/build_gl/Source/Urho3D/Precompiled.h” -O3 -DNDEBUG   -o CMakeFiles/Urho3D.dir/LuaScript/LuaScriptInstance.cpp.o -c /home/thecomet/documents/programming/cpp/Urho3D/Source/Urho3D/LuaScript/LuaScriptInstance.cpp</p>
+</blockquote>
+<p>I don’t see <code>-DURHO3D_OPENGL</code> on the command line here. But it’s defined anyway. Why?</p>
+<p>What I do see is the file <code>Precompiled.h</code> being included, and if I search for URHO3D_OPENGL in <code>build_gl/Source/Urho3D/Precompiled.h.gch/Precompiled.h.gch.Release</code> then I find matches.</p>
+<p>So to repeat my initial question: How does URHO3D_OPENGL end up in Precompiled.h?</p>
+<p>Here is my output for searching for URHO3D_OPENGL in all cmake files:</p>
+<blockquote>
+<p>$ find . ( -name “CMakeLists.txt” -or -name “*.cmake” ) -exec grep -H “URHO3D_OPENGL” {} ;<br/>
+./CMakeLists.txt:if (WIN32 AND NOT URHO3D_OPENGL AND NOT URHO3D_VULKAN)<br/>
+./CMake/Modules/FindUrho3D.cmake:#  URHO3D_OPENGL<br/>
+./CMake/Modules/FindUrho3D.cmake:set (AUTO_DISCOVER_VARS URHO3D_OPENGL URHO3D_VULKAN URHO3D_D3D11 URHO3D_SSE URHO3D_DATABASE_ODBC URHO3D_DATABASE_SQLITE URHO3D_LUAJIT URHO3D_TESTING URHO3D_STATIC_RUNTIME)<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:        # OpenGL can be manually enabled with -DURHO3D_OPENGL=1, but Windows graphics card drivers are usually better optimized for Direct3D<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:        # Direct3D can be manually enabled with -DURHO3D_OPENGL=0, but it is likely to fail unless the MinGW-w64 distribution is used due to dependency to Direct3D headers and libs<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:    option (URHO3D_OPENGL “Use OpenGL as the rendering backend.” ${DEFAULT_OPENGL})<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:    set (URHO3D_OPENGL 0)<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:    set (URHO3D_OPENGL 0)<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:if (URHO3D_OPENGL)<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:    set (URHO3D_OPENGL 0)<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:if (NOT ANDROID AND NOT ARM AND NOT WEB AND URHO3D_OPENGL)<br/>
+./CMake/Modules/Urho3D-CMake-common.cmake:        if (URHO3D_OPENGL)<br/>
+./Docs/CMakeLists.txt:    if (NOT URHO3D_OPENGL EQUAL DOXYFILE_URHO3D_OPENGL OR ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in IS_NEWER_THAN ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)<br/>
+./Docs/CMakeLists.txt:        set (DOXYFILE_URHO3D_OPENGL ${URHO3D_OPENGL} CACHE INTERNAL “URHO3D_OPENGL build option when Doxyfile was last generated”)<br/>
+./Docs/CMakeLists.txt:        if (URHO3D_OPENGL)<br/>
+./Source/CMakeLists.txt:    if (URHO3D_OPENGL)<br/>
+./Source/ThirdParty/SDL/CMakeLists.txt:# Urho3D - only make DIRECTX option available on Windows platform when URHO3D_OPENGL OR URHO3D_VULKAN<br/>
+./Source/ThirdParty/SDL/CMakeLists.txt:# is enabled, i.e. DIRECTX variable must always be ON (not an option) when URHO3D_OPENGL and URHO3D_VULKAN<br/>
+./Source/ThirdParty/SDL/CMakeLists.txt:  if (URHO3D_OPENGL or URHO3D_VULKAN)<br/>
+./Source/ThirdParty/SDL/CMakeLists.txt:# Urho3D - commented out RENDER_D3D as an option to avoid potential conflict with our URHO3D_OPENGL and URHO3D_D3D11 build options on Windows platform<br/>
+./Source/ThirdParty/SDL/CMakeLists.txt:  if (URHO3D_OPENGL or URHO3D_VULKAN)<br/>
+./Source/Urho3D/CMakeLists.txt:if (URHO3D_OPENGL)</p>
+</blockquote>
+<p>As you can see, there is no occurrence of <code>add_definitions()</code>, which makes me confused.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I am sorry if I didn’t make myself clear. I asked you to search “URHO3D_OPENGL” as the keyword.</p>
+<pre><code>git grep URHO3D_OPENGL
+</code></pre>
+<p>Don’t use any pathspec so it will search on any files in the repo. If you do that then you will see we just declare “URHO3D_OPENGL” in the common CMake module file “URHO3D-CMake-common.cmake” as CMake variable and then bake that into a compiler define in the export header “Urho3D.h”. The template for export header file is called “<a href="http://exportheader.cmake.in">exportheader.cmake.in</a>”. Again, you should find this file if you use the right keyword to search.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Aaaah, so <em>that’s</em> how it’s done. I understand now. Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

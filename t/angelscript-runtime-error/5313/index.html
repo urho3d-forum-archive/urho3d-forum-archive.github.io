@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>AngelScript runtime error</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">AngelScript runtime error</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2113_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">fnadalt</div>
+          <div class="post_content">
+<p>Hi everyone. I’m having trouble with an angelscript runtime error. I can’t find where it is generated exactly, since I didn’t find a way to reproduce it. It happens on scene change, after Scene::LoadXML. I change scenes back and forth until it takes place. The entire app is run from a Main.as. This scripts receives the “SwitchScene” event and loads the new scene. The error does not happen after switching to a particular scene. The engine if compiled from git 3be92ea61e39d8a31999ab5a0833473ea220e6ca (2019-07-17), but the error started from an one moth old git pull. gdb backtrace including some app log <a href="https://pastebin.com/KT3fH5FT" rel="nofollow noopener">https://pastebin.com/KT3fH5FT</a>. Would anyone please help me at least suggesting where to continue the search from? If full source needed I can push it to github.</p>
+<p>The game consists of a flying transporter that lands on platforms and picks people and goods to carry to some other location. There are local and replicated nodes since it supports single player mode as well as client and server functionality. I observed that there seems to be a problem with the avatar (ship) to call its ScriptObject::Stop function, and, that seems to be underlying the issue. From time to time it reports [Thu Jul 18 12:57:27 2019] ERROR: :0,0 Failed in call to function ‘Prepare’ with ‘void Ship::Stop()’ (Code: asCONTEXT_ACTIVE, -2)… …?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>Might not be exactly what you are facing…<br/>
+but I have been dealing with runtime errors in LUA for quite a bit now and I got the hang of whats going on ( I think )  Urho3d handles is pointers based on scenes so each scene has control over its resources such that if you create a texture in code ( without the cache ) and assign it to a scene and then delete the node that holds that resource, the resource itself will be deleted as-well and any further attempts to use it will cause either a SIGABRT or SIGSEGV. This can also occur if you double delete the resource by deleting it via the garbage collector and then the shared_ptr c++ wise.</p>
+<p>So if you are transferring objects between scenes you may wish to create a “transition” scene where you will place those resources as the first scene is being deleted this will assure that the assets are not deleted and then once the next scene has completed loading you can delete the transition scene.  Note that this applies mainly to resources generated in the scripting world and not via the asset cache.</p>
+<p>hope that helps.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>What I noticed about your stack dump was the calls to angelscript GarbageCollection - which is meant to be disabled (at least for script objects!) This occurs at around line 96 in the dump you provided.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Did you get this issue resolved? I’d be happy to take a crack at debugging the issue if you still want help. I used to be great at ASM, on 8, 16 and 32 bit platforms. When we went to 64 bit, I chose not to pursue assembly language, but I learned a crapload about debugging from my time in asm, which holds me in good stead today. I can recognize the registers which hold input arguments, and I can recognize which pointers are bad. I can step asm and set breakpoints intelligently to track down issues in code, and even without appropriate debug symbols being available in the code I am debugging. Also, I like puzzles.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2113_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">fnadalt</div>
+          <div class="post_content">
+<p>Little embarrasing I think. Just when I thought I had been quite “neat and clean” on setting object references to null in every ScriptObject::Stop(), I figured out I hadn’t set null the very Node@ avatarNode in GamePlay scene Stop method. That seemed to have solved the thing, at least so far.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

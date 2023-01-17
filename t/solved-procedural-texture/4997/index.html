@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Procedural texture</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Procedural texture</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Hello! I’m trying to create a texture by means of simple post-processing effect on the auxiliary viewport. Here’s the code</p>
+<pre><code>SharedPtr&lt;Texture2D&gt; Game::CreateTexture(int width, int height)
+{
+    //Get the Resource Cache subsystem
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    
+    SharedPtr&lt;Texture2D&gt; renderTexture(new Texture2D(context_));
+    renderTexture-&gt;SetSize(width, height, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+    renderTexture-&gt;SetFilterMode(FILTER_BILINEAR);
+
+    // Create the scene which will be rendered to a texture
+    rttScene_ = new Scene(context_);
+    
+    // Create a camera for the render-to-texture scene.
+    rttCameraNode_ = rttScene_-&gt;CreateChild("Camera");
+    auto* rttCamera = rttCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+
+    RenderSurface* surface = renderTexture-&gt;GetRenderSurface();
+    SharedPtr&lt;Viewport&gt; rttViewport(new Viewport(context_, rttScene_, rttCameraNode_-&gt;GetComponent&lt;Camera&gt;()));
+    surface-&gt;SetViewport(0, rttViewport);
+
+    SharedPtr&lt;RenderPath&gt; effectRenderPath = rttViewport-&gt;GetRenderPath()-&gt;Clone();
+    effectRenderPath-&gt;Append(cache-&gt;GetResource&lt;XMLFile&gt;("PostProcess/BasicPP.xml"));
+    rttViewport-&gt;SetRenderPath(effectRenderPath);
+
+    surface-&gt;QueueUpdate();
+
+    return renderTexture;
+}
+</code></pre>
+<p>I’ve created BasicPP.xml and the corresponding BasicPP.glsl which creates a simple gradient by using gl_FragColor. The effect is working as expected on the main viewport. Also, when I attach a .png texture to my sprite, it gets shown on the screen.</p>
+<p>So what am I missing?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>What results do you get and how do they not match up with your expectations?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>For a 128x128 texture I get a black rectangle. I render the effect on the renderer’s viewport to be sure that it’s working, so I’m expecting to see a mini-version of the background where the black 128x128 rectangle is.</p>
+<p><img alt="01" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/a/a175e8c9194a8ab4f44851d23a23e5dfe6b612bc.png" width="644"/></p>
+<p>If I don’t set size with sprite-&gt;SetSize(IntVector2(128, 128)); I don’t get anything… Just a background with a post processing gradient. So, obviously, the post-processing effect is not rendered on the created texture.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I think you may need to add an octree to the scene, possibly also a zone.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>The <code>Renderer</code> has a default <code>Zone</code> (which can be accessed and modified through <code>GetSubsystem&lt;Renderer&gt;()-&gt;GetDefaultZone()</code>) so that should not be the problem.<br/>
+Indeed the <code>Scene</code> does not seems to have an <code>Octree</code> component added. <span class="mention">@Lunarovich</span> Your program should output an error about this to the console/terminal/IDE (if it contains <code>Drawable</code>s).</p>
+<blockquote>
+<p><code>ERROR: No Octree component in scene, drawable will not render</code></p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Thanx. I’ll try the solution and inform about the results.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="4997">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/567c52b99053c4bf26dbb14ab88ba2b1.png" width="20"/> Lunarovich:</div>
+<blockquote>
+<p>rttCameraNode_-&gt;GetComponent&lt;Camera&gt;()</p>
+</blockquote>
+</aside>
+<p>Your intent seems to be to use - the currently unused - <code>auto* rttCamera</code> here, btw. This should not be causing any trouble, though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Is single shader all you want to draw into this texture? Or you also want to draw some 3d geometry there? If first, you don’t really need a scene, viewport, camera and all that stuff. You can draw a quad right into render target.</p>
+<p>here is the code for that:</p>
+<pre><code>Graphics* graphics = context_-&gt;GetSubsystem&lt;Graphics&gt;();
+graphics-&gt;SetClipPlane(false);
+graphics-&gt;SetScissorTest(false);
+graphics-&gt;SetStencilTest(false);
+graphics-&gt;SetDepthWrite(false);
+graphics-&gt;SetDepthTest(CMP_ALWAYS);
+graphics-&gt;SetCullMode(CULL_NONE);
+graphics-&gt;SetFillMode(FILL_SOLID);
+graphics-&gt;SetBlendMode(BLEND_REPLACE);
+graphics-&gt;ResetRenderTargets();
+graphics-&gt;ClearTransformSources();
+
+WeakPtr&lt;Texture2D&gt; renderTarget(renderTexture);
+
+graphics-&gt;SetRenderTarget(0, renderTarget);
+graphics-&gt;SetViewport(IntRect(0, 0, TEX_X, TEX_Y));
+graphics-&gt;Clear(CLEAR_COLOR, Color(9e99, 0.0f, 0.0f, 0.0f));
+ShaderVariation* vs = graphics-&gt;GetShader(VS, "SdfCalculator" );
+ShaderVariation* ps = graphics-&gt;GetShader(PS, "SdfCalculator", this-&gt;GetDefines());
+graphics-&gt;SetShaders(vs, ps);
+
+Matrix3x4 modelMatrix = Matrix3x4::IDENTITY;
+modelMatrix.m23_ = 0.0f;
+graphics-&gt;SetShaderParameter(VSP_MODEL, modelMatrix);
+graphics-&gt;SetShaderParameter(VSP_VIEWPROJ, Matrix4::IDENTITY);
+
+graphics-&gt;SetTexture(TU_DIFFUSE, upldTexture);
+Renderer* renderer = context_-&gt;GetSubsystem&lt;Renderer&gt;();
+Geometry* geometry = renderer-&gt;GetQuadGeometry();
+geometry-&gt;Draw(graphics);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p><span class="mention">@SirNate0</span> and <span class="mention">@Modanung</span>, indeed, the octree was missing. Here is the working code for the future reference:</p>
+<pre><code>#include &lt;Urho3D/Graphics/Graphics.h&gt;
+#include &lt;Urho3D/Graphics/Texture2D.h&gt;
+#include &lt;Urho3D/Graphics/RenderPath.h&gt;
+#include &lt;Urho3D/Resource/XMLElement.h&gt;
+
+SharedPtr&lt;Texture2D&gt; Game::CreateTexture(int width, int height)
+{
+  //Get the Resource Cache subsystem
+  ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+  // Create a renderable texture (1024x768, RGB format), enable bilinear filtering on it
+  SharedPtr&lt;Texture2D&gt; renderTexture(new Texture2D(context_));
+  renderTexture-&gt;SetSize(width, height, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+  renderTexture-&gt;SetFilterMode(FILTER_BILINEAR);
+
+  // Create the scene which will be rendered to a texture
+  rttScene_ = new Scene(context_);
+  rttScene-&gt;CreateComponent&lt;Octree&gt;();
+
+  // Create a camera for the render-to-texture scene.
+  rttCameraNode_ = rttScene_-&gt;CreateChild("Camera");
+  auto* rttCamera = rttCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+
+  // Get the texture's RenderSurface object
+  //(exists when the texture has been created in rendertarget mode)
+  // and define the viewport for rendering the second scene,
+  // similarly as how backbuffer viewports are defined
+  // to the Renderer subsystem. By default the texture viewport
+  // will be updated when the texture is visible in the main view
+  RenderSurface* surface = renderTexture-&gt;GetRenderSurface();
+  SharedPtr&lt;Viewport&gt; rttViewport(new Viewport(context_, rttScene_, rttCameraNode_-&gt;GetComponent&lt;Camera&gt;()));
+  surface-&gt;SetViewport(0, rttViewport);
+
+  SharedPtr&lt;RenderPath&gt; effectRenderPath = rttViewport-&gt;GetRenderPath()-&gt;Clone();
+  effectRenderPath-&gt;Append(cache-&gt;GetResource&lt;XMLFile&gt;("PostProcess/BasicPP.xml"));
+  rttViewport-&gt;SetRenderPath(effectRenderPath);
+
+  surface-&gt;QueueUpdate();
+  return renderTexture;
+}
+</code></pre>
+<p><span class="mention">@Bananaft</span> thank you for  your answer. I’ll try it and inform about the results here.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

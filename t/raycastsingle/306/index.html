@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>RaycastSingle</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">RaycastSingle</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">carl</div>
+          <div class="post_content">
+<p>Hi, I’m trying to get the point on a certain model where I click with the cursor. I’ve managed to get it working, except when there’s another model in between.<br/>
+I want the point in the model A, but there’s a model B in the way. The raycast should ignore B and keep going until it hits A.<br/>
+I’m using the viewMask for that.</p>
+<p>octree:RaycastSingle(cameraRay, RAY_TRIANGLE, M_INFINITY, DRAWABLE_GEOMETRY, 0x80000000)</p>
+<p>Only A has a viewMask = 0x80000000. But still, it gets the point on B.</p>
+<p>Am I doing something wrong? Should it work?</p>
+<p>Alternatively, I could use the other RayQueryResult[]@ Raycast(…) and compare the node’s name to find the one I want. However I don’t know how to iterate on that array in lua, it says bad argument <span class="hashtag">#1</span> to ‘ipairs’ (table expected, got userdata)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The viewmasks use an AND operation, and pass if the result is nonzero. The default viewmask of all drawable components is 0xffffffff, so if you want to use the highest bit to discriminate (mask 0x80000000 in query) you’ll need to set the mask on object B to not have the highest bit set, eg. 0x7fffffff.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">carl</div>
+          <div class="post_content">
+<p>Then I’m pretty sure it’s not working properly. Whatever I put in the viewMask for the RaycastSingle doesn’t do anything. I even put 0 and still it hits everything.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In this case it seems to be a Lua bindings bug, where the query viewmask is being ignored. In AngelScript (or C++) passing a 0 gives no objects, as expected.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">carl</div>
+          <div class="post_content">
+<p>I was looking at the wrong API, from AngelScript. It seems that the Lua binding doesn’t have viewMask in the Raycast</p>
+<p>RayQueryResult RaycastSingle(const Ray&amp; ray, RayQueryLevel level, float maxDistance, char drawableFlags) const</p>
+<p>Which is still odd…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The viewMask parameter has been added to the master branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">carl</div>
+          <div class="post_content">
+<p>That’s fast, thank you! Now it works perfectly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>I’m working with Terrains and it looks like Raycasts don’t hit them. Other drawables like static models are hit, but terrain heightmaps aren’t.<br/>
+I’m using the navigable example with the terrain from the vehicle example. I removed the navigable mesh and just teleport Jack to anywhere I click. I can move him to the boxes, mushrooms or even to himself. Everything but the ground.</p>
+<p>Is that normal behaviour?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>When position &amp; normal were added to RayQueryResult, TerrainPatch raycast code was not updated. So it would return hits with correct distance, but with incorrect position. This is now fixed in the master branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gabdab</div>
+          <div class="post_content">
+<p>[SOLVED] My bad , physics world was retrieved from a non existent node, so empty.<br/>
+Does it currently work in c++ ?<br/>
+I am unable to get ray collisions with rigid bodies ,but I have collisions response with them  .<br/>
+Strangely enough SphereCast works against the floor rigid body , but not when I perform it  against another rigid body  (layer and mask matching).<br/>
+:</p>
+<p>[code]<br/>
+Quaternion dir(node_model-&gt;GetRotation().YawAngle(), Vector3::UP);<br/>
+Vector3 laserStartPos = node_model-&gt;GetPosition();<br/>
+Vector3 laserTargetPos = node_model-&gt;GetPosition()+ dir * Vector3(0.0f, 0.0f, 3000);<br/>
+PhysicsRaycastResult result1;<br/>
+Ray ray1(laserStartPos,laserTargetPos - laserStartPos);<br/>
+float l=(laserTargetPos - laserStartPos).Length();<br/>
+globals::instance()-&gt;physical_world-&gt;RaycastSingle(result1, ray1, l, 2);<br/>
+if (result1.body_){<br/>
+laserTargetPos = laserStartPos + ray1.direction_ * (result1.distance_ - 0.5f);</p>
+<p>}<br/>
+//  if (result1.body_)<br/>
+std::cout&lt;&lt;result1.body_&lt;&lt;std::endl;[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2546_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">josuemnb</div>
+          <div class="post_content">
+<p>Good day.<br/>
+For a couple of days that i’ve been working on raycast bug.<br/>
+Now i can present my conclusion.<br/>
+Was very weird at the beginning when started to test urhosharp, and raycast was perfect.<br/>
+but now testing raycast with nodes at higher distances like 5000 from scene root node, can’t detect it.<br/>
+if i decrease it to 1000, it’s working better.</p>
+<p>what could be the problem?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>7 posts were split to a new topic: <a href="/t/about-urhosharp-and-possible-alternatives/5512">About UrhoSharp and possible alternatives</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>Back to the topic - it may not be a bug and it may indeed be Urho3d thing (not only c# version). Are You using Octree::Raycast? If yes, have You tried increasing octree size (default size is 1000)?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

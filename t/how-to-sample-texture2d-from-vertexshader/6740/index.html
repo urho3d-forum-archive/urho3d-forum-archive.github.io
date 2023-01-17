@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to Sample Texture2D from VertexShader?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to Sample Texture2D from VertexShader?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We are trying to use a Texture2D heightmap inside the VertexShader to offset the Y positions of the grid.  This is much more efficient than recreating a unique VertexBuffer for each Terrain Tile.  So we can have ONE Vertex Buffer, and then use two parameters “TilePos” and “TileSize” to correctly offset each Grid point into World Space for the Pixel Shader.</p>
+<p>Problem is that I can’t seem to get the Vertex Shader to recognize the sDiffMap to sample it.</p>
+<p>Here is my Pixel Shader:</p>
+<pre><code>#include "Uniforms.hlsl"
+#include "Samplers.hlsl"
+#include "Transform.hlsl"
+
+#ifdef COMPILEVS
+cbuffer CustomVS : register(b6)
+{
+    float2 cTilePos;
+    float2 cTileSize;
+}
+sampler2D sDiffMap : register(s0);
+#endif
+
+void VS(float4 iPos : POSITION,
+	float2 iTexCoord : TEXCOORD0,
+    out float2 oTexCoord : TEXCOORD0,
+    out float4 oPos : OUTPOSITION)
+{
+    float2 offset = iTexCoord;
+    offset.x *= cTileSize.x;
+    offset.y *= cTileSize.y;
+    offset += cTilePos;
+
+    float2 diffVal = Sample2DLod0(DiffMap, iTexCoord).rg;
+    float3 pos = float3(offset.x, diffVal.r, offset.y);
+
+    oPos = GetClipPos(pos);
+    oTexCoord = iTexCoord;
+}
+</code></pre>
+<p>===<br/>
+When Urho3D compiles this, I get the following error:</p>
+<p>ERROR: Failed to compile vertex shader Terrain3D_Alerts():<br/>
+…\Shaders\HLSL\Terrain3D_Alerts.hlsl(514,22-53): error X3004: undeclared identifier ‘tDiffMap’</p>
+<p>So if I add another line:<br/>
+sampler2D tDiffMap : register(s0);</p>
+<p>Then it gives me this error:<br/>
+ERROR: Failed to compile vertex shader Terrain3D_Alerts():<br/>
+…\Shaders\HLSL\Terrain3D_Alerts.hlsl(515,22-49): error X3087: sampler2D object does not have methods</p>
+<p><span class="mention">@JSandusky</span> - you answered my previous post on this, so I posted it fresh here with Shader code so that you might be help to tell me what I’m doing wrong.</p>
+<p><a href="https://discourse.urho3d.io/t/how-to-fetch-sdiffmap-in-vertexshader/904/9">https://discourse.urho3d.io/t/how-to-fetch-sdiffmap-in-vertexshader/904/9</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>You need the texture 2D object as well, in HLSL you have to use sampler objects to sample textures. The texture read macros are hiding it from you and that’s why the error messages are confounding.</p>
+<pre><code class="lang-auto">Texture2D tDiffMap : register(t0);
+SamplerState sDiffMap : register(s0);
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>That worked like a charm!  Thank you <span class="mention">@JSandusky</span> .</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Final working code looks like this:</p>
+<p><span class="hashtag">#include</span> “Uniforms.hlsl”<br/>
+<span class="hashtag">#include</span> “Samplers.hlsl”<br/>
+<span class="hashtag">#include</span> “Transform.hlsl”</p>
+<p><span class="hashtag">#ifdef</span> COMPILEVS<br/>
+cbuffer CustomVS : register(b6)<br/>
+{<br/>
+float2 cTilePos;<br/>
+float2 cTileSize;<br/>
+}<br/>
+Texture2D tDiffMap : register(t0);<br/>
+SamplerState sDiffMap : register(s0);</p>
+<p><span class="hashtag">#endif</span></p>
+<p>void VS(float4 iPos : POSITION,<br/>
+float2 iTexCoord : TEXCOORD0,<br/>
+out float2 oTexCoord : TEXCOORD0,<br/>
+out float4 oPos : OUTPOSITION)<br/>
+{<br/>
+float2 offset = iTexCoord;<br/>
+offset.x *= cTileSize.x;<br/>
+offset.y *= cTileSize.y;<br/>
+offset += cTilePos;</p>
+<pre><code>float2 diffVal = Sample2DLod0(DiffMap, iTexCoord).rg;
+float3 pos = float3(offset.x, diffVal.r, offset.y);
+
+oPos = GetClipPos(pos);
+oTexCoord = iTexCoord;
+</code></pre>
+<p>}</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

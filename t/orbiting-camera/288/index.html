@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Orbiting Camera</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Orbiting Camera</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<p>Since Blender is my one and only 3D modeling suit (for now <img alt=":question:" class="emoji" src="../../../images2/9d18a4af1b80a213847028173bea831e.png" title=":question:"/> ), I have gotten so used to its camera navigation and orbiting key combinations, so I thought of implementing a simple Orbiting Camera in Urho3D having blenders key combinations as follows</p>
+<p>//These ones are already Implemented in Urho3D Editor<br/>
+key_1    =    Front<br/>
+Key_1 + ctrl =   Back<br/>
+Key_3    =   Right<br/>
+Key_3 + Ctrl = Left<br/>
+Key_7    = Top<br/>
+Key_7 + Ctrl  = Under<br/>
+Key_W    = Forward<br/>
+Key_S     =  Back</p>
+<p>//Additional combinations<br/>
+Alt + LMB     =  Orbit<br/>
+Shift + Alt + LMB  = Pan<br/>
+MouseWheel = Forward and Back</p>
+<p>Below is a simple code that loads a plane and the ever popular mushroom  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/> just in case someone might need it</p>
+<p>Urho3DSample.h</p>
+<pre><code class="lang-auto">#ifndef __urho3dsample_h_
+#define __urho3dsample_h_
+
+#include &lt;Application.h&gt;
+#include &lt;Engine.h&gt;
+#include &lt;InputEvents.h&gt;
+#include &lt;Scene.h&gt;
+#include &lt;Node.h&gt;
+
+enum CameraPosition
+{
+    CAM_FRONT = 100,
+    CAM_BACK,
+    CAM_RIGHT,
+    CAM_LEFT,
+    CAM_UP,
+    CAM_DOWN
+};
+
+using namespace Urho3D;
+
+class Urho3DSample : public Application
+{
+public:
+    Urho3DSample(Urho3D::Context* context);
+    
+    virtual void Setup();
+    virtual void Start();
+    virtual void Stop();
+
+    void HandleKeyDown(StringHash eventType, VariantMap&amp; eventData);
+    void HandleUpdate(StringHash eventType, VariantMap&amp; eventData);
+
+private:
+    void CreateScene();
+    void SetupViewport();
+
+    void SetupOrbitingCam();
+    void UpdateOrbitingCam();
+    void SetCameraPosition(CameraPosition pos);
+
+
+    void OnKeyPressed(int key);
+
+    void SubscribeToEvents();
+
+    SharedPtr&lt;Scene&gt; scene_;
+
+    SharedPtr&lt;Node&gt; cameraNode_;
+    SharedPtr&lt;Node&gt; camPitchNode_;
+    SharedPtr&lt;Node&gt; camYawNode_;
+    SharedPtr&lt;Node&gt; camBaseNode_;
+};
+
+
+#endif // #ifndef __urho3dsample_h_
+</code></pre>
+<p>Urho3DSample.cpp</p>
+<pre><code class="lang-auto">#include "Urho3DSample.h"
+
+
+
+#include &lt;Renderer.h&gt;
+#include &lt;ResourceCache.h&gt;
+#include &lt;Light.h&gt;
+#include &lt;StaticModel.h&gt;
+#include &lt;Model.h&gt;
+#include &lt;Material.h&gt;
+#include &lt;Camera.h&gt;
+#include &lt;Viewport.h&gt;
+#include &lt;CoreEvents.h&gt;
+#include &lt;Input.h&gt;
+#include &lt;Octree.h&gt;
+
+
+Urho3DSample::Urho3DSample(Urho3D::Context *context) : Application(context)
+{
+}
+
+void Urho3DSample::Setup()
+{
+}
+
+void Urho3DSample::Start()
+{
+    CreateScene();
+
+    SetupOrbitingCam();
+
+    SetupViewport();
+
+    SubscribeToEvents();
+}
+
+void Urho3DSample::Stop()
+{
+}
+
+void Urho3DSample::HandleKeyDown(Urho3D::StringHash eventType, Urho3D::VariantMap &amp;eventData)
+{
+    using namespace Urho3D::KeyDown;
+    // Check for pressing ESC. Note the engine_ member variable for convenience access to the Engine object
+    int key = eventData[P_KEY].GetInt();
+    if (key == Urho3D::KEY_ESC)
+        engine_-&gt;Exit();
+    else
+    {
+        OnKeyPressed(key);
+    }
+}
+
+void Urho3DSample::HandleUpdate(StringHash eventType, VariantMap &amp;eventData)
+{
+    UpdateOrbitingCam();
+}
+
+void Urho3DSample::CreateScene()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    scene_ = new Scene(context_);
+
+    scene_-&gt;CreateComponent&lt;Octree&gt;();
+
+    Node* planeNode = scene_-&gt;CreateChild("Plane");
+    planeNode-&gt;SetScale(Vector3(100.0f, 1.0f, 100.0f));
+
+    StaticModel* planeObject = planeNode-&gt;CreateComponent&lt;StaticModel&gt;();
+    planeObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Plane.mdl"));
+    planeObject-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/StoneTiled.xml"));
+
+    Node* modelNode = scene_-&gt;CreateChild("ModelNode");
+    modelNode-&gt;SetScale(0.3f);
+
+    StaticModel* model = modelNode-&gt;CreateComponent&lt;StaticModel&gt;();
+    model-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Mushroom.mdl"));
+    model-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Mushroom.xml"));
+
+
+    Node* lightNode = scene_-&gt;CreateChild("DirectionalLightNode");
+    lightNode-&gt;SetDirection(Vector3(0.6f, -1.0f, 0.8f));
+
+
+    Light* light = lightNode-&gt;CreateComponent&lt;Light&gt;();
+    light-&gt;SetLightType(LIGHT_DIRECTIONAL);
+    light-&gt;SetCastShadows(true);
+}
+
+void Urho3DSample::SetupViewport()
+{
+    Renderer* renderer = GetSubsystem&lt;Renderer&gt;();
+
+    SharedPtr&lt;Viewport&gt; viewport(new Viewport(context_, scene_, cameraNode_-&gt;GetComponent&lt;Camera&gt;()));
+    renderer-&gt;SetViewport(0,viewport);
+}
+
+void Urho3DSample::SetupOrbitingCam()
+{
+    camBaseNode_ = scene_-&gt;CreateChild("Base Cam Node");
+    camYawNode_ = camBaseNode_-&gt;CreateChild("Cam Yaw Node");
+    camPitchNode_ = camYawNode_-&gt;CreateChild("Cam Pitch Node");
+
+    cameraNode_ = camPitchNode_-&gt;CreateChild("Cam Node");
+    cameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+
+    cameraNode_-&gt;TranslateRelative(Vector3(0,0,-10));
+}
+
+void Urho3DSample::UpdateOrbitingCam()
+{
+    Input* input = GetSubsystem&lt;Input&gt;();
+    float dist;
+
+
+    if(input-&gt;GetMouseButtonDown(MOUSEB_LEFT))
+    {
+        if(input-&gt;GetKeyDown(KEY_ALT) &amp;&amp; input-&gt;GetKeyDown(KEY_SHIFT))
+        {
+            //Pan around the Screen
+            dist = (cameraNode_-&gt;GetPosition().Length()) / 500;
+            Matrix3 rotationMatrix = cameraNode_-&gt;GetWorldTransform().RotationMatrix();
+
+            Vector3 direction = rotationMatrix * Vector3(input-&gt;GetMouseMoveX() * -dist, input-&gt;GetMouseMoveY() * dist,0);
+
+
+            camBaseNode_-&gt;TranslateRelative(direction);
+
+        }
+        else if(input-&gt;GetKeyDown(KEY_ALT))
+        {
+            //Orbit at a pivot
+            camPitchNode_-&gt;Pitch(input-&gt;GetMouseMoveY() * 0.25f);
+            camYawNode_-&gt;Yaw(input-&gt;GetMouseMoveX() * 0.25f);
+
+        }
+    }
+    else if(input-&gt;GetMouseMoveWheel() != 0)
+    {
+        cameraNode_-&gt;TranslateRelative(Vector3(0,0,input-&gt;GetMouseMoveWheel() * 0.5));
+    }
+    //In Forward and Backwards movement in case of laptop touchpad
+    else if(input-&gt;GetKeyDown('W'))
+    {
+        cameraNode_-&gt;TranslateRelative(Vector3(0,0,0.07f));
+    }
+    else if(input-&gt;GetKeyDown('S'))
+    {
+        cameraNode_-&gt;TranslateRelative(Vector3(0,0,-0.07f));
+    }
+}
+
+void Urho3DSample::SetCameraPosition(CameraPosition pos)
+{
+    camPitchNode_-&gt;SetRotation(Quaternion(0.0f,0.0f,0.0f));
+    camYawNode_-&gt;SetRotation(Quaternion(0.0f,0.0f,0.0f));
+
+    switch(pos)
+    {
+    //case CAM_FRONT:
+    //there is no need for this since the cam is already
+    //positioned at CAM_FRONT after the orientation of the cam nodes are
+    //reset
+
+    case CAM_BACK:
+        camYawNode_-&gt;Yaw(180);
+        break;
+    case CAM_RIGHT:
+        camYawNode_-&gt;Yaw(-90);
+        break;
+    case CAM_LEFT:
+        camYawNode_-&gt;Yaw(90);
+        break;
+    case CAM_UP:
+        camPitchNode_-&gt;Pitch(-90);
+        break;
+    case CAM_DOWN:
+        camPitchNode_-&gt;Pitch(90);
+        break;
+
+    }
+}
+
+void Urho3DSample::OnKeyPressed(int key)
+{
+    Input* input = GetSubsystem&lt;Input&gt;();
+    bool ctrlDown = input-&gt;GetKeyDown(KEY_CTRL);
+
+    switch(key)
+    {
+    case '1':
+        SetCameraPosition(ctrlDown ? CAM_BACK : CAM_FRONT);
+        break;
+
+    case '3':
+        SetCameraPosition(ctrlDown ? CAM_LEFT : CAM_RIGHT);
+        break;
+
+    case '7':
+        SetCameraPosition(ctrlDown ? CAM_UP :  CAM_DOWN );
+        break;
+
+    }
+
+}
+
+void Urho3DSample::SubscribeToEvents()
+{
+    SubscribeToEvent(E_KEYDOWN, HANDLER(Urho3DSample, HandleKeyDown));
+    SubscribeToEvent(E_UPDATE, HANDLER(Urho3DSample, HandleUpdate));
+}
+
+
+DEFINE_APPLICATION_MAIN(Urho3DSample)</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

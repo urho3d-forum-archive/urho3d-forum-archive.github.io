@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Multiple PhysicsWorlds?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Multiple PhysicsWorlds?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1887_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mondoshawan</div>
+          <div class="post_content">
+<p>I need to be able to run multiple Scenes in parallel or otherwise have multiple PhysicsWorlds running simultaneously. Is there a way to do this in Urho3D?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Yes, you can create a great number of <code>Scene</code>s within a <code>Context</code> if you like. Each with their own <code>PhysicsWorld</code>. I don’t think physics worlds like sharing a scene, though.</p>
+<p>Does your situation require combining render results from several scenes, or are most of them only there for simulation purposes?</p>
+<p>Also, welcome to the forums! <img alt=":confetti_ball:" class="emoji" src="../../../images2/2e7550946e098183e5e0689c128eb557.png" title=":confetti_ball:"/> <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/c5efadebdea06e0499f03c0a7e1e9e61.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1887_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mondoshawan</div>
+          <div class="post_content">
+<p>Danke danke! Glad to be welcomed. =o)</p>
+<p>My initial experiments corroborate your statement – PhysicsWorld instances really don’t like sharing the same scene. Generated all kinds of weird behaviors as the forces between two simulations were applied on the same objects.</p>
+<p>I’m creating my main Scene and a PhysicsWorld to go with it. If I create a second scene and then add a PhysicsWorld, it prevents the first PhysicsWorld from updating:</p>
+<pre><code class="lang-auto">{
+  auto *secondScene = new Scene(GetContext());
+  secondScene-&gt;CreateComponent&lt;PhysicsWorld&gt;(LOCAL);
+}</code></pre>
+<p>(Yeah, I know this is a memory leak – that’s fine for this example)</p>
+<p>Looks like the pre-physics event is still firing, though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>I don’t have any problems running multiple scenes each with an active physics world in my tools. It should work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1887_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mondoshawan</div>
+          <div class="post_content">
+<p>Yeah, it seems to be something relating to what I’m doing with the code. FWIW, using a single program I can run two Scenes with two different PhysicsWorlds perfectly. The problem occurs when I start a server and connect my client via loopback.</p>
+<p>I suspect it may be something non-obvious with scene/network replication. I’ll have to play with it further.</p>
+<p>Thanks for the confirmation that it should work, though – isolates the problem to just my stuff. =o)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<blockquote>
+<p>I suspect it may be something non-obvious with scene/network replication. I’ll have to play with it further.</p>
+</blockquote>
+<p><s>Network replication only manages 1 scene.</s> Edit: nope, I’m wrong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1887_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mondoshawan</div>
+          <div class="post_content">
+<p>Okay, so now that we’ve figured out how to keep all of the PhysicsWorlds updating (turns out it was a bug in our physics prestep code), I should explain what our ultimate aim is here. Essentially, we’d like two “spaces” – one with typical Newtonian-style space plane behaviors, and another “interior” physics behavior where we have local gravity “plating” typical to FPS-style behaviors.</p>
+<p>The trick here is that if we try to do this using one PhysicsWorld, obviously, if your mass is great enough, the gravity vector will cause the outer volume to move constantly down. To combat this, we’d like to simulate a second PhysicsWorld, one where the outer “hull” of the volume the player is inside effectively has zero mass. IOW, toggle between different PhysicsWorlds as the player moves between them.</p>
+<p>It’s not exactly clear how to build something like this in Urho3D – has anyone attempted to do so in the past? If so, what kinds of approaches might work?</p>
+<p>We’re attempting to do this in a multiplayer/networked environment, so that would be part of the crazy we’re running into.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Performance: Possible to do Texture GetData() Asynchronously?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Performance: Possible to do Texture GetData() Asynchronously?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<p>For application specific reasons I must render to a texture and then retrieve that texture back into system memory.  This is currently painfully slow (~10 fps) and results in CPU and GPU idle bubbles.  It would help if I could either use the GPU to handle the blitting or overlap the GetData with the beginning of the next frame.  Are either of these options viable in Urho3D D3D9 / D3D11 or OpenGL?</p>
+<p>I noticed there is a project to implement this functionality as a plugin for Unity:</p>
+<p><a href="https://github.com/SlightlyMad/AsyncTextureReader" rel="noopener nofollow ugc">https://github.com/SlightlyMad/AsyncTextureReader</a></p>
+<p>Not sure how well it works, but I was looking through the code to see if I could staple this into what I have in Urho3D as a starting point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>TL;DR: There is no async API for GAPI objects in Urho.</p>
+<p>Try calling GetData in the beginning of next frame and remove/cache all redundant work from it</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/Direct3D11/D3D11Texture2D.cpp#L327</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="317" style="counter-reset: li-counter 316 ;">
+<li>textureDesc.Height = (UINT)levelHeight;</li><li>textureDesc.MipLevels = 1;</li><li>textureDesc.ArraySize = 1;</li><li>textureDesc.Format = (DXGI_FORMAT)format_;</li><li>textureDesc.SampleDesc.Count = 1;</li><li>textureDesc.SampleDesc.Quality = 0;</li><li>textureDesc.Usage = D3D11_USAGE_STAGING;</li><li>textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;</li><li></li><li>ID3D11Texture2D* stagingTexture = nullptr;</li><li class="selected">HRESULT hr = graphics_-&gt;GetImpl()-&gt;GetDevice()-&gt;CreateTexture2D(&amp;textureDesc, nullptr, &amp;stagingTexture);</li><li>if (FAILED(hr))</li><li>{</li><li>    URHO3D_LOGD3DERROR("Failed to create staging texture for GetData", hr);</li><li>    URHO3D_SAFE_RELEASE(stagingTexture);</li><li>    return false;</li><li>}</li><li></li><li>ID3D11Resource* srcResource = (ID3D11Resource*)(resolveTexture_ ? resolveTexture_ : object_.ptr_);</li><li>unsigned srcSubResource = D3D11CalcSubresource(level, 0, levels_);</li><li></li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="6658" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>and remove/cache all redundant work from it</p>
+</blockquote>
+</aside>
+<p>Thanks for your response.  I didn’t understand this: how would I identify what work is redundant and cache or remove it?</p>
+<p>Also: is D3D11 the fastest way to run this in Windows or should I try either OpenGL or D3D9?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Your best possible situation is to split it up. You’ll end up with a stream of readback-tasks.</p>
+<p>Fire off the readback like it was any other graphics-call.</p>
+<p>Then do the actual map and read later so you aren’t forcing the CPU to wait until the GPU has copied everything into staging-texture’s CPU-local mem has finished until you truly must. You can use DO_NOT_WAIT in the map call to return an error if it would have blocked (then you handle it again later when it finally doesn’t return an error).</p>
+<p>If you can’t wait a frame or 2 you’re kind of sunk so you’ll either need to rework your stuff to understand that there’s a delay, or swallow the wait and settle with at least not blocking for the whole time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="6658" data-username="mcmordie">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/31512d2eefc307df893ce0ae68e6930f.png" width="20"/> mcmordie:</div>
+<blockquote>
+<p>Thanks for your response. I didn’t understand this: how would I identify what work is redundant and cache or remove it?</p>
+</blockquote>
+</aside>
+<p>I linked relevant line of code that causes a lot of delay (besides GPU-CPU sync): <code>CreateTexture2D</code></p>
+<aside class="quote no-group" data-post="3" data-topic="6658" data-username="mcmordie">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/31512d2eefc307df893ce0ae68e6930f.png" width="20"/> mcmordie:</div>
+<blockquote>
+<p>Also: is D3D11 the fastest way to run this in Windows or should I try either OpenGL or D3D9?</p>
+</blockquote>
+</aside>
+<p>I never tested it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="6658" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>I linked relevant line of code that causes a lot of delay (besides GPU-CPU sync): <code>CreateTexture2D</code></p>
+</blockquote>
+</aside>
+<p>Okay makes sense &amp; thanks for the clarification.  To my understanding (not a D3D person), the staging texture is needed and certainly when I attempt to copy directly from the texture I get an empty buffer.</p>
+<p>With reference to this I am going to try rotating the staging textures and of course keeping them in a queue rather than creating them on the fly:</p>
+<p><a href="https://stackoverflow.com/questions/40808759/id3d11devicecontextmap-slow-performance" rel="noopener nofollow ugc">https://stackoverflow.com/questions/40808759/id3d11devicecontextmap-slow-performance</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="6658" data-username="JSandusky">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/21d4babb39f9f7d59fc4987dd1566385.png" width="20"/> JSandusky:</div>
+<blockquote>
+<p>Then do the actual map and read later so you aren’t forcing the CPU to wait until the GPU has copied everything into staging-texture’s CPU-local mem has finished until you truly must. You can use DO_NOT_WAIT in the map call to return an error if it would have blocked (then you handle it again later when it finally doesn’t return an error).</p>
+</blockquote>
+</aside>
+<p>Makes sense and I think this aligns with the approach listed in the StackOverflow post-- the ResourceCopies are necessary, but apparently they can overlap with other GPU work if the staging buffers are used in sequence?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Simplest thing you can try is to keep staging texture created in texture itself, and call GetData in the beginning of next frame. See if it makes things better.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3181_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcmordie</div>
+          <div class="post_content">
+<p>Alright, using a ring buffer of staging textures was good enough to get me from 60 to 98% GPU utilization.  Not sure which one of you to click solution on, thank you both for your help on this!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

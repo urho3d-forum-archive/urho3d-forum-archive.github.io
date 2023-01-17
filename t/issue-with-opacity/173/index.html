@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Issue with Opacity</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Issue with Opacity</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>I have a post-process shader that’s supposed to emulate bleedout, like in Call of Duty. It samples from this texture here:</p>
+<p><a data-bbcode="true" href="http://puu.sh/7NDhG.png" rel="nofollow noopener">http://puu.sh/7NDhG.png</a></p>
+<p>However, when sampling in-game all I see is this:<br/>
+<a data-bbcode="true" href="http://puu.sh/7NDjC.jpg" rel="nofollow noopener">http://puu.sh/7NDjC.jpg</a></p>
+<p>As you can see a lot of detail is missing. Is this a blend issue? This is the same result in the editor as well.</p>
+<p>While I’m on this, I should say I had to put this texture into the normal map as I couldn’t get multiple textures going. I understand you need to name them correctly, but how exactly do you specify which texture to use?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Please post the shader and renderpath; color resolution shouldn’t be an issue if the shader is working correctly.</p>
+<p>To assign textures into texture units in the renderpath, you can either use unit numbers directly or the following strings, which start from unit 0 (ie. unit=“0” would be same as unit=“diffuse”):</p>
+<pre><code class="lang-auto">    "diffuse",
+    "normal",
+    "specular",
+    "emissive",
+    "environment",
+    "lightramp",
+    "lightshape",
+    "shadowmap",
+    "faceselect",
+    "indirection",
+    "depth",
+    "light",
+    "volume"</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Here’s the shader. You’ll notice i’m trying to do a distance check from some threshold and apply the other texture then, but at the end I’m just sampling from the texture to make sure it’s working.</p>
+<p>[code]<span class="hashtag">#include</span> “Uniforms.glsl”<br/>
+<span class="hashtag">#include</span> “Samplers.glsl”<br/>
+<span class="hashtag">#include</span> “Transform.glsl”<br/>
+<span class="hashtag">#include</span> “ScreenPos.glsl”</p>
+<p>varying vec2 vTexCoord;</p>
+<p>uniform vec2 cScreenCenter;</p>
+<p>uniform vec2 cThreshold;</p>
+<p>void VS()<br/>
+{<br/>
+mat4 modelMatrix = iModelMatrix;<br/>
+vec3 worldPos = GetWorldPos(modelMatrix);<br/>
+gl_Position = GetClipPos(worldPos);<br/>
+vTexCoord = GetQuadTexCoord(gl_Position);<br/>
+}</p>
+<p>void PS()<br/>
+{<br/>
+vec2 relativeTexcoord = vTexCoord - cScreenCenter;</p>
+<pre><code>float sqDist = dot(relativeTexcoord, relativeTexcoord);
+
+vec4 diffuse = texture2D(sDiffMap, vTexCoord);
+
+if (sqDist &gt; cThreshold.x * cThreshold.x)
+{	
+	vec4 effect = texture2D(sNormalMap, vTexCoord);
+	
+	gl_FragColor = mix(diffuse, effect, sqDist);
+}
+else
+{
+	gl_FragColor = diffuse;
+}
+
+gl_FragColor = texture2D(sNormalMap, vTexCoord);
+</code></pre>
+<p>}[/code]</p>
+<p>Renderpath is as follows:</p>
+<p><code>&lt;renderpath&gt;
+	&lt;command type="quad" tag="EyeEffect" vs="PostProcessEyeEffect" ps = "PostProcessEyeEffect" output = "viewport"&gt;
+		&lt;texture unit="diffuse" name="viewport"/&gt;
+		&lt;texture unit="normal" name="Textures/RedOut.png"/&gt;
+		&lt;parameter name="Threshold"/&gt;
+		&lt;parameter name="ScreenCenter"/&gt;
+	&lt;/command&gt;
+&lt;/renderpath&gt;</code></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

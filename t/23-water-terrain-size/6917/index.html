@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>23_Water Terrain Size</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">23_Water Terrain Size</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>I am trying to change the terrain size of <em>23_Water</em> as an experiment for another project. I noticed that if I change the dimensions of <em>HeightMap.png</em> the terrain does indeed change width/height but the textures themselves stay the same size and centered. I have also changed <em>TerrainWeights.png</em> to match the width/height of <em>HeightMap.png</em> (stretching it).</p>
+<p>How does one set the size of the terrain plus its textures?</p>
+<p><strong>Edit 1</strong><br/>
+I just realized that if I zoom in close enough everything works fine. If I zoom out too far then the outline turns to black.</p>
+<p>What could be causing this?</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screenshot at 2021-07-10 13-43-53"><img alt="Screenshot at 2021-07-10 13-43-53" data-base62-sha1="8VJHNHyTL7Im8UglrbRd1A66vly"  height="388" src="../../../images2/752af5bc43cd581531f2c109886612cf.png"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot at 2021-07-10 13-43-53</span><span class="informations">1280×720 778 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div><br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screenshot at 2021-07-10 13-44-25"><img alt="Screenshot at 2021-07-10 13-44-25" data-base62-sha1="ohChjSk1cWTp3bYvZYXtMncMVW0"  height="388" src="../../../images2/da1ff432f8ebe3452d99e9f8e24550b0.png"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot at 2021-07-10 13-44-25</span><span class="informations">1280×720 227 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p><strong>Edit 2</strong><br/>
+For anyone looking for this answer:<br/>
+After playing around with the code I identified <code>zone-&gt;SetBoundingBox()</code> as the culprit. I have no idea why. I need to read up more on what this does.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>The mesh resolution of the terrain is dependent upon the image dimensions of the input height map. There is a requirement that the image dimensions be an odd number, which is why the sample height map is sized 1025x1025. If you use an even number, the last row or column will be snipped off. The terrain component essentially builds a mesh with the image pixels defining the elevations of the corners of each quad in mesh. The size of these individual quads is determined by the x_ and z_ components of the Vector3 parameter passed to Terrain::SetSpacing, which by default are both equal to 1.0f. This means that each terrain quad will be sized 1.0 in X and Y directions. Texture coordinates are calculated from this, meaning that with default spacing the terrain textures will tile on quad boundaries. Each quad will receive the entire terrain texture, which will repeat across the terrain.</p>
+<p>If you use a different value for spacing, this will change both the size of the terrain quads and the size of the tiling space of the textures, making the quads smaller in 3D space and making the textures tile across a larger area of the terrain. For example, a terrain with spacing x=0.5 y=0.5 would occupy half the size in world space in X and Y, and the textures would tile across it half as many times.</p>
+<p>For the zone problem, if you zoom out such that your camera flies out of the XY bounds of the zone, and there is not a zone defined for the new area, weirdness can result. Zone settings such as fog are obtained from the zone the camera currently occupies, with some optional blending with nearby zones, but if no zone is defined for where the camera lies then it defaults fog color settings.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Note that the default zone <em>can</em> be accessed - and modified - with <code>Renderer::GetDefaultZone()</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="6917" data-username="JTippetts1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/7959f0d708dd3df34167f10f810416b9.png" width="20"/> JTippetts1:</div>
+<blockquote>
+<p>There is a requirement that the image dimensions be an odd number, which is why the sample height map is sized 1025x1025.</p>
+</blockquote>
+</aside>
+<p>The web compile does not like non-powers of two. Guess I am just going to have to take into account a row and column missing.</p>
+<p>I am not sure if this is related or not but my shadows only appear if the camera is really close to the object/node. I am using <em>box.mdl</em> which itself has shadows on it but it does not cast them onto the terrain unless I get real close. I am using <code>object-&gt;SetCastShadows( true )</code> on the node itself as well as <code>light-&gt;SetCastShadows( true )</code> (from the samples).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Have a look at the <code>SetShadow...</code> <a href="https://urho3d.io/documentation/HEAD/class_urho3_d_1_1_light.html" rel="noopener nofollow ugc">functions</a>. Sounds like you might want to increase the fade distance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>I tried playing with <code>SetShadowBias()</code> and <code>SetShadowCascade()</code> (taken from the samples). I tried changing the numbers, I tried commenting out the lines. Other than the names of the functions themselves they seem to be undocumented so I have no idea what they do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Did you try <code>SetShadowFadeDistance()</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="7" data-topic="6917" data-username="Modanung">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1452724d26bb99fb2e8f87d8c705c1c9.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Did you try <code>SetShadowFadeDistance()</code> ?</p>
+</blockquote>
+</aside>
+<p>Just did. No go. <img alt=":frowning:" class="emoji" src="../../../images2/41f1d95c00f6f4a61587f9ead9747a65.png" title=":frowning:"/></p>
+<p>Here is the-- what I think is-- relevant code:</p>
+<pre><code class="lang-auto">auto* lightNode = this-&gt;scene_-&gt;CreateChild( "Light" );
+lightNode-&gt;SetDirection( Urho3D::Vector3( 0.6f, -1.0f, 0.8f ) );
+auto* light = lightNode-&gt;CreateComponent&lt; Urho3D::Light &gt;();
+light-&gt;SetLightType( Urho3D::LIGHT_DIRECTIONAL );
+light-&gt;SetCastShadows( true );
+light-&gt;SetShadowBias( Urho3D::BiasParameters( 0.00025f, 0.5f ) );
+light-&gt;SetShadowCascade( Urho3D::CascadeParameters( 10.0f, 50.0f, 200.0f, 0.0f, 0.8f ) );
+light-&gt;SetSpecularIntensity( 0.5f );
+light-&gt;SetColor( Urho3D::Color( 1.0f, 1.0f, 1.0f ) );
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screenshot 2021-07-25 15:57:02"><img alt="Screenshot 2021-07-25 15:57:02" data-base62-sha1="sMwelzyMicHmTi4WwptaXdPzbQ4"  height="388" src="../../../images2/b2af3c22b9be0ac550713945d96d0ffe.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot 2021-07-25 15:57:02</span><span class="informations">1280×720 75.6 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div><br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screenshot 2021-07-25 15:57:31"><img alt="Screenshot 2021-07-25 15:57:31" data-base62-sha1="6rTxRVc9Sg9A7QZOvdSxTtpkdgm"  height="388" src="../../../images2/7ef6e9eaa5b4bb5e332795a779d7c78d.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot 2021-07-25 15:57:31</span><span class="informations">1280×720 86.4 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Can not figure this out. I have tried every function with “shadow” in the name.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

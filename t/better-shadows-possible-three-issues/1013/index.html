@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Better shadows possible? Three issues</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Better shadows possible? Three issues</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>There are three things about Urho’s shadows that or bugging me:</p>
+<p><img alt="" height="180" src="../../../images2/8cae50d066c24da65c65c442c70dc8df.jpg" width="320"/><br/>
+<a data-bbcode="true"  rel="nofollow noopener">http://vignette2.wikia.nocookie.net/urho3d/images/b/b6/USP_terrain-mesh_vertex_colors.jpg/revision/latest?cb=20150422212706</a></p>
+<ul>
+<li>there is some blocky flickering when the shadow is close to the shadow caster, as can be seen in this image on the orange mountain edge in the lower part of the screen. This is typical for self shadowing. Here it’s also causing some stripes. This seems to have to do with the fifth(?) parameter of CascadeParameters that sets the shadow starting distance, but I want the shadows to start close.</li>
+</ul>
+<p><img alt="" height="180" src="../../../images2/05f75861cc1ec15095d26d2326f8d255.jpg" width="320"/><br/>
+<a data-bbcode="true"  rel="nofollow noopener">http://vignette3.wikia.nocookie.net/urho3d/images/e/ec/USP_terrain-mesh_vertex_colors3.jpg/revision/latest?cb=20150422215037</a></p>
+<ul>
+<li>
+<p>Urho seems to use four images(?) for shadow with different resolution for different distances: There is always a thin, black, blurry edge between those “zones”. You can see this “dotted” edge here starting directly right of the “Esc = quit.” text at top and going through the whole image. It’s much more visible and annoying when the camera is moving.</p>
+</li>
+<li>
+<p>can there be more of those “zones”? I’m using these parameters: “light-&gt;SetShadowCascade(CascadeParameters(5.0f,10.0f,50.0f,1000.0f,0.01f,0.5f));” and the jump to 1000 is quite big, but when making the lower values bigger, the closer shadows get too blurry. Two to four more zones would make this much better.</p>
+</li>
+</ul>
+<p>Can the shadows be improved somehow?<br/>
+I’m using a relative up to date Git version but those issues have been the same in the latest stable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The blocky self-shadowing filtering close to the camera is due to the combination of using slope-scale depth bias, hardware shadow maps, and the hardware filtering. You could try converting the shadow maps to eg. R32F format and doing all filtering manually in the shader. This requires engine modifications. The effect will also possibly be reduced if you reduce or zero the slope-scale depth bias, and adjust instead the constant depth bias higher. This will lead to uglier peter-panning, though.</p>
+<p>You should be able to make smooth “transition zones” in the shadow sampling shader code by sampling both cascades when close to the transition distance.</p>
+<p>Increasing the amount of directional light cascades to more than 4 will also need engine and shader modifications.</p>
+<p>None of these modifications are likely to be made in Urho’s official version, as they would worsen performance and complicate the code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Hm, that’s unfortunate.<br/>
+Found an article describing some technical details about shadow maps, that may help to understand the issues: <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee416324%28v=vs.85%29.aspx" rel="nofollow noopener">msdn.microsoft.com/en-us/librar … 85%29.aspx</a><br/>
+Would be good if the shadow functions would be better documented. What is this shadow focus thing? (Light::SetShadowFocus(FocusParameters))</p>
+<aside class="quote no-group">
+<blockquote>
+<p>…The effect will also possibly be reduced if you reduce or zero the slope-scale depth bias, and adjust instead the constant depth bias higher.</p>
+</blockquote>
+</aside>
+<p>That made everything much worse (added much more artifacts).</p>
+<aside class="quote no-group">
+<blockquote>
+<p>You should be able to make smooth “transition zones” in the shadow sampling shader code by sampling both cascades when close to the transition distance. </p>
+</blockquote>
+</aside>
+<p>Can that be done without spending a lot of time editing the engine and/or writing super special shaders?</p>
+<p>I made more experiments with the parameters. Currently I’m using these:</p>
+<pre><code class="lang-auto">light-&gt;SetShadowBias(BiasParameters(0.0000025f,1.0f));
+light-&gt;SetShadowCascade(CascadeParameters(20.0f,60.0f,180.0f,560.0f,0.1f,0.1f));
+light-&gt;SetShadowResolution(1.0);</code></pre>
+<p>Observations:</p>
+<ul>
+<li>increasing the first parameter of BiasParameters causes peter-panning (the shadow to be detached / to far away from the caster).</li>
+<li>setting the second parameter below 0.1 causes a lot of artifacts depending on the face angle relative to the light</li>
+<li>the first four parameters of CascadeParameters should not increase too fast. 2 is good (like 10, 20, 40…), over 3 makes the cascade differences too big and ugly.</li>
+<li>the last two parameters of CascadeParameters seem to do nothing at all. Tried with values like 0, 1 and 100 and nothing changed?</li>
+<li>SetShadowResolution can be set between 0.25 and 1.0 (as the documentation says), 0.25 makes the shadow resolution go very low and this should be kept at / set to 1.0.</li>
+</ul>
+<p>Can the shadow resolution be increased? Or set (globally) somewhere else? That would make more cascades less important.</p>
+<p>Is there really no way of making these artifacts less bad? I mean these blocky stripes left of the player at the column:<br/>
+<img alt="" height="300" src="../../../images2/cb530d5515a416f9f0831ffdca73419f.jpg" width="300"/><br/>
+Big: <a data-bbcode="true" href="http://i.imgur.com/Kcyh4Tp.jpg" rel="nofollow noopener">http://i.imgur.com/Kcyh4Tp.jpg</a></p>
+<aside class="quote no-group">
+<blockquote>
+<p>None of these modifications are likely to be made in Urho’s official version, as they would worsen performance and complicate the code.</p>
+</blockquote>
+</aside>
+<p>Yeah but it looks quite terrible as it is now (unless I’m missing something), see screenshot.<br/>
+It could be made optional/adjustable like most games are offering settings to adjust the quality depending on the machine performance. Like picking between 4 and 8 cascades.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Shadow focusing means “zooming in” the shadow camera so that only the casters / receivers are tightly rendered into the shadow map. This may aid shadow resolution, but also makes it more dependent on the camera angle and the objects that are being shown.</p>
+<p>You can set the shadow map base pixel size by calling Renderer::SetShadowMapSize().</p>
+<p>The cascade transition thing should be possible to make with lighting shader changes only and it shouldn’t be too hard.</p>
+<p>You see the same kinds of self-shadowing artifacts also in AAA games; shadow mapping is almost never problem-free. It’s also a question of art style, non-photorealistic graphics with solid color textures will show the artifacts worse.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>John Carmack stated he thinks shadow maps will be the tipping force to raycasting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Oh that’s a very interesting topic   <img alt=":laughing:" class="emoji" src="../../../images2/f1b3f4dd9f845d1069864c322071dffe.png" title=":laughing:"/></p>
+<p>The shadow maps default size seems to be 1024. Settings it to 4096 made the shadows super sharp and everything much better.  :mrgreen: (and still 60 FPS)<br/>
+Increasing it to 16384 increased the loading time I think but I couldn’t see any further improvement (still 60FPS).</p>
+<p>Also found a Renderer::SetShadowQuality setting and tried values like 0.1, 1 and 10 and could not see any difference?</p>
+<p>The issues are all still there but a bit better. The biggest is still the blocky, flickering stripes at some faces when in a very flat angle towards the light. (EDIT: Saw that “Space Engineers” has the same issue but more blurry)<br/>
+The cascade transition line is super thin. I tried enabling anti aliasing / multi sampling with engineParameters_[“Multisample”]=16; and values like 2, 8 and 16 in the hope that this would improve something but I can’t see any difference at all.<br/>
+Is engineParameters_[“Multisample”]=16; the right way to enable anti aliasing?<br/>
+The other parameters work:</p>
+<pre><code class="lang-auto">    virtual void Setup()
+    {
+        engineParameters_["FullScreen"]=false;
+        engineParameters_["WindowWidth"]=1280;
+        engineParameters_["WindowHeight"]=720;
+        engineParameters_["WindowResizable"]=true;
+        engineParameters_["Multisample"]=16;
+    }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Hardware antialiasing will help eliminating jaggy polygon edges, but only in the backbuffer. It will not help shadow maps, which are non-antialiased textures.</p>
+<p>SetShadowQuality expects the SHADOWQUALITY bit combinations defined in GraphicsDefs.h. That only controls shadow map filtering &amp; 1 vs 4 samples mode. You can see its proper use in the samples’ common code, which allows cycling through the quality modes by pressing the key ‘6’. It’s not an enum due to internal bit logic tied to it.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

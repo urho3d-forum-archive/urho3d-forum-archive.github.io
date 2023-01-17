@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Missing Xext.h when compiling with clang</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Missing Xext.h when compiling with clang</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">misc</div>
+          <div class="post_content">
+<p>I get the error below when I compile with clang but it doesn’t happen with gcc.</p>
+<blockquote>
+<p>CMake Error at Source/ThirdParty/SDL/cmake/macros.cmake:73 (message):<br/>
+*** ERROR: Missing Xext.h, maybe you need to install the libxext-dev<br/>
+package?<br/>
+Call Stack (most recent call first):<br/>
+Source/ThirdParty/SDL/cmake/sdlchecks.cmake:441 (message_error)<br/>
+Source/ThirdParty/SDL/CMakeLists.txt:1076 (CheckX11)</p>
+</blockquote>
+<p>I know there are similar posts but I tried the solution in those posts to no avail.<br/>
+I tried cleaning the build tree, deleting it entirely and even cleaning the local repo with git-clean -fxd.</p>
+<p>I am no expert but when I compile with clang, cmake’s configuration finishes quicker as if its cached (even if its the first time configuring it). Is it possible its cached somewhere outside the urho3d directory?? I’m using ubuntu bionic.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>It does not make too much sense. Clang is designed to be a drop-in replacement for GCC, so it should see the same thing as GCC. In other words, your build environment either has that header file already installed or it hasn’t. Both Clang and GCC are looking at a same place to find it.</p>
+<p>CMake caches things in generated build tree. If you use a newly generated build tree then there should not be any cached result from CMake.</p>
+<p>Our build system is capable of speeding up the build by using “ccache”. But I doubt you have configured your build environment to use it yet.  Even if you do, you don’t usually need to worry about the object cache stored by “ccache”. It knows when to invalidate them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I don’t know if it’s related, but how are you specifying which compiler to use?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">misc</div>
+          <div class="post_content">
+<p>I set it by -DCMAKE_CXX_COMPILER=clang++</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Did you also set the C compiler to be clang? And you set it when first creating the build tree, right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">misc</div>
+          <div class="post_content">
+<p>Yes, I did.</p>
+<p>I think I’ll just reinstall my OS. It’s in a separate partition anyway. This is probably due to installing/uninstalling packages when I was trying different frameworks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="5739" data-username="misc">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5e8dae89fed84af1e416af04006a2f53.png" width="20"/> misc:</div>
+<blockquote>
+<p>I think I’ll just reinstall my OS. It’s in a separate partition anyway.</p>
+</blockquote>
+</aside>
+<p>There is absolutely no need for that. If I were you I will just make sure the source tree is pristine without any generated stuffs from CMake. Sometimes first time user forget to instruct CMake to generate out-of-source build tree initially and in doing so messing up the Urho3D source tree. When in doubt, it would be much quicker to just delete the Urho3D project source tree and re clone it again. And retry the CMake initial configuration and generation step. For Clang, I would do it like this:</p>
+<pre><code class="lang-auto">$ CC=clang CXX=clang++ build_tree=build/clang rake cmake
+</code></pre>
+<p>And if you have docker engine and would like to use one of our prepared docker images then you can try:</p>
+<pre><code class="lang-auto">$ CC=clang CXX=clang++ build_tree=build/clang script/dockerized.sh native
+</code></pre>
+<p>The latter approach takes care of all the build dependencies for you, i.e. you do not need to install the Urho3D prerequisite development packages yourself into your build environment before anything else.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">misc</div>
+          <div class="post_content">
+<p>It worked, thanks.</p>
+<p>I’ve been planning to try a different Ubuntu flavor for next year though <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="8" data-topic="5739" data-username="misc">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5e8dae89fed84af1e416af04006a2f53.png" width="20"/> misc:</div>
+<blockquote>
+<p>I’ve been planning to try a different Ubuntu flavor for next year though <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+</blockquote>
+</aside>
+<p>I like <a href="https://linuxmint.com/" rel="noopener nofollow ugc">Mint</a>.</p>
+<p>Also, welcome to the forums! <img alt=":confetti_ball:" class="emoji" src="../../../images2/493e34d79be55d27b0c2a9cf4449024c.png" title=":confetti_ball:"/> <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/87e0a7daec339818bcddbf25ee57347b.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

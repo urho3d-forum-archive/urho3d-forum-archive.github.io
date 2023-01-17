@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Possible bug in AngelScript - interface</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Possible bug in AngelScript - interface</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sasha7b9o</div>
+          <div class="post_content">
+<p>Hi.<br/>
+When I call function <em><em>CScriptArray</em> VectorToArray(const Vector&amp; vector, const char</em> arrayName)** (<code>VectorToArray &lt;String&gt; (GetArguments(), "Array&lt;String&gt;");</code>),<br/>
+linker write error <strong>“can not find funciton asGetActiveContext();”</strong> (Urho3D compiled with option -DURHO3D_LIB_TYPE=SHARED)<br/>
+If link library ActionScript.lib manually, game compiles, but function asGetActiveContext() return 0. In comments function write:</p>
+<pre><code>// tld can be 0 if asGetActiveContext is called before any engine has been created.
+
+// Observe! I've seen a case where an application linked with the library twice
+// and thus ended up with two separate instances of the code and global variables.
+// The application somehow mixed the two instances so that a function called from
+// a script ended up calling asGetActiveContext from the other instance that had
+// never been initialized.
+</code></pre>
+<p>When engine compiled with option DURHO3D_LIB_TYPE=STATIC , everything is fine.</p>
+<p>Sorry for bad english</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Something like this has been discussed before, but I cannot remember where. This is the drawback (or benefit, depending on how you see it) of using SHARED lib type because the library target is produced by invoking a linking phase which does a dead code elimination. That is, all symbols not referenced directly or indirectly by Urho itself are being eliminated. Note that in our current setup, the internal 3rd-party libs are always statically linked regardless of Urho3D lib type chosen.</p>
+<p>There are a few ways to workaround this. Two that do not require modifications to the engine code and build system would be:</p>
+<ul>
+<li>Using Urho3D STATIC lib, which is basically just an archive of all symbols there are (like you have pointed out); Or</li>
+<li>Add a new SHARED lib target in your own project that statically linked to Urho3D lib, which references the symbols you want from AngelScript lib. Then make your app depends on your new SHARED lib target.</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sasha7b9o</div>
+          <div class="post_content">
+<aside class="quote" data-post="2" data-topic="2900">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>Add a new SHARED lib target in your own project that statically linked to Urho3D lib, which references the symbols you want from AngelScript lib. Then make your app depends on your new SHARED lib target.</p>
+</blockquote>
+</aside>
+<p>Thanks. But this method does not work, or I misunderstood. Could you explain in more detail?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This particular case looks like that there should be a Urho3D wrapper for asGetActiveContext() which should be used by the template functions so that it would work for both cases.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I didn’t look at the code yet so far. But yes, I think so. If it is referenced somewhere then the symbol would be kept.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In master branch, template functions no longer call asGetActiveContext() directly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sasha7b9o</div>
+          <div class="post_content">
+<p>Very nice.<br/>
+Now everything works as it should)</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

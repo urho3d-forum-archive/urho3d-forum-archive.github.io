@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Saving more relevant information in the scene</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Saving more relevant information in the scene</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>I have been looking for some way to automatize entity creation and any other task that I could from inside editor itself. For example, my first approach to entities was to have another file describing the NPCs in a scene, and perhaps weather. But thats quite crude. My second guess was to use an special naming for NPC nodes, like “entity_NPC FULLNAME”, and then load the NPCs from the scene, saving me the hassle of specifying coordinates, etc, which is just marginally less crude. Perhaps attaching ScriptInstances to nodes could be a better solution?<br/>
+I would like to hear some suggestions  about this issue, so I can improve a bit my design.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>I guess the question is ‘why’ are you doing it like that?</p>
+<p>If you want your NPCs to have NPC behaviour, create a NPC script that handles their behaviour? If you want to be able to take one generic NPC node + components, save the node and instantiate it like a prefab.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>the problem is that there are NPCs and NPCs. Some of them are generic, like guards. Others, are unique because they are traders or relevant to quests.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i think what the best solution is using prefabs, with user vars or(and) scriptinstances.<br/>
+at first you create your prefabs (few types) then you just place they on world map.</p>
+<p>in prefabs you may place additional nodes-helpers, they may used in scripts. Example: i’m use nodes called “waypoints” for AIBotLogic, bot check these nodes for player.<br/>
+but if you use helpers sometimes you won’t need to move it for some reason, therefore helpers-nodes are not child of active unit-node they places in same layer of hierarchy in some common node for unit and for helpers.</p>
+<p>&lt;&gt;prefabNode (origin: is static always)<br/>
+&lt;&gt;&lt;&gt;helpers (origin: in most causes is also static)<br/>
+&lt;&gt;&lt;&gt;characterNode (origin: dynamic)<br/>
+&lt;&gt;&lt;&gt;&lt;&gt;Components&lt;…&gt;<br/>
+&lt;&gt;&lt;&gt;&lt;&gt;StaticModel&lt;&gt;<br/>
+&lt;&gt;&lt;&gt;&lt;&gt;Collisionshape&lt;&gt;<br/>
+&lt;&gt;&lt;&gt;&lt;&gt;dynamicHelpers</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>If I associate an ScriptInstance to a node, this script has access to my app data declarations and variables? I mean, can I access game info created in the app from this script?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I do not use scripts (I use C ++), but I recently ran into the same problem.</p>
+<p>I came up with to make a structure which describes all the objects of the scene that we have to somehow interact. And I’m going to pass this structure in scripts. Thus they will see the whole scene and all objects.</p>
+<p>example of my world struct</p>
+<pre><code class="lang-auto">typedef struct GameWorld 
+{
+	struct  
+	{
+		SharedPtr&lt;Node&gt; node_;
+		WeakPtr&lt;Character&gt; character_;
+		
+
+	} player;
+
+	struct 
+	{
+		SharedPtr&lt;Node&gt; node_;
+		SharedPtr&lt;Node&gt; TPCNode_;
+		WeakPtr&lt;Camera&gt; camera_;
+		SharedPtr&lt;Viewport&gt; viewport;
+		SharedPtr&lt;RenderPath&gt; effectRenderPath;
+
+		Plane waterPlane_;
+		Plane waterClipPlane_;
+		SharedPtr&lt;Node&gt; reflectionCameraNode_;
+
+	} camera;
+
+
+	struct  
+	{
+		SharedPtr&lt;Node&gt; node_;
+		PODVector&lt;Node*&gt; aiWaypoints_;
+		SharedPtr&lt;SplinePath&gt; botSplinePath_;
+	} flyingBot;
+
+
+	struct  
+	{
+		SharedPtr&lt;Node&gt; shipNode_;
+		WeakPtr&lt;ScriptShipAI&gt; shipScript_;
+		SharedPtr&lt;Node&gt; shipNode2_;
+		WeakPtr&lt;ScriptShipAI&gt; shipScript2_;
+	
+	} flyingShips;
+
+	struct  
+	{
+			SharedPtr&lt;XMLFile&gt; prefabHitFx1_;
+		
+	} prefabs;
+
+	struct 
+	{
+		SharedPtr&lt;Node&gt; node_;
+		WeakPtr&lt;ScriptR2Bot&gt; logic_;
+	} R2Bot;
+
+} GameWorld; </code></pre>
+<p>it define in app class and used</p>
+<pre><code class="lang-auto">class GameMain : public Application
+{
+	OBJECT(GameMain);
+
+public:
+	GameMain(Context* context);
+	virtual void Start();
+
+protected:
+	GameWorld world;
+	SharedPtr&lt;Scene&gt; scene_;
+...</code></pre>
+<p>and code of how i initialize this struct</p>
+<pre><code class="lang-auto">void GameMain::OtherSetup()
+{
+	Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+	Renderer* renderer = GetSubsystem&lt;Renderer&gt;();
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+	world.player.node_ = scene_-&gt;GetChild("playerNode", true);
+	world.player.character_ = world.player.node_-&gt;CreateComponent&lt;Character&gt;();
+	world.camera.TPCNode_ = scene_-&gt;GetChild("cam", true);
+	world.camera.TPCNode_-&gt;CreateComponent&lt;ThirdPersonCamera&gt;();
+
+	//booms
+	PODVector&lt;Node*&gt; objects; 
+	scene_-&gt;GetChildrenWithComponent&lt;StaticModel&gt;(objects, true);
+	for (int i=0; i&lt; objects.Size(); ++i)
+	{
+		Variant name_ = objects[i]-&gt;GetVar("type");
+		if (name_.GetString() == "boom") 
+		{
+			ScriptBoom* ns = objects[i]-&gt;CreateComponent&lt;ScriptBoom&gt;();
+		}
+	}
+
+	// botty
+	world.flyingBot.node_ = scene_-&gt;GetChild("botty", true);
+	world.flyingBot.botSplinePath_ = world.flyingBot.node_-&gt;GetComponent&lt;SplinePath&gt;();
+
+	Node* aiNode_ = scene_-&gt;GetChild("AI", true);
+	aiNode_-&gt;GetChildren(world.flyingBot.aiWaypoints_);
+	for (int i = 0; i &lt; world.flyingBot.aiWaypoints_.Size(); i++) 
+	{
+		world.flyingBot.botSplinePath_-&gt;AddControlPoint(world.flyingBot.aiWaypoints_[i]);
+	}
+
+	world.flyingBot.botSplinePath_-&gt;AddControlPoint(world.flyingBot.aiWaypoints_[0]);
+	world.flyingBot.botSplinePath_-&gt;SetSpeed(1.0f);
+	world.flyingBot.botSplinePath_-&gt;SetControlledNode(world.flyingBot.node_);
+
+	//Ship
+	world.flyingShips.shipNode_ = scene_-&gt;GetChild("shipNode", true);
+	world.flyingShips.shipScript_ = world.flyingShips.shipNode_-&gt;CreateComponent&lt;ScriptShipAI&gt;();
+	world.flyingShips.shipScript_-&gt;SetTarget(world.player.node_);
+
+	world.flyingShips.shipNode2_ = scene_-&gt;GetChild("shipNode2", true);
+	world.flyingShips.shipScript2_ = world.flyingShips.shipNode2_-&gt;CreateComponent&lt;ScriptShipAI&gt;();
+	world.flyingShips.shipScript2_-&gt;SetTarget(world.flyingBot.node_);
+	world.flyingShips.shipScript2_-&gt;SetMaxSpeed(5.0f);
+
+	// setup r2bot
+	world.R2Bot.node_ = scene_-&gt;GetChild("R2Model", true);
+	world.R2Bot.logic_ = world.R2Bot.node_-&gt;CreateComponent&lt;ScriptR2Bot&gt;();
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>Thanks a lot for sharing your code, I will study it carefully this weekend. Currently the approach Im planning to use, based on your suggestions, is to have “marker” nodes in the scenes, each one having vars with actual entity Id. After loading scene I iterate through nodes, looking for markers, and getting the Ids to let entity manager class create the entities and introduce some randomization in skills and stats for each NPC.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>The distintion is in their behaviour. Basic NPCs just wander around or watch a place, relevant NPCs have full dialogs, assign quests, etc. What Im looking for now is some way to assign each one the corresponding set of AI scripts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I would approach this by creating a Component to handle the entity information.</p>
+<p>Say I have an ComponentNPC and ComponentInteractive. The first would store information related to the NPC itself, and would facilitate the AI decision tree, equipment, etc… The latter would store information with regards to interacting with the NPC such as dialog options. If you create these components and attach them to a node that defines your NPC, they can handle all local control of the NPC itself. Components can definitely use fellow components, so these components would compliment your mesh, animations, etc… Basically acting as the “brains”.</p>
+<p>If you wanted to extend it further, you could add even more components such as the character’s inventory. By restricting the information to the component’s internal attributes, you can easily serialize/deserialize entire NPCs or other complex entities without some external special handlers. It would also make your code very portable, and you could even compile various components into a central library to be used for various behaviors.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Another option is to use ScriptInstance/LuaScriptInstance components, which lets you attach scripts as a component directly to a node.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

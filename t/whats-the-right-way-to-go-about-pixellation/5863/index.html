@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>What&rsquo;s the right way to go about pixellation?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">What&rsquo;s the right way to go about pixellation?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>In some other engines I believe people use post-processing to do pixellated effects. I’m not sure if that’s actually the most efficient way to do it, but I’m wondering what the best course is to do this with Urho3d.</p>
+<p>I will be dealing with very simple models anyway, so loss of detail will be a part of the art style. Below is what I’m after. I <em>want</em> the very jagged aliasing lines.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screenshot__35_.0"><img alt="Screenshot__35_.0" data-base62-sha1="d6dWpZjPinjzjNrW7B5RukFecAF"  height="459" src="../../../images2/75b40f0a95649096ba1fa67267fed15b.jpeg" width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot__35_.0</span><span class="informations">1200×800 80.1 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Either way I’m not sure if I should be looking into post-processing, camera, or resolution settings. How can I achieve this or something similar with Urho3d?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>What I would do is render the scene to a much lower resolution viewport and then scale that up without any filtering (or maybe nearest?) on the texture to the full game resolution. You might need to use a texture render target for that, but it may also be possible through just the render path.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I appreciate the help. Okay so with the following I was able to reduce the viewport to something ridiculous.</p>
+<pre><code class="lang-auto">viewport=Viewport:new(scene_, camera)
+viewport:SetRect(IntRect(0,0, 80,60))
+</code></pre>
+<p>This works except it’s now a small resolution box in the corner, to which I’d imagine would be perfect once blown back up.</p>
+<p>How do I scale this new resolution up? Do I need a second viewport?</p>
+<p>I tried using a renderpath via this:<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<a href="https://urho3d.github.io/documentation/1.6/_render_paths.html" rel="nofollow noopener" target="_blank">Urho3D</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail" height="" src="" width=""/>
+<h3><a href="https://urho3d.github.io/documentation/1.6/_render_paths.html" rel="nofollow noopener" target="_blank">Render path</a></h3>
+<p>Urho3D is a free lightweight, cross-platform 2D and 3D game engine implemented in C++ and released under the MIT license. Greatly inspired by OGRE and Horde3D.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>but the “sizemultiplier” doesn’t seem to be the right thing to scale this back up, it only affects what is already sized down.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<p>As <span class="mention">@SirNate0</span> said, one way to achieve it, is to render it to a rendertexture in low resolution and scale this up to window-size.<br/>
+Take the RenderToTexture-Example as base:<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Samples/10_RenderToTexture/RenderToTexture.cpp#L184</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="174" style="counter-reset: li-counter 173 ;">
+<li>
+</li>
+<li>Node* screenNode = scene_-&gt;CreateChild("Screen");
+</li>
+<li>screenNode-&gt;SetPosition(Vector3(0.0f, 10.0f, -0.27f));
+</li>
+<li>screenNode-&gt;SetRotation(Quaternion(-90.0f, 0.0f, 0.0f));
+</li>
+<li>screenNode-&gt;SetScale(Vector3(20.0f, 0.0f, 15.0f));
+</li>
+<li>auto* screenObject = screenNode-&gt;CreateComponent&lt;StaticModel&gt;();
+</li>
+<li>screenObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Plane.mdl"));
+</li>
+<li>
+</li>
+<li>// Create a renderable texture (1024x768, RGB format), enable bilinear filtering on it
+</li>
+<li>SharedPtr&lt;Texture2D&gt; renderTexture(new Texture2D(context_));
+</li>
+<li class="selected">renderTexture-&gt;SetSize(1024, 768, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+</li>
+<li>renderTexture-&gt;SetFilterMode(FILTER_BILINEAR);
+</li>
+<li>
+</li>
+<li>// Create a new material from scratch, use the diffuse unlit technique, assign the render texture
+</li>
+<li>// as its diffuse texture, then assign the material to the screen plane object
+</li>
+<li>SharedPtr&lt;Material&gt; renderMaterial(new Material(context_));
+</li>
+<li>renderMaterial-&gt;SetTechnique(0, cache-&gt;GetResource&lt;Technique&gt;("Techniques/DiffUnlit.xml"));
+</li>
+<li>renderMaterial-&gt;SetTexture(TU_DIFFUSE, renderTexture);
+</li>
+<li>// Since the screen material is on top of the box model and may Z-fight, use negative depth bias
+</li>
+<li>// to push it forward (particularly necessary on mobiles with possibly less Z resolution)
+</li>
+<li>renderMaterial-&gt;SetDepthBias(BiasParameters(-0.001f, 0.0f));
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+(Should be similar in lua) But to be honest I’m not completely sure how to use this rendertexture in the current viewport…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1164_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">orefkov</div>
+          <div class="post_content">
+<p>Imho, if you want get all scene pixelated, you can just modify renderpath to render all to rendertarget, and add command to end to copy rendertarget to viewport. For example, for forward renderpath:</p>
+<pre><code>&lt;renderpath&gt;
+	&lt;rendertarget name="buffer" sizedivisor="4 4" filter="false"/&gt; 
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" output="buffer"/&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" output="buffer" /&gt;
+    &lt;command type="forwardlights" pass="light" output="buffer" /&gt;
+    &lt;command type="scenepass" pass="postopaque" output="buffer" /&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" output="buffer" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" output="buffer" /&gt;
+	&lt;command type="quad" vs="CopyFramebuffer" ps="CopyFramebuffer" output="viewport"&gt;
+		&lt;texture unit="diffuse" name="buffer" /&gt;
+	&lt;/command&gt;
+&lt;/renderpath&gt;
+</code></pre>
+<p>For deffered:</p>
+<pre><code>&lt;renderpath&gt;
+	&lt;rendertarget name="buffer" sizedivisor="4 4" filter="false"/&gt; 
+    &lt;rendertarget name="albedo" sizedivisor="4 4" format="rgba" /&gt;
+    &lt;rendertarget name="normal" sizedivisor="4 4" format="rgba" /&gt;
+    &lt;rendertarget name="depth" sizedivisor="4 4" format="lineardepth" /&gt;
+    &lt;command type="clear" color="1 1 1 1" output="depth" /&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+    &lt;command type="scenepass" pass="deferred" marktostencil="true" vertexlights="true" metadata="gbuffer"&gt;
+        &lt;output index="0" name="buffer" /&gt;
+        &lt;output index="1" name="albedo" /&gt;
+        &lt;output index="2" name="normal" /&gt;
+        &lt;output index="3" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="lightvolumes" vs="DeferredLight" ps="DeferredLight" output="buffer"&gt;
+        &lt;texture unit="albedo" name="albedo" /&gt;
+        &lt;texture unit="normal" name="normal" /&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="postopaque" output="buffer"/&gt;
+    &lt;command type="scenepass" pass="refract" output="buffer"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" output="buffer"&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" output="buffer"/&gt;
+	&lt;command type="quad" vs="CopyFramebuffer" ps="CopyFramebuffer" output="viewport"&gt;
+		&lt;texture unit="diffuse" name="buffer" /&gt;
+	&lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p><span class="mention">@orefkov</span>, This works great and was super simple to do. For whatever reason, if I combine both of those it freezes up my machine. I’m not sure if that is a separate thing because I’m on an integrated graphics laptop…or maybe I just did it wrong, I’m still a bit of a noob with U3d but I’m getting accustomed to things.</p>
+<p>But either way thank you. Using just the second one above, it’s almost exactly how I wanted, so I’m satisfied with this and will spend some time learning how this works.</p>
+<p><span class="mention">@dertom</span>, that also looks feasible, if anyone is looking for something similar. By changing the resolution on that render, it easily makes things pixellated, while remaining at the same size. However, I guess it would require a few more steps to put that plane on the camera. I think both could work as solutions, but I will be using the below because it is already working. Though I suppose if I want to add a TV screen effect, I would use RenderToTexture to do so.</p>
+<p>Thanks to both of you guys for the help!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="5863" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/02e76ea583905c092dec5f2cdab44d9f.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>This works great and was super simple to do. For whatever reason, if I combine both of those it freezes up my machine.</p>
+</blockquote>
+</aside>
+<p>You don’t want to use both of those renderpaths. He presented one for Forward rendering and one for the Deferred rendering.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p><span class="mention">@JTippetts</span> Oh okay, well that makes more sense. I’ll need to learn more about renderpaths before I understand how they work.</p>
+<p>However, it seems the first one doesn’t work, then, or at least with my machine. This is the result with the first (it’s just garbled up from the file manager behind the window):<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screenshot-6"><img alt="Screenshot-6" data-base62-sha1="lGTzFvZtNOmlsQE7tYQ0Z49eiiM"  height="276" src="../../../images2/2a018ce0b710c3cfc39c5c4932fb9070.png"  width="517"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot-6</span><span class="informations">1366×732 34.2 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>And here is the second:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screenshot-5"><img alt="Screenshot-5" data-base62-sha1="2YMnvqF59R9b6gNmdRQQT5JawqE"  height="276" src="../../../images2/96c9dff70082167c7c8ceb80d3c84034.png"  width="517"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot-5</span><span class="informations">1366×732 24.4 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Who knows. But at least the second one works.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Are you using it with a forward render path? (see bin/CoreData/RenderPaths/)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p><span class="mention">@Modanung</span><br/>
+No idea what the difference between them is, or even which I’m doing.<br/>
+Using the Samples and the above help, this is what I have:</p>
+<pre><code class="lang-auto">viewport=Viewport:new(scene_, camera)
+local effectRenderPath = viewport:GetRenderPath():Clone()
+effectRenderPath:Append(cache:GetResource("XMLFile", "PostProcess/pixellate2.xml"))
+viewport:SetRenderPath(effectRenderPath)
+renderer:SetViewport(0, viewport)
+</code></pre>
+<p>The pixellate2.xml is simply the above posted by <span class="mention">@orefkov</span> that says for deferred. If there is something I’m supposed to do to make these forward or deferred, then I don’t know what that is. I’ve only tested the same thing with each respective renderpath posted above.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>You could either set the default render path - on the <code>Renderer</code> subsystem I believe - or load the render path from XML when creating the viewport (instead of cloning it).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I just did this:</p>
+<pre><code class="lang-auto">viewport:SetRenderPath("XMLFile", "RenderPaths/Forward.xml")
+local effectRenderPath = viewport:GetRenderPath():Clone()
+effectRenderPath:Append(cache:GetResource("XMLFile", "PostProcess/pixellate.xml"))
+</code></pre>
+<p>The lua api only lists SetRenderPath under Viewport. I just get the same thing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1164_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">orefkov</div>
+          <div class="post_content">
+<p>Do not use Append! It just double render work.<br/>
+Just create new RenderPath from xml, and set it for viewport.<br/>
+Forward rendering and Deffered rendering - it is two different methods for rendering, you need choice one from them. See <a href="https://urho3d.github.io/documentation/1.7.1/_rendering_modes.html" rel="nofollow noopener">https://urho3d.github.io/documentation/1.7.1/_rendering_modes.html</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

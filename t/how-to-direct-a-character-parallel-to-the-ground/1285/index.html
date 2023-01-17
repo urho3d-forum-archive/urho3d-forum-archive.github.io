@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to direct a character parallel to the ground?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to direct a character parallel to the ground?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><img alt="" height="225" src="../../../images2/be91ff4cf47f11e5ca8497746bcd8c31.jpg" width="487"/></p>
+<p>I try</p>
+<pre><code class="lang-auto">if (RaycastDown(hitPos, hitDrawable, normal))
+{
+    node.rotation = Quaternion(normal.x, node.rotation.yaw, normal.z);
+}</code></pre>
+<p>but it does not work. Please help me <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>Source: <a href="https://github.com/1vanK/Habr/blob/master/Result/Data/Scripts/HeroScript.as">github.com/1vanK/Habr/blob/mast … oScript.as</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Do I understand correctly that normal is not calculated really ?</p>
+<pre><code class="lang-auto">void Drawable::ProcessRayQuery(const RayOctreeQuery&amp; query, PODVector&lt;RayQueryResult&gt;&amp; results)
+{
+    float distance = query.ray_.HitDistance(GetWorldBoundingBox());
+    if (distance &lt; query.maxDistance_)
+    {
+        RayQueryResult result;
+        result.position_ = query.ray_.origin_ + distance * query.ray_.direction_;
+        result.normal_ = -query.ray_.direction_;  // &lt;------------------------------------------------------------
+        result.distance_ = distance;
+        result.drawable_ = this;
+        result.node_ = GetNode();
+        result.subObject_ = M_MAX_UNSIGNED;
+        results.Push(result);
+    }
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>That is in the base class, which doesn’t actually understand the geometry. E.g. StaticModel raycast should return the normal correctly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>If I’m not mistaken, there’s already a snippet from Vehicle or Water Demo which demonstrates actual placement (or something similar) of objects (mushrooms) parallel from Terrain. Maybe you could derive something from that example…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Oh, thanks. It works</p>
+<pre><code class="lang-auto">if (RaycastDown(hitPos, hitDrawable, normal))
+{
+    Quaternion grndTilt = Quaternion(Vector3(0.0f, 1.0f, 0.0f), normal);
+    node.rotation = grndTilt * Quaternion(0.0f, node.rotation.yaw, 0.0f);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Another method from <a href="http://answers.unity3d.com/questions/168097/orient-vehicle-to-ground-normal.html">answers.unity3d.com/questions/16 … ormal.html</a><br/>
+It gives smoother results.</p>
+<pre><code class="lang-auto">        Vector3 corner1 = node.position + Vector3(-1.0f, 0.0f, -1.0f);
+        Vector3 corner2 = node.position + Vector3(1.0f, 0.0f, -1.0f);
+        Vector3 corner3 = node.position + Vector3(1.0f, 0.0f, 1.0f);
+        Vector3 corner4 = node.position + Vector3(-1.0f, 0.0f, 1.0f);
+        
+        Vector3 hit1, hit2, hit3, hit4;
+        
+        bool b1 = RaycastDown(corner1, hit1, hitDrawable);
+        bool b2 = RaycastDown(corner2, hit2, hitDrawable);
+        bool b3 = RaycastDown(corner3, hit3, hitDrawable);
+        bool b4 = RaycastDown(corner4, hit4, hitDrawable);
+        
+        if (!b1) log.Warning("b1");
+        if (!b2) log.Warning("b2");
+        if (!b3) log.Warning("b3");
+        if (!b4) log.Warning("b4"); // fix it case
+
+       
+        Vector3 normal = hit1.CrossProduct(hit2) + hit2.CrossProduct(hit3) +
+                         hit3.CrossProduct(hit4) + hit4.CrossProduct(hit1);
+        normal.Normalize();
+        normal = -normal;
+
+        Quaternion grndTilt = Quaternion(Vector3(0.0f, 1.0f, 0.0f), normal);
+        node.rotation = grndTilt * Quaternion(0.0f, node.rotation.yaw, 0.0f);
+
+...
+
+    bool RaycastDown(Vector3 from, Vector3&amp; hitPos, Drawable@&amp; hitDrawable)
+    {
+        hitDrawable = null;
+        Ray ray(from + Vector3(0.0f, 1.0f, 0.0f), Vector3(0.0f, -1.0f, 0.0f));
+        RayQueryResult result = scene.octree.RaycastSingle(ray, RAY_TRIANGLE, 1000, DRAWABLE_GEOMETRY, 1);
+
+        if (result.drawable is null)
+            return false;
+
+        hitPos = result.position;
+        hitDrawable = result.drawable;
+        return true;
+    }</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

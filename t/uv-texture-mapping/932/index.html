@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>UV Texture Mapping</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">UV Texture Mapping</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>I am planning on making a mesh combiner to make rendering even faster by combining models and having them all become a much bigger model…  To do this I clearly will need to be able to select a single “sub-texture” from a big texture that serves as a texture map with UV coordinates.  But I am not sure how I can do this because the Urho3D api doesn’t allow setting start and end UV texture coordinates.</p>
+<p>Materials have this function: 	SetUVTransform (const Vector2 &amp;offset, float rotation, float repeat)</p>
+<p>but this doesn’t seem like enough… Maybe I just missed something…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>mesh combiner to make rendering even faster by combining models<br/>
+I think that the some kind of StaticInstasing with pack all static geometry into one VertexBuffer on engine start is good feature for urho in future add, but today the better way I think to reduce count of batches is - manually<br/>
+do:</p>
+</blockquote>
+<ol>
+<li>blocking base of level.</li>
+<li>find or define the static group’s of objects that have an some shared textures, similar texture parts</li>
+<li>for each of this groups do join textures into one big texture</li>
+<li>manually merge static mesh in 3d editor with same material into one mesh</li>
+<li>adjust uv offset<br/>
+this give you one renderer batch and not several</li>
+</ol>
+<p>there is in urho also exist the StaticMeshGroup for some kind of instancing many objects at one time but it no reduce batches count</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>You are totally right about that.  In a tool like blender, it would be much easier.  Although, I am planning on making a minecraft cloned designed from the ground up to be modded.  So I cannot premerge any models or textures as they are added at runtime.   <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+<p>I have made some progress on UV texture mapping.  In the UV function I mentioned before the function sets two shader parameters to specify the mapping after doing some matrix math (I don’t really know any matrix math atm).</p>
+<p><code>    SetShaderParameter("UOffset", Vector4(transform.m00_, transform.m01_, transform.m02_, transform.m03_));
+    SetShaderParameter("VOffset", Vector4(transform.m10_, transform.m11_, transform.m12_, transform.m13_));</code></p>
+<p>Under default mapping the values are:</p>
+<p><code>        SetShaderParameter("UOffset", Vector4(1.0f, 0.0f, 0.0f, 0.0f));
+        SetShaderParameter("VOffset", Vector4(0.0f, 1.0f, 0.0f, 0.0f));</code></p>
+<p>Summary of my testing for what each value means:</p>
+<p><code>        SetShaderParameter("UOffset", Vector4(/* how many time repeated x dir */, /* skewing */, /* idk */, /* x offset */));
+        SetShaderParameter("VOffset", Vector4(/* how many time repeated y dir */, /* skewing */, /* idk */, /* y offset */));</code></p>
+<p>I think I can figure it out know. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I guess that binding then material for each cube with other uv-offsets is very expensive tech<br/>
+better you must think about tech that uses one material binding pre draw all chunks of cubes on the world map<br/>
+I think you need doing some calculation to fill vertexbuffer based on camera view, and then you fill VB you just set some UV-offset in vertexes for cube (choice texture in texture-atlas based on cube type).</p>
+<p>simplified render</p>
+<p>-bind texture (static data)<br/>
+-bind shader (most time static parameters)<br/>
+(texture + shader = material in urho terms )</p>
+<p>-bind vertex buffer with a chunk of cubes 8<em>8 or 16</em>16… (this data calculate each frame)<br/>
+draw()</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>I don’t think I am understanding you… are you essentially saying that I should have one material per entire chunk mesh?</p>
+<p>This is what I was planning on doing but the only way I can see that this can be done is if the mesh of each block in the chunk is combined to make one big chunk mesh and then the material is assigned.  So the next thing I am going to do is create a texture class that represents a map of textures.  Then I will make a mesh+texture combiner.</p>
+<p>Is this pretty much what you were saying?  If you have a better/easier idea I definately would love to hear it!  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>EDIT: Marking this solved becase my original question was answered.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>yes, even more so - for the whole world )<br/>
+one texture one material one uber-shader and several dynamic VB with all information(stored in free FFP field) that need in shader to draw all cubes as you needed.<br/>
+You can even try to use the free std vertex fields for doing selection technique of shading in the own custom shader.</p>
+<blockquote>
+<p>If you have a better/easier idea I definately would love to hear it! <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/><br/>
+no i’m do not had any other easier idea.</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>Hmmm as much as I really would like to do the entire world (in fact I was planning on doing just that for a while) I realized just how slow updating a chunk would be… Any time a block is added or removed the chunk mesh will need to be updated and the larger it is the slower the update will be…</p>
+<p>But <span class="bbcode-i">maybe</span> I can have a smart update that will only update the portion of the mesh that has been changed.  That would probably be much quicker.  IDK I will see if I can make it work.  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p>But you are totally right.  If I can render the entire world in one draw…  <img alt=":astonished:" class="emoji" src="../../../images2/d210df802a5d9b4bc3a55c75eca07db3.png" title=":astonished:"/>   That would be so fast! Wow!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>Hmmm back on topic for the feature request section…</p>
+<p>The first UV modification line doesn’t do the same thing as the second two… but shouldn’t they be equivalent?  Is this a bug?</p>
+<p>[code]        Vector2 start(0.5f,0.5f);<br/>
+Vector2 end(1.0f,1.0f);</p>
+<pre><code>    Vector2 offset = start;
+    Vector2 repeat = end - start;
+
+    // this doesn't do the same thing as the next two statements together...
+    mat-&gt;SetUVTransform(offset, 0, repeat);
+
+    mat-&gt;SetShaderParameter("UOffset", Vector4(repeat.x_, 0.0f, 0.0f, offset.x_));
+    mat-&gt;SetShaderParameter("VOffset", Vector4(0.0f, repeat.y_, 0.0f, offset.y_));[/code]
+</code></pre>
+<p>If this isn’t a bug can we add a function to specify the start and end UV coordinates as a pecentage from 0.0f to 1.0f?</p>
+<p>Something like:</p>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>[quote=“Sinoid”]I’m having a really tough time following what you’re saying versus what you appear to mean?</p>
+<pre><code>I realized just how slow updating a chunk would be... Any time a block is added or removed the chunk mesh will need to be updated and the larger it is the slower the update will be...
+</code></pre>
+<p>How big are your chunks? Updating a 32x32x16 chunk (size I used when doing one of these) of voxels should be instant and as long as you “suspend” updates so that you aren’t building updates for every single block change when doing a flood-fill / ray / radius / etc change to the blocks.[/quote]</p>
+<p>If the entire world were one “big” chunk like we were talking about and the update algorithm generated a new from scratch each world mesh generation then the larger the world the longer it would to generate the mesh…  Yes I do know that typically voxels engines divide the world into chunks.  I will be doing a version of this.</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sinoid:</div>
+<blockquote>
+<p>How are you constructing your voxels? It sounds like you’re using cube models? You should be constructing an entire mesh, no inside faces, etc.</p>
+</blockquote>
+</aside>
+<p>Heck no!   <img alt=":astonished:" class="emoji" src="../../../images2/d210df802a5d9b4bc3a55c75eca07db3.png" title=":astonished:"/>  That would be bad idea for sure!  For the basic block there will be 31 possible meshes that will represent one block  (2^6 - 1 one for each possible combination of sides of the block missing but minus one to remove the case where there are no sides.)  Sides will be removed that are not displayed and each cube mesh will be combined with neighbouring cube meshes in the entire chunk (or maybe the entire world if I can figure out a nice way to do it)  That way there is only one draw call per chunk or the entire world.</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sinoid:</div>
+<blockquote>
+<p>No, just update the whole chunk - the most clever thing that’s worth considering is using greedy meshing which will be slower to update the whole mesh</p>
+</blockquote>
+</aside>
+<p>In this context I wasn’t talking about chunks I was talking about the entire world.  Generating a new mesh for the entire world on each new block placed/removed would be a really bad idea and it would be screamingly slow especially when there are millions of total blocks.</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sinoid:</div>
+<blockquote>
+<p>You wouldn’t use SetUVTransform in the case of merging meshes as that’s a material attribute and I’m assuming that by merging meshes you mean combining all vertex/index data into one and merging the textures into an atlas. </p>
+</blockquote>
+</aside>
+<p>Hmmm you are totally right.   <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/>   I wonder how I didn’t see this at first… Setting the shader variable sets it for the entire material so it won’t work.  So how would I modify the texture coords of a sub mesh so that the same material is used?  Any help would be really appreciated!  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sinoid:</div>
+<blockquote>
+<p>Do you have a Github repository (or someplace else) that contains your voxel code?</p>
+</blockquote>
+</aside>
+<p>No I don’t… Not sure why that would be very important though… I just need some way to set the texture coords of different verities of a mesh.  I can probably take it from there.  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/>   When I was using Irrlicht (BTW don’t use Irrlicht to make a game.  It is a bad idea and a waste of time.  <img alt=":angry:" class="emoji" src="../../../images2/dda96664c6d9e61674679e7c70394270.png" title=":angry:"/> ) it was pretty simple to do this.  What about Urho3D?  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>I have already written a program that can pack rectangles in a bigger rectangle (for making one big texture): <a data-bbcode="true" href="https://github.com/GoogleBot42/StripPacking" rel="nofollow noopener">https://github.com/GoogleBot42/StripPacking</a>  It may not be the cleanest but it works great. (I just finished it so that will happen later) <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>I found this: <a data-bbcode="true" href="http://discourse.urho3d.io/t/solved-how-to-create-mesh/35/1">http://discourse.urho3d.io/t/solved-how-to-create-mesh/35/1</a>  I got it working!  The only thing is that light doesn’t seem to work… I am sure it is something simple.  Any thoughts?</p>
+<p>Here is the modified code from the post linked above for those who want to see. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>[code]    float dirLightVertexData[] =<br/>
+{<br/>
+-1, 1, 0,   0, 0,<br/>
+1, 1, 0,    0.5f, 0,<br/>
+1, -1, 0,   0.5f, 0.5f,<br/>
+-1, -1, 0,  0, 0.5f,<br/>
+};</p>
+<pre><code>unsigned short dirLightIndexData[] =
+{
+0, 1, 2,
+2, 3, 0,
+};
+
+SharedPtr&lt;VertexBuffer&gt; dlvb(new VertexBuffer(context_));
+dlvb-&gt;SetShadowed(true);
+dlvb-&gt;SetSize(4, MASK_POSITION | MASK_TEXCOORD1);
+dlvb-&gt;SetData(dirLightVertexData);
+
+SharedPtr&lt;IndexBuffer&gt; dlib(new IndexBuffer(context_));
+dlib-&gt;SetShadowed(true);
+dlib-&gt;SetSize(6, false);
+dlib-&gt;SetData(dirLightIndexData);
+
+Geometry *dirLightGeometry_ = new Geometry(context_);
+dirLightGeometry_-&gt;SetVertexBuffer(0, dlvb);
+dirLightGeometry_-&gt;SetIndexBuffer(dlib);
+dirLightGeometry_-&gt;SetDrawRange(TRIANGLE_LIST, 0, dlib-&gt;GetIndexCount());
+
+SharedPtr&lt;Model&gt; testModel(new Model(context_));
+Vector&lt;SharedPtr&lt;VertexBuffer&gt; &gt; dlvbVector;
+Vector&lt;SharedPtr&lt;IndexBuffer&gt; &gt; dlibVector;
+dlvbVector.Push(dlvb);
+dlibVector.Push(dlib);
+testModel-&gt;SetNumGeometries(1);
+testModel-&gt;SetNumGeometryLodLevels(0, 1);
+testModel-&gt;SetGeometry(0, 0, dirLightGeometry_);
+
+// Define the model buffers and bounding box
+PODVector&lt;unsigned&gt; emptyMorphRange;
+testModel-&gt;SetVertexBuffers(dlvbVector, emptyMorphRange, emptyMorphRange);
+testModel-&gt;SetIndexBuffers(dlibVector);
+//testModel-&gt;SetBoundingBox(BoundingBox(Vector3(-1.0f, -1.0f, 0.0f), Vector3(1.0f, 1.0f, 0.0f)));
+
+Node* testnodea = scene_-&gt;CreateChild("testasdasd");
+StaticModel* testObjecta = testnodea-&gt;CreateComponent&lt;StaticModel&gt;();
+testObjecta-&gt;SetModel(testModel);
+
+Material* mat = new Material(context_);
+mat-&gt;SetNumTechniques(1);
+mat-&gt;SetTechnique(0, cache-&gt;GetResource&lt;Technique&gt;("Techniques/Diff.xml") );
+Texture* tex = cache-&gt;GetResource&lt;Texture2D&gt;("Textures/BlueOre.png");
+tex-&gt;SetFilterMode(FILTER_NEAREST);
+mat-&gt;SetTexture(TU_DIFFUSE, tex);
+
+testObjecta-&gt;SetMaterial(0,mat);[/code]</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sinoid:</div>
+<blockquote>
+<p>Probably just need to add vertex normals for the lighting to use, same deal as you did for tex coords. With hard-voxels like minecraft you’d all four verts of each face will share the same normal.</p>
+</blockquote>
+</aside>
+<p>Yeah I figured it out a while ago… I was just too lazy to post here about it. <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/> (plus i wanted to avoid a triple post <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/>)</p>
+<p>CustomGeometery components are much easier it turns out…</p>
+<p>[code]        customGeo-&gt;DefineGeometry(0, TRIANGLE_LIST, 6, true, false, true, false);</p>
+<pre><code>    CustomGeometryVertex* ver;
+
+    ver = customGeo-&gt;GetVertex(0,0);
+    ver-&gt;position_ = Vector2::ZERO;
+    ver-&gt;normal_ = Vector3::BACK;
+    ver-&gt;texCoord_ = Vector2::UP;
+
+    ver = customGeo-&gt;GetVertex(0,1);
+    ver-&gt;position_ = Vector2::UP;
+    ver-&gt;normal_ = Vector3::BACK;
+    ver-&gt;texCoord_ = Vector2::ZERO;
+
+    memcpy(customGeo-&gt;GetVertex(0,4),ver,sizeof(CustomGeometryVertex));
+
+    ver = customGeo-&gt;GetVertex(0,2);
+    ver-&gt;position_ = Vector2::RIGHT;
+    ver-&gt;normal_ = Vector3::BACK;
+    ver-&gt;texCoord_ = Vector2::ONE;
+
+    memcpy(customGeo-&gt;GetVertex(0,3),ver,sizeof(CustomGeometryVertex));
+
+    ver = customGeo-&gt;GetVertex(0,5);
+    ver-&gt;position_ = Vector2::ONE;
+    ver-&gt;normal_ = Vector3::BACK;
+    ver-&gt;texCoord_ = Vector2::RIGHT;
+
+    customGeo-&gt;Commit();[/code]</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

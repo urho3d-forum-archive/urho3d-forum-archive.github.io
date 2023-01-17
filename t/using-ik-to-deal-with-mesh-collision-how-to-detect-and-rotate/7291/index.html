@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Using IK to deal with mesh collision: how to detect and rotate?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Using IK to deal with mesh collision: how to detect and rotate?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3817_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hunkalloc</div>
+          <div class="post_content">
+<p>Hey y’all. I’m working on a small prototype to get my head around the engine and I was pleasantly surprise to know that it has built-in IK functionality, something that you have to pay for in Unity. I’ve been trying to implement a feature similar to this one:</p>
+<div class="onebox lazyYT lazyYT-container" data-parameters="feature=oembed&amp;wmode=opaque" data-youtube-id="NWkLYcgMxUA" data-youtube-title="Weapon Collision Changes | Escape From Tarkov Guide">
+<a href="https://www.youtube.com/watch?v=NWkLYcgMxUA" rel="noopener nofollow ugc" target="_blank">
+<img class="ytp-thumbnail-image" height="360" src="../../../images2/c928990e364f8e9bb318ff3d32dc63f0.jpg" title="Weapon Collision Changes | Escape From Tarkov Guide" width="480"/>
+</a>
+</div>
+<p>You’ll notice that, instead of using multiple cameras to avoid the weapon mesh from going through the walls, the dev team of Escape From Tarkov decided to turn this into a gameplay feature and have the muzzle go up by using IK on the player hand/elbow.</p>
+<p>The way I implemented this was, when there is a collision, I play an animation that basically makes the player go high ready, and prevent the shoot() method from ever working. However, I would love to be able to use IK, since that would be much smoother than be just playing the animation every single frame that I detect a collision, then playing the “back to aiming” animation. It feels laggish.</p>
+<p>My question is around the rotation of the bone itself. When there is a collision, can I just go directly to the bone of the player and apply a 70 degree rotation, for example? How does the IK “activate”?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>In this case you would likely set up 2 IK chains containing shoulder, elbow, and wrist (end effector), then keep updating the target position as you move the hand nodes around by the wrist. For this gun case you’d basically determine where the gun needs to be and then position the hands where they need to be according to whatever relative coordinates (ie. <code>wristOffsetMatrix = inverseOldGunWorldTransform * wristWorldTransform; newWristWorldTransform = newGunWorldTransform * offsetMatrix;</code>), then it doesn’t matter WTF you do with the gun, the hands are going to stay attached and your arms will track through their IK so long as you don’t go outside of reach.</p>
+<p>The IK is rotationally clueless, it only solves the rotations to position the points and nothing else like easing an rotation axis through the chain etc. If you look at the 45_InverseKinematics sample you can see that the sample has to explicitly deal with the foot orientation.</p>
+<hr/>
+<p>As to getting the contact information to reposition the weapon. Your best bet is going to be to use a Node user-variable (<code>Node::GetVar</code> and <code>Node::SetVar</code>) to store the the world-transform of the node at the end of the frame.</p>
+<p>When updating you’ll do a <code>PhysicsWorld::ConvexCast</code> from the old position to the new position and use the contact information you get from that to decide how to correct position to resolve penetration. Then repeat the casting process until you’ve solved all penetrations or have hit a set limit. It’s the same task as a character controller (<code>outMuzzlePosition = inMuzzlePosition - contactNormal * inMuzzlePosition.DotProduct(contactNormal)</code>), your character is now just the muzzle of a gun that you’re sliding along the surface.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

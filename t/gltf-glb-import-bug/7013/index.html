@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>GLTF/GLB import bug</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">GLTF/GLB import bug</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">MadGustave</div>
+          <div class="post_content">
+<p>I downloaded latest version of Urho from git and couldn’t import gltf/glb file with AssetImporter. It basically complains that file extension is not supported. I opened assimp code and this is gltf2.0 importer(this function check if given importer can read file):</p>
+<pre><code class="lang-auto">bool glTF2Importer::CanRead(const std::string&amp; pFile, IOSystem* pIOHandler, bool checkSig) const
+{
+    const std::string &amp;extension = GetExtension(pFile);
+
+    if (extension != "gltf" &amp;&amp; extension != "glb")
+        return false;
+
+    if (checkSig &amp;&amp; pIOHandler) {
+        glTF2::Asset asset(pIOHandler);
+        try {
+            asset.Load(pFile, extension == "glb");
+            std::string version = asset.asset.version;
+            return !version.empty() &amp;&amp; version[0] == '2';
+        } catch (...) {
+            return false;
+        }
+    }
+
+    return false;
+}
+</code></pre>
+<p>I guess it’s a bug, it doesn’t return true if extension match, i basically added</p>
+<pre><code class="lang-auto">    else {
+        return true;
+    }
+</code></pre>
+<p>after <code> if (checkSig &amp;&amp; pIOHandler) {</code> block and now it can import gltf(tho no material imported correctly, but i guess it’s always the case?)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">MadGustave</div>
+          <div class="post_content">
+<p>Looks like it’s old version that doesn’t support animations either. Does anybody has fixes for gltf import?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I personally consider AssImp as dead end “equally bad for everything”-kind of solution.<br/>
+I just import GLTF directly via <code>tinygltf</code> and convert it to <code>Model</code>/<code>Scene</code>. It’s not an easy task, but it’s very doable. And, unlike Assimp, I can actually fix problems when I encounter them.</p>
+<p><img alt="image" data-base62-sha1="vNvNx6UUm6RIASFpPIiqaSIiC7B" height="160" src="../../../images2/12819354fabb1ffd6737c251faa2469e.png" width="304"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>I have a more recent Assimp library in below branch<br/>
+I  up-merged it 2 years ago due to some GLTF issues (don’t remember which)  ,<br/>
+Check if it solves your issues.<br/>
+I might upmerge to the latest version in the near future once I will have some free time (just follow my master branch)</p>
+<aside class="onebox githubfolder" data-onebox-src="https://github.com/elix22/Urho3D/tree/dev-flimper">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/0973ea8ce7121c320f68413e2a2f23ab.svg" width="32"/>
+<a href="https://github.com/elix22/Urho3D/tree/dev-flimper" rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h3><a href="https://github.com/elix22/Urho3D/tree/dev-flimper" rel="noopener nofollow ugc" target="_blank">GitHub - elix22/Urho3D at dev-flimper</a></h3>
+<p><a href="https://github.com/elix22/Urho3D/tree/dev-flimper" rel="noopener nofollow ugc" target="_blank">dev-flimper</a></p>
+<p><span class="label1">Cross-platform 2D and 3D game engine. Contribute to elix22/Urho3D development by creating an account on GitHub.</span></p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">MadGustave</div>
+          <div class="post_content">
+<p>Can you share code of how you convert it with tinygltf?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>My work is far from finished, so I don’t have persistent link.<br/>
+Here is temporary link to the <a href="https://github.com/***/***/blob/ek/gltf/Source/Urho3D/Utility/GLTFImporter.cpp" rel="noopener nofollow ugc">main</a> file of the importer and to the <a href="https://github.com/***/***/blob/ek/gltf/Source/Urho3D/Graphics/ModelView.cpp" rel="noopener nofollow ugc">model builder</a>. This link will perish after I complete this task.</p>
+<p>Update: here are permanent links<br/>
+<a class="inline-onebox" href="https://github.com/***/***/blob/master/Source/Urho3D/Utility/GLTFImporter.cpp" rel="noopener nofollow ugc">***/GLTFImporter.cpp at master · ***/*** · GitHub</a><br/>
+<a class="inline-onebox" href="https://github.com/***/***/blob/master/Source/Urho3D/Graphics/ModelView.cpp" rel="noopener nofollow ugc">***/ModelView.cpp at master · ***/*** · GitHub</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

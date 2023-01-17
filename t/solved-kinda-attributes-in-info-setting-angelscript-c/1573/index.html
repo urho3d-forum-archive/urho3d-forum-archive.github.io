@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved - Kinda] Attributes in Info setting Angelscript/C++</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved - Kinda] Attributes in Info setting Angelscript/C++</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>Is there any way to do or similiar in Angelscript or C++ outside the RegisterObject (bottom part)? The example class is added through a register factory.  The class is made as a template that it is registered into the system by a class that registers it.</p>
+<p>Vivienne</p>
+<p>I declared access to a component as such</p>
+<pre><code class="lang-auto"> RegisterComponent&lt;GameAssetEngineLight&gt;(engine, "GameAssetEngineLight");
+    engine-&gt;RegisterObjectType("GameAssetEngineLight",0, asOBJ_REF);
+
+    // Passed Urho3D parameters
+    engine-&gt;RegisterObjectMethod("GameAssetEngineLight", "void SetLightType(LightType SetLight)", asMETHOD(GameAssetEngineLight, SetLightType), asCALL_THISCALL);
+    engine-&gt;RegisterObjectMethod("GameAssetEngineLight", "void SetBrightness(float SetBright)", asMETHOD(GameAssetEngineLight, SetBrightness), asCALL_THISCALL);</code></pre>
+<p>Code in StaticModel.CPP</p>
+<p><code>
+    URHO3D_ACCESSOR_ATTRIBUTE("Is Enabled", IsEnabled, SetEnabled, bool, true, AM_DEFAULT);
+    URHO3D_MIXED_ACCESSOR_ATTRIBUTE("Model", GetModelAttr, SetModelAttr, ResourceRef, ResourceRef(Model::GetTypeStatic()), AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Material", GetMaterialsAttr, SetMaterialsAttr, ResourceRefList, ResourceRefList(Material::GetTypeStatic()),
+        AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Is Occluder", bool, occluder_, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Can Be Occluded", IsOccludee, SetOccludee, bool, true, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Cast Shadows", bool, castShadows_, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Draw Distance", GetDrawDistance, SetDrawDistance, float, 0.0f, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Shadow Distance", GetShadowDistance, SetShadowDistance, float, 0.0f, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("LOD Bias", GetLodBias, SetLodBias, float, 1.0f, AM_DEFAULT);
+    URHO3D_COPY_BASE_ATTRIBUTES(Drawable);
+    URHO3D_ATTRIBUTE("Occlusion LOD Level", int, occlusionLodLevel_, M_MAX_UNSIGNED, AM_DEFAULT);</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>It crashes on this line code (last call stack)</p>
+<p><span class="bbcode-b">	(((asCSimpleDummy*)obj)-&gt;*f)();</span> // CRASH HERE</p>
+<p>Code in Urho3D</p>
+<p><code>void asCScriptEngine::CallObjectMethod(void *obj, asSSystemFunctionInterface *i, asCScriptFunction *s) const
+{
+#if defined(__GNUC__) || defined(AS_PSVITA)
+	if( i-&gt;callConv == ICC_GENERIC_METHOD )
+	{
+		asCGeneric gen(const_cast&lt;asCScriptEngine*&gt;(this), s, obj, 0);
+		void (*f)(asIScriptGeneric *) = (void (*)(asIScriptGeneric *))(i-&gt;func);
+		f(&amp;gen);
+	}
+	else if( i-&gt;callConv == ICC_THISCALL || i-&gt;callConv == ICC_VIRTUAL_THISCALL )
+	{
+		// For virtual thiscalls we must call the method as a true class method
+		// so that the compiler will lookup the function address in the vftable
+		union
+		{
+			asSIMPLEMETHOD_t mthd;
+			struct
+			{
+				asFUNCTION_t func;
+				asPWORD baseOffset;  // Same size as the pointer
+			} f;
+		} p;
+		p.f.func = (asFUNCTION_t)(i-&gt;func);
+		p.f.baseOffset = asPWORD(i-&gt;baseOffset);
+		void (asCSimpleDummy::*f)() = p.mthd;
+	[b]	(((asCSimpleDummy*)obj)-&gt;*f)();[/b] // CRASH HERE
+	}
+	else /*if( i-&gt;callConv == ICC_CDECL_OBJLAST || i-&gt;callConv == ICC_CDECL_OBJFIRST )*/
+	{
+		void (*f)(void *) = (void (*)(void *))(i-&gt;func);
+		f(obj);
+	}</code></p>
+<p>Last Call</p>
+<p><code>void RefCounted::ReleaseRef()
+{
+    assert(refCount_-&gt;refs_ &gt; 0);
+    (refCount_-&gt;refs_)--;
+    if (!refCount_-&gt;refs_)
+        delete this;
+}
+</code></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Array shader parameters</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Array shader parameters</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>It looks like there is no api to pass an array to material shader parameters.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>i am playing with a hacky aproach right now:</p>
+<pre><code class="lang-auto">void Graphics::SetShaderParameter(StringHash param, const VariantVector&amp; variantVector)
+{
+	if (variantVector.Size() == 0)
+		return;
+
+	// base logic on the first parameter
+	Variant first = variantVector.Front();
+
+	// only float types allowed
+	switch (first.GetType())
+	{
+		case VAR_FLOAT:
+		case VAR_VECTOR2:
+		case VAR_VECTOR3:
+		case VAR_VECTOR4:
+		case VAR_MATRIX3:
+		case VAR_MATRIX4:
+			break;
+		default:
+			return;
+	}
+
+	PODVector&lt;unsigned char&gt; data;
+
+	// validate that all parameters are the same as the first
+	for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+	{
+		if (variantVector[i].GetType() != first.GetType())
+			return;
+
+		data += variantVector[i].GetBuffer();
+	}
+
+	SetShaderParameter(param, (float*)&amp;data, variantVector.Size());
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>I thought get buffer meant shut up and give me my data but it does type checking.</p>
+<p>Now with more phat.</p>
+<pre><code class="lang-auto">void Graphics::SetShaderParameter(StringHash param, const VariantVector&amp; variantVector)
+{
+	if (variantVector.Size() == 0)
+		return;
+
+	// base logic on the first parameter
+	Variant first = variantVector.Front();
+	VariantType type = first.GetType();
+	int size;
+
+	// only float types allowed
+	switch (type)
+	{
+		case VAR_FLOAT:
+			size = sizeof(float);
+			break;
+		case VAR_VECTOR2:
+			size = sizeof(Vector2);
+			break;
+		case VAR_VECTOR3:
+			size = sizeof(Vector3);
+			break;
+		case VAR_VECTOR4:
+			size = sizeof(Vector4);
+			break;
+		case VAR_MATRIX3:
+			size = sizeof(Matrix3);
+			break;
+		case VAR_MATRIX4:
+			size = sizeof(Matrix4);
+			break;
+		default:
+			return;
+	}
+
+
+	// validate that all parameters are the same as the first
+	for (unsigned i = 1; i &lt; variantVector.Size(); ++i)
+	{
+		if (variantVector[i].GetType() != type)
+			return;
+	}
+
+	PODVector&lt;unsigned char&gt; data;
+	data.Resize(variantVector.Size() * size);
+
+	if (type == VAR_FLOAT)
+	{
+		float* dataPtr = (float*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetFloat();
+	}
+	else if (type == VAR_VECTOR2)
+	{
+		Vector2* dataPtr = (Vector2*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetVector2();
+	}
+	else if (type == VAR_VECTOR3)
+	{
+		Vector3* dataPtr = (Vector3*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetVector3();
+	}
+	else if (type == VAR_VECTOR4)
+	{
+		Vector4* dataPtr = (Vector4*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetVector4();
+	}
+	else if (type == VAR_MATRIX3)
+	{
+		Matrix3* dataPtr = (Matrix3*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetMatrix3();
+	}
+	else if (type == VAR_MATRIX4)
+	{
+		Matrix4* dataPtr = (Matrix4*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetMatrix4();
+	}
+
+	SetShaderParameter(param, (float*)&amp;data.Front(), variantVector.Size());
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you feel like committing that in (remember all render backends) go ahead.</p>
+<p>Alternative would be to add VariantVector handling already to the overload with Variant parameter. (ie. check if type of variant is vector)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hey guys it seems this topic is related to mine: <a href="http://discourse.urho3d.io/t/passing-uniform-arrays-to-glsl-shader/1584/1">topic1647.html</a> . I am currently struggling to do it but I can’t figure how without modifying the engine. Any chance for a PR of this solution? As I am trying to pass an array of quaternions to the shader.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>Sorry I haven’t done this yet.  Work has been very demanding lately <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/> <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/>.  The snippet I shared earlier has a bug if I remember.  I think it calculated the float size incorrectly.  My voxel renderer code has a working implimenation.  I found a pretty big weakness this approach and that is that the variant array it not efficient, and not capable of reusing data.  In my voxel renderer which has a sizable normal lookup table ~4-5% of gpu time was spent in this method.</p>
+<p>I think this code is good.  You have to replace the functions in OGLGraphics.cpp</p>
+<pre><code class="lang-auto">void Graphics::SetShaderParameter(StringHash param, const VariantVector&amp; variantVector)
+{
+	if (variantVector.Size() == 0)
+		return;
+
+	// base logic on the first parameter
+	Variant first = variantVector.Front();
+	VariantType type = first.GetType();
+	int size;
+
+	// only float types allowed
+	switch (type)
+	{
+		case VAR_FLOAT:
+			size = sizeof(float);
+			break;
+		case VAR_VECTOR2:
+			size = sizeof(Vector2);
+			break;
+		case VAR_VECTOR3:
+			size = sizeof(Vector3);
+			break;
+		case VAR_VECTOR4:
+			size = sizeof(Vector4);
+			break;
+		case VAR_MATRIX3:
+			size = sizeof(Matrix3);
+			break;
+		case VAR_MATRIX4:
+			size = sizeof(Matrix4);
+			break;
+		default:
+			return;
+	}
+
+
+	// validate that all parameters are the same as the first
+	for (unsigned i = 1; i &lt; variantVector.Size(); ++i)
+	{
+		if (variantVector[i].GetType() != type)
+			return;
+	}
+
+	PODVector&lt;unsigned char&gt; data;
+	unsigned numFloats = variantVector.Size() * size / 4;
+	data.Resize(variantVector.Size() * size);
+
+	if (type == VAR_FLOAT)
+	{
+		float* dataPtr = (float*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetFloat();
+	}
+	else if (type == VAR_VECTOR2)
+	{
+		Vector2* dataPtr = (Vector2*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetVector2();
+	}
+	else if (type == VAR_VECTOR3)
+	{
+		Vector3* dataPtr = (Vector3*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetVector3();
+	}
+	else if (type == VAR_VECTOR4)
+	{
+		Vector4* dataPtr = (Vector4*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetVector4();
+	}
+	else if (type == VAR_MATRIX3)
+	{
+		Matrix3* dataPtr = (Matrix3*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetMatrix3();
+	}
+	else if (type == VAR_MATRIX4)
+	{
+		Matrix4* dataPtr = (Matrix4*)&amp;data.Front();
+		for (unsigned i = 0; i &lt; variantVector.Size(); ++i)
+			*dataPtr++ = variantVector[i].GetMatrix4();
+	}
+
+
+	SetShaderParameter(param, (float*)&amp;data.Front(), numFloats);
+}
+
+
+void Graphics::SetShaderParameter(StringHash param, const Variant&amp; value)
+{
+    switch (value.GetType())
+    {
+    case VAR_BOOL:
+        SetShaderParameter(param, value.GetBool());
+        break;
+
+    case VAR_FLOAT:
+        SetShaderParameter(param, value.GetFloat());
+        break;
+
+    case VAR_VECTOR2:
+        SetShaderParameter(param, value.GetVector2());
+        break;
+
+    case VAR_VECTOR3:
+        SetShaderParameter(param, value.GetVector3());
+        break;
+
+    case VAR_VECTOR4:
+        SetShaderParameter(param, value.GetVector4());
+        break;
+
+    case VAR_COLOR:
+        SetShaderParameter(param, value.GetColor());
+        break;
+
+    case VAR_MATRIX3:
+        SetShaderParameter(param, value.GetMatrix3());
+        break;
+
+    case VAR_MATRIX3X4:
+        SetShaderParameter(param, value.GetMatrix3x4());
+        break;
+
+    case VAR_MATRIX4:
+        SetShaderParameter(param, value.GetMatrix4());
+        break;
+
+    case VAR_VARIANTVECTOR:
+	SetShaderParameter(param, value.GetVariantVector());
+	break;
+    default:
+        // Unsupported parameter type, do nothing
+        break;
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks friesencr. I will try it out.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

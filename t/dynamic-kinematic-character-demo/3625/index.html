@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Dynamic &ldquo;Kinematic&rdquo; Character Demo</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Dynamic &ldquo;Kinematic&rdquo; Character Demo</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ext1</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>While exploring the <a  rel="nofollow noopener">Character Demo</a> I’ve ended up wanting a more “kinematic” movement (specially going up/down slopes), similar to raycast movement, but without losing the benefits of the dynamic character controller, the collision detection and physics overall.</p>
+<p>After a lot of trial and error, I’ve managed to tinker the Character Demo and got pretty interesting results. The character no longer <a href="https://discourse.urho3d.io/t/down-hill-movement-on-the-physics-simulation/3612">bounces</a> when going up/down a slope, neither slide when stopped, while still being able to jump and react to physics as usual (so it still respects angles, e.g.: will not climb steep walls).</p>
+<p>Code that was changed from the original Character Demo (from Urho3D version 1.7):</p>
+<p>Character.h - Line 63.</p>
+<pre><code>//
+// Copyright (c) 2008-2017 the Urho3D project.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+
+#pragma once
+
+#include &lt;Urho3D/Input/Controls.h&gt;
+#include &lt;Urho3D/Scene/LogicComponent.h&gt;
+
+using namespace Urho3D;
+
+const int CTRL_FORWARD = 1;
+const int CTRL_BACK = 2;
+const int CTRL_LEFT = 4;
+const int CTRL_RIGHT = 8;
+const int CTRL_JUMP = 16;
+
+const float MOVE_FORCE = 0.8f;
+const float INAIR_MOVE_FORCE = 0.02f;
+const float BRAKE_FORCE = 0.2f;
+const float JUMP_FORCE = 7.0f;
+const float YAW_SENSITIVITY = 0.1f;
+const float INAIR_THRESHOLD_TIME = 0.1f;
+
+/// Character component, responsible for physical movement according to controls, as well as animation.
+class Character : public LogicComponent
+{
+    URHO3D_OBJECT(Character, LogicComponent);
+
+public:
+    /// Construct.
+    Character(Context* context);
+
+    /// Register object factory and attributes.
+    static void RegisterObject(Context* context);
+
+    /// Handle startup. Called by LogicComponent base class.
+    virtual void Start();
+    /// Handle physics world update. Called by LogicComponent base class.
+    virtual void FixedUpdate(float timeStep);
+
+    /// Movement controls. Assigned by the main program each frame.
+    Controls controls_;
+
+    /* Stores the floor normal from a raycast down on the character location. */
+    Vector3 floorNormal;
+
+private:
+    /// Handle physics collision event.
+    void HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData);
+
+    /// Grounded flag for movement.
+    bool onGround_;
+    /// Jump flag.
+    bool okToJump_;
+    /// In air timer. Due to possible physics inaccuracy, character can be off ground for max. 1/10 second and still be allowed to move.
+    float inAirTimer_;
+};
+</code></pre>
+<p>Character.cpp - Lines 78, 80, 88, 90 and 146.</p>
+<pre><code>//
+// Copyright (c) 2008-2017 the Urho3D project.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Graphics/AnimationController.h&gt;
+#include &lt;Urho3D/IO/MemoryBuffer.h&gt;
+#include &lt;Urho3D/Physics/PhysicsEvents.h&gt;
+#include &lt;Urho3D/Physics/PhysicsWorld.h&gt;
+#include &lt;Urho3D/Physics/RigidBody.h&gt;
+#include &lt;Urho3D/Scene/Scene.h&gt;
+#include &lt;Urho3D/Scene/SceneEvents.h&gt;
+
+#include "Character.h"
+
+Character::Character(Context* context) :
+    LogicComponent(context),
+    onGround_(false),
+    okToJump_(true),
+    inAirTimer_(0.0f)
+{
+    // Only the physics update event is needed: unsubscribe from the rest for optimization
+    SetUpdateEventMask(USE_FIXEDUPDATE);
+}
+
+void Character::RegisterObject(Context* context)
+{
+    context-&gt;RegisterFactory&lt;Character&gt;();
+
+    // These macros register the class attributes to the Context for automatic load / save handling.
+    // We specify the Default attribute mode which means it will be used both for saving into file, and network replication
+    URHO3D_ATTRIBUTE("Controls Yaw", float, controls_.yaw_, 0.0f, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Controls Pitch", float, controls_.pitch_, 0.0f, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("On Ground", bool, onGround_, false, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("OK To Jump", bool, okToJump_, true, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("In Air Timer", float, inAirTimer_, 0.0f, AM_DEFAULT);
+}
+
+void Character::Start()
+{
+    // Component has been inserted into its scene node. Subscribe to events now
+    SubscribeToEvent(GetNode(), E_NODECOLLISION, URHO3D_HANDLER(Character, HandleNodeCollision));
+}
+
+void Character::FixedUpdate(float timeStep)
+{
+    /// \todo Could cache the components for faster access instead of finding them each frame
+    RigidBody* body = GetComponent&lt;RigidBody&gt;();
+    AnimationController* animCtrl = node_-&gt;GetComponent&lt;AnimationController&gt;(true);
+
+    // Update the in air timer. Reset if grounded
+    if (!onGround_)
+        inAirTimer_ += timeStep;
+    else
+        inAirTimer_ = 0.0f;
+    // When character has been in air less than 1/10 second, it's still interpreted as being on ground
+    bool softGrounded = inAirTimer_ &lt; INAIR_THRESHOLD_TIME;
+
+    // Update movement &amp; animation
+    //const Quaternion&amp; rot = node_-&gt;GetRotation(); /* Removed */
+
+    /* Calculate the floor angle with the floor normal and rotate the character with that angle so it can move on any direction and have vertical velocity. */
+    /* Based on 1vanK's post: https://discourse.urho3d.io/t/solved-how-to-direct-a-character-parallel-to-the-ground/1285/5 */
+    Quaternion floorAngle = Quaternion(Vector3(0.0f, 1.0f, 0.0f), floorNormal);
+    Quaternion rot = floorAngle * Quaternion(node_-&gt;GetRotation());
+
+    Vector3 moveDir = Vector3::ZERO;
+    const Vector3&amp; velocity = body-&gt;GetLinearVelocity();
+    // Velocity on the XZ plane
+    // Vector3 planeVelocity(velocity.x_, 0.0f, velocity.z_); /* Removed */
+
+    /* Set the velocity on all directions so it can also have vertical velocity. */
+    /* Special thanks for Eugene for pointing vertical velocity and for Carnalis from helping figure out this problem. */
+    Vector3 planeVelocity(velocity);
+
+    if (controls_.IsDown(CTRL_FORWARD))
+        moveDir += Vector3::FORWARD;
+    if (controls_.IsDown(CTRL_BACK))
+        moveDir += Vector3::BACK;
+    if (controls_.IsDown(CTRL_LEFT))
+        moveDir += Vector3::LEFT;
+    if (controls_.IsDown(CTRL_RIGHT))
+        moveDir += Vector3::RIGHT;
+
+    // Normalize move vector so that diagonal strafing is not faster
+    if (moveDir.LengthSquared() &gt; 0.0f)
+        moveDir.Normalize();
+
+    // If in air, allow control, but slower than when on ground
+    body-&gt;ApplyImpulse(rot * moveDir * (softGrounded ? MOVE_FORCE : INAIR_MOVE_FORCE));
+
+    if (softGrounded)
+    {
+        // When on ground, apply a braking force to limit maximum ground velocity
+        Vector3 brakeForce = -planeVelocity * BRAKE_FORCE;
+        body-&gt;ApplyImpulse(brakeForce);
+
+        // Jump. Must release jump control between jumps
+        if (controls_.IsDown(CTRL_JUMP))
+        {
+            if (okToJump_)
+            {
+                body-&gt;ApplyImpulse(Vector3::UP * JUMP_FORCE);
+                okToJump_ = false;
+                animCtrl-&gt;PlayExclusive("Models/Mutant/Mutant_Jump1.ani", 0, false, 0.2f);
+            }
+        }
+        else
+            okToJump_ = true;
+    }
+
+    if ( !onGround_ )
+    {
+        animCtrl-&gt;PlayExclusive("Models/Mutant/Mutant_Jump1.ani", 0, false, 0.2f);
+    }
+    else
+    {
+        // Play walk animation if moving on ground, otherwise fade it out
+        if (softGrounded &amp;&amp; !moveDir.Equals(Vector3::ZERO))
+            animCtrl-&gt;PlayExclusive("Models/Mutant/Mutant_Run.ani", 0, true, 0.2f);
+        else
+            animCtrl-&gt;PlayExclusive("Models/Mutant/Mutant_Idle0.ani", 0, true, 0.2f);
+
+        // Set walk animation speed proportional to velocity
+        animCtrl-&gt;SetSpeed("Models/Mutant/Mutant_Run.ani", planeVelocity.Length() * 0.3f);
+    }
+
+    /* Stops the character from sliding down when not moving. */
+    /* From 1vanK's post: https://discourse.urho3d.io/t/improved-charactercontroller/3472 */
+    if ( softGrounded &amp;&amp; okToJump_ &amp;&amp; moveDir == Vector3::ZERO) {
+        body-&gt;SetUseGravity(false);
+        body-&gt;SetLinearVelocity(Vector3::ZERO);
+    } else {
+        body-&gt;SetUseGravity(true);
+    }
+
+    // Reset grounded flag for next frame
+    onGround_ = false;
+}
+
+void Character::HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+{
+    // Check collision contacts and see if character is standing on ground (look for a contact that has near vertical normal)
+    using namespace NodeCollision;
+
+    MemoryBuffer contacts(eventData[P_CONTACTS].GetBuffer());
+
+    while (!contacts.IsEof())
+    {
+        Vector3 contactPosition = contacts.ReadVector3();
+        Vector3 contactNormal = contacts.ReadVector3();
+        /*float contactDistance = */contacts.ReadFloat();
+        /*float contactImpulse = */contacts.ReadFloat();
+
+        // If contact is below node center and pointing up, assume it's a ground contact
+        if (contactPosition.y_ &lt; (node_-&gt;GetPosition().y_ + 1.0f))
+        {
+            float level = contactNormal.y_;
+            if (level &gt; 0.75)
+                onGround_ = true;
+        }
+    }
+}
+</code></pre>
+<p>CharacterDemo.cpp - Lines 129, 141 and 348.</p>
+<pre><code>//
+// Copyright (c) 2008-2017 the Urho3D project.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+
+#include &lt;Urho3D/Core/CoreEvents.h&gt;
+#include &lt;Urho3D/Core/ProcessUtils.h&gt;
+#include &lt;Urho3D/Engine/Engine.h&gt;
+#include &lt;Urho3D/Graphics/AnimatedModel.h&gt;
+#include &lt;Urho3D/Graphics/AnimationController.h&gt;
+#include &lt;Urho3D/Graphics/Camera.h&gt;
+#include &lt;Urho3D/Graphics/Light.h&gt;
+#include &lt;Urho3D/Graphics/Material.h&gt;
+#include &lt;Urho3D/Graphics/Octree.h&gt;
+#include &lt;Urho3D/Graphics/Renderer.h&gt;
+#include &lt;Urho3D/Graphics/Zone.h&gt;
+#include &lt;Urho3D/Input/Controls.h&gt;
+#include &lt;Urho3D/Input/Input.h&gt;
+#include &lt;Urho3D/IO/FileSystem.h&gt;
+#include &lt;Urho3D/Physics/CollisionShape.h&gt;
+#include &lt;Urho3D/Physics/PhysicsWorld.h&gt;
+#include &lt;Urho3D/Physics/RigidBody.h&gt;
+#include &lt;Urho3D/Resource/ResourceCache.h&gt;
+#include &lt;Urho3D/Scene/Scene.h&gt;
+#include &lt;Urho3D/UI/Font.h&gt;
+#include &lt;Urho3D/UI/Text.h&gt;
+#include &lt;Urho3D/UI/UI.h&gt;
+
+#include "Character.h"
+#include "CharacterDemo.h"
+#include "Touch.h"
+
+#include &lt;Urho3D/DebugNew.h&gt;
+
+URHO3D_DEFINE_APPLICATION_MAIN(CharacterDemo)
+
+CharacterDemo::CharacterDemo(Context* context) :
+    Sample(context),
+    firstPerson_(false)
+{
+    // Register factory and attributes for the Character component so it can be created via CreateComponent, and loaded / saved
+    Character::RegisterObject(context);
+}
+
+CharacterDemo::~CharacterDemo()
+{
+}
+
+void CharacterDemo::Start()
+{
+    // Execute base class startup
+    Sample::Start();
+    if (touchEnabled_)
+        touch_ = new Touch(context_, TOUCH_SENSITIVITY);
+
+    // Create static scene content
+    CreateScene();
+
+    // Create the controllable character
+    CreateCharacter();
+
+    // Create the UI content
+    CreateInstructions();
+
+    // Subscribe to necessary events
+    SubscribeToEvents();
+
+    // Set the mouse mode to use in the sample
+    Sample::InitMouseMode(MM_RELATIVE);
+}
+
+void CharacterDemo::CreateScene()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+    scene_ = new Scene(context_);
+
+    // Create scene subsystem components
+    scene_-&gt;CreateComponent&lt;Octree&gt;();
+    scene_-&gt;CreateComponent&lt;PhysicsWorld&gt;();
+
+    // Create camera and define viewport. We will be doing load / save, so it's convenient to create the camera outside the scene,
+    // so that it won't be destroyed and recreated, and we don't have to redefine the viewport on load
+    cameraNode_ = new Node(context_);
+    Camera* camera = cameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+    camera-&gt;SetFarClip(300.0f);
+    GetSubsystem&lt;Renderer&gt;()-&gt;SetViewport(0, new Viewport(context_, scene_, camera));
+
+    // Create static scene content. First create a zone for ambient lighting and fog control
+    Node* zoneNode = scene_-&gt;CreateChild("Zone");
+    Zone* zone = zoneNode-&gt;CreateComponent&lt;Zone&gt;();
+    zone-&gt;SetAmbientColor(Color(0.15f, 0.15f, 0.15f));
+    zone-&gt;SetFogColor(Color(0.5f, 0.5f, 0.7f));
+    zone-&gt;SetFogStart(100.0f);
+    zone-&gt;SetFogEnd(300.0f);
+    zone-&gt;SetBoundingBox(BoundingBox(-1000.0f, 1000.0f));
+
+    // Create a directional light with cascaded shadow mapping
+    Node* lightNode = scene_-&gt;CreateChild("DirectionalLight");
+    lightNode-&gt;SetDirection(Vector3(0.3f, -0.5f, 0.425f));
+    Light* light = lightNode-&gt;CreateComponent&lt;Light&gt;();
+    light-&gt;SetLightType(LIGHT_DIRECTIONAL);
+    light-&gt;SetCastShadows(true);
+    light-&gt;SetShadowBias(BiasParameters(0.00025f, 0.5f));
+    light-&gt;SetShadowCascade(CascadeParameters(10.0f, 50.0f, 200.0f, 0.0f, 0.8f));
+    light-&gt;SetSpecularIntensity(0.5f);
+
+    // Create the floor object
+    Node* floorNode = scene_-&gt;CreateChild("Floor");
+    floorNode-&gt;SetPosition(Vector3(0.0f, -0.5f, 0.0f));
+    floorNode-&gt;SetScale(Vector3(200.0f, 1.0f, 200.0f));
+    floorNode-&gt;SetRotation(Quaternion(-30.0f, 0.0f, 0.0f)); /* Rotate the floor to simulate a slope. */
+    StaticModel* object = floorNode-&gt;CreateComponent&lt;StaticModel&gt;();
+    object-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+    object-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Stone.xml"));
+
+    RigidBody* body = floorNode-&gt;CreateComponent&lt;RigidBody&gt;();
+    // Use collision layer bit 2 to mark world scenery. This is what we will raycast against to prevent camera from going
+    // inside geometry
+    body-&gt;SetCollisionLayer(2);
+    CollisionShape* shape = floorNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+    shape-&gt;SetBox(Vector3::ONE);
+
+    /* Removed the mushrooms and boxes to simplify the test. */
+
+    /*
+    // Create mushrooms of varying sizes
+    const unsigned NUM_MUSHROOMS = 60;
+    for (unsigned i = 0; i &lt; NUM_MUSHROOMS; ++i)
+    {
+        Node* objectNode = scene_-&gt;CreateChild("Mushroom");
+        objectNode-&gt;SetPosition(Vector3(Random(180.0f) - 90.0f, 0.0f, Random(180.0f) - 90.0f));
+        objectNode-&gt;SetRotation(Quaternion(0.0f, Random(360.0f), 0.0f));
+        objectNode-&gt;SetScale(2.0f + Random(5.0f));
+        StaticModel* object = objectNode-&gt;CreateComponent&lt;StaticModel&gt;();
+        object-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Mushroom.mdl"));
+        object-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Mushroom.xml"));
+        object-&gt;SetCastShadows(true);
+
+        RigidBody* body = objectNode-&gt;CreateComponent&lt;RigidBody&gt;();
+        body-&gt;SetCollisionLayer(2);
+        CollisionShape* shape = objectNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+        shape-&gt;SetTriangleMesh(object-&gt;GetModel(), 0);
+    }
+
+    // Create movable boxes. Let them fall from the sky at first
+    const unsigned NUM_BOXES = 100;
+    for (unsigned i = 0; i &lt; NUM_BOXES; ++i)
+    {
+        float scale = Random(2.0f) + 0.5f;
+
+        Node* objectNode = scene_-&gt;CreateChild("Box");
+        objectNode-&gt;SetPosition(Vector3(Random(180.0f) - 90.0f, Random(10.0f) + 10.0f, Random(180.0f) - 90.0f));
+        objectNode-&gt;SetRotation(Quaternion(Random(360.0f), Random(360.0f), Random(360.0f)));
+        objectNode-&gt;SetScale(scale);
+        StaticModel* object = objectNode-&gt;CreateComponent&lt;StaticModel&gt;();
+        object-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+        object-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Stone.xml"));
+        object-&gt;SetCastShadows(true);
+
+        RigidBody* body = objectNode-&gt;CreateComponent&lt;RigidBody&gt;();
+        body-&gt;SetCollisionLayer(2);
+        // Bigger boxes will be heavier and harder to move
+        body-&gt;SetMass(scale * 2.0f);
+        CollisionShape* shape = objectNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+        shape-&gt;SetBox(Vector3::ONE);
+    }
+    */
+
+}
+
+void CharacterDemo::CreateCharacter()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+    Node* objectNode = scene_-&gt;CreateChild("Jack");
+    objectNode-&gt;SetPosition(Vector3(0.0f, 1.0f, 0.0f));
+
+    // spin node
+    Node* adjustNode = objectNode-&gt;CreateChild("AdjNode");
+    adjustNode-&gt;SetRotation( Quaternion(180, Vector3(0,1,0) ) );
+
+    // Create the rendering component + animation controller
+    AnimatedModel* object = adjustNode-&gt;CreateComponent&lt;AnimatedModel&gt;();
+    object-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Mutant/Mutant.mdl"));
+    object-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Models/Mutant/Materials/mutant_M.xml"));
+    object-&gt;SetCastShadows(true);
+    adjustNode-&gt;CreateComponent&lt;AnimationController&gt;();
+
+    // Set the head bone for manual control
+    object-&gt;GetSkeleton().GetBone("Mutant:Head")-&gt;animated_ = false;
+
+    // Create rigidbody, and set non-zero mass so that the body becomes dynamic
+    RigidBody* body = objectNode-&gt;CreateComponent&lt;RigidBody&gt;();
+    body-&gt;SetCollisionLayer(1);
+    body-&gt;SetMass(1.0f);
+
+    // Set zero angular factor so that physics doesn't turn the character on its own.
+    // Instead we will control the character yaw manually
+    body-&gt;SetAngularFactor(Vector3::ZERO);
+
+    // Set the rigidbody to signal collision also when in rest, so that we get ground collisions properly
+    body-&gt;SetCollisionEventMode(COLLISION_ALWAYS);
+
+    // Set a capsule shape for collision
+    CollisionShape* shape = objectNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+    shape-&gt;SetCapsule(0.7f, 1.8f, Vector3(0.0f, 0.9f, 0.0f));
+
+    // Create the character logic component, which takes care of steering the rigidbody
+    // Remember it so that we can set the controls. Use a WeakPtr because the scene hierarchy already owns it
+    // and keeps it alive as long as it's not removed from the hierarchy
+    character_ = objectNode-&gt;CreateComponent&lt;Character&gt;();
+}
+
+void CharacterDemo::CreateInstructions()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    UI* ui = GetSubsystem&lt;UI&gt;();
+
+    // Construct new Text object, set string to display and font to use
+    Text* instructionText = ui-&gt;GetRoot()-&gt;CreateChild&lt;Text&gt;();
+    instructionText-&gt;SetText(
+        "Use WASD keys and mouse/touch to move\n"
+        "Space to jump, F to toggle 1st/3rd person\n"
+        "F5 to save scene, F7 to load"
+    );
+    instructionText-&gt;SetFont(cache-&gt;GetResource&lt;Font&gt;("Fonts/Anonymous Pro.ttf"), 15);
+    // The text has multiple rows. Center them in relation to each other
+    instructionText-&gt;SetTextAlignment(HA_CENTER);
+
+    // Position the text relative to the screen center
+    instructionText-&gt;SetHorizontalAlignment(HA_CENTER);
+    instructionText-&gt;SetVerticalAlignment(VA_CENTER);
+    instructionText-&gt;SetPosition(0, ui-&gt;GetRoot()-&gt;GetHeight() / 4);
+}
+
+void CharacterDemo::SubscribeToEvents()
+{
+    // Subscribe to Update event for setting the character controls before physics simulation
+    SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(CharacterDemo, HandleUpdate));
+
+    // Subscribe to PostUpdate event for updating the camera position after physics simulation
+    SubscribeToEvent(E_POSTUPDATE, URHO3D_HANDLER(CharacterDemo, HandlePostUpdate));
+
+    // Unsubscribe the SceneUpdate event from base class as the camera node is being controlled in HandlePostUpdate() in this sample
+    UnsubscribeFromEvent(E_SCENEUPDATE);
+}
+
+void CharacterDemo::HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace Update;
+
+    Input* input = GetSubsystem&lt;Input&gt;();
+
+    if (character_)
+    {
+        // Clear previous controls
+        character_-&gt;controls_.Set(CTRL_FORWARD | CTRL_BACK | CTRL_LEFT | CTRL_RIGHT | CTRL_JUMP, false);
+
+        // Update controls using touch utility class
+        if (touch_)
+            touch_-&gt;UpdateTouches(character_-&gt;controls_);
+
+        // Update controls using keys
+        UI* ui = GetSubsystem&lt;UI&gt;();
+        if (!ui-&gt;GetFocusElement())
+        {
+            if (!touch_ || !touch_-&gt;useGyroscope_)
+            {
+                character_-&gt;controls_.Set(CTRL_FORWARD, input-&gt;GetKeyDown(KEY_W));
+                character_-&gt;controls_.Set(CTRL_BACK, input-&gt;GetKeyDown(KEY_S));
+                character_-&gt;controls_.Set(CTRL_LEFT, input-&gt;GetKeyDown(KEY_A));
+                character_-&gt;controls_.Set(CTRL_RIGHT, input-&gt;GetKeyDown(KEY_D));
+            }
+            character_-&gt;controls_.Set(CTRL_JUMP, input-&gt;GetKeyDown(KEY_SPACE));
+
+            // Add character yaw &amp; pitch from the mouse motion or touch input
+            if (touchEnabled_)
+            {
+                for (unsigned i = 0; i &lt; input-&gt;GetNumTouches(); ++i)
+                {
+                    TouchState* state = input-&gt;GetTouch(i);
+                    if (!state-&gt;touchedElement_)    // Touch on empty space
+                    {
+                        Camera* camera = cameraNode_-&gt;GetComponent&lt;Camera&gt;();
+                        if (!camera)
+                            return;
+
+                        Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+                        character_-&gt;controls_.yaw_ += TOUCH_SENSITIVITY * camera-&gt;GetFov() / graphics-&gt;GetHeight() * state-&gt;delta_.x_;
+                        character_-&gt;controls_.pitch_ += TOUCH_SENSITIVITY * camera-&gt;GetFov() / graphics-&gt;GetHeight() * state-&gt;delta_.y_;
+                    }
+                }
+            }
+            else
+            {
+                character_-&gt;controls_.yaw_ += (float)input-&gt;GetMouseMoveX() * YAW_SENSITIVITY;
+                character_-&gt;controls_.pitch_ += (float)input-&gt;GetMouseMoveY() * YAW_SENSITIVITY;
+            }
+            // Limit pitch
+            character_-&gt;controls_.pitch_ = Clamp(character_-&gt;controls_.pitch_, -80.0f, 80.0f);
+            // Set rotation already here so that it's updated every rendering frame instead of every physics frame
+            character_-&gt;GetNode()-&gt;SetRotation(Quaternion(character_-&gt;controls_.yaw_, Vector3::UP));
+
+            // Switch between 1st and 3rd person
+            if (input-&gt;GetKeyPress(KEY_F))
+                firstPerson_ = !firstPerson_;
+
+            // Turn on/off gyroscope on mobile platform
+            if (touch_ &amp;&amp; input-&gt;GetKeyPress(KEY_G))
+                touch_-&gt;useGyroscope_ = !touch_-&gt;useGyroscope_;
+
+            // Check for loading / saving the scene
+            if (input-&gt;GetKeyPress(KEY_F5))
+            {
+                File saveFile(context_, GetSubsystem&lt;FileSystem&gt;()-&gt;GetProgramDir() + "Data/Scenes/CharacterDemo.xml", FILE_WRITE);
+                scene_-&gt;SaveXML(saveFile);
+            }
+            if (input-&gt;GetKeyPress(KEY_F7))
+            {
+                File loadFile(context_, GetSubsystem&lt;FileSystem&gt;()-&gt;GetProgramDir() + "Data/Scenes/CharacterDemo.xml", FILE_READ);
+                scene_-&gt;LoadXML(loadFile);
+                // After loading we have to reacquire the weak pointer to the Character component, as it has been recreated
+                // Simply find the character's scene node by name as there's only one of them
+                Node* characterNode = scene_-&gt;GetChild("Jack", true);
+                if (characterNode)
+                    character_ = characterNode-&gt;GetComponent&lt;Character&gt;();
+            }
+        }
+
+        /* Raycast down to get the floor normal under the character and store the normal value. */
+        PhysicsRaycastResult result;
+        scene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;RaycastSingle(result, Ray( character_-&gt;GetNode()-&gt;GetPosition() , Vector3(0.0f,-1.0f,0.0f) ), 5.0f, 2);
+        if (result.body_) {
+            character_-&gt;floorNormal=result.normal_;
+        }
+
+    }
+}
+
+void CharacterDemo::HandlePostUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    if (!character_)
+        return;
+
+    Node* characterNode = character_-&gt;GetNode();
+
+    // Get camera lookat dir from character yaw + pitch
+    Quaternion rot = characterNode-&gt;GetRotation();
+    Quaternion dir = rot * Quaternion(character_-&gt;controls_.pitch_, Vector3::RIGHT);
+
+    // Turn head to camera pitch, but limit to avoid unnatural animation
+    Node* headNode = characterNode-&gt;GetChild("Mutant:Head", true);
+    float limitPitch = Clamp(character_-&gt;controls_.pitch_, -45.0f, 45.0f);
+    Quaternion headDir = rot * Quaternion(limitPitch, Vector3(1.0f, 0.0f, 0.0f));
+    // This could be expanded to look at an arbitrary target, now just look at a point in front
+    Vector3 headWorldTarget = headNode-&gt;GetWorldPosition() + headDir * Vector3(0.0f, 0.0f, -1.0f);
+    headNode-&gt;LookAt(headWorldTarget, Vector3(0.0f, 1.0f, 0.0f));
+
+    if (firstPerson_)
+    {
+        cameraNode_-&gt;SetPosition(headNode-&gt;GetWorldPosition() + rot * Vector3(0.0f, 0.15f, 0.2f));
+        cameraNode_-&gt;SetRotation(dir);
+    }
+    else
+    {
+        // Third person camera: position behind the character
+        Vector3 aimPoint = characterNode-&gt;GetPosition() + rot * Vector3(0.0f, 1.7f, 0.0f);
+
+        // Collide camera ray with static physics objects (layer bitmask 2) to ensure we see the character properly
+        Vector3 rayDir = dir * Vector3::BACK;
+        float rayDistance = touch_ ? touch_-&gt;cameraDistance_ : CAMERA_INITIAL_DIST;
+        PhysicsRaycastResult result;
+        scene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;RaycastSingle(result, Ray(aimPoint, rayDir), rayDistance, 2);
+        if (result.body_)
+            rayDistance = Min(rayDistance, result.distance_);
+        rayDistance = Clamp(rayDistance, CAMERA_MIN_DIST, CAMERA_MAX_DIST);
+
+        cameraNode_-&gt;SetPosition(aimPoint + rayDir * rayDistance);
+        cameraNode_-&gt;SetRotation(dir);
+    }
+}
+</code></pre>
+<p>Special thanks to <span class="mention">@1vanK</span>, his posts <a href="https://discourse.urho3d.io/t/solved-how-to-direct-a-character-parallel-to-the-ground/1285/5">How to direct a character parallel to the ground?</a> and <a href="https://discourse.urho3d.io/t/improved-charactercontroller/3472">Improved CharacterController</a> were essential to fix the movement.</p>
+<p>Also special thanks to <span class="mention">@Eugene</span> for pointing vertical velocity and to <span class="mention">@jmiller</span> for taking the time to help figure out this problem. You guys are awesome!</p>
+<p>Best regards.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>(just wanted to mention it somewhere)<br/>
+There is another approach of implementing character controller: use <code>CrowdAgent</code>.<br/>
+Then set <code>weightToi</code> to some small value and use <code>SetTargetVelocity</code> to drive character.</p>
+<p>It could be used almost without tweaks if character doesn’t jump and moves over static geometry only.<br/>
+There may be some tricks to use this approach for generic character controller tho…</p>
+<p>I wanted to mention it because tweaking <code>weightToi</code> is not obvious at all.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I’ve learned the hard way that HandleNodeCollision algorithm can get stuck in valleys between 2 (or more) slopes and the character will never become grounded.<br/>
+A better way would be to average all the contact normals and check if the average.y_ &gt; 0.75 to determined if the character is grounded.</p>
+<p>Also simply disabling gravity risks having the character floating up and away if something else bumps into it.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

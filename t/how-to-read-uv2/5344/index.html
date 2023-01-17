@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to read UV2?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to read UV2?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2396_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">suppagam</div>
+          <div class="post_content">
+<p>I’m using this technique to build my levels: <a href="https://blender.stackexchange.com/questions/77264/how-can-i-bake-a-lightmap-and-use-it-in-blender-game-engine" rel="nofollow noopener">https://blender.stackexchange.com/questions/77264/how-can-i-bake-a-lightmap-and-use-it-in-blender-game-engine</a></p>
+<p>Every object has it’s own UV, with it’s own texture, but I’m baking the lighting information for the whole level in their UV2. Each objects is it’s own .blend, and then I have a .blend for the entire level. It works well and I get really high-resolution shadows, which is awesome.</p>
+<p>However, I can’t find a way to make Urho read my second UV and the lightmap texture. Is there a default shader that I can use, or I have to build one from scratch?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Could this answer your question?</p><aside class="quote" data-post="2" data-topic="553">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/solved-how-to-use-one-lightmap-for-many-objects/553/2">How to use one Lightmap for many objects?</a> <a class="badge-wrapper bullet" href="/c/discussions/support/10"><span class="badge-category-parent-bg" style="background-color: #25AAE2;"></span><span class="badge-category-bg" style="background-color: #92278F;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Someone can help you.">Support</span></a>
+</div>
+<blockquote>
+    Choose the DiffLightMap.xml technique, put diffuse texture normally to diffuse slot, and the shared lightmap texture to emissive slot. You’ll need unique materials for each object because of the different diffuse texture.
+  </blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2396_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">suppagam</div>
+          <div class="post_content">
+<p>The problem is that this does not allow me to have normal materials for my other objects, like normal and specular.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>It seems to me that <code>DiffLightMap.xml</code> + <code>DiffNormalSpec.xml</code> would make:</p>
+<details>
+<summary>
+DiffNormalSpecLightMap.xml</summary>
+<pre><code class="lang-auto">&lt;technique vs="LitSolid" ps="LitSolid" psdefines="DIFFMAP"&gt;
+    &lt;pass name="base" vsdefines="LIGHTMAP" psdefines="LIGHTMAP" /&gt;
+    &lt;pass name="litbase" vsdefines="NORMALMAP" psdefines="AMBIENT NORMALMAP SPECMAP" /&gt;
+    &lt;pass name="light" vsdefines="NORMALMAP" psdefines="NORMALMAP SPECMAP" depthtest="equal" depthwrite="false" blend="add" /&gt;
+    &lt;pass name="prepass" vsdefines="NORMALMAP" psdefines="PREPASS NORMALMAP SPECMAP" /&gt;
+    &lt;pass name="material" psdefines="MATERIAL SPECMAP" depthtest="equal" depthwrite="false" /&gt;
+    &lt;pass name="deferred" vsdefines="NORMALMAP" psdefines="DEFERRED NORMALMAP SPECMAP" /&gt;
+    &lt;pass name="depth" vs="Depth" ps="Depth" psexcludes="PACKEDNORMAL" /&gt;
+    &lt;pass name="shadow" vs="Shadow" ps="Shadow" psexcludes="PACKEDNORMAL" /&gt;
+&lt;/technique&gt;
+</code></pre>
+</details>
+<p>Admitting I am no shader expert and did not test the resulting <code>Technique</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2396_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">suppagam</div>
+          <div class="post_content">
+<p>Now I’m confused… so you can combine passes like that? The engine will just merge stuff? Where in the XML is it specifying to use UV2?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>UV2 is reserved to be used with light maps, so that would be the <code>LIGHTMAP</code> part which tells the <em>shader</em> to add the lightmap to the final color:</p>
+<aside class="quote no-group">
+<div class="title">
+<div class="quote-controls"></div>
+ From LitSolid.glsl:</div>
+<blockquote>
+<pre><code class="lang-auto">#ifdef LIGHTMAP
+    finalColor += texture2D(sEmissiveMap, vTexCoord2).rgb * diffColor.rgb;
+#endif
+</code></pre>
+</blockquote>
+</aside>
+<p>I believe <code>Technique</code>s can also be constructed through code, I’ll have to browse source to tell you more.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/Technique.h#L187-L272</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="187" style="counter-reset: li-counter 186 ;">
+<li>/// %Material technique. Consists of several passes.
+</li>
+<li>class URHO3D_API Technique : public Resource
+</li>
+<li>{
+</li>
+<li>    URHO3D_OBJECT(Technique, Resource);
+</li>
+<li>
+</li>
+<li>    friend class Renderer;
+</li>
+<li>
+</li>
+<li>public:
+</li>
+<li>    /// Construct.
+</li>
+<li>    explicit Technique(Context* context);
+</li>
+<li>    /// Destruct.
+</li>
+<li>    ~Technique() override;
+</li>
+<li>    /// Register object factory.
+</li>
+<li>    static void RegisterObject(Context* context);
+</li>
+<li>
+</li>
+<li>    /// Load resource from stream. May be called from a worker thread. Return true if successful.
+</li>
+<li>    bool BeginLoad(Deserializer&amp; source) override;
+</li>
+<li>
+</li>
+<li>    /// Set whether requires desktop level hardware.
+</li>
+<li>    void SetIsDesktop(bool enable);
+</li>
+</ol></code></pre>
+
+  This file has been truncated. <a  rel="nofollow noopener" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2396_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">suppagam</div>
+          <div class="post_content">
+<p>Thanks for the info! Really useful.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I’m glad to hear that. Did the <a href="https://discourse.urho3d.io/t/how-to-read-uv2/5344/4"><code>DiffNormalSpecLightMap.xml</code></a> solve your immediate issue?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

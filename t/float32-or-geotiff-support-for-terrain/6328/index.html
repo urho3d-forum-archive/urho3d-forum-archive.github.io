@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Float32 or GeoTIFF support for Terrain?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Float32 or GeoTIFF support for Terrain?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerscg</div>
+          <div class="post_content">
+<p>I’m currently using DEM data at 1/3 arc second resolution for the terrain in my game. The elevation data is stored as floats. I was hoping that Terrain would support the .tiff format directly, but it seems that only BMP, PNG, JPG, and TGA are supported. When using PNG or JPG, I lose support for floats, and end up with contours as shown here:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title=""><img alt="" data-base62-sha1="f1nH87XhJXseDhr5Tf6dTVZPC2C"  height="380" src="../../../images2/c86859127caf93bc69c06fb5bb043dfd.jpeg"  width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1575×868 192 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>Is there a supported way to use floats for terrain data?</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>The easiest solution I can think of is to create a <code>CustomTerrain</code> class by copying the <code>Terrain</code> class, and slightly change the way it reads from heightmap image data.</p>
+<p>If you look at the source code for <code>Terrain</code> class, luckily, the height data is already stored as float</p>
+<pre><code class="lang-auto">    /// Height data.
+    SharedArrayPtr&lt;float&gt; heightData_;
+    /// Source height data for smoothing.
+    SharedArrayPtr&lt;float&gt; sourceHeightData_;
+</code></pre>
+<p>So the only thing you need to change is around line 940-1000 in <code>Terrain.cpp</code></p>
+<pre><code class="lang-auto">// Reading single channel image data.
+float newHeight = (float)src[imgRow * (numVertices_.y_ - 1 - z) + x] * spacing_.y_;
+...
+// Reading multiple channels data (R and G).
+float newHeight = ((float)src[imgRow * (numVertices_.y_ - 1 - z) + imgComps * x] +
+                                       (float)src[imgRow * (numVertices_.y_ - 1 - z) + imgComps * x + 1] / 256.0f) * spacing_.y_;
+</code></pre>
+<p>where the <code>src</code> is the source image data you can read whatever you want, e.g. tiff (You can find other library from DEM to read it).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>Terrain class also supports an encoded PNG format, where the height is stored in the Red and Green channels, with the green channel holding the fractional part. This gives you 65536 levels of elevation, instead of the regular 256 that a basic greyscale heightmap gives you, and should help alleviate the tiering that you see. Additionally, Terrain has a toggleable Smoothing setting which can further smooth out those edges.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><span class="mention">@rogerscg</span> Also, welcome to the forums! <img alt=":confetti_ball:" class="emoji" src="../../../images2/8cc1133d965c492d26cc2ba425a80ea1.png" title=":confetti_ball:"/> <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

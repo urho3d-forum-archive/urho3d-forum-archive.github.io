@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Preserving a large sprite array?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Preserving a large sprite array?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I’m working on a game with a large procedural map. The game generates the overworld, represented by small sprites in a 2d grid. Wait times for generation are fine. However, to reload this same map later in game as a map screen in the menu would be far too slow. Could I just screenshot it at generation and load that file in somehow? I guess I’d have to figure out the cropping? Or is there a better way?<br/>
+I’m talking like 1million combines sprites so…</p>
+<p>Curious if anyone has done anything similar.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>If you have a maximum resolution for the map you could save a map file that maps each pixel to a grid of underlying sprites. Initialize the file to black then set each map pixel as the world gets generated. If you exceed the bounds of your file, then make additional files in an expanding map composite.</p>
+<p>If a change in the world requires a change in the map, it should be straightforward to add an event to world changes that the map-maker can listen to to update relevant map pixels.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Hm so it’s already a grid of sprites. It takes up 1gb of memory after creation. If I unload them then reloading them takes a while. I should clarify that I already have the data saved in a nested lua table. I am basically stuck between disabling the sprites and keeping them in memory (wasteful) or removing and recreating from the data (slow). But maybe at map gen I could create an image file pixel by pixel and blow it up, since the overworld sprites are 8x8 sprites of solid colors anyway. Need to check if urho has a way to create image data like that. I did that in another framework once.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Okay I figured it out.</p>
+<p>Took a little tinkering but got image creation working pixel by pixel. This works great for an overworld preview. I also am going to try using this as the base map layer in game, and just spawning entities, waves, and other details on top of it. For example, most games like this have grass cluster tiles every so often instead of regular grass tiles. However, I can just do the clusters randomly and not have to have a sprite for each tile. I can now have the entire map (or a large area) loaded as a single sprite and keep a great frame rate.</p>
+<p>Saved the map preview to disk and then used it later as a sprite2d resource. Also will later let the player look at their creations and stuff.</p>
+<pre><code class="lang-auto">function InitImage()
+	img = Image:new()
+	local sz = SizeIndexToSize(worldgen.mapSize)
+	img:SetSize(sz,sz,4)
+	return img
+end
+
+function AddPixel(x,y,tile)
+	local col = spriteColors[tile]
+	img:SetPixel(x-1,y-1,col)
+end
+
+function AddImage()
+	local sz = SizeIndexToSize(worldgen.mapSize)
+	
+	local texture = Texture2D:new()
+	texture:SetFilterMode(FILTER_NEAREST)
+	texture:SetNumLevels(1)
+	texture:SetSize(sz,sz,graphics:GetRGBAFormat(),TEXTURE_STATIC)
+	texture:SetData(img)
+	
+	local sprite = ui.root:CreateChild("Sprite")
+	sprite:SetTexture(texture)
+	local m = graphics.width*.007 * (1/(sz*.02))
+	sprite:SetSize(sz*m,sz*m)
+	sprite:SetPosition(graphics.width/2 - sz*m/2,graphics.height/2 - sz*m/2)
+	sprite:SetBlendMode(BLEND_ALPHA)
+	
+	img:SavePNG("Data/Art/map.png")
+end
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

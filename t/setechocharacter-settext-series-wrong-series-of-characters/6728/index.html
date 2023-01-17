@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>SetEchoCharacter() + SetText() = Series Wrong Series of Characters</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">SetEchoCharacter() + SetText() = Series Wrong Series of Characters</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>If both <code>SetEchoCharacter()</code> and <code>SetText()</code> are set and you try to use <code>GetChildStaticCast()</code> you just get a bunch of whatever <code>SetEchoCharacter()</code> was set to.</p>
+<pre><code>auto* lineEditPassword = new Urho3D::LineEdit( context_ );
+lineEditPassword-&gt;SetName( "LineEditPassword" );
+lineEditPassword-&gt;SetMinHeight( 24 );
+lineEditPassword-&gt;SetEchoCharacter( '*' );
+lineEditPassword-&gt;SetText( "password here" );
+
+Urho3D::LineEdit* passwordLineEdit = window_-&gt;GetChildStaticCast&lt; Urho3D::LineEdit &gt;( "LineEditPassword", false );
+</code></pre>
+<p><code>passwordLineEdit</code> does not equal “<em>password here</em>” but instead equals “*************”.</p>
+<p>This seems like a bug to me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Looks correct to me. Which function are you calling that’s returning the echo’d version? If it’s just that you’re seeing the echo’d version in UI then it’s correct.</p>
+<p>Are you expecting to be able to static-cast away the properties of a class instance?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>Sorry, I should have made this comparison before: I am expecting it to act like the HTMLs <code>&lt;input type="password" /&gt;</code>. Visually it is all *'s but when you retrieve the value it is was what was actually typed.</p>
+<p>Right now, if I pre-set the text with <code>SetText()</code> (see example above) only *'s come out when retrieving the value.</p>
+<p><strong>Edit</strong><br/>
+Consider the password “<em>password</em>”. In the above example, if I get the value of the LineEdit, all *'s come out instead of “<em>password</em>” (looks like “********”). If I type one character (say “<em>A</em>”) in the middle of it I get “<em>*****A***</em>”.</p>
+<p>Is <code>SetEchoCharacter()</code> only supposed to be a visual thing (like HTMLs <code>&lt;input type="password" /&gt;</code>, or actually whatever you type into <code>SetEchoCharacter()</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6728" data-username="nickwebha">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/02e2316a4bb4a955880ab9ea17e7d1db.png" width="20"/> nickwebha:</div>
+<blockquote>
+<p><code>passwordLineEdit</code> does not equal “ <em>password here</em> ”</p>
+</blockquote>
+</aside>
+<p>Do you mean that if you call “GetText” you get hidden text?<br/>
+My best bet would be this line:</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/f8cb13f49afa1a77743c4fc06582bc1bbc11ed29/Source/Urho3D/UI/LineEdit.cpp#L98</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="88" style="counter-reset: li-counter 87 ;">
+<li>}
+</li>
+<li>
+</li>
+<li>void LineEdit::ApplyAttributes()
+</li>
+<li>{
+</li>
+<li>    BorderImage::ApplyAttributes();
+</li>
+<li>
+</li>
+<li>    // Set the text's position to match clipping and indent width, so that text left edge is not left partially hidden
+</li>
+<li>    text_-&gt;SetPosition(GetIndentWidth() + clipBorder_.left_, clipBorder_.top_);
+</li>
+<li>
+</li>
+<li>    // Sync the text line
+</li>
+<li class="selected">    line_ = text_-&gt;GetText();
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>void LineEdit::Update(float timeStep)
+</li>
+<li>{
+</li>
+<li>    if (cursorBlinkRate_ &gt; 0.0f)
+</li>
+<li>        cursorBlinkTimer_ = fmodf(cursorBlinkTimer_ + cursorBlinkRate_ * timeStep, 1.0f);
+</li>
+<li>
+</li>
+<li>    // Update cursor position if font has changed
+</li>
+<li>    if (text_-&gt;GetFont() != lastFont_ || text_-&gt;GetFontSize() != lastFontSize_)
+</li>
+<li>    {
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>Correct.</p>
+<p>If I do not do <code>SetText()</code> and still use <code>SetEchoCharacter()</code> it works as expected (shows a bunch of *'s but outputs the “real” text). This is in addition to what I mentioned before about typing in the middle of the *'s.</p>
+<p>Still feel this is a bug.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

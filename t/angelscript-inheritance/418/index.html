@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Angelscript inheritance</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Angelscript inheritance</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I’ve been scratching my head over this one for a few days, thought you guys might have a better idea.</p>
+<p>Essentially I want to define a standard interface that can be then inherited from in Angelscript classes. For example, say I have a card game like Magic The Gathering, my base class might look like:</p>
+<p><code>class Card
+{
+public:
+    virtual void PreDrawPhase() = 0;
+    virtual void PostDrawPhase() = 0;
+    // etc....
+};</code></p>
+<p>Then I want to be able to define each card in Angelscript such that the cards can be called from C++, but the logic is handled by the script itself. How would I go about defining the behavior?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>Do you need to pass data generated from c++?  Why does the c++ code call it?  There are lots of looser coupled options like subscribing to events and using node vars data bags.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/70bcc47748c28f7bda94e891e8db727b.png" width="20"/> friesencr:</div>
+<blockquote>
+<p>Do you need to pass data generated from c++?  Why does the c++ code call it?  There are lots of looser coupled options like subscribing to events and using node vars data bags.</p>
+</blockquote>
+</aside>
+<p>Think of my example from before. Say I have a hundred cards and each one does various effects. Instead of hard-coding the effect in C++, I can let the script define the effect that’s done. So I could then call from C++:</p>
+<p><code>// in pseudo-code
+foreach(card in player.cards)
+{
+    if(card-&gt;PreDrawPhase())
+    {
+        player-&gt;DrawCard();
+    }
+    card-&gt;PostDrawPhase();
+}</code></p>
+<p>and in my card’s script:</p>
+<p>[code]bool PreDrawPhase()<br/>
+{<br/>
+if(player.cards.count &gt; 7)<br/>
+return false; // Don’t draw a card</p>
+<pre><code>return true;
+</code></pre>
+<p>}</p>
+<p>void PostDrawPhase()<br/>
+{<br/>
+//Discard another player’s card because we can<br/>
+}[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Have you checked the ScriptInstance documentation? I think it may fit your use case well. You should be able to define your base AngelScript class using empty interface ScriptObject then derived your Anglescript inherintance from this base class. I don’t think you need C++ abstract base class for that. You can then invoke the ScriptInstance’s method by using ScriptInstance::Execute() or ScriptInstance::DelayedExecute() methods from the C++ side.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I never noticed ScriptInstance, I only saw ScriptFile when I was looking through before.</p>
+<p>This seems promising, especially as it appears the ScriptInstance can register for events. I am confused about this bit:</p>
+<aside class="quote">
+<blockquote>
+<p>Subscribing to events in script behaves differently depending on whether SubscribeToEvent() is called from a script object’s method, or from a procedural script function. If called from an instantiated script object, the ScriptInstance becomes the event receiver on the C++ side, and calls the specified handler method when the event arrives. If called from a function, the ScriptFile will be the event receiver and the handler must be a free function in the same script file. The third case is if the event is subscribed to from a script object that does not belong to a ScriptInstance. In that case the ScriptFile will create a proxy C++ object on demand to be able to forward the event to the script object.</p>
+</blockquote>
+</aside>
+<p>Say I have the file <a href="http://testCard.as" rel="nofollow noopener">testCard.as</a> with the following:</p>
+<p>bool HandlePreDraw()<br/>
+{<br/>
+// Do something<br/>
+}</p>
+<p>void HandlePostDraw()<br/>
+{<br/>
+// Do something<br/>
+}</p>
+<p>Would it still receive events properly if I called SubscribeToEvent() from the Start() function? Or would I need to set it up a different way? Also, event data is read in AngelScript the same way it is read in C++, correct?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>As I understand it, you only use SubscribeToEvent() when you know there is <em>other</em> Object sending a particular event that your object is interested (and want to become the event receiver). For your case, I don’t think you can easily find the preexisting events that are suitable for your two handlers to listen to. I believe it is easier to just invoke the PreDraw() and PostDraw() as normal Script Object’s methods via the ScriptInstance::Execute() method as I pointed out earlier.</p>
+<p>Regarding your confusion, You can observe the differences in the Samples by comparing SubscribeToEvent() call in <a href="http://Ninja.as">Ninja.as</a> and SubscribeToEvent() call in 01_HelloWorld.as. HTH.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>Some events like some of the ui events don’t have senders.  So using the syntax without a the sender is used.  It’s contextual.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>As I understand it, you only use SubscribeToEvent() when you know there is <em>other</em> Object sending a particular event that your object is interested (and want to become the event receiver). For your case, I don’t think you can easily find the preexisting events that are suitable for your two handlers to listen to. I believe it is easier to just invoke the PreDraw() and PostDraw() as normal Script Object’s methods via the ScriptInstance::Execute() method as I pointed out earlier.</p>
+</blockquote>
+</aside>
+<p>Due to the way events work, it’s trivial to add new events as needed. My game already has a few dozen custom events in use, same as the InputManager class that I released.</p>
+<p>Completely forgot about the .as demos as I had previously deleted them from my build. I looked through them and found what I needed.</p>
+<p>For a test, I created a Card class inherited from ScriptInstance. Luckily, it’s easy to tell Angelscript that one class inherits another. Therefore instead of traversing nodes looking for an attached ScriptInstance components which might or might not be a Card (could be something else scripted), it’s now easier to traverse the nodes looking for an attached Card component.</p>
+<p>One thing I haven’t yet figured out (remember I’m fairly new to scripting) is how to access the current node within the script. I know I can call my globally registered class from the script. Does ScriptInstance give global variables to the underlying script to do this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>if you are in a ScriptInstance and call “node” not this.node, it will give you the node that is attached to the scriptinstance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>ScriptInstance is a Component. So, it should have all the common methods and properties the base Component class gives, including the node property. See <a href="http://urho3d.github.io/documentation/HEAD/_script_a_p_i.html#Class_ScriptInstance">urho3d.github.io/documentation/H … ptInstance</a></p>
+<aside class="quote no-group" data-username="thebluefish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bf1ad5330f9831ec6d82214e91751e5d.png" width="20"/> thebluefish:</div>
+<blockquote>
+<p>Due to the way events work, it’s trivial to add new events as needed.</p>
+</blockquote>
+</aside>
+<p>Yes, adding new events to suit your need works as well. I think it is all comes to the design decision whether you want to have loosely coupled or tightly coupled design. The Urho3D library cannot anticipate how all the components in the end application interacts with each other, so having the event subscription mechanism solves that problem by allowing the components to depend on each other loosely. While in your own application, you do have a choice between the two as you should already know how your components would interact with each other before hand.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Awesome <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>I was able to further work the ScriptInstance class to fit what I was trying to do. I find it’s easy to simply inherit from this class, and expose additional script functions explicitly.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

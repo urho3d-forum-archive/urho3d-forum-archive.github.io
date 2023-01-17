@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Sliders and SetAutoDisableChildren</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Sliders and SetAutoDisableChildren</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>When using a Slider from a ScrollView with SetAutoDisableChildren enabled, moving the Slider becomes tedious as we are limited by the value set for SetAutoDisableThreshold (when the threshold is reached, sliding ends and we have to grab the knob again and slide in multiple small steps).<br/>
+Maybe we could for example make an exception for the Slider’s knob to not be impacted by SetAutoDisableChildren.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Which platform are you testing on? Are you using auto-disable on non-touch? On a touch situation? Horizontal slider? Touch emulation? I’m trying to reproduce the error.</p>
+<p>There is already a check for the scrollbars (the children won’t be disabled with scroll bar scrolling).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks hd_. I’m testing on Android and Touch emulation, without scrollbars, auto-disable off, horizontal slider.<br/>
+I’ll add a simple example to illustrate the ‘issue’.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Here is sample to reproduce on mobile or in Touch emulation:</p>
+<pre><code class="lang-auto">void Start()
+{
+    input.mouseVisible = true;
+    ui.root.defaultStyle = cache.GetResource("XMLFile", "UI/DefaultStyle.xml");
+    InitWindow();
+}
+
+void InitWindow()
+{
+	Slider@ slider = Slider();
+	slider.SetStyleAuto();
+	slider.SetFixedSize(250, 40);
+	slider.range = 50;
+	slider.value = 25;
+
+	ScrollView@ newScrollView = ui.root.CreateChild("ScrollView");
+	newScrollView.SetStyleAuto();
+	newScrollView.SetAlignment(HA_CENTER, VA_CENTER);
+	newScrollView.SetFixedSize(250, 40);
+	newScrollView.autoDisableChildren = true;
+	newScrollView.SetScrollBarsVisible(false, false);
+	newScrollView.contentElement = slider;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Thanks for the sample code, error is reproduced. I’ll look into it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks hd_.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>After looking at this, I’m not sure an in-engine solution is the best way, as it could get out of hand with micro-options. This is something that can be done on application side without too much effort:</p>
+<p>[code]void Start()<br/>
+{<br/>
+log.Open("./log.log");<br/>
+input.mouseVisible = true;<br/>
+ui.root.defaultStyle = cache.GetResource(“XMLFile”, “UI/DefaultStyle.xml”);<br/>
+InitWindow();<br/>
+input.touchEmulation = true;<br/>
+}</p>
+<p>void InitWindow()<br/>
+{<br/>
+Slider@ slider = Slider();<br/>
+slider.SetStyleAuto();<br/>
+slider.SetFixedSize(250, 20);<br/>
+slider.range = 10;<br/>
+slider.value = 50;</p>
+<p>ScrollView@ newScrollView = ui.root.CreateChild(“ScrollView”);<br/>
+newScrollView.SetStyleAuto();<br/>
+newScrollView.SetAlignment(HA_CENTER, VA_CENTER);<br/>
+newScrollView.SetFixedSize(250, 40);<br/>
+newScrollView.autoDisableChildren = true;<br/>
+newScrollView.SetScrollBarsVisible(false, false);<br/>
+newScrollView.contentElement = slider;</p>
+<p>SubscribeToEvent(slider, “SliderChanged”, “HandleDrag”);<br/>
+SubscribeToEvent(slider, “DragEnd”, “HandleDrag”);<br/>
+}</p>
+<p>void HandleDrag(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+UIElement@ element = eventData[“Element”].GetPtr();<br/>
+UIElement@ parent = element.parent;</p>
+<pre><code>if (parent is null)
+    return;
+
+ScrollView@ scrollView = parent.parent;
+if (scrollView is null)
+    return;
+
+if (eventType == StringHash("SliderChanged"))
+    scrollView.autoDisableChildren = false;
+else if (eventType == StringHash("DragEnd"))
+    scrollView.autoDisableChildren = true;
+</code></pre>
+<p>}[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks hd_ for investing this possibility  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/><br/>
+Since latest commit for ScrollView.cpp it seems that I can’t disable autoDisableChildren anymore, I’ll try from a clean build later and report if necessary.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

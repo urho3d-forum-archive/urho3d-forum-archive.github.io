@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Why is there an `override` attribute on methods that don&rsquo;t override anything?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Why is there an `override` attribute on methods that don&rsquo;t override anything?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>With the migration to C++11, I’ve noticed that the <code>override</code> keyword was added to various methods in the engine (<a  rel="nofollow noopener">github.com/urho3d/Urho3D/pull/2108</a>). Even for methods that don’t override anything. Which is weird, because the engine compiles just fine within its own the build system. But as soon as you try the same thing outside of that, you get compile-time errors like <code>error: 'virtual bool Urho3D::Example::Dummy(...)' marked 'override', but does not override</code>.</p>
+<p>The simplest one I would encounter:</p>
+<pre><code class="lang-auto">struct btVector3;
+
+class Component {
+public:
+    virtual ~Component();
+};
+
+class PhysicsWorld : public Component {
+public:
+
+    virtual ~PhysicsWorld() override;
+
+    virtual bool isVisible(const btVector3&amp; aabbMin, const btVector3&amp; aabbMax) override;
+};
+</code></pre>
+<p>Seen in action here: <a href="https://godbolt.org/g/rTNmb4" rel="nofollow noopener">https://godbolt.org/g/rTNmb4</a></p>
+<p>Is there a particular flag applied to the compiler that I’m not aware of? I wasn’t able to find anything about this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>In c++11, if you use keyword of ‘override’, you must implement the method.<br/>
+So the method of isVisible(…) must be implemented.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>The error is still there: <a href="https://godbolt.org/g/CKkVCd" rel="nofollow noopener">https://godbolt.org/g/CKkVCd</a></p>
+<pre><code class="lang-auto">struct btVector3;
+
+class Component {
+public:
+    virtual ~Component();
+};
+
+class PhysicsWorld : public Component {
+public:
+
+    virtual ~PhysicsWorld() override;
+
+    virtual bool isVisible(const btVector3&amp;, const btVector3&amp;) override
+    {
+        return false;
+    }
+};
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>It’s not an error because PhysicsWorld also inherits from class btIDebugDraw which declares isVisible.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>Two ways:</p>
+<p>struct btVector3;</p>
+<p>class Component {<br/>
+public:<br/>
+virtual ~Component();<br/>
+virtual bool isVisible(const btVector3&amp;, const btVector3&amp;);<br/>
+};</p>
+<p>class PhysicsWorld : public Component {<br/>
+public:</p>
+<pre><code>virtual ~PhysicsWorld() override;
+
+virtual bool isVisible(const btVector3&amp;, const btVector3&amp;) override
+{
+    return false;
+}
+</code></pre>
+<p>};</p>
+<p>or</p>
+<p>struct btVector3;</p>
+<p>class Component {<br/>
+public:<br/>
+virtual ~Component();<br/>
+};</p>
+<p>class PhysicsWorld : public Component {<br/>
+public:</p>
+<pre><code>virtual ~PhysicsWorld() override;
+
+virtual bool isVisible(const btVector3&amp;, const btVector3&amp;)
+{
+    return false;
+}
+</code></pre>
+<p>};</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Oh now I see. I didn’t notice this because I updated the Bulled library which did not have that method. And I couldn’t figure out what it was trying to overload. Should’ve known it was something like this. Thank you.</p>
+<pre><code class="lang-auto">	// Urho3D: added function to test visibility of an AABB
+	virtual bool    isVisible(const btVector3&amp; aabbMin,const btVector3&amp; aabbMax)=0;
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>As I understand the <code>virtual</code> and <code>override</code> keywords:</p>
+<ul>
+<li>only the base function <em>needs</em> the <code>virtual</code> keyword</li>
+<li>
+<code>override</code> should be used on all functions that override it</li>
+<li><strong>If both keywords are used on a single method, either is redundant</strong></li>
+</ul>
+<p>Also this class…</p>
+<pre><code class="lang-auto">class Component {
+public:
+    virtual ~Component();
+};
+</code></pre>
+<p>…has no <code>isVisible</code> function that could be overridden. Can’t argue with the compiler on that one. <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

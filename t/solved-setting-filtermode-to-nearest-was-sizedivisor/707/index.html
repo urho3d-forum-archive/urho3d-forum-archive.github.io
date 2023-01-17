@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED]Setting Filtermode to Nearest (was: sizedivisor&hellip;)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED]Setting Filtermode to Nearest (was: sizedivisor&hellip;)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>old question:</p>
+<p>[quote]i’ve tried:</p>
+<pre><code class="lang-auto">&lt;rendertarget name="viewport" sizedivisor="2 2" filter="false" format="rgba"/&gt;     &lt;!--or--&gt;
+&lt;rendertarget name="gbuffer" sizedivisor="2 2" filter="false" format="rgba"/&gt;       &lt;!--or--&gt;
+&lt;rendertarget name="viewport" sizemultiplier="0.5 0.5" filter="false" format="rgba"/&gt;     &lt;!--or--&gt;
+&lt;rendertarget name="gbuffer" sizemultiplier="0.5 0.5" filter="false" format="rgba"/&gt;</code></pre>
+<p>but nothing causes the default renderpath viewport to render at half size.<br/>
+I have successfully, rendered to a half size quad and sampled the texture, but I get antialiasing, even with the filter set to false. Filter set to true i get super aliasing. My desire is to get not aliases, and very crisp colors with no interpolated values.</p>
+<p>I guess something that uses GL_TEXTURE_MIN_FILTER and GL_TEXTURE_MAX_FILTER set to GL_NEAREST. (at least that is what this link said <a data-bbcode="true" href="http://stackoverflow.com/questions/17560335/glsl-render-solid-pixels-without-interpolation-or-antialiasing">http://stackoverflow.com/questions/17560335/glsl-render-solid-pixels-without-interpolation-or-antialiasing</a> without getting into the c++ side of things…</p>
+<p>Is there a simple way to view fullscreen but still render a very crisp no aliased render.</p>
+<p>I’ve also tried to change the graphics settings to half my screen resolution then set fullscreen to true. That actually is decent, but what should look like a single pixel looks like a small plus sign.</p>
+<p>The best looking results i’ve gotten are from the size divisor, but then I’m getting some color interpolation that i’d rather not have.[/quote]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>So it looks like I just want to set the filter node to “GL_NEAREST”</p>
+<p>I can see in c++ there is a way to set the default filter mode in graphics, however. I dont think I can with angelscript. Also, setting it in C++ to FILTER_NEAREST and setting the renderpath to filter=“true” didnt seem to actually use nearest mode.</p>
+<p>If there a way to do this?<br/>
+I dont want the rendering to do any filtering. It would be super cool to just be able to set that on a shader level, or even in the render path for the rendertarget.</p>
+<p>Thanks for any help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">reattiva</div>
+          <div class="post_content">
+<p>Actually when you set “filter=true” you ask for the bilinear filter, instead if you don’t want any filtering on your buffer then you can have the nearest mode by setting “filter=false”.<br/>
+Look at the function: Renderer::GetScreenBuffer</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>I see, it does in fact.<br/>
+When I render to a sizedivisor 2 2 buffer, i’m getting half values or what look like interpolated values. Which is not desireable for what I am doing. I’ll have to look into another way. Thanks for point that out.</p>
+<p>So then it might be applyig a filter when I sample a half sized rendertarget.<br/>
+Where should I look for that? thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">reattiva</div>
+          <div class="post_content">
+<p>From what I read in the code, FILTER_NEAREST works on both magnification and minification.<br/>
+Try stepping through the code and see what happens in Texture::UpdateParameters when you are creating your buffer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>Yeah im not sure what the deal is really. I would take your advice, but that is over my head already. Im just a script pesant.<br/>
+However, this code from this answer on stackoverflow seemed to do the trick with some silly modifications:<br/>
+<a data-bbcode="true" href="http://stackoverflow.com/questions/5879403/opengl-texture-coordinates-in-pixel-space/5879551#5879551">http://stackoverflow.com/questions/5879403/opengl-texture-coordinates-in-pixel-space/5879551#5879551</a></p>
+<pre><code class="lang-auto">vec2 s = (1.0/(cGBufferInvSize.xy))*2.0;
+vec2 new_uv = (2.0*((vScreenPos.xy / vScreenPos.w)*s) + 0.5)/(2.0*s);</code></pre>
+<p>Using this when sampeling a fullsize buffer to a half sized quad, and it gives me crisp edges again.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

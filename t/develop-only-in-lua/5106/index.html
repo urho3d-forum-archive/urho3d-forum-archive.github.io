@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Develop only in Lua</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Develop only in Lua</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Is it a viable solution to develop an entiry game only in Lua? And if it is, how one proceeds with it? Can we use, for example, only Urho3DPlayer with a resource path prefix specified? Or is it OK to use some minimal Lua C++ hook file, something like the following</p>
+<pre><code>using namespace Urho3D;
+
+Game::Game(Context* context):
+    Application(context)
+{
+
+}
+
+void Game::Setup()
+{
+    engineParameters_["FullScreen"] = false;
+}
+
+void Game::Start()
+{
+    LuaScript* script = new LuaScript(context_);
+    context_-&gt;RegisterSubsystem(script);
+
+    script-&gt;ExecuteFile("LuaScripts/01_HelloWorld.lua");
+    LuaFunction* start = script-&gt;GetFunction("Start");
+    start-&gt;BeginCall();
+    start-&gt;EndCall();    
+}
+
+void Game::Stop()
+{
+
+}
+
+URHO3D_DEFINE_APPLICATION_MAIN(Game)
+</code></pre>
+<p>Or there’s some other more canonic way to do it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1164_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">orefkov</div>
+          <div class="post_content">
+<p>I have some games for android in playmarket, writed only on Urho3dPlayer + AngelScript (it worked on desktop too).<br/>
+And since the script wrapper is done for both AngelScript and Lua, I see no reason why this was impossible. Current player check script file extension and run AngelScript or Lua engines.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<p>As much as I know, you can develop an entire game either with lua or AngelScript in Urho3D with just the Urho3DPlayer  as it is. But if you feel you need additional functionalities exposed then you would have to create bindings for those.</p>
+<p>The bottom line is that most of the things needed are already exposed to the scripting subsystems by default</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>The initial prototype of my game was written in Lua. It is viable.</p>
+<p>In my experience, the AngelScript side of things is tighter and probably superior to the Lua side, as there are still some <a  rel="nofollow noopener">issues</a> with Lua garbage collection that are intrinsic to using tolua++ to generate the bindings. Some care needs to be used when using Lua; ie, avoid generating Urho3D object garbage inside large range loops, or explicitly calling collectgarbage() at intervals inside those loops to clear out garbage before it accumulates. Where this has bitten me in the ass before has been double-nested loops iterating on images and generating Color garbage, and double-nested loops iterating on a tile map and generating Vector3 garbage. The issue manifests as increasing time spent in garbage collection every cycle, as the GC iterates large internal tables, and if allowed to grow large enough it can severely reduce framerate and cause tangible hitches or hiccups.</p>
+<p>To circumvent issues like this, it is best to limit the amount of Lua object garbage you generate in a frame. My solution was to implement the ‘heavy’ routines (procedural level generation tasks, iterating tilemaps or images, etc…) as C++ routines exposed to Lua script so that they don’t generate 65k temporary objects all in one whack to choke the GC. (This is probably a good idea anyway, even without the GC issue, to keep performance of these tasks as tight as possible.)</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

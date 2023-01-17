@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Torchlight 2-ish occlusion ghosting</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Torchlight 2-ish occlusion ghosting</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I’m trying to do an effect like the occlusion ghosting that Torchlight 2 does when a character or enemy is behind a wall or other blocking object. A blue or pink silhouette is drawn so that even if things are not visible from the camera view, you can still see them. Here is an example: <img alt="" height="399" src="../../../images2/8a38ee2554182b6b1ea5d5eb7eaf31b1.png" width="589"/></p>
+<p>My first thought was to render all static level geometry first, then render the ghosts using no depthwrite and depthfunc=greater, then render the normally lit solid passes of the objects. However, I’m not really sure how I would do this.</p>
+<p>My second thought was to draw the solid passes normally, then during alpha pass draw the model again using a “ghost” material with depthfunc=greater and a small, arbitrarily chosen negative depth bias to keep the ghost for parts of a character occluded by the character’s body from overwriting the solid pass. This works somewhat, although there are weird edge cases, such as when the character is standing very near the occluder, near enough that depth-bias is no longer greater than the depth in the depth buffer.</p>
+<p>(One other issue related to this is one I will probably file a bug report for, once I have done some more testing. To do the ghost pass, I create another AnimatedModel component into the node, specifying the ghost material. However, when I do this I notice weird glitches in the animation. 90% of the time, the animation is fine. But, for example, when standing there playing the looping idle animation I will get very rapid, occasional twitches of feet and hands, ad if the underlying skeleton were going haywire then quickly being corrected back to what it should be. I’m unsure what could be causing that.)</p>
+<p>At any rate, does anybody have any better ideas for how I might accomplish this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>here is an article i found<br/>
+<a href="https://developer.valvesoftware.com/wiki/L4D_Glow_Effect" rel="nofollow noopener">developer.valvesoftware.com/wik … low_Effect</a></p>
+<p>I am reading through it right now.  Its a bit over my head but and there is like a 5% chance of survival but I think I might try it myself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I’m thinking I might be able to achieve what I’m looking for using multiple cameras and viewmasks. Let me try a test…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Okay, so I managed to get a pretty good result using multiple cameras and view masks.</p>
+<p>I created a copy of the default forward render path and removed the clearing of the depth and color buffers, then set this to the second camera. All solid world geometry and all “ghost” geometry is assigned a view mask compatible with the first camera. All objects that have a ghost are given their correct regular material and assigned a viewmask compatible with the second camera. The ghost material uses a technique that renders during the postopaque pass to draw the silhouette; it is also enabled for the shadow pass, so that correct object shadows are drawn. The ghost material renders with depthfunc=greater and no depth writing.</p>
+<p>When the first camera renders, all solid geometry is rendered as normal, then in the postopaque pass all ghosts are rendered. In the second camera, all objects are rendered normally. This works pretty well, but with 2 issues: objects are drawn without shadows, since no shadows are rendered in the second camera, and the animation glitching still occurs, causing Jack to jump and twitch like that caffeinated squirrel from the movie Over The Hedge. The first, I think I can live with, but the second is a problem, so I guess I’ll need to try to sort that out if I can.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>pics or it didn’t happen <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p><img alt="" height="290" src="../../../images2/c1f12ec99c6305aaaffebbca0f16315a.png" width="348"/></p>
+<p>With the 2-camera setup, I’m getting some glitchiness, not with the render but with update. With the single-camera setup, movement is silky smooth, but when I switch to the 2-camera setup, movement becomes rough, picking seems to take enough time to case frame-rate hitches, and other weirdness arises. I’m probably doing something wrong. The 1-camera setup with depth-bias works “okay”, as long as you properly constrain the camera. Zoom too near, and the depth bias isn’t enough to overcome the overwriting, zoom too far and the depth bias is too large, and causes the ghost to disappear if the object is directly behind certain pieces of geometry.</p>
+<p>cadaver has been able to reproduce the twitchy animation, so perhaps we’ll see a bugfix there soon. (I’m still not really familiar enough with the guts to really diagnose the bug myself.) In the meantime, though, I’m still researching alternative methods.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

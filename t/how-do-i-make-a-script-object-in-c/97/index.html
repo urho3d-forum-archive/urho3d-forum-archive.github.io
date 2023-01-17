@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How do I make a script object in C++?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How do I make a script object in C++?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Say I have a manager, and on a certain function call, I want to create an object on the C++ side, and return a pointer to script. It’s fairly straightforward, but I ran into one hitch – all script objects must inherit from Object which has Context as a parameter.</p>
+<p>So when I tried to create a script object C++ side, I just called this-&gt;GetContext() and passed that context into the constructor of the new script object. I found out later that the object I created was promptly destroyed, which is probably due to context.</p>
+<p>What’s the proper way to make a script object C++ side?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>They don’t inherit from Object they inherit from ScriptObject. When instantiated from the C++ side you should be using ScriptFile or ScriptInstance to instantiate the ScriptObjects. ScriptFiles are used for non-component Script Objects and Global Script Functions, and ScriptInstances are components that need to be added to a node.</p>
+<p>So your script class would look like:</p>
+<p><code>class Foo : ScriptObject
+{
+}</code></p>
+<p>And you’d use the following methods to instantiate and execute it:</p>
+<pre><code class="lang-auto">    asIScriptObject* ScriptFile::CreateObject(const String&amp; className);
+    bool ScriptFile::Execute(asIScriptObject* object, const String&amp; declaration, const VariantVector&amp; parameters = Variant::emptyVariantVector, bool unprepare = true);</code></pre>
+<pre><code class="lang-auto">    bool ScriptInstance::CreateObject(ScriptFile* scriptFile, const String&amp; className);
+    bool ScriptInstance::Execute(const String&amp; declaration, const VariantVector&amp; parameters = Variant::emptyVariantVector); //Optional ScriptInstance runs certain methods on start-up.</code></pre>
+<p>More details can be found here: <a href="http://urho3d.github.io/documentation/a00016.html" rel="nofollow noopener">urho3d.github.io/documentation/a00016.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Got it, thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>WAIT</p>
+<p>I think we’re mistaken.</p>
+<p>I have a class I have defined in C++. It inherits from Urho3D::Object. I want to be able to make instances of this C++ side, and pass them back to script. That’s where I was having the context issue above.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I believe Alex has pointed you to the right direction. If you must declare your script object from C++ side instead of from script, I think what you need to do is to derive your component not from Urho3D::Object class but from Urho3D::ScriptInstance class. After creating the component object and attaching it to a node, your C++ function should be able to safely return a pointer to it to your script. I think in your script, you can also get script object back by using Node::GetScriptObject() API call. However, if what you are trying to achieve is an arbitrary object (i.e. not derived from Component class), so it cannot be attached to a node then I think you need to call AddRef() somewhere in your C++ function before returning that script object back to your script. And then you have to think of when is the appropriate time to decrease the reference count so your object would be destroyed in a timely manner.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>If you want classes defined in C++ usable in a script you need to also bind them to angelscript like Urho does in all the …API.cpp files even if it does inherit from object as otherwise none of your custom methods will be available.</p>
+<p>As for the deletion issue its probably being deleted as Weitjong says there is only a single reference and when your function falls out of scope its being deleted as I dont believe passing it to a script as part of the parameters adds a new reference as it treats it as a raw pointer and since it was created on the c++ side you need to do your lifecycle management there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Ah, that makes sense. Thanks guys!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gasp</div>
+          <div class="post_content">
+<p>i am trying to do exactly this :<br/>
+<span class="bbcode-b">“If you want classes defined in C++ usable in a script you need to also bind them to angelscript like Urho does in all the …API.cpp files even if it does inherit from object as otherwise none of your custom methods will be available.”</span></p>
+<p>i’ve created a “SimpleMath” class (h &amp; cpp)<br/>
+only 1 member “int  DoubleTheValue(int value);” who do a wonderfull :</p>
+<aside class="quote">
+<blockquote>
+<p>int  SimpleMath::DoubleTheValue(int value)<br/>
+{<br/>
+return value * 2 ;<br/>
+}</p>
+</blockquote>
+</aside>
+<p>all compile fine, and the class work in the main cpp file</p>
+<p>In the main program (base on Urho3DPlayer.cpp) i’ve try the folowwing things :</p>
+<p>My goal is to be able to call the “RegisterObjectMethod” Angel Script part who register the function for the script, somethings like :</p>
+<aside class="quote">
+<blockquote>
+<p>engine-&gt;RegisterObjectMethod(“SimpleMath”, “int  SimpleMath::DoubleTheValue(int value)”, asMETHOD(SimpleMath, DoubleTheValue), asCALL_THISCALL);</p>
+</blockquote>
+</aside>
+<p>the tricky part for me now is to be able to acces the engins script, like all the *API.cpp.</p>
+<p>i’ve try something like that :</p>
+<aside class="quote">
+<blockquote>
+<p>Script *asEngine;<br/>
+context_-&gt;RegisterSubsystem(asEngine=new Script(context_));</p>
+</blockquote>
+</aside>
+<p>but … i must miss something <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+<aside class="quote">
+<blockquote>
+<p>asIScriptEngine* ScriptEngine=context_-&gt;GetSubsystem();</p>
+</blockquote>
+</aside>
+<p>doesn"t work too …<br/>
+i’ve looking in the engine part where you register angel script part, nothing inherit, it ssem to be in the register script the trick to grab the Angel SCript instance to register it</p>
+<p>i learn stuff but always somethings block me</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You get the asIScriptEngine pointer from the Script subsystem.</p>
+<pre><code class="lang-auto">    asIScriptEngine* engine = GetSubsystem&lt;Script&gt;()-&gt;GetScriptEngine();</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gasp</div>
+          <div class="post_content">
+<p>thank you for the information, i get the following error :</p>
+<pre><code class="lang-auto">D:\Developpement\testProject\Source\Urho3DPlayer.cpp:116:15: error: invalid use of incomplete type 'class asIScriptEngine'
+         engine-&gt;RegisterObjectMethod("SimpleMath", "int  SimpleMath::DoubleTheValue(int value)", asMETHOD(SimpleMath, DoubleTheValue), asCALL_THISCALL);
+               ^
+In file included from D:\Developpement\testProject\Source\Urho3DPlayer.cpp:32:0:
+D:/Developpement/Urho3D/Source/Engine/Script/ScriptFile.h:31:7: error: forward declaration of 'class asIScriptEngine'
+ class asIScriptEngine;</code></pre>
+<p>my code :</p>
+<pre><code class="lang-auto">void Urho3DPlayer::Start()
+{
+
+#ifdef ENABLE_ANGELSCRIPT
+        // Instantiate and register the AngelScript subsystem
+        context_-&gt;RegisterSubsystem(new Script(context_));
+        asIScriptEngine* engine = GetSubsystem&lt;Script&gt;()-&gt;GetScriptEngine();
+        engine-&gt;RegisterObjectMethod("SimpleMath", "int  SimpleMath::DoubleTheValue(int value)", asMETHOD(SimpleMath, DoubleTheValue), asCALL_THISCALL);
+</code></pre>
+<p>i regulary from all my test get "error: invalid use of incomplete type ‘class asIScriptEngine’ "</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>You need to include the angelscript header file, or some other header which includes it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gasp</div>
+          <div class="post_content">
+<p>thanks you, it work, what i’ve done :</p>
+<pre><code class="lang-auto">
+#include &lt;angelscript.h&gt;
+
+String doubleTheNumber (int t){
+        char buff[32];
+        sprintf(buff, "%d", t*2);   // int =&gt; Char
+        String ss(buff);
+return ss;
+}</code></pre>
+<p>In the “void Urho3DPlayer::Start()” function :</p>
+<pre><code class="lang-auto">#ifdef ENABLE_ANGELSCRIPT
+        // Instantiate and register the AngelScript subsystem
+        context_-&gt;RegisterSubsystem(new Script(context_));
+        asIScriptEngine* engine = GetSubsystem&lt;Script&gt;()-&gt;GetScriptEngine();
+        engine-&gt;RegisterGlobalFunction("String doubleTheNumber (int t)", asFUNCTION(doubleTheNumber), asCALL_CDECL);</code></pre>
+<p>and in the .as script :</p>
+<pre><code class="lang-auto">Print(testFunt(10));</code></pre>
+<p>(next part is doing in the same with a class :p)<br/>
+and you get 20 in the console <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="GIMB4L">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/357438cceaa4b859ca74a78af4519158.png" width="20"/> GIMB4L:</div>
+<blockquote>
+<p>You need to include the angelscript header file, or some other header which includes it.</p>
+</blockquote>
+</aside>
+<p>Just for the record so no one goes searching the angelscript.h file isn’t included by the engine in any header files, its forward decl’d and included in the cpp files.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gasp</div>
+          <div class="post_content">
+<p>Using a methode of a c++ class  in an Uhro3D angel script :<br/>
+1st we create a sample class (.cpp &amp; .h)<br/>
+<span class="bbcode-u">SimpleMath.cpp:</span></p>
+<pre><code class="lang-auto">
+#include "SimpleMath.h"
+
+void SimpleMath::testSanRien(){
+int i;
+i=i+1;
+}
+
+//Double the Value !!!
+Urho3D::String  SimpleMath::DoubleTheValue(int value)
+{
+  char buff[32];
+  sprintf(buff, "%d", value*2);   // int =&gt; Char
+  Urho3D::String ss(buff);
+return ss;
+}</code></pre>
+<p><span class="bbcode-u">SimpleMath.h file :</span></p>
+<pre><code class="lang-auto">
+
+
+class SimpleMath
+{
+public:
+    Urho3D::String DoubleTheValue(int value);
+    void testSanRien();
+private:
+    int myPrivateValueNotUsedForNow(0);
+};
+</code></pre>
+<p>now in you’r <span class="bbcode-u">main.cpp</span> file :</p>
+<pre><code class="lang-auto">...
+
+#include &lt;angelscript.h&gt;
+#include "SimpleMath.h"
+...
+void Urho3DPlayer::Start()
+{
+    int r(0);
+        // Instantiate and register the AngelScript subsystem
+        context_-&gt;RegisterSubsystem(new Script(context_));
+        asIScriptEngine* engine = GetSubsystem&lt;Script&gt;()-&gt;GetScriptEngine();
+            //Register a global function
+        engine-&gt;RegisterGlobalFunction("String doubleTheNumber (int t)", asFUNCTION(doubleTheNumber), asCALL_CDECL);
+        assert( r &gt;= 0 );
+            // Registering the type "simplemath"
+        engine-&gt;RegisterObjectType("simplemath", sizeof(SimpleMath), asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_CAK);
+        assert( r &gt;= 0 );
+            // Registering without argument
+        engine-&gt;RegisterObjectMethod("simplemath", "void testSanRien()", asMETHOD(SimpleMath,testSanRien), asCALL_THISCALL);
+        assert( r &gt;= 0 );
+            //With arguments
+        engine-&gt;RegisterObjectMethod("simplemath", "String DoubleTheValue(int value)",asMETHODPR(SimpleMath, DoubleTheValue,(int),String), asCALL_THISCALL);
+        assert( r &gt;= 0 );
+
+...
+</code></pre>
+<p>and lastly in you’r .as scripts :</p>
+<pre><code class="lang-auto">		//Global Function
+	Print(doubleTheNumber (10));
+		//With a class
+	simplemath veryComplexMath;
+		//Testing the value
+	Print(veryComplexMath.DoubleTheValue(33));</code></pre>
+<p>Now you can see the result in the console “20” and “66”.</p>
+<p>hope this had help someone, and i’ve not make alot of mistake</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>Just be careful there you aren’t actually assigning r to the return values of the angelscript binding calls and its not initialized so that assert would run all kinds of crazy on some compilers.</p>
+<p>When binding simplemath you’ve used sizeof(StringHash) that should be sizeof(SimpleMath), it might not make a difference since we don’t use AS garbage collector, I haven’t looked to see the implications of the size specifications in the bindings.</p>
+<p>asOBJ_POD you need to be careful with as well when declaring object types , it should only be used If the type doesn’t require any special treatment, i.e. doesn’t contain any pointers or other resource references that must be maintained.</p>
+<p>Otherwise that it looks good, (oh you did copy the .cpp code instead of the header code into the simplemath.h example).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gasp</div>
+          <div class="post_content">
+<p>thanks for all the remark, very instructive, once all i clear i will correct my post for reference</p>
+<p>When declaring type “asOBJ_POD” seem to be medatory, if i don’t set it i get :</p>
+<aside class="quote">
+<blockquote>
+<p>“SimpleMath is missing behaviours”<br/>
+“Invalid configuration. Verify the registered application interface<br/>
+"Failed to compile script module”</p>
+</blockquote>
+</aside>
+<p>correted the .h file</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="gasp">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/edccd9c2499273cf9da28aa88ce5ace8.png" width="20"/> gasp:</div>
+<blockquote>
+<p>When declaring type “asOBJ_POD” seem to be medatory, if i don’t set it i get : </p>
+</blockquote>
+</aside>
+<p>Yep in your case its needed because you’re not declaring any constructors or destructors as part of the binding, so when it sees asOBJ_POD Angelscript will just use a default constructor, if you don’t declare it you need to register the asBEHAVE (I think it is) for Ctors and Dtors.</p>
+<p>Just one last thing I noticed, to use the assert properly it should be;</p>
+<pre><code class="lang-auto">r = engine-&gt;RegisterObjectMethod("simplemath", "void testSanRien()", asMETHOD(SimpleMath,testSanRien), asCALL_THISCALL);
+assert(r &gt;= 0);</code></pre>
+<p>Calling any angelscript RegisterXXX method returns an int value that is either 0 or less than 0 which then points to a specific error. So to catch the assert properly each time you call a register method you should be assigning r like above.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED]How can I show render targets to screen?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED]How can I show render targets to screen?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Shylon</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I am new to Urho3d <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/>, and would like to know how can I show specific render-target to the screen? for example depth or G-Buffers, I know some opengl and I am learning OpenGL beside using Urho3d for my future Desktop game, I would like to focus also on Opengl 4.x (using its feature like tessellation, handling large amount of meshes on GPU &amp; …) for my game too, but for me for now Urho3d custom shader pipeline is confusing, so any guide would help me and new users also might the urho3d dev progress.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Append to renderpath</p>
+<pre><code class="lang-auto">    &lt;command type="quad" vs="CopyFramebuffer" ps="CopyFramebuffer" output="viewport"&gt;
+        &lt;texture unit="diffuse" name="RENDER TARGET" /&gt;
+    &lt;/command&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Another way is via a UI-element (BorderImage for example) to which you assign the rendertarget as the texture.</p>
+<p>However rendertargets defined in the renderpath can even be a different texture on successive frames / views as they are auto-allocated, so in that case 1vanK’s approach is practically the only workable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Shylon</div>
+          <div class="post_content">
+<p>Thanks <span class="mention">@1vanK</span><br/>
+but it is not working for me, I used as xml and added to viewport</p>
+<p>[code] Renderer *renderer = GetSubsystem();<br/>
+//NOTE: this must be enabled so that HDR works<br/>
+renderer-&gt;SetHDRRendering(true);</p>
+<pre><code>//Setup view
+SharedPtr&lt;Viewport&gt; viewport(new Viewport(context_, scene_, cameraNode_-&gt;GetComponent&lt;Camera&gt;()));
+renderer-&gt;SetViewport(0, viewport);
+
+//post-process
+ResourceCache* effectCache = GetSubsystem&lt;ResourceCache&gt;();
+//Note the clone
+SharedPtr&lt;RenderPath&gt; effectRenderPath = viewport-&gt;GetRenderPath()-&gt;Clone();
+</code></pre>
+<p>//    effectRenderPath-&gt;Append(effectCache-&gt;GetResource(“PostProcess/FXAA3.xml”));<br/>
+//    effectRenderPath-&gt;Append(effectCache-&gt;GetResource(“PostProcess/AutoExposure.xml”));<br/>
+//    effectRenderPath-&gt;Append(effectCache-&gt;GetResource(“PostProcess/BloomHDR.xml”));<br/>
+effectRenderPath-&gt;Append(effectCache-&gt;GetResource(“PostProcess/ShowPass.xml”));<br/>
+//    effectRenderPath-&gt;SetShaderParameter(“BloomHDRThreshold”, 0.2f);<br/>
+//    effectRenderPath-&gt;SetEnabled(“FXAA3”, true);<br/>
+//    effectRenderPath-&gt;SetEnabled(“AutoExposure”, true);<br/>
+//    effectRenderPath-&gt;SetEnabled(“BloomHDR”, true);<br/>
+effectRenderPath-&gt;SetEnabled(“ShowPass”, true);</p>
+<pre><code>//now set to the effect render path
+viewport-&gt;SetRenderPath(effectRenderPath);[/code]
+</code></pre>
+<p>in xml named ShowPass.xml</p>
+<p><code>&lt;renderpath&gt;
+    &lt;command type="quad" vs="CopyFramebuffer" ps="CopyFramebuffer" output="viewport"&gt;
+		&lt;texture unit="diffuse" name="Depth" /&gt;
+	&lt;/command&gt;
+&lt;/renderpath&gt;</code></p>
+<p>Thanks <span class="mention">@cadaver</span><br/>
+I was also thinking about using a ui image and add rendered texture to the ui image, like getting the Depth and using as image on UI like camera using in Editor I need it for debugging shaders, I should dig more into Urho3d, however I should say today I was testing using LogicComponent for character animation update and it is really nice, one of the advantage of it is easily pausing the game by scene.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Forward has no Depth pass by default</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>U need use RenderPaths\ForfardDepth.xml or RenderPaths\ForfardHWDepth.xml</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Shylon</div>
+          <div class="post_content">
+<p>I am sorry for asking again, can you please clarify, How can I set Urho3d to use Deferred Rendering, in documentation as I understand its says Urho3d uses both Deferred and forward at same time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>one of the methods</p>
+<p><code>void Game::SetupViewport()
+{
+    Renderer* renderer = GetSubsystem&lt;Renderer&gt;();
+    auto cache = GetSubsystem&lt;ResourceCache&gt;();
+    renderer-&gt;SetDefaultRenderPath(cache-&gt;GetResource&lt;XMLFile&gt;("RenderPaths/MyForward.xml"));
+    SharedPtr&lt;Viewport&gt; viewport(new Viewport(context_, scene_, cameraNode_-&gt;GetComponent&lt;Camera&gt;()));
+    renderer-&gt;SetViewport(0, viewport);
+    viewport-&gt;GetRenderPath()-&gt;Append(cache-&gt;GetResource&lt;XMLFile&gt;("PostProcess/FXAA3.xml"));
+}
+</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Shylon</div>
+          <div class="post_content">
+<p>Thank you so much, now it is working, also I should point out that setting Default Render Path should be before setting view as I had mistake in my code.<br/>
+<img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

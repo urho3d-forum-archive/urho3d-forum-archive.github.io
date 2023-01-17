@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Own component based on Drawable don&rsquo;t work</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Own component based on Drawable don&rsquo;t work</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi folks!<br/>
+Today, I was trying to figure out how to write my own component class based on drawable class.<br/>
+My trying it’s fully based on BillboardSet component.<br/>
+i’m write some minimal code and trying to debug it. for this i’m set some breakpoints for few methods of my component.<br/>
+it’s creates successfull as node’s component</p>
+<p>[pastebin]X2r4RRzb[/pastebin]</p>
+<p>but it’s do not execute any of drawable methods after creation (and setup some set’s methods)<br/>
+the drawable methods such as - Update, UpdateBatches, UpdateGeometry, they do not called at all, why ?</p>
+<p>code<br/>
+h</p>
+<div class="spoiler">
+<p>[pastebin]btW59e7h[/pastebin]</p>
+</div>
+<p>cpp</p>
+<div class="spoiler">
+<p>[pastebin]nVsiH8cC[/pastebin]</p>
+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It may be that it never generates geometry -&gt; bounding box is empty or undefined -&gt; it doesn’t pass culling.</p>
+<p>Drawable::Update() is not called automatically each frame, rather you must mark the drawable explicitly to need an update. It will then be performed at the same time as the octree updates itself. See MarkForUpdate() and the AnimatedModel / ParticleEmitter classes.</p>
+<p>Also note that you don’t necessarily need Drawable::Update() at all, if all you want is a periodic tick update that is independent of the octree / view processing you can also just subscribe to the frame tick events.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I added this</p>
+<p><code>void TailGenerator::OnNodeSet(Node* node)
+{
+	Drawable::OnNodeSet(node);
+}</code></p>
+<p>and it seems that it’s what’s needed to methods began to be called<br/>
+now i can  debug code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Ah ok, did not notice that you had overridden that one with an empty function at first. Drawable::OnNodeSet() is responsible for adding the drawable to the octree, and indeed without that the drawable won’t participate in rendering at all.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I also temporarily given size to BB<br/>
+as</p>
+<pre><code class="lang-auto">void TailGenerator::OnWorldBoundingBoxUpdate() 
+{
+	worldBoundingBox_.Define(-M_LARGE_VALUE, M_LARGE_VALUE);
+}</code></pre>
+<p>i don’t know but in case dual tail with high rotation it’s looks  wierd.<br/>
+I use delta-move based method for spawn base points of tail path.<br/>
+maybe it’s wrong method ?</p>
+<p>[video]<a href="http://www.youtube.com/watch?v=kJe9GhqRL6A%5B/video%5D">http://www.youtube.com/watch?v=kJe9GhqRL6A[/video]</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>in addition with previous<br/>
+I aslo have an question about the Drawable::GetUpdateGeometryType()</p>
+<pre><code class="lang-auto">UpdateGeometryType TailGenerator::GetUpdateGeometryType()
+{
+	if (bufferDirty_ || bufferSizeDirty_ || vertexBuffer_-&gt;IsDataLost() || indexBuffer_-&gt;IsDataLost() || forceUpdateVertexBuffer_)
+		return UPDATE_MAIN_THREAD;
+	else
+		return UPDATE_NONE;
+}</code></pre>
+<p>it is called every frame in engine, then batches are going to prepare for render or no ?<br/>
+i just want to split my logic of building mesh in work thread and put ready compiled mesh data in the main thread with helps of few lines of the code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>That is going to be called after UpdateBatches() but before UpdateGeometry(), for a drawable that is in the view frustum.</p>
+<p>Note that UpdateBatches() itself may be called from a worker thread.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i’m trying to prepare mesh data in worker thread and then it’s ready it copying in main thread to vertex buffer, but after few seconds i got an freez. i guess that something i doing wrong. now i rewrite code all without workers, all stages going in main thread (i guess).</p>
+<p>today i’m find a strange effect<br/>
+then i setup the batch in constructor as:</p>
+<pre><code class="lang-auto">batches_[0].geometryType_ = GEOM_STATIC;   </code></pre>
+<p>i got a more constast colors on tail’s<br/>
+<a data-bbcode="true" href="http://savepic.su/4883438.htm"><img alt="" height="" src="../../../images2/78bb99fdeedc6a29eae5a107301071e3.png" width=""/></a></p>
+<p>and then i setup batch as :</p>
+<p><code>batches_[0].geometryType_ = GEOM_BILLBOARD;
+</code><br/>
+i got an more lower contrast on tail’s<br/>
+<a data-bbcode="true" href="http://savepic.su/4887534.htm"><img alt="" height="" src="../../../images2/94c2660923423b7cbd787b44afac7087.png" width=""/></a></p>
+<p>Why this is happens ?<br/>
+And what type of geometry tails should be?</p>
+<p>[video]<a href="http://www.youtube.com/watch?v=5kwpE66G-8M%5B/video%5D">http://www.youtube.com/watch?v=5kwpE66G-8M[/video]</a></p>
+<p>also i’m find what using Splines for tail path( + color fade) interpolation it’s extremely slow, moreover this dramatically slow on fps<br/>
+in this case i’m rewrite vertex color (fade/color gradient) interpolation from spline’s to vector lerp</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>STATIC geometry is the normal mode for meshes, ie. vertices in vertex buffer are transformed by viewproj and model matrices. BILLBOARD means a different kind of transformation where a point is transformed and then offsetted by a size parameter to get a quad. Look into Transform.hlsl (.glsl) to understand how the shader is transforming the vertices.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>STATIC geometry is the normal mode for meshes<br/>
+Ok.<br/>
+And about shadows.<br/>
+If i’m create even the one tail component for any node in all scene, the shadows from bots began looks weird - like an old style shadows with blobs.<br/>
+And if scene no have any tails the shadows draws - ok<br/>
+I think what i’m must do something for shadows for tail.<br/>
+Turn off shadow from tail at all or make some basic shadows functionality.</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you’re still setting a huge bounding box for your object, it will cause the shadow rendering to believe there’s a huge object that needs to cast/receive shadows, and the shadow resolution will suffer. You should use a bounding box that encloses your geometry tightly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Thank’s <span class="bbcode-b">cadaver</span>. it’s helps, now the shadows is draw.<br/>
+i’m calculate BoundBox on actual visible points of path.</p>
+<p>[pastebin]jzFVPaAL[/pastebin]</p>
+<p>bbmin and bbmax calculated in void TailGenerator::UpdateVertexBuffer(const FrameInfo&amp; frame)</p>
+<div class="spoiler">
+<p>[pastebin]v8ALc1gU[/pastebin]</p>
+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I uploaded a component to repository and it is now available to everyone.<br/>
+<a href="https://github.com/MonkeyFirst/urho3d-component-tail-generator">github.com/MonkeyFirst/urho3d-c … -generator</a></p>
+<p>Small instruction.<br/>
+<img alt="" height="" src="../../../images2/64c45bf7ba3247c327c984a76e20b505.png" width=""/></p>
+<p>code:</p>
+<p>[code]	virtual void Setup()<br/>
+{<br/>
+TailGenerator::RegisterObject(context_);</p>
+<pre><code>}[/code]
+</code></pre>
+<pre><code class="lang-auto">		tailNode-&gt;CreateComponent&lt;TailGenerator&gt;();
+		tailNode-&gt;GetComponent&lt;TailGenerator&gt;()-&gt;SetTailLength(0.5f); // set segment length
+		tailNode-&gt;GetComponent&lt;TailGenerator&gt;()-&gt;SetNumTails(50); //  set num of segments
+		tailNode-&gt;GetComponent&lt;TailGenerator&gt;()-&gt;SetWidthScale(4.0f); // side scale
+		tailNode-&gt;GetComponent&lt;TailGenerator&gt;()-&gt;SetColorForHead(Color(1.0f, 1.0f, 1.0f));
+		tailNode-&gt;GetComponent&lt;TailGenerator&gt;()-&gt;SetColorForTip(Color(0.0f, 0.0f, 1.0f));</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>Thanks for sharing.  I regularly watch your progress videos and am always inspired.   You should add a licence to your codebase.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Very nice, good that you got it working!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks for sharing. Your work is amazing as always.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Many thanks. Keep up the good work coming.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Thank’s guys, but I think that the component is still far from ideal. And requires some modifications.<br/>
+Among the main - remove two Batchs and draw two strips with a single batch with degenerate triangle in middle of IB.<br/>
+I tried draw tail with one batch but I for some reason did not work.<br/>
+The second problem is when you need dynamic tail from static object.<br/>
+This component can only generate tail from the dynamic objects (that change own position in time)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p><span class="mention">@Sinoid</span> Thanks, it stored in own repository on git (as few files for copying into your working dir) you may just copy it into yours dev folder.</p>
+<blockquote>
+<p>Perhaps a different component similar to this?<br/>
+i’m also think about this, that it’s could be a other component.</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>merge tools choked for me<br/>
+for me too )</p>
+</blockquote>
+<blockquote>
+<p>Dealt with generating a single tri-strip<br/>
+you mean that now you have one-batch for these 2 strips ?</p>
+</blockquote>
+<blockquote>
+<p>Makes for interesting twists.<br/>
+I guess that you need do some tests this with chaotic node movements (Brownian motion) to avoid strange twists and do some polish to alg for looking-well tailepath in most cases.</p>
+</blockquote>
+<blockquote>
+<p>Everything works inside the editor with attributes for all settings and sane defaults.<br/>
+Wow, cool) Is it generate tail on play button or even then editor in standby mode ?</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>so the horizontal plane can collapses when moving along a direction that isn’t forward<br/>
+Oh, maybe that why i trying to use and spawn points with motion direction of node )<br/>
+In this case i just got less twisted triangles i guess.</p>
+</blockquote>
+<p>Anyway, look at this example (thanks for <span class="mention">@carnalis</span> for this link)<br/>
+<a href="http://codeflow.org/entries/2012/aug/05/webgl-rendering-of-solid-trails/">codeflow.org/entries/2012/aug/05 … id-trails/</a></p>
+<p>i guess this method more better. There is almost no tail-path-twists.<br/>
+also it have only one strip that every time oriented to camera.<br/>
+See if you interesting some examples there.<br/>
+I think this is really good thing to realize as urho3d engine component.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

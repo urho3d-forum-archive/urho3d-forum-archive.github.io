@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Node.Remove() Doesn&rsquo;t Work</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Node.Remove() Doesn&rsquo;t Work</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>I’ve taken a look at the documentation, and I’ve noticed that since the automatic garbage collection has been turned off, it is our responsibility to manage the references on objects. However, I see no option in the scripting language to facilitate this. How does one manage the references of an object?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/828_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">aster2013</div>
+          <div class="post_content">
+<p>What script you used? AngelScript or Lua?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>I’m in AngelScript. I should say that the node I’m trying to delete has a ScriptObject attached, which is where I’m doing the delete from.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Check the scripts in NinjaSnowWar game, they successfully delete their owning nodes from the scene. For example <a href="http://GameObject.as">GameObject.as</a>, which implements a lifetime counter:</p>
+<pre><code class="lang-auto">    void FixedUpdate(float timeStep)
+    {
+        // Disappear when duration expired
+        if (duration &gt;= 0)
+        {
+            duration -= timeStep;
+            if (duration &lt;= 0)
+                node.Remove();
+        }
+    }</code></pre>
+<p>Managing references means just that you’re responsible for setting all long-living (not local in a function) handle variables that point to your node to null, because they’re “strong refs” and keep the node alive. For example holding a handle to your cameraNode would prevent it from being destroyed, even if it’s removed from the scene. You can use the WeakHandle type to avoid that effect, which holds a weak ref instead and returns automatically null when the object has been destroyed. A WeakHandle returns a normal AngelScript handle by calling Get() on it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Alright, makes sense. Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>I’m still having issues deleting the node. Let me go into more detail.</p>
+<p>So we fire a missile from a jet. The missile tracks another jet, and upon making contact will explode with a particle effect, and be deleted.</p>
+<p>The missile initialization code is like so:</p>
+<pre><code class="lang-auto">void FireMissile(Node@ targetNode = null)
+{
+	Node@ missileNode = LoadGameObject("Missile", node.scene, cameraNode.worldPosition, node.worldRotation);
+		
+	Missile@ newMissile = cast&lt;Missile&gt;(missileNode.scriptObject);
+		
+	newMissile.Init(missileNode, targetNode, true);
+}</code></pre>
+<p>Now, with my new knowledge of references, I tried this:</p>
+<pre><code class="lang-auto">void FireMissile(Node@ targetNode = null)
+{
+	WeakHandle missileNode = LoadGameObject("Missile", node.scene, cameraNode.worldPosition, node.worldRotation);
+		
+	Missile@ newMissile = cast&lt;Missile&gt;(cast&lt;Node&gt;(missileNode.Get()).scriptObject);
+		
+	newMissile.Init(cast&lt;Node&gt;(missileNode.Get()).scriptObject, targetNode, true);
+
+	@newMissile = null;
+}</code></pre>
+<p>That also doesn’t work. When I go to call the Node.Remove() inside the Missile class, the node remains.</p>
+<p>Any help with this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>You wouldnt use a weakhandle inside a method generally.  As soon as the variable goes out of scope the reference is subtracted.  If you have a class that holds onto a Node that would be a good canidate for a weakhandle since that variables scope is lived to the object’s duration.  The code you are showing looks like it wouldn’t add a reference it must be from somewhere else.  What does the Init method do?  I hate to give any advice on this matter as I am fighting this stuff myself.  Like i mentioned in another post, I hope to one day look back and think this memory stuff a bad dream.</p>
+<p>Question:<br/>
+Does calling Remove defer the removal until the counter reaches 0 or will it skip over the command and need to be issued again?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

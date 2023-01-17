@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>OffMeshConnection in NavMesh</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">OffMeshConnection in NavMesh</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>The off-mesh connection usage in the crowd navigation example is quite primitive. The agent goes to one end of the connection and instantly appears on the other end.<br/>
+I subscribed the <code>E_CROWD_AGENT_STATE_CHANGED</code> and found it never sends any event related to off-mesh link. Then I found <code>CA_STATE_OFFMESH</code> is just a place-holder in <code>CrowdAgentState</code> and never used anywhere in the code. So I suppose it’s not supported yet in Urho3D?<br/>
+<strong>Anyone has done something similar in real project how to get information about agent reaching start/end side of the connection and trigger related animation, etc?</strong></p>
+<p>My ultimate goal is that the character can:</p>
+<ul>
+<li>climb up/down a vertical ladder;</li>
+<li>jump up/down within given height diff;</li>
+<li>jump horizontally between a gap.</li>
+</ul>
+<p>It should be very similar to this <a href="https://www.reddit.com/r/Unity3D/comments/5mg3lk/first_test_of_offmesh_links_with_custom_animations/" rel="noopener nofollow ugc">video</a>.</p>
+<p>There it looks easier since we can disable the Auto Traverse Offmesh Links in Unity, and it should be firing enough events to detailed agent state information too.</p>
+<p><strong>How should I do it in the framework of Urho3D? Does the Raycast&amp;Detour lib itself support these and just need to implement them into Urho3d?</strong></p>
+<hr/>
+<p><strong>Another question</strong> is about the shape of OffMeshConnection triggering area. From current implementation, it looks like the end of each connection is only a circle given a radius. What I would like to have, is to have a narrow rectangle as the triggering area. For example, the whole edge of the wall, can be the start of the connection, and the ground under the wall can be the end of the connection. So the agent can “jump” off the wall <strong>at ANY place</strong> near the wall edge, instead of manually set different points everywhere.<br/>
+<strong>Is this even possible with the Raycast&amp;Detour lib too?</strong></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>The path corridor in the <code>dtCrowdAgent</code> contains polyrefs you can use to get the <code>dtPoly</code> and then check if the first poly in the corridor is an offmesh-connection with <code>getType()</code> (they’re just degenerate polys as far as Detour is concerned). You’ll have to keep the 0th polys’ type buffer for old vs new checks to identify the change.</p>
+<p>Identifying specific kinds of offmesh connections is tricky but doable. I wanted to expand the userID to 64bits and just store a pointer, arguably the navmesh could index all offmesh connections with unique ids … which goes to hell when you have tiles and runtime updates. So it never happened. Probably updating the dtOffmesh’s userID to a uint64_t would go fine.</p>
+<p>You can’t assume that DetourCrowd is ready to go out of the box and have to be prepared to break out the elbow grease. Crowds also raise so many events that they penalize scripting making C++ use mandatory if you’re going to use very large ones, as well as possibly refactoring somewhat to jobify it (fairly easy but adds errors to agent actions). I had to compromise somewhere during that part (<span class="mention">@scorvi</span> and <span class="mention">@JTippetts</span> are the other large scale contributors on navigation, lots of handoffs were involved) and opted towards flexibility in the general case and not optimal for more than ~100 agents (150 agents in Angelscript on an Ivy-Bridge mobile chip [SurfacePro1] was my test target).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Thanks for the input!</p>
+<p>I know it’s not an easy task to support all my requirements, just wondering if it’s doable in the framework of Racast&amp;Detour library. If so, I can dig deeper later since it’s a long term plan in my head. I checked a little bit about Unity and Unreal but could not find what lib they are using, do they have their own implementation other than Recast&amp;Detour?</p>
+<p>As you also mentioned the num of agents ~100 for general use. I was wondering what kind of improvement I can do if I want to support several hundreds agents? I was aiming for ~1000 agents on mainstream PC hardware but I am not sure if it’s realistic in current framework. I do see lots of games can do that though, for example, Mount&amp;Blade now can support 1024 + 1024 battle size on main stream PC. That also includes a lot of AI and animation computation there. My game would be much simpler so I assume it’s doable though.<br/>
+One thing in my mind for such a large system is that, I could use flocking behavior to reduce the computation. For example, within those ~1000 agents, only ~100 do crowd nav computation, and the rest would simply follow/copy their path. I am not sure if the flocking mechanism is included in Reycast&amp;Detour lib too.</p>
+<p>Anyway, given all my requirements. I only have very limited knowledge on navigation algorithm now. Do you have any links or papers related to how the algorithm is implemented in Raycast&amp;Detour? So I start to learn something.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>The current implementation of navigation and crowds definitely could use some work. In my own stuff, my tendency is to bypass the engine wrappings and interact with detour and crowd directly. If you want to learn more about the workings, you could check out the old (defunct) blog of R/D’s creator at <a href="http://digestingduck.blogspot.com/?m=1">http://digestingduck.blogspot.com/?m=1</a> for some info. Its pretty old stuff, but it should help a little.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>1000s of units are not realistic with general purpose engines like Urho (and most other). The best you can hope for is 100-200.</p>
+<p>Games that have units in the 1000s most likely use custom inhouse engines optimized for large number of units, designed around the Data-Oriented, Entity-Component-System, which use struct-of-array rather than array-of-struct design patterns that make them very CPU cache friendly (and thus very fast).</p>
+<p>There is an article on Godot design philosophy (you can search for) which clearly states that Godot (which represents a general purpose engine, just like Urho) is designed to make a good compromise between performance and ease of use. For most game types where cutting edge performance is not that critical, ease of use is preferred (also ease of maintenance, etc).</p>
+<p>So, if you want 1000 of agents you have to roll your own engine, and good luck with that <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/2163fe85d10cc0d651a6a2d04efe61d0.png" title=":stuck_out_tongue:"/> (although not impossible, it does take a long time, believe me I’ve tried (and still haven’t finished): <a class="inline-onebox" href="https://www.youtube.com/watch?v=lcy-12kMQJE&amp;t=45s" rel="noopener nofollow ugc">Battle of 1000 spaceships - YouTube</a>  ).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Very interesting video! Thanks for sharing!</p>
+<p>Several followup questions:</p>
+<ul>
+<li>What is the most computational expensive part for your game when you have 1000 spaceships?</li>
+<li>From the video, I guess there is no physics collision stuff? so it would be easier?</li>
+<li>There is no animation system per spaceship neither? so another performance saver?</li>
+<li>What kind of AI are you using? find nearest and attack? since there is no any nav mesh involved, I would assume it’s easier too. Probably some k-d tree update for a N*lg N would be enough.</li>
+<li>For those laser beam, are you using just a infinite long raycast hit detection and only show those beam as effect? or you are using the beam actually moving with raycast detection every frame? For former, you save lots of computation but you don’t have that latency effect (you hit instantly when you press fire).</li>
+<li>When you write your own engine, what is your start point? purely from scratch? like opengl/directx with everything? or at least based on some framework?</li>
+</ul>
+<p>I don’t think it’s realistic for me to write my own engine at this time. The rendering stuff alone cross platform will drive me crazy.</p>
+<p>BTW: I think Urho3D is extremely good at performance compared to other engines. For example, Sample_12 physics stress test can generate 1000 cubes in the scene, and the framerate ~60 after all cubes become static. So I think Urho has the ability to deal with ~1000 entities within the framework if the entity is simple enough.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>There’s a number of things that eat away at crowds (in Urho).</p>
+<ul>
+<li>The volume of events they send is pretty massive, so just by ditching script for C++ when it comes to crowds will be a win.
+<ul>
+<li>It’d probably be good to add “<em>binned</em>” events that roll up everything for all agents like physics does for contacts</li>
+<li>ExecuteFunction beneath update crowd is probably in the thousands in the profiler</li>
+</ul>
+</li>
+<li>They update as part of scene subsystem updates and not fixed update so they’re ticking constantly and sending those events constantly (making it worse)</li>
+<li>Agents are processed one-by-one in the callback instead of doing it in bulk after crowd update where they could split it up for the thread-tasks
+<ul>
+<li>adding binned events requires addressing this</li>
+</ul>
+</li>
+<li>DetourCrowd is single-threaded, parts of it you can split up to jobify but it’s not that much
+<ul>
+<li>Urho using a callback during that update probably doesn’t help the update loop’s perf either … another reason to bin things up afterwards</li>
+</ul>
+</li>
+</ul>
+<hr/>
+<p>The easiest way to check offmesh connections is to check the agent state for DT_CROWDAGENT_STATE_OFFMESH, then you can test the path-corridor to find out which offmesh connection it’s actually on (it’ll be index 0 or 1 in the corridor depending on time in the internal animation). The hard part is just how to map detour’s view of an offmesh-connection back to Urho3Ds in a way that doesn’t become a mess with tile regeneration and the like … probably by checking out IDs from the NavigationMesh and having it keey a <code>HashMap&lt;unsigned, WeakPtr&lt;OffmeshConnection&gt; &gt;</code> or such.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>By “binned” do you mean each agent sends only one event with everything that happened to it, or the crowd controller collects the state of each agent and sends a single event with everything in the <code>eventData</code> ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>The latter, sending them all means you can do it in a tight loop instead of jumping-around or split it up into thread-jobs (which is only really applicable to C++). Script invocations aren’t free.</p>
+<p>I binned up the basic update at one point in my own fork and it helped, still wasn’t a magic bullet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Speaking of D/R, do you know any nice way to keep agents grounded?<br/>
+I know that in theory Recast can generate “detail” mesh for positioning, but in practice this mesh is coarse enough to have significant gaps between feet and ground.</p>
+<p>Maybe I should just keep all walkable geometry in some acceleration structure and do final raycast on each agent reposition to snap them to ground. Is this the only way?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Nope, I’ve done it with physics masks in spherecast.</p>
+<p>If static you could map dtPolyRefs to a list of triangles to check (if totally static that can just be a offset and count into one big list of triangle-<span class="hashtag">#s</span>) just linking tris inside a bounds around the dtPoly. Or map dtPolyRefs to to a cell in an acceleration structure. There’s obvious limits there with navmesh updates and how large you could go.</p>
+<p>Being n-gons makes the dtPolys a headache.</p>
+<hr/>
+<p>Though this has all been about Detour it’s still worth noting that rendering the agents isn’t free. You start pushing several hundred and UpdateDrawables/skinning gets expensive too. If you really want to push that number you’re going to have to get creative.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>The best success I’ve had in this, without a lot of work, is to build your level geometry pieces such that horizontal walking surfaces lie as near the top of a nav volume voxel as possible. For example, if your volume voxels at navmesh generation are set at 0.5 units high, then any ground plane with a y value between 0 and 0.5 will result in a y value of 0.5 in the navmesh. If your ground plane is 0, that means units will float 0.5 units above the ground. It is a bit of a pain, but with care you can edit your ground planes to fall on the 0.5-interval (or whatever) voxel boundaries, and eliminate the worst of the floating.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>The 1000 ship battle is a minimalistic tech demo that does not count as either an engine nor a game, as such, as you’ve guessed from the video, it has no physics (just simple ray-sphere intersection between laser beams and other objects), no skeletal animation, not even shadows. Laser beams a short line segments that move every frame and are checked for collision with other objects.</p>
+<p>If you do want to try the crazy idea of writing your own game/engine optimized for large number of objects, you want to adopt the philosophy of simplify and optimize as low level as possible so you do want to try and write as much as possible yourself, starting with low level API such as OpenGL (which up to about 5 years ago used to mean cross-platform). However, you can use low level libraries such as SDL for windowing/input, some texture loading lib (jpglib, pnglib, etc), and maybe a sound mixer lib and a physics lib. With physics you might want to write your own simplified and optimized library, especially if all you need is collision detection and maybe some simple acceleration.</p>
+<p>Other things you want to consider (which are lacking in most general-purpose engines) is some low level memory manager/allocator that combines paging and caching to minimize calls to new/delete.<br/>
+A simpler scene manager instead of the oct-tree which for most scenarios is overkill and slows down more than helps (I used a static uniform 2D grid for my demo, which I think is a better solution for most games).</p>
+<p>And last and most important, moving away form Object Oriented design to Data oriented design based on the struct-of-arrays pattern, which, for large number of dynamic objects can give up up to 10x performance boost over traditional OO design.</p>
+<p>There are lots of things that can be done, but everything takes time, and time is our most precious resource which gets less and less as days go by into eternity.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

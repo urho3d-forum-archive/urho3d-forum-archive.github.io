@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Bug(?): SetShaderParameter fails for float, works for vec2</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Bug(?): SetShaderParameter fails for float, works for vec2</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">krstefan42</div>
+          <div class="post_content">
+<p>I just ran into this strange behavior. When I declare in my GLSL code (worldToTex is the only place this uniform is used in the shader):</p>
+<p>[code]uniform float cHeightMapSize;</p>
+<p>vec2 worldToTex(vec2 c) {<br/>
+c += vec2(cHeightMapSize*.5);<br/>
+c += vec2(.5);<br/>
+c /= cHeightMapSize;<br/>
+return c;<br/>
+}[/code]<br/>
+Use this as the XML material file:</p>
+<p><code>&lt;material&gt;
+    &lt;technique name="Techniques/Terrain.xml"/&gt;
+    &lt;parameter name="HeightMapSize" value="2048." /&gt;
+    &lt;parameter name="TerrainDisplacement" value="16." /&gt;
+&lt;/material&gt;</code><br/>
+And set it in the Lua script like this:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>Nothing happens, I always get 0 for the value of the parameter.</p>
+<p>But when I declare cHeightMapSize as a vec2 in the shader, initialize it to  value="2048. 2048."in the XML, and in Lua call SetShaderParameter with Variant(Vector2(2048.,2048.)), everything works as expected.  I can post the full code if necessary.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This is a problem with Lua numbers. I verified that creating a float uniform and assigning it in material XML works fine. However when you create a Variant in Lua that way, it actually ends up holding a double, which the shaders can’t take. I believe I’ll put in a check in Material::SetShaderParameter() that a double is automatically converted to a float.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Fixed in master branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I believe this is a general issue when boxing Lua’s number into Urho’s Variant. Number in Lua is implemented using double-precision floating-point number. So, when you construct a Variant as you have done, the Lua/C++ binding will use the constructor which takes a single double parameter. As this is a general issue, you may find the mismatch to manifest itself in other cases. IMHO, it is not possible to safe-guard this in all our API against this mismatch. What to do then? If I were you then I would explicitly use another constructor which take 2 parameter, the type and the number.</p>
+<pre><code class="lang-auto"></code></pre>
+<p>Remember that Lua is a typeless language, so the second parameter could actually be passed with a number instead of string. Observe:</p>
+<p><code>test1 = Variant(0.123)
+print(test1:GetTypeName())   // double
+test2 = Variant("float", 0.123)
+print(test2:GetTypeName())  // float</code></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

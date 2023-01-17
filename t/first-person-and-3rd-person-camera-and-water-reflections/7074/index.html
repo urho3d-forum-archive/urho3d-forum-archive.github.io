@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>First Person and 3rd person camera and water reflections</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">First Person and 3rd person camera and water reflections</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So a little on what I am doing is this. I have two cameras in my scene. One if first-person, and the other is 3rd person. The first-person camera is going to use a ViewMask to hide 3rd person character meshes, and vice-versa for the 3rd person camera.</p>
+<p>I noticed that since I have water in my scene that uses the render to texture from the reflection camera that is a child node of the main camera if I toggle the 3rd person camera “main scene camera” to first-person camera everything works fine except the water in the scenes reflection texture will then follow any rotation of the first-person camera. The reflection texture will not stay in it’s place.</p>
+<p>What I’m doing now is to toggle to the first-person camera is <code>viewport-&gt;SetCamera(cameraNode2_-&gt;GetComponent&lt;Camera&gt;());</code><br/>
+obviously this bug is because I’m not using the main camera anymore. What are some solutions to this?</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>You probably should manually handle reflection camera as well.<br/>
+It should be glued to the node of actually used camera.</p><aside class="onebox githubblob" data-onebox-src="https://github.com/urho3d/Urho3D/blob/master/Source/Samples/23_Water/Water.cpp#L203-L227">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Samples/23_Water/Water.cpp#L203-L227</a></h4>
+<pre class="onebox">    <code class="lang-cpp">
+      <ol class="start lines" start="203" style="counter-reset: li-counter 202 ;">
+          <li>reflectionCameraNode_ = cameraNode_-&gt;CreateChild();</li>
+          <li>auto* reflectionCamera = reflectionCameraNode_-&gt;CreateComponent&lt;Camera&gt;();</li>
+          <li>reflectionCamera-&gt;SetFarClip(750.0);</li>
+          <li>reflectionCamera-&gt;SetViewMask(0x7fffffff); // Hide objects with only bit 31 in the viewmask (the water plane)</li>
+          <li>reflectionCamera-&gt;SetAutoAspectRatio(false);</li>
+          <li>reflectionCamera-&gt;SetUseReflection(true);</li>
+          <li>reflectionCamera-&gt;SetReflectionPlane(waterPlane_);</li>
+          <li>reflectionCamera-&gt;SetUseClipping(true); // Enable clipping of geometry behind water plane</li>
+          <li>reflectionCamera-&gt;SetClipPlane(waterClipPlane_);</li>
+          <li>// The water reflection texture is rectangular. Set reflection camera aspect ratio to match</li>
+          <li>reflectionCamera-&gt;SetAspectRatio((float)graphics-&gt;GetWidth() / (float)graphics-&gt;GetHeight());</li>
+          <li>// View override flags could be used to optimize reflection rendering. For example disable shadows</li>
+          <li>//reflectionCamera-&gt;SetViewOverrideFlags(VO_DISABLE_SHADOWS);</li>
+          <li>
+          </li>
+<li>// Create a texture and setup viewport for water reflection. Assign the reflection texture to the diffuse</li>
+          <li>// texture unit of the water material</li>
+          <li>int texSize = 1024;</li>
+          <li>SharedPtr&lt;Texture2D&gt; renderTexture(new Texture2D(context_));</li>
+          <li>renderTexture-&gt;SetSize(texSize, texSize, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);</li>
+          <li>renderTexture-&gt;SetFilterMode(FILTER_BILINEAR);</li>
+      </ol>
+    </code>
+  </pre>
+
+  This file has been truncated. <a  rel="noopener nofollow ugc" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Okay so I think I figured this out before you posted this. What I did was I create 2 reflection cameras. One for each of my scene cameras. Then when toggled between either 3rd or first person. I set the water rtt texture to the active cameras child reflection camera.</p>
+<pre><code>reflectionCameraNode_ = cameraNode_-&gt;CreateChild();
+reflectionCamera = reflectionCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+reflectionCamera-&gt;SetFarClip(750.0);
+reflectionCamera-&gt;SetViewMask(0x7fffffff); // Hide objects with only bit 31 in the viewmask (the water plane)
+reflectionCamera-&gt;SetAutoAspectRatio(true);
+reflectionCamera-&gt;SetUseReflection(true);
+reflectionCamera-&gt;SetReflectionPlane(waterPlane_);
+reflectionCamera-&gt;SetUseClipping(true); // Enable clipping of geometry behind water plane
+reflectionCamera-&gt;SetClipPlane(waterClipPlane_);
+reflectionCamera-&gt;SetAspectRatio((float)graphics-&gt;GetWidth() / (float)graphics-&gt;GetHeight());
+reflectionCamera-&gt;SetViewOverrideFlags(VO_DISABLE_SHADOWS);
+
+int texSize = 2048;
+renderTexture = (new Texture2D(context_));
+renderTexture-&gt;SetSize(texSize, texSize, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+renderTexture-&gt;SetFilterMode(FILTER_BILINEAR);
+RenderSurface* surface = renderTexture-&gt;GetRenderSurface();
+SharedPtr&lt;Viewport&gt; rttViewport(new Viewport(context_, scene_, reflectionCamera));
+surface-&gt;SetViewport(0, rttViewport);
+waterMat = cache-&gt;GetResource&lt;Material&gt;("Materials/relic_water.xml");
+waterMat-&gt;SetTexture(TU_DIFFUSE, renderTexture);
+
+reflectionCameraNode2_ = cameraNode2_-&gt;CreateChild();
+reflectionCameraFP = reflectionCameraNode2_-&gt;CreateComponent&lt;Camera&gt;();
+reflectionCameraFP-&gt;SetFarClip(750.0);
+reflectionCameraFP-&gt;SetViewMask(0x7fffffff); // Hide objects with only bit 31 in the viewmask (the water plane)
+reflectionCameraFP-&gt;SetAutoAspectRatio(true);
+reflectionCameraFP-&gt;SetUseReflection(true);
+reflectionCameraFP-&gt;SetReflectionPlane(waterPlane_);
+reflectionCameraFP-&gt;SetUseClipping(true); // Enable clipping of geometry behind water plane
+reflectionCameraFP-&gt;SetClipPlane(waterClipPlane_);
+reflectionCameraFP-&gt;SetAspectRatio((float)graphics-&gt;GetWidth() / (float)graphics-&gt;GetHeight());
+reflectionCameraFP-&gt;SetViewOverrideFlags(VO_DISABLE_SHADOWS);
+
+renderTextureFP = (new Texture2D(context_));
+renderTextureFP-&gt;SetSize(texSize, texSize, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+renderTextureFP-&gt;SetFilterMode(FILTER_BILINEAR);
+RenderSurface* surfaceFP = renderTextureFP-&gt;GetRenderSurface();
+SharedPtr&lt;Viewport&gt; rttViewportFP(new Viewport(context_, scene_, reflectionCameraFP));
+surfaceFP-&gt;SetViewport(0, rttViewportFP);
+</code></pre>
+<p>This may not be the most performant way to handle this though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Improved code. This will only use the original rtt texture for the water. No need for a second one.</p>
+<pre><code>reflectionCameraNode_ = cameraNode_-&gt;CreateChild();
+reflectionCamera = reflectionCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+reflectionCamera-&gt;SetFarClip(750.0);
+reflectionCamera-&gt;SetViewMask(0x7fffffff);
+reflectionCamera-&gt;SetAutoAspectRatio(true);
+reflectionCamera-&gt;SetUseReflection(true);
+reflectionCamera-&gt;SetReflectionPlane(waterPlane_);
+reflectionCamera-&gt;SetUseClipping(true); 
+reflectionCamera-&gt;SetClipPlane(waterClipPlane_);
+reflectionCamera-&gt;SetAspectRatio((float)graphics-&gt;GetWidth() / (float)graphics-&gt;GetHeight());
+reflectionCamera-&gt;SetViewOverrideFlags(VO_DISABLE_SHADOWS);
+
+int texSize = 2048;
+renderTexture = (new Texture2D(context_));
+renderTexture-&gt;SetSize(texSize, texSize, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+renderTexture-&gt;SetFilterMode(FILTER_BILINEAR);
+surface = renderTexture-&gt;GetRenderSurface();
+rttViewport = (new Viewport(context_, scene_, reflectionCamera));
+surface-&gt;SetViewport(0, rttViewport);
+waterMat = cache-&gt;GetResource&lt;Material&gt;("Materials/relic_water.xml");
+waterMat-&gt;SetTexture(TU_DIFFUSE, renderTexture);
+
+reflectionCameraNode2_ = cameraNode2_-&gt;CreateChild();
+reflectionCameraFP = reflectionCameraNode2_-&gt;CreateComponent&lt;Camera&gt;();
+reflectionCameraFP-&gt;SetFarClip(750.0);
+reflectionCameraFP-&gt;SetViewMask(0x7fffffff);
+reflectionCameraFP-&gt;SetAutoAspectRatio(true);
+reflectionCameraFP-&gt;SetUseReflection(true);
+reflectionCameraFP-&gt;SetReflectionPlane(waterPlane_);
+reflectionCameraFP-&gt;SetUseClipping(true);
+reflectionCameraFP-&gt;SetClipPlane(waterClipPlane_);
+reflectionCameraFP-&gt;SetAspectRatio((float)graphics-&gt;GetWidth() / (float)graphics-&gt;GetHeight());
+reflectionCameraFP-&gt;SetViewOverrideFlags(VO_DISABLE_SHADOWS);
+</code></pre>
+<p>Then you can just pass the 1st of 2nd reflection camera to the active viewport based on which camera is active in the scene.</p>
+<div class="md-table">
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+<th>rttViewport = (new Viewport(context_, scene_, reflectionCameraFP));</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td></td>
+<td>surface-&gt;SetViewport(0, rttViewport);</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>viewport-&gt;SetCamera(cameraNode2_-&gt;GetComponent(CameraFP));</td>
+</tr>
+</tbody>
+</table>
+</div><p>Leaving the code for anyone in the future.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

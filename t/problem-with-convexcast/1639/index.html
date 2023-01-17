@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Problem with ConvexCast?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Problem with ConvexCast?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1073_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JamesK89</div>
+          <div class="post_content">
+<p>I’m trying to convex cast a swept sphere to test a potential path in the environment.<br/>
+I figure maybe I’m just not understanding how it works properly.</p>
+<p>My code to initialize my collision shape looks like this:</p>
+<pre><code class="lang-auto">/* ... */
+	shape_ = new CollisionShape(context);
+	shape_-&gt;SetCapsule(2.0f, 2.0f, Vector3::ZERO, Quaternion::IDENTITY);
+/* ... */</code></pre>
+<p>Then during a fixed step update (I’m not really sure it is necessary to do it here since Bullet dynamics is separate from Bullet collision but I did so just to be safe):</p>
+<pre><code class="lang-auto">/* ... */
+	PhysicsRaycastResult raycResult;
+
+	const Vector3 start = body-&gt;GetPosition();
+	const Vector3 end = start + (Vector3::DOWN * 100.0f);
+
+	physWorld-&gt;ConvexCast(raycResult, shape_, start, Quaternion::IDENTITY, end, Quaternion::IDENTITY);
+/* ... */</code></pre>
+<p>So the problem is that raycResult always comes back as never having hit anything. I stepped through into the ConvexCast code and discovered this if-branch evaluates to true (the <span class="bbcode-i">!shape-&gt;GetCollisionShape()</span> condition in particular):</p>
+<pre><code class="lang-auto">/* ... */
+    if (!shape || !shape-&gt;GetCollisionShape())
+    {
+        URHO3D_LOGERROR("Null collision shape for convex cast");
+        result.body_ = 0;
+        result.position_ = Vector3::ZERO;
+        result.normal_ = Vector3::ZERO;
+        result.distance_ = M_INFINITY;
+        result.hitFraction_ = 0.0f;
+        return;
+    }
+/* ... */</code></pre>
+<p>Basically the shape doesn’t have a btCollisionShape. So is ConvexCast only for arbitrary polygonal models and do I have to manually build a convex capsule mesh, or is it otherwise not acting as intended?</p>
+<p>On a semi-related note, you’ll have to forgive my ignorance on the Bullet API, I notice that <span class="bbcode-i">PhysicsRaycastResult</span> doesn’t return a list of contacts but rather just a single contact point. I was wondering if there is some technical reason why the list of contacts can’t be retrieved (such as a limitation of the Bullet API) or if it just hasn’t been implemented yet?</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Did you check if shape_ is null by the time u try to cast?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1073_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JamesK89</div>
+          <div class="post_content">
+<p>I took a look at it again tonight and I discovered the problem: I was creating the CollisionShape object directly instead of creating it as a component.</p>
+<p>Let this be a lesson against tired coding!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>[quote=“JamesK89”]I took a look at it again tonight and I discovered the problem: I was creating the CollisionShape object directly instead of creating it as a component.</p>
+<p>Let this be a lesson against tired coding![/quote]</p>
+<p>By the way you can create the Bullet collision shape directly, skipping urho’s API. That’s sort of what SphereCast does internally.<br/>
+ConvexCast has a version that takes in btCollisionShape*.</p>
+<p>It may be the proper approach for your case, since it doesn’t seem like you need a component since you don’t use a node.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

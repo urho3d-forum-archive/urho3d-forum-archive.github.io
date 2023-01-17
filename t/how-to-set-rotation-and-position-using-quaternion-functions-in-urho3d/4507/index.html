@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to set rotation and position using Quaternion functions in Urho3D?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to set rotation and position using Quaternion functions in Urho3D?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<p>The Quaternion concept is new to me,  I watched some youtube videos but still have hard time to figure out how the concept applied in the CharacterDemo program.</p>
+<p>Some basic questions here:</p>
+<ol>
+<li>
+<p>What is meaning of this statement? How the pitch and the Vector3::RIGHT value work?<br/>
+Quaternion dir = rot * Quaternion(character_-&gt;controls_.pitch_, Vector3::RIGHT);</p>
+</li>
+<li>
+<p>In this case, why uses use GetWorldPosition instead of just GetPosition(). How the value of Vector3 here impact the position of the camera?<br/>
+cameraNode_-&gt;SetPosition(headNode-&gt;GetWorldPosition() + rot * Vector3(0.0f, 0.15f, 0.2f));<br/>
+cameraNode_-&gt;SetRotation(dir);</p>
+</li>
+</ol>
+<p>Really appreciate any advise or a brief explanation in layman terms of key concepts used in this function.</p>
+<p>Source code of the function from the CharacterDemo:</p>
+<pre><code class="lang-auto">void CharacterDemo::HandlePostUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    if (!character_)
+        return;
+
+    Node* characterNode = character_-&gt;GetNode();
+
+    // Get camera lookat dir from character yaw + pitch
+    const Quaternion&amp; rot = characterNode-&gt;GetRotation();
+    Quaternion dir = rot * Quaternion(character_-&gt;controls_.pitch_, Vector3::RIGHT);
+
+    // Turn head to camera pitch, but limit to avoid unnatural animation
+    Node* headNode = characterNode-&gt;GetChild("Mutant:Head", true);
+    float limitPitch = Clamp(character_-&gt;controls_.pitch_, -45.0f, 45.0f);
+    Quaternion headDir = rot * Quaternion(limitPitch, Vector3(1.0f, 0.0f, 0.0f));
+    // This could be expanded to look at an arbitrary target, now just look at a point in front
+    Vector3 headWorldTarget = headNode-&gt;GetWorldPosition() + headDir * Vector3(0.0f, 0.0f, -1.0f);
+    headNode-&gt;LookAt(headWorldTarget, Vector3(0.0f, 1.0f, 0.0f));
+
+    if (firstPerson_)
+    {
+        cameraNode_-&gt;SetPosition(headNode-&gt;GetWorldPosition() + rot * Vector3(0.0f, 0.15f, 0.2f));
+        cameraNode_-&gt;SetRotation(dir);
+    }
+    else
+    {
+        // Third person camera: position behind the character
+        Vector3 aimPoint = characterNode-&gt;GetPosition() + rot * Vector3(0.0f, 1.7f, 0.0f);
+
+        // Collide camera ray with static physics objects (layer bitmask 2) to ensure we see the character properly
+        Vector3 rayDir = dir * Vector3::BACK;
+        float rayDistance = touch_ ? touch_-&gt;cameraDistance_ : CAMERA_INITIAL_DIST;
+        PhysicsRaycastResult result;
+        scene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;RaycastSingle(result, Ray(aimPoint, rayDir), rayDistance, 2);
+        if (result.body_)
+            rayDistance = Min(rayDistance, result.distance_);
+        rayDistance = Clamp(rayDistance, CAMERA_MIN_DIST, CAMERA_MAX_DIST);
+
+        cameraNode_-&gt;SetPosition(aimPoint + rayDir * rayDistance);
+        cameraNode_-&gt;SetRotation(dir);
+    }
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="4507" data-username="tni711">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/9f9327202ee68ca9d363f8bd7381978b.png" width="20"/> tni711:</div>
+<blockquote>
+<p>What is meaning of this statement? How the pitch and the Vector3::RIGHT value work?<br/>
+Quaternion dir = rot * Quaternion(character_-&gt;controls_.pitch_, Vector3::RIGHT);</p>
+</blockquote>
+</aside>
+<p>Well it is hard to explain how quaternions work.When working with quaternions and matrices the * sign doesn’t represent multiplication like in most cases (Vectors , real numbers etc) but you can think of it as a “transform” sign. In your example you simply transform Quaternion(character_-&gt;controls_.pitch_, Vector3::RIGHT) by “rot”.Or to make it easier to understand : You put the Vector3::RIGHT vector world coordinates in the coordinate system of “rot”. The returned quaternion (dir) is a rotation relative to “rot”</p>
+<aside class="quote no-group" data-post="1" data-topic="4507" data-username="tni711">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/9f9327202ee68ca9d363f8bd7381978b.png" width="20"/> tni711:</div>
+<blockquote>
+<p>In this case, why uses use GetWorldPosition instead of just GetPosition(). How the value of Vector3 here impact the position of the camera?<br/>
+cameraNode_-&gt;SetPosition(headNode-&gt;GetWorldPosition() + rot * Vector3(0.0f, 0.15f, 0.2f));<br/>
+cameraNode_-&gt;SetRotation(dir);</p>
+</blockquote>
+</aside>
+<p>You must use the GetWorldPosition because the “headNode” is most likely a child of another node (a neck or torso) so getPosition() would return the local coordinates of headNode (relative to neck or torso) This means if the player moves even 10000000 units in a direction the getPosition() would return always the same value (a position realtive to it’s parent)</p>
+<aside class="quote no-group" data-post="1" data-topic="4507" data-username="tni711">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/9f9327202ee68ca9d363f8bd7381978b.png" width="20"/> tni711:</div>
+<blockquote>
+<p>How the value of Vector3 here impact the position of the camera?<br/>
+cameraNode_-&gt;SetPosition(headNode-&gt;GetWorldPosition() + rot * Vector3(0.0f, 0.15f, 0.2f));</p>
+</blockquote>
+</aside>
+<p>The line simply puts the camera in the position of the headNode with some offset (0.15 above and 0.2 behind the player’s head thus make the player fit in the camera’s viewport).But we can’t use the offset  Vector3(0.0f, 0.15f, 0.2f) directly because these are world coordinates. (For an example : what happens if the player is rotated 90 degrees on y axis ? The offset would be invalid since from this point of view x becomes back/forward and z is left/right from the player) We need to transform our vector  by character’s rotation.</p>
+<p><span class="bbcode-b">rot</span> * Vector3(0.0f, 0.15f, 0.2f)</p>
+<p>This makes sure z is always back/forward and x is always left right from the player</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>The identity quaternion (<code>Quaternion::IDENTITY</code>) represents no rotation, which is useful for clearing a node’s rotation. A <code>Quaternion</code> can also be constructed from Euler angles (<code>float, float, float</code>) or a single angle and a rotation axis (<code>float, Vector3</code>).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4507" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<p>When working with quaternions and matrices the * sign doesn’t represent multiplication like in most cases (Vectors , real numbers etc) but you can think of it as a “transform” sign. In your example you simply transform Quaternion(character_-&gt;controls_.pitch_, Vector3::RIGHT) by “rot”.Or to make it easier to understand : You put the Vector3::RIGHT vector world coordinates in the coordinate system of “rot”. The returned quaternion (dir) is a rotation relative to “rot”</p>
+</blockquote>
+</aside>
+<p>Thanks for much for the explanation! I think I start to understand this quaternions business. What confused me a bit was a quaternion can store the orientation of a 3D object as well as the change of rotation which can be applied. Also there are different formats to represent a quaternion value.</p>
+<p>So is it correct the Quaternion(character_-&gt;controls_.pitch_, Vector3::RIGHT) refers to the angle rotation on the x-axis here? I assume the pitch_ is the angle in radian.</p>
+<p>The other points about GetWorldPosition vs GetPosition is now crystal clear to me now <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="4507">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/84ac0c212b0409b829a9017e6a2fe154.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>The identity quaternion ( <code>Quaternion::IDENTITY</code> ) represents no rotation, which is useful for clearing a node’s rotation.</p>
+</blockquote>
+</aside>
+<p>Thanks a lot for the help.<br/>
+I understand the Eurler and the single angle on a rotation axis representations now.<br/>
+However, not quite sure how do you use the IDENTIFY quaterion to clear a node’s rotation.</p>
+<p>Does it means (i am guessing here)</p>
+<p>rot2 = rot1 * Quaternion(character_-&gt;controls_.pitch_, Vector3::RIGHT);<br/>
+rot1 = rot2 * IDENTITY(of rot1)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><code>SetRotation(Quaternion::IDENTITY)</code> - with a <strong>T</strong> <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/> - will clear a <code>Node</code>'s rotation. Multiplying this <code>quaternion</code> by a vector returns the same vector.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3342_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">tni711</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="4507">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/84ac0c212b0409b829a9017e6a2fe154.png" width="20"/> Modanung:</div>
+<blockquote>
+<p><code>SetRotation(Quaternion::IDENTITY)</code> - with a <strong>T</strong> <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/> - will clear a <code>Node</code> 's rotation. Multiplying this <code>quaternion</code> by a vector returns the same vector.</p>
+</blockquote>
+</aside>
+<p>Thanks a lot! I think I understand the concept and is ready to use it to fine tune my table tennis game <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

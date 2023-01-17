@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Best way to duplicate UIElement</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Best way to duplicate UIElement</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lys0gen</div>
+          <div class="post_content">
+<p>Hello,<br/>
+I would like to duplicate certain UI elements in order to have “template” elements that go beyond the defaultStyle settings. Since there is no copy constructor I tried doing this with the SaveXML(XMLElement&amp; dest) &amp; LoadXML(XMLElement&amp; source) functions as follows:</p>
+<pre><code>    Urho3D::Button* buttonTemplate = ...
+    XMLElement templateStyle;            
+    buttonTemplate-&gt;SaveXML(templateStyle);
+
+    Urho3D::Button* duplicateButton = new Button(context_);
+    duplicateButton-&gt;LoadXML(templateStyle);
+</code></pre>
+<p>Sadly this fails, SaveXML returns false, the XMLElement and the duplicate remain without any attributes. Saving into a file for test purposes like this works as expected though, the file contains all the attributes</p>
+<pre><code>    Urho3D::File serializedFile(context_, "test.xml", FILE_WRITE);
+    buttonTemplate-&gt;SaveXML(serializedFile);
+</code></pre>
+<p>What am I doing wrong? Is there a better way to achieve this?<br/>
+Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I don’t remember if <code>XMLElements</code> can exist on their own like that. Try creating an <code>XMLFile</code> and saving it to an element in that. Other than that, check and see if there are error messages in the log.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Indeed <code>XMLElement::SetAttribute</code> returns false when it is not associated with an <code>XMLFile</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lys0gen</div>
+          <div class="post_content">
+<p>Thanks guys!<br/>
+Seems a bit convoluted to me, I don’t really know why the XMLFile is necessary but it works, I guess.</p>
+<pre><code>        XMLFile blankFile(context_);
+        XMLElement templateStyle = blankFile.CreateRoot("thisNameIsIrrelevant");
+        
+        Urho3D::Button* buttonTemplate = ...
+        buttonTemplate-&gt;SaveXML(templateStyle);
+        
+        Urho3D::Button* duplicateButton = new Button(context_);
+        duplicateButton-&gt;SetStyle(templateStyle);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Hey… now it says <code>SetStyle</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lys0gen</div>
+          <div class="post_content">
+<p>Yup, LoadXML doesn’t properly do what I want, i.e. size gets copied but the whole element is just white (doesn’t copy the default style settings maybe?). SetStyle makes the whole thing look exactly like the template.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I have barely any practical experience with the UI system, but some <code>Clone</code> function (as <code>Material</code> has) seems to be what you’re after. <span class="spoiler">I would not expect <code>SaveXML</code> and <code>SetStyle</code> to be compatible. EDIT: Although <code>SetStyle</code> <em>does</em> seem to call <code>UIELement::LoadXML</code>.</span></p>
+<p>Did you call <code>SetDefaultStyle</code> on the <code>UI</code> root?<br/>
+And maybe try <code>SetStyleAuto(blankFile)</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lys0gen</div>
+          <div class="post_content">
+<p>Huh, the code above works now, did you overlook my statement or do you want to discuss the intricacies of Urhos UI system now? <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/> As said, I am not entirely sure why it has to be like this and it certainly seems like it is not completely intended to be used like this but… it works. So that is good enough for me currently <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/><br/>
+Thanks for taking your time digging through it. And yes, my UI root has a defaultStyle set.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Well you <em>could</em> create a second style file beforehand, I guess. Would that seem less convoluted?</p>
+<p>…or save the style during one run, after which you can remove/comment the saving code.</p>
+<aside class="quote no-group" data-post="8" data-topic="6095" data-username="Lys0gen">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4ba69cabd3c06cbfecad5e65519f3070.png" width="20"/> Lys0gen:</div>
+<blockquote>
+<p>Huh, the code above works now, did you overlook my statement or do you want to discuss the intricacies of Urhos UI system now?</p>
+</blockquote>
+</aside>
+<aside class="quote no-group" data-post="6" data-topic="6095" data-username="Lys0gen">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4ba69cabd3c06cbfecad5e65519f3070.png" width="20"/> Lys0gen:</div>
+<blockquote>
+<p>SetStyle makes the whole thing look exactly like the template.</p>
+</blockquote>
+</aside>
+<p>I misunderstood template as meaning default style.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="6095" data-username="Lys0gen">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4ba69cabd3c06cbfecad5e65519f3070.png" width="20"/> Lys0gen:</div>
+<blockquote>
+<p>I don’t really know why the XMLFile is necessary</p>
+</blockquote>
+</aside>
+<p>I can answer this one. <code>XMLElement</code> is handler type, somewhat like pointer. It doesn’t <em>store</em> anything.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

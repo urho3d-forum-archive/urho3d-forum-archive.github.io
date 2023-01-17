@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CustomGeometry and lighting</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CustomGeometry and lighting</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Denthor</div>
+          <div class="post_content">
+<p>Hi there, in the following function I load a mdl file, and then create a CustomGeometry over it.</p>
+<p>When I run this, the model has correct lighting, but the CustomGeometry is black. There is no difference adding or removing DefineNormal.</p>
+<p>Camera and lighting as per sample 5 AnimatingScene.</p>
+<p>Any ideas on what I’m doing wrong?</p>
+<pre><code class="lang-auto">void CreateCylinder()
+{
+// Create something we know to work for information
+	Urho3D::ResourceCache* cache = application-&gt;GetSubsystem&lt;Urho3D::ResourceCache&gt;();
+	Node* boxNode = m_pNode-&gt;CreateChild("Box");
+	StaticModel* boxObject = boxNode-&gt;CreateComponent&lt;StaticModel&gt;();
+	boxObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+	boxObject-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Stone.xml"));
+
+// Precalc verts for normals later
+	float existingShapeSize = 3;
+	Vector3 verts[512];
+	float a = 0.0f;
+	int nPos = 0;
+
+
+	for (int i = 0; i &lt; 256; i++)
+	{
+		float step = 6.283185307179586476925286766559f / (float)255;
+		float nY = (float)sin(a) * existingShapeSize;
+		float nZ = (float)cos(a) * existingShapeSize;
+
+		float nTextY = (float)i / 256.0f;//((nZ + 2) / 4);
+
+		verts[i*2] = Vector3(-1, nY, nZ);
+		verts[i * 2 + 1] = Vector3(1, nY, nZ);
+
+		a += step;
+	}
+
+// Set up custom geometry
+	geometry = m_pNode-&gt;CreateComponent&lt;Urho3D::CustomGeometry&gt;();
+	geometry-&gt;BeginGeometry(0, TRIANGLE_STRIP);
+
+	a = 0.0f;
+	nPos = 0;
+
+	for (int i = 0; i &lt; 256; i++)
+	{
+		float step = 6.283185307179586476925286766559f / (float)255;
+		float nY = (float)sin(a) * existingShapeSize;
+		float nZ = (float)cos(a) * existingShapeSize;
+
+		float nTextY = (float)i / 256.0f;//((nZ + 2) / 4);
+
+		geometry-&gt;DefineVertex(Vector3(-1, nY, nZ));
+		geometry-&gt;DefineTexCoord(Vector2(1.0, 1.0f - nTextY));
+
+		if (i * 2 + 3 &lt; 512)
+		{
+			Vector3 v1 = verts[i * 2];
+			Vector3 v2 = verts[i * 2 + 1];
+			Vector3 v3 = verts[i * 2 + 2];
+			Vector3 n1 = verts[i * 2 + 3];
+			Vector3 n2 = verts[i * 2 + 3];
+			Vector3 n3 = verts[i * 2 + 3];
+
+			Vector3 edge1 = v1 - v2;
+			Vector3 edge2 = v1 - v3;
+			n1 = n2 = n3 = edge1.CrossProduct(edge2).Normalized();
+			geometry-&gt;DefineNormal(n1);
+		}
+
+
+
+		geometry-&gt;DefineVertex(Vector3(1, nY, nZ));
+		geometry-&gt;DefineTexCoord(Vector2(0.0, 1.0f - nTextY));
+		if (i * 2 + 3 &lt; 512)
+		{
+			Vector3 v1 = verts[i * 2];
+			Vector3 v2 = verts[i * 2 + 1];
+			Vector3 v3 = verts[i * 2 + 2];
+			Vector3 n1 = verts[i * 2 + 3];
+			Vector3 n2 = verts[i * 2 + 3];
+			Vector3 n3 = verts[i * 2 + 3];
+
+			Vector3 edge1 = v1 - v2;
+			Vector3 edge2 = v1 - v3;
+			n1 = n2 = n3 = edge1.CrossProduct(edge2).Normalized();
+			geometry-&gt;DefineNormal(n1);
+		}
+
+		a += step;
+	}
+	geometry-&gt;Commit();
+	geometry-&gt;SetMaterial(cache-&gt;GetResource&lt;Urho3D::Material&gt;("Materials/Stone.xml"));
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I think you need DefineTangent() too.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Denthor</div>
+          <div class="post_content">
+<p>That worked, thank you.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

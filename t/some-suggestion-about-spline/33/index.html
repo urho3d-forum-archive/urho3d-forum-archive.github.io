@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Some suggestion about spline</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Some suggestion about spline</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/5_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cin</div>
+          <div class="post_content">
+<p>I think what need move spline to core and separate for types which can be Lerp’ed -float, vector2, vector3, vector4 and color. I don’t know how to make it optimal and right in common case.<br/>
+Next for scene need rename Spline to Spline3DPath, it must use core Spline class for calculations.  Add auto move parent node when we click Autoupdate in editor. Also debug geometry needed for Spline3DPath.<br/>
+Why Spline must be moved into core - it can be used in other places, ex. in 2D gui contol which return interpolated value by time. Or for connect nodes as showed here:<br/>
+<img alt="" height="102" src="../../../images2/bd0bd6a8ce260181ed5f4b5a7a1299ac.png" width="172"/><br/>
+Next we can use spline to interpolate colour of light (for flash) over time. RampGenerator can use spline function for allow generate not linear gradient textures.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>It should be easy to create the specific implementations using specialized templates so thats not a problem and I did originally have it in math so I’m not against it being there. I do think we need to be careful with the components though because we don’t want them to look like they are replacing the path finding, I’ll think a bit about naming and especially auto-movement. I’m not a fan of the lack of control that would cause but maybe if the functionality is available elsewhere its not such an issue. Although as Lasse pointed out in my pull request there are some benefits to not having auto-movment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Because Attributes already operate on Variants it might make sense to have the interpolator / animator (or whatever it is called) also operate on them. Of course it only makes sense on the numeric types and when the control points are all of the same type (for example all Vector3, or all Color). Then you could target any suitable attribute in any component, and changing the attribute also activates the required side-effects, such as scene graph dirtying.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>Hm thats an interesting alternative to specialized templates. Is there anyway to know with the variant which base type has been set?</p>
+<p>Edit: Nevermind found it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p><em>shameless double post</em></p>
+<p>So I was thinking something like this for the “Spline” class in Math:</p>
+<p>[code]Variant Spline::BezierInterpolation(const VariantVector&amp; knots, float t, VariantType type)<br/>
+{<br/>
+if (knots.Size() == 2)<br/>
+{<br/>
+switch (type)<br/>
+{<br/>
+case VAR_FLOAT:<br/>
+case VAR_VECTOR2:<br/>
+case VAR_VECTOR3:<br/>
+case VAR_VECTOR4:<br/>
+case VAR_COLOR:<br/>
+return LinearInterpolation(knots[0], knots[1], t, type);<br/>
+default:<br/>
+return Variant::EMPTY;<br/>
+}<br/>
+}<br/>
+else<br/>
+{<br/>
+VariantVector interpolatedKnots;<br/>
+for (unsigned i = 1; i &lt; knots.Size(); i++)<br/>
+{<br/>
+switch (type)<br/>
+{<br/>
+case VAR_FLOAT:<br/>
+case VAR_VECTOR2:<br/>
+case VAR_VECTOR3:<br/>
+case VAR_VECTOR4:<br/>
+case VAR_COLOR:<br/>
+interpolatedKnots.Push(LinearInterpolation(knots[i - 1], knots[i], t, type));<br/>
+break;<br/>
+default:<br/>
+return Variant::EMPTY;<br/>
+}<br/>
+}<br/>
+return BezierInterpolation(interpolatedKnots, t, type);<br/>
+}<br/>
+}</p>
+<p>Variant Spline::LinearInterpolation(const Variant&amp; lhs, const Variant&amp; rhs, float t, VariantType type)<br/>
+{<br/>
+switch (type)<br/>
+{<br/>
+case VAR_FLOAT:<br/>
+return Lerp(lhs.GetFloat(), rhs.GetFloat(), t);<br/>
+case VAR_VECTOR2:<br/>
+return lhs.GetVector2().Lerp(rhs.GetVector2(), t);<br/>
+case VAR_VECTOR3:<br/>
+return lhs.GetVector3().Lerp(rhs.GetVector3(), t);<br/>
+case VAR_VECTOR4:<br/>
+return lhs.GetVector4().Lerp(rhs.GetVector4(), t);<br/>
+case VAR_COLOR:<br/>
+return lhs.GetColor().Lerp(rhs.GetColor(), t);<br/>
+default:<br/>
+return Variant::EMPTY;<br/>
+}<br/>
+}[/code]</p>
+<p>It removes any reliance on templates and makes use of the Variant types and would fit pretty seemlessly into a “SplinePath” component in the scene graph, where the “SplinePath” would calculate all the length, distance traveled functions etc and pass that factor to the “Spline” class. Perhaps with a few more controls on what VariantTypes are suitable when adding “Knots” (its the proper technical term *faceplam).</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

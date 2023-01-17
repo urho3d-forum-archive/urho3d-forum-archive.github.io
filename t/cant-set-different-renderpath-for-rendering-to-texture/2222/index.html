@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Can&rsquo;t set different RenderPath for rendering to texture</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Can&rsquo;t set different RenderPath for rendering to texture</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">krstefan42</div>
+          <div class="post_content">
+<p>I’m trying to render to a texture using a RenderPath with just a fullscreen quad command (to generate a procedural heightmap for a terrain vertex shader). However, it doesn’t seem to matter what I set the RenderPath to for the RTT viewport, it always uses the same RenderPath as the backbuffer. The code is like this(mostly copied from the renderToTexture lua sample code):</p>
+<pre><code class="lang-auto">	scene_ = Scene()
+	scene_:CreateComponent("Octree")
+	
+	local rttCameraNode =  scene_:CreateChild("Camera2")
+	local rttCam = rttCameraNode:CreateComponent("Camera")
+	
+	local renderTexture = Texture2D:new()
+	renderTexture:SetSize(2048, 2048, Graphics:	GetRGBA16Format(), TEXTURE_RENDERTARGET)
+	
+	
+	local surface = renderTexture.renderSurface
+	local rttViewport = Viewport:new( scene_, rttCameraNode:GetComponent("Camera"))
+	surface:SetViewport(0, rttViewport)
+	rttViewport.renderPath:Load(cache:GetResource("XMLFile", "RenderPaths/RenderTerrainHeightMap.xml"));	 
+	
+	local screenNode = scene_:CreateChild("Screen")
+	local screenObject = screenNode:CreateComponent("StaticModel")
+	screenObject.model = cache:GetResource("Model", "Models/Plane.mdl")
+	
+	local renderMaterial = Material:new()
+	renderMaterial:SetTechnique(0, cache:GetResource("Technique", "Techniques/DiffUnlit.xml"))
+	renderMaterial:SetTexture(TU_DIFFUSE, renderTexture)
+	screenObject.material = renderMaterial
+
+	cameraNode = scene_:CreateChild("Camera")
+	local camera = cameraNode:CreateComponent("Camera")
+
+	local viewport = Viewport:new(scene_, camera)
+	viewport.renderPath:Load(cache:GetResource("XMLFile", "RenderPaths/SSAO.xml"));	 
+	renderer:SetViewport(0,viewport)</code></pre>
+<p>I don’t think the problem is with the RenderPath file, because even setting the RTT viewport RenderPath to one of the built-in ones doesn’t seem to work (the rendered texture still has the SSAO effect applied from my SSAO RenderPath that I’m using for the backbuffer).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>When you create a viewport without specifying a renderpath object, it gets the default renderpath from Renderer. So you’re essentially editing the same renderpath object in 2 places.<br/>
+You can either first create the new renderpath, then create the viewport specifying it, or assign it later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">krstefan42</div>
+          <div class="post_content">
+<p>Thanks. How do you call the constructor for RenderPath in lua? RenderPath:new(), RenderPath(), etc, don’t seem to work.</p>
+<p>I tried renderer.DefaultRenderPath:Clone() as a workaround, but it doesn’t seem to actually create a unique Renderpath; I still get the same problem as before.</p>
+<p>EDIT: I figured out I can use Viewport:SetRenderPath. So everything’s good now.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

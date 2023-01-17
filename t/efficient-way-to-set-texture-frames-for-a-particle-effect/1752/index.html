@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Efficient way to set texture frames for a particle effect?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Efficient way to set texture frames for a particle effect?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Is there any efficient way to set texture frames?<br/>
+Right now it requires manually normalizing the min and max points of a frame to type them in and typing in the time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi, did you trying doing similar stuff ?<br/>
+this is from unity example with some fixes.</p>
+<p>let’s say<br/>
+you got this texture:<br/>
+<a data-bbcode="true" href="http://savepic.net/7702466.htm"><img alt="" height="" src="../../../images2/6684a71588d4fda201209a6da813fd76.png" width=""/></a></p>
+<p>this shader UnlitAnim</p>
+<p>[code]<span class="hashtag">#include</span> “Uniforms.glsl”<br/>
+<span class="hashtag">#include</span> “Samplers.glsl”<br/>
+<span class="hashtag">#include</span> “Transform.glsl”<br/>
+<span class="hashtag">#include</span> “ScreenPos.glsl”<br/>
+<span class="hashtag">#include</span> “Fog.glsl”</p>
+<p>varying vec2 vTexCoord;<br/>
+varying vec4 vWorldPos;<br/>
+<span class="hashtag">#ifdef</span> VERTEXCOLOR<br/>
+varying vec4 vColor;<br/>
+<span class="hashtag">#endif</span></p>
+<p><span class="hashtag">#ifdef</span> COMPILEVS</p>
+<p>uniform float cAnimTime;<br/>
+uniform float cAnimTileX;<br/>
+uniform float cAnimTileY;</p>
+<p>void VS()<br/>
+{<br/>
+mat4 modelMatrix = iModelMatrix;<br/>
+vec3 worldPos = GetWorldPos(modelMatrix);<br/>
+gl_Position = GetClipPos(worldPos);<br/>
+vTexCoord = GetTexCoord(iTexCoord);<br/>
+vWorldPos = vec4(worldPos, GetDepth(gl_Position));</p>
+<pre><code>int index = int(cAnimTime);  
+index = index % int(cAnimTileX * cAnimTileY);
+
+vec2 size = vec2(1.0 / float(cAnimTileX), 1.0 / float(cAnimTileY));
+
+// split into horizontal and vertical index
+int uIndex = index % int((cAnimTileX));
+int vIndex = index / int((cAnimTileY));
+
+
+vec2 finalFrame = iTexCoord;
+finalFrame.x /= cAnimTileX;
+finalFrame.y /= cAnimTileY;
+
+finalFrame += vec2((uIndex) * size.x, (vIndex) * size.y);
+ 
+vTexCoord = GetTexCoord(finalFrame);
+
+
+#ifdef VERTEXCOLOR
+    vColor = iColor;
+#endif
+</code></pre>
+<p>}</p>
+<p><span class="hashtag">#endif</span></p>
+<p>void PS()<br/>
+{<br/>
+// Get material diffuse albedo<br/>
+<span class="hashtag">#ifdef</span> DIFFMAP<br/>
+vec4 diffColor = cMatDiffColor * texture2D(sDiffMap, vTexCoord);<br/>
+<span class="hashtag">#ifdef</span> ALPHAMASK<br/>
+if (diffColor.a &lt; 0.5)<br/>
+discard;<br/>
+<span class="hashtag">#endif</span><br/>
+<span class="hashtag">#else</span><br/>
+vec4 diffColor = cMatDiffColor;<br/>
+<span class="hashtag">#endif</span></p>
+<pre><code>#ifdef VERTEXCOLOR
+    diffColor *= vColor;
+#endif
+
+// Get fog factor
+#ifdef HEIGHTFOG
+    float fogFactor = GetHeightFogFactor(vWorldPos.w, vWorldPos.y);
+#else
+    float fogFactor = GetFogFactor(vWorldPos.w);
+#endif
+
+#if defined(PREPASS)
+    // Fill light pre-pass G-Buffer
+    gl_FragData[0] = vec4(0.5, 0.5, 0.5, 1.0);
+    gl_FragData[1] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+#elif defined(DEFERRED)
+    gl_FragData[0] = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+    gl_FragData[1] = vec4(0.0, 0.0, 0.0, 0.0);
+    gl_FragData[2] = vec4(0.5, 0.5, 0.5, 1.0);
+    gl_FragData[3] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+#else
+    gl_FragColor = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+#endif
+</code></pre>
+<p>}[/code]</p>
+<p>and this tech for material</p>
+<p><code>&lt;technique vs="UnlitAnim" ps="UnlitAnim" psdefines="DIFFMAP" &gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="prepass" psdefines="PREPASS" /&gt;
+    &lt;pass name="material" /&gt;
+    &lt;pass name="deferred" psdefines="DEFERRED" /&gt;
+&lt;/technique&gt;</code></p>
+<p>create material with this tech and add few uniform for shader (as show on picture bellow)<br/>
+then try change animTime<br/>
+<a data-bbcode="true" href="http://savepic.net/7670722.htm"><img alt="" height="" src="../../../images2/3a0b6a41e0224994d4267ab07ad95e3f.png" width=""/></a></p>
+<p>Probably you may try use this anim technique for animate particles:<br/>
+I guess you need put into shader the arrays of uniforms or TBO (with personal particles data - frame(or time)) and fetch it by particle index.<br/>
+Or just extends(or use free element masks) vertex structure with additional data for each particle(+float time), I guess particles system feed one common VBO for all particles(per emitter) on cpu side every frame.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I’m talking about Urho’s ParticleEffect frames, and the particle editor.<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/rIbqVJj.jpg" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/30c71451de0c051491e28f76b87e329e.jpg" width="645"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1040×806</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>Perhaps a visual tool for defining frame sets for sprite sheets could improve the workflow. Such tool can be generic.<br/>
+Urho’s editor will need an option to load frames from such frame set file.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

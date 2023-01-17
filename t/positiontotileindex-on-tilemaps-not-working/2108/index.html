@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>PositionToTileindex On TileMaps not working</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">PositionToTileindex On TileMaps not working</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GaioGiulioPatrizio</div>
+          <div class="post_content">
+<p>Hi to all,</p>
+<p>i have some issues with the function PositionToTileindex on tilemaps…</p>
+<p>Here is the code i’m trying to get to work:</p>
+<pre><code class="lang-auto">
+void Urho2DTileMap::HandleControlClicked(StringHash eventType, VariantMap&amp; eventData)
+{
+	
+	Vector3 hitPos;
+	Drawable* hitDrawable;
+	Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+	Input* input = GetSubsystem&lt;Input&gt;();
+	
+	IntVector2 pos = input-&gt;GetMousePosition();
+	Camera* camera = cameraNode_-&gt;GetComponent&lt;Camera&gt;();
+
+	Ray cameraRay = camera-&gt;GetScreenRay((float)pos.x_ / graphics-&gt;GetWidth(), (float)pos.y_ / graphics-&gt;GetHeight());
+	// Pick only geometry objects, not eg. zones or lights, only get the first (closest) hit
+	PODVector&lt;RayQueryResult&gt; results;
+	RayOctreeQuery query(results, cameraRay, RAY_TRIANGLE, 1000, DRAWABLE_GEOMETRY);
+	scene_-&gt;GetComponent&lt;Octree&gt;()-&gt;RaycastSingle(query);
+	if (results.Size())
+	{
+		RayQueryResult&amp; result = results[0];
+		hitPos = result.position_;
+		hitDrawable = result.drawable_;
+
+		// Set camera's position
+		const TileMapInfo2D&amp; info = tileMap-&gt;GetInfo();
+		
+
+		int xp = 0;
+		int yp = 0;
+
+		
+		Vector2 posf = { (hitPos.x_ - tileMap-&gt;GetNode()-&gt;GetWorldPosition().x_),
+			   -((hitPos.y_ - tileMap-&gt;GetNode()-&gt;GetWorldPosition().y_) ) } ;
+
+
+		if (!tileMap-&gt;PositionToTileIndex(xp, yp, posf))
+			return;
+		
+
+		for (int i = 0; i &lt; tileMap-&gt;GetNumLayers(); i++)
+			if (tileMap-&gt;GetLayer(i)-&gt;GetTileNode(xp, yp) != NULL)
+			{
+				tileMap-&gt;GetLayer(i)-&gt;GetTileNode(xp, yp)-&gt;Remove();
+			}
+		return;
+	}
+
+}</code></pre>
+<p>Simply talking, this function is called on a click event that intersects a tilemap. I have used the tilemap example in the urho3d distribution.<br/>
+The event fires perfectly and all is working fine until i get to this line…</p>
+<pre><code class="lang-auto">if (!tileMap-&gt;PositionToTileIndex(xp, yp, posf))
+			return;</code></pre>
+<p>This seems to not convert properly what i pass as arguments.</p>
+<p>posf vector is correctly valorized.<br/>
+For the downmost tile (which is the (49.49) on a 50x50 tilemap) posf is about  (63.9 , 068). Map dimension is 128x64 units in Urho.</p>
+<p>But function result is “false” and xp and yp variables are -48 and -48 respectively…</p>
+<p>If i point something in the middle of the map like tile (24,24) posf is like (65,33) but PosToTileIndex returns false, xp=-22 and yp = -22</p>
+<p>at first i thought it was a sign error but clicking on something like tile (0,49) which is the one on leftmost(on screepos (1,32) ) i get again false and xp=-47 and yp=-47</p>
+<p>so this seems not to be a sign problem…</p>
+<p>Any idea?<br/>
+Maybe i’m missing some origin point conversion or convention?</p>
+<p><img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Have a look <a data-bbcode="true" >here</a> for a rough fix. This is not pixel perfect so I’ve let it as is as a reminder.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GaioGiulioPatrizio</div>
+          <div class="post_content">
+<p>Tried but nothing worked…</p>
+<p>I came up with this mathematical solutions that works perfectly. I post it here so if anyone has same problems can find a decent workaround  <img alt=":laughing:" class="emoji" src="../../../images2/f1b3f4dd9f845d1069864c322071dffe.png" title=":laughing:"/></p>
+<p>Basically i take a mouse click event, get local click position for the tile map and then i project back those local coords to the tile grid to find the specific clicked cell.</p>
+<pre><code class="lang-auto">
+
+void Urho2DTileMap::HandleControlClicked(StringHash eventType, VariantMap&amp; eventData)
+{
+	
+	Vector3 hitPos;
+	Drawable* hitDrawable;
+	Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+	Input* input = GetSubsystem&lt;Input&gt;();
+	
+	IntVector2 pos = input-&gt;GetMousePosition();
+	Camera* camera = cameraNode_-&gt;GetComponent&lt;Camera&gt;();
+
+
+
+	Ray cameraRay = camera-&gt;GetScreenRay((float)pos.x_ / graphics-&gt;GetWidth(), (float)pos.y_ / graphics-&gt;GetHeight());
+	// Pick only geometry objects, not eg. zones or lights, only get the first (closest) hit
+	PODVector&lt;RayQueryResult&gt; results;
+	RayOctreeQuery query(results, cameraRay, RAY_TRIANGLE, 1000, DRAWABLE_GEOMETRY);
+	scene_-&gt;GetComponent&lt;Octree&gt;()-&gt;RaycastSingle(query);
+	if (results.Size())
+	{
+		RayQueryResult&amp; result = results[0];
+		hitPos = result.position_;
+		hitDrawable = result.drawable_;
+
+		// Set camera's position
+		const TileMapInfo2D&amp; info = tileMap-&gt;GetInfo();
+		
+
+		int xp = 0;
+		int yp = 0;
+
+		
+		Vector2 posf = { (hitPos.x_ - tileMap-&gt;GetNode()-&gt;GetWorldPosition().x_ - info.GetMapWidth() /2 ),
+			   ((info.GetMapHeight() - (hitPos.y_ - tileMap-&gt;GetNode()-&gt;GetWorldPosition().y_) ) ) } ;
+
+
+		xp = (posf.x_ / (info.tileWidth_/2) + posf.y_ / (info.tileHeight_/2)) / 2;
+		
+		yp = (posf.y_ / (info.tileHeight_/2) - (posf.x_ / (info.tileWidth_/2))) / 2;
+		
+
+
+		
+
+		for (int i = 0; i &lt; tileMap-&gt;GetNumLayers(); i++)
+			if (tileMap-&gt;GetLayer(i)-&gt;GetTileNode(xp, yp) != NULL)
+			{
+				tileMap-&gt;GetLayer(i)-&gt;GetTileNode(xp, yp)-&gt;Remove();
+			}
+		return;
+	}
+
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>PositionToTileIndex() fixed in master and now featured in sample <span class="hashtag">#36</span>.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

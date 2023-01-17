@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Streaming/Lazy-Loading terrain tiles</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Streaming/Lazy-Loading terrain tiles</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>Is there a built-in engine solution for streaming or lazy-loading terrain tiles? I’ve created a few terrain tiles, and even though they don’t align perfectly on the seams, I managed to hide those with static meshes like rocks, trees and grass. Now, the only challenge left is finding a way of lazy loading those tiles based on where the player is on the map.</p>
+<p>Is there a built-in engine solution for this? Or should I raycast my way into this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>You may want to look into Townforged, my vague recollection is they lazy load terrain…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>This? <a class="inline-onebox" href="https://git.townforge.net/townforge/townforge" rel="noopener nofollow ugc">townforge/townforge - townforge - Townforge git</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Yeah they build on Urho3d: <a class="inline-onebox" href="https://git.townforge.net/townforge/Urho3D" rel="noopener nofollow ugc">townforge/Urho3D - Urho3D - Townforge git</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>It’s pretty involved but the core update of my tiling scene management is:</p>
+<pre><code class="lang-auto">for (auto c : cells_)
+{
+    // any async raw-data loads completed?
+    if (c-&gt;loaded_ == LS_STREAMING &amp;&amp; c-&gt;fileDataLoaded_) //JS: fixme
+    {
+        c-&gt;node_-&gt;Load(c-&gt;loadData_);
+        c-&gt;fileDataLoaded_ = 0;
+        c-&gt;loaded_ = LS_LOADED;
+        c-&gt;loadData_.Clear();
+    }
+}
+
+for (auto cell : cells_)
+{
+    // reminder, position and these distances are in tile-space
+    const auto posDiff = position_ - cell-&gt;position_;
+    const auto diffX = Abs(posDiff.x_);
+    const auto diffY = Abs(posDiff.y_);
+    const auto dist = Max(diffX, diffY);
+
+    // avoid any risk of atomic divergence in tests
+    const auto loadState = cell-&gt;loaded_.load();
+    if (dist &lt;= distance_)
+    {
+        if (loadState != LS_STREAMING &amp;&amp; loadState != LS_LOADED)
+            LoadCell(cell, anyLoaded &amp;&amp; !isTeleport);
+    }
+    else
+    {
+        if (loadState == LS_LOADED || (loadState == LS_PERSISTING &amp;&amp; dist &gt; persistDistance_))
+        {
+            UnloadCell(cell); // queues persistance if LS_LOADED
+        }
+    }
+}
+</code></pre>
+<p>where a cell is:</p>
+<pre><code class="lang-auto">struct Cell {
+    // Octree only applied because I refactored scene management, doesn't apply if no floating origin where there's an octree per tile
+    SharedPtr&lt;Octree&gt; octree_;
+    SharedPtr&lt;Node&gt; node_; // root for the cell, named Tile_X_Y
+    IntVector2 position_; // in tile space
+    std::atomic&lt;LoadStatus&gt; loaded_; // state
+            
+    VectorBuffer loadData_; // temp buffer async load is written into
+    std::atomic&lt;int&gt; fileDataLoaded_; // 0 or 1 bool marker for the above data
+};
+</code></pre>
+<p>There’s a lot going on behind the scenes for the async load, but it’s basically just a file read stuffed into a special thread that manages the loads and persistence. Atomics track status and when ready the actual Node::Load is done against the read data (which is fast enough for reasonably sized tiles).</p>
+<p>Persistence is tricky so there’s a threshold distance before a persisting cell is genuinely cleared of the loaded nodes (it’s immediately orphaned from the scene, but not released so it can be reattached in a hurry) to avoid ping ponging tile loads/unloads and allows to lazily write out save-state.</p>
+<p>Teleporting is hard. I do it the janky way and delay the load for 2 frames so renderpaths can be switched to draw a load screen. It mostly works, but it’s jank.</p>
+<p>Octree per cell weirdness is related to floating origin, that’s a giant nightmare. Shifting every root-level node murders the octree so instead everything gets shifted without marking dirtiness. It’s easier to shift a whole Octree but not as easy to just shift Octants as that involves treadmills and exchanging contents which is more headache than I wanted. If not shifting origin then none of that matters.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>Do you check that on every movement of the camera (to get the distance)? Also, at which moment do you actually create the node and the component?</p>
+<pre><code class="lang-auto">Node* terrainNode = scene_-&gt;CreateChild("Terrain");
+auto* terrain = terrainNode-&gt;CreateComponent&lt;Terrain&gt;();
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>I check once at the beginning of frame and again whenever the camera is teleported, unless teleporting any camera movement during the frame is meaninglessly small (in my case at least).</p>
+<p>The nodes for the tile are created via <code>Node::Load(...)</code> from a serialization of the tile. The tile contents themselves are created at design time only (technically, ignoring dynamic elements that are game logic specific). Scene/prefab format is modified to support embedded resources so the heightmaps for terrains in the tile are stored in there with with the scene contents (only heightmaps and genuinely 1-off bespoke models are embedded [e.g. Namsan Tower]).</p>
+<p>I strongly suggest you work out whatever your tiling scheme is first and let it blocking load before you start to approach moving it to async. There’s lots of headaches in async beyond just loading but also saving/restoring dynamic things, other state, etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="7012" data-username="lebrewer">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b70f3a46aaf7920798073a7789143970.png" width="20"/> lebrewer:</div>
+<blockquote>
+<p>Do you check that on every movement of the camera (to get the distance)?</p>
+</blockquote>
+</aside>
+<p>In our engine’s implementation, while we track the camera movement on each frame, we only do terrain updates as the camera position crosses specific boundaries.</p>
+<p>We split the terrain into two types of grids.</p>
+<p>The top-level grid system splits the actual terrain files into parts that represent the world map in 533.3333 x 533.3333 world units.  Each tile provides the engine with all the static map references such as the height-map, texture blend maps, static shadow maps, model references, etc.</p>
+<p>The second-level grid system splits the actual individual tiles into sub-sections we refer to commonly as either cells or chunks.  We do this as it allows us to provide a way to render chunks closest to the player in higher fidelity than those farther away so that we can keep memory budgets in check.</p>
+<p>In terms of loading, we follow a similar practice to what JSandusky has described.</p>
+<p>In our engine we define 3 values</p>
+<ul>
+<li>View distance (configured by the user)</li>
+<li>Persistence distance (a value slightly beyond the view distance for cache/pre-load)</li>
+<li>Low-polygon transition distance (a value between the player and view distance)</li>
+</ul>
+<p>Our terrain exporter generates a file that the engine can use to draw the terrain with very low polygon counts, which allows us to draw very distant terrain with little cost.  This terrain is drawn without texturing and is meant to provide mostly mountain-like silhouettes.  Since this mesh data is very small compared to each of the tile’s vertex data, we can easily load this into memory at map load, so its never streamed.</p>
+<p>The configured view distance paired with the persistence distance controls when tiles are streamed in/out.  As the camera moves across a cell / chunk boundary in the smaller grid structure, we re-calculate the persistence distance based on the camera’s current position and trigger load / unload of tiles.</p>
+<p>The loading is done in a set of worker threads that interact with the main thread to load the tile’s data across multiple frames to avoid any type of frame stutter.</p>
+<p>Whenever a player teleports in the game, we obfuscate the rendering artifacts by showing a map load screen to the user while again the persistence and preparation happens across multiple frames.  Once the tiles within the view distance have been loaded, we remove the load screen and render the world.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>I really appreciate the detailed answer, that is really helpful. I also find your use of a “LOD” terrain mesh very creative.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="9" data-topic="7012" data-username="lebrewer">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b70f3a46aaf7920798073a7789143970.png" width="20"/> lebrewer:</div>
+<blockquote>
+<p>I also find your use of a “LOD” terrain mesh very creative.</p>
+</blockquote>
+</aside>
+<p>For completeness, we also use the high fidelity calculation to derive how we render which pieces of the terrain.  For example, the closest 5x5 cells, which can scale up to 8x8 at max view distance, are drawn using real-time texture splatting.  For the cells and tiles that are beyond that distance, we use different shaders to render the terrain using a composite texture and that allows us to then easily batch those distant portions of the terrain into a single larger buffer per tile and gain extra render performance with lower and faster draws.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Levels Fade Effect</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Levels Fade Effect</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I am testing levels fade effect from each other, and I’m satisfied with the result.</p>
+<p>Levels are independent scenes and UI elements, you can use ‘BaseLevel’ class to derive actual levels, either 2D or 3D scenes.</p>
+<p>If you want to switch levels from anywhere, just need to send an event, only level name needed.</p>
+<p>Cheers!</p>
+<p>MyEvens.h</p>
+<pre><code class="lang-auto">#pragma once
+
+#include &lt;Urho3D/Urho3DAll.h&gt;
+
+/// User defined event
+namespace MyEvents
+{
+    static const StringHash E_SET_LEVEL = StringHash("Set levels");
+}</code></pre>
+<p>LevelManager.h</p>
+<pre><code class="lang-auto">#pragma once
+
+#include &lt;Urho3D/Urho3DAll.h&gt;
+#include "UILevel.h"
+
+class LevelManager : public Object
+{
+    URHO3D_OBJECT(LevelManager, Object);
+public:
+    LevelManager(Context* context):
+    Object(context)
+    {
+        // Register all classes
+        RegisterAllFactories();
+
+        // Listen to set level event
+        SubscribeToEvent(MyEvents::E_SET_LEVEL, URHO3D_HANDLER(LevelManager, HandleSetLevelQueue));
+    }
+
+private:
+    void RegisterAllFactories()
+    {
+        // Register classes
+        context_-&gt;RegisterFactory&lt;UILevel&gt;();
+        context_-&gt;RegisterFactory&lt;Level1&gt;();
+        context_-&gt;RegisterFactory&lt;Level2&gt;();
+    }
+    
+    void HandleSetLevelQueue(StringHash eventType, VariantMap&amp; eventData)
+    {
+        // Busy now
+        if (level_queue_.Size()) {
+            return;
+        }
+        // Push to queue
+        level_queue_.Push(eventData[MyEvents::E_SET_LEVEL].GetString());
+        
+        // Subscribe HandleUpdate() function for processing update events
+        SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(LevelManager, HandleUpdate));
+
+        // Init fade status
+        fade_status_ = 0;
+    }
+    
+    void HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+    {
+        using namespace Update;
+        
+        // Take the frame time step, which is stored as a float
+        float timeStep = eventData[P_TIMESTEP].GetFloat();
+        
+        // Move sprites, scale movement with time step
+        fade_time_ -= timeStep;
+        
+        // Prepare to fade out
+        if (fade_status_ == 0) {
+            // No old level
+            if (!level_) {
+                fade_status_++;
+                return;
+            }
+            // Add a new fade layer
+            AddFadeLayer();
+            fade_window_-&gt;SetOpacity(0.0f);
+            fade_time_ = MAX_FADE_TIME;
+            fade_status_++;
+            return;
+        }
+        
+        // Fade out
+        if (fade_status_ == 1) {
+            // No old level
+            if (!level_) {
+                fade_status_++;
+                return;
+            }
+            fade_window_-&gt;SetOpacity(1.0f-fade_time_/MAX_FADE_TIME);
+            
+            // Increase fade status
+            if (fade_time_ &lt;= 0.0f) {
+                fade_status_++;
+            }
+            return;
+        }
+
+        // Release old level
+        if (fade_status_ == 2) {
+            // No old level
+            if (!level_) {
+                fade_status_++;
+                return;
+            }
+            // We can not create new level here, or it may cause errors, we have to create it at the next update point.
+            level_ = SharedPtr&lt;Object&gt;();
+            fade_status_++;
+            return;
+        }
+        
+        // Create new level
+        if (fade_status_ == 3) {
+            // Create new level
+            level_ = context_-&gt;CreateObject(StringHash(level_queue_.Front()));
+            // Remove the old fade layer
+            if (fade_window_) {
+                fade_window_-&gt;Remove();
+            }
+            // Add a new fade layer
+            AddFadeLayer();
+            fade_window_-&gt;SetOpacity(1.0f);
+            fade_time_ = MAX_FADE_TIME;
+            fade_status_++;
+            return;
+        }
+        
+        // Fade in
+        if (fade_status_ == 4) {
+            fade_window_-&gt;SetOpacity(fade_time_/MAX_FADE_TIME);
+            
+            // Increase fade status
+            if (fade_time_ &lt;= 0.0f) {
+                fade_status_++;
+            }
+            return;
+        }
+        
+        // Finished
+        if (fade_status_ == 5) {
+            // Remove fade layer
+            fade_window_-&gt;Remove();
+            fade_window_ = SharedPtr&lt;Window&gt;();
+            // Unsubscribe update event
+            UnsubscribeFromEvent(E_UPDATE);
+            // Remove the task
+            level_queue_.PopFront();
+            // Release all unused resources
+            GetSubsystem&lt;ResourceCache&gt;()-&gt;ReleaseAllResources(false);
+            return;
+        }
+    }
+    
+    void AddFadeLayer()
+    {
+        fade_window_ = new Window(context_);
+        // Make the window a child of the root element, which fills the whole screen.
+        GetSubsystem&lt;UI&gt;()-&gt;GetRoot()-&gt;AddChild(fade_window_);
+        fade_window_-&gt;SetSize(GetSubsystem&lt;Graphics&gt;()-&gt;GetWidth(), GetSubsystem&lt;Graphics&gt;()-&gt;GetHeight());
+        fade_window_-&gt;SetLayout(LM_FREE);
+        // Urho has three layouts: LM_FREE, LM_HORIZONTAL and LM_VERTICAL.
+        // In LM_FREE the child elements of this window can be arranged freely.
+        // In the other two they are arranged as a horizontal or vertical list.
+        
+        // Center this window in it's parent element.
+        fade_window_-&gt;SetAlignment(HA_CENTER,VA_CENTER);
+        // Black color
+        fade_window_-&gt;SetColor(Color(0.0f, 0.0f, 0.0f, 1.0f));
+        // Make it topmost
+        fade_window_-&gt;BringToFront();
+    }
+    
+    List&lt;String&gt; level_queue_;
+    SharedPtr&lt;Object&gt; level_;
+    SharedPtr&lt;Window&gt; fade_window_;
+    float fade_time_;
+    int fade_status_;
+    const float MAX_FADE_TIME = 1.0f;
+};</code></pre>
+<p>BaseLevel.h</p>
+<pre><code class="lang-auto">#pragma once
+
+#include &lt;Urho3D/Urho3DAll.h&gt;
+
+class BaseLevel : public Object
+{
+    URHO3D_OBJECT(BaseLevel, Object);
+public:
+    BaseLevel(Context* context):
+    Object(context) {}
+
+    virtual ~BaseLevel()
+    {
+        Dispose();
+    }
+protected:
+    virtual void Init() {}
+    
+    virtual void Run()
+    {
+        if (scene_) {
+            scene_-&gt;SetUpdateEnabled(true);
+        }
+    }
+    
+    virtual void Pause()
+    {
+        if (scene_) {
+            scene_-&gt;SetUpdateEnabled(false);
+        }
+    }
+    
+    virtual void Dispose()
+    {
+        // Pause the scene, remove all contents from the scene, then remove the scene itself.
+        if (scene_) {
+            scene_-&gt;SetUpdateEnabled(false);
+            scene_-&gt;Clear();
+            scene_-&gt;Remove();
+        }
+        
+        // Remove all UI elements from UI sub-system
+        GetSubsystem&lt;UI&gt;()-&gt;GetRoot()-&gt;RemoveAllChildren();
+    }
+    SharedPtr&lt;Scene&gt; scene_;
+};</code></pre>
+<p>Level1.h</p>
+<pre><code class="lang-auto">#pragma once
+
+#include &lt;Urho3D/Urho3DAll.h&gt;
+#include "BaseLevel.h"
+
+class Level1 : public BaseLevel
+{
+    URHO3D_OBJECT(Level1, BaseLevel);
+    
+public:
+    /// Construct.
+    Level1(Context* context) :
+    BaseLevel(context)
+    {
+        Init();
+    }
+
+    virtual ~Level1()
+    {
+    }
+
+protected:
+    virtual void Init()
+    {
+        BaseLevel::Init();
+
+        // Create the scene content
+        CreateScene();
+        
+        // Create the UI content
+        CreateUI();
+        
+        // Subscribe to global events for camera movement
+        SubscribeToEvents();
+    }
+    
+private:
+    void CreateScene()
+    {
+        scene_ = new Scene(context_);
+    }
+    
+    void CreateUI()
+    {
+    }
+    
+    void SubscribeToEvents()
+    {
+    }
+};</code></pre>
+<p>C++</p>
+<pre><code class="lang-auto">// Switch level
+VariantMap&amp; eventData = GetEventDataMap();
+eventData[MyEvents::E_SET_LEVEL] = "Level2";
+SendEvent(MyEvents::E_SET_LEVEL, eventData);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Can’t see how cool it is w/o a video. Can you provide one?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>Yes, here is the video: <a data-bbcode="true" href="https://youtu.be/7dM-z8o5Mic" rel="nofollow noopener">https://youtu.be/7dM-z8o5Mic</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Nice.  Thank you for sharing this.  This will come in handy.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Nice!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>virtual ~BaseLevel()<br/>
+{<br/>
+Dispose();<br/>
+}</p>
+<p>Fixed memory leak.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Dll naming with mingw</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Dll naming with mingw</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>If compile Urho3D on windows with mingw, lib has name “libUrho3D.dll”.<br/>
+For disable lib prefix set  prefix options in “Source/Engine/CMakeLists.txt”:</p>
+<p>[code]@@ -172,6 +172,9 @@<br/>
+get_target_property (LINK_LIBRARIES ${TARGET_NAME} LINK_LIBRARIES)<br/>
+target_link_libraries (${TARGET_NAME} LINK_PRIVATE ${LINK_LIBRARIES})<br/>
+endif ()</p>
+<ul>
+<li>if (WIN32 AND NOT MSVC)</li>
+<li>
+<pre><code>  set_target_properties (${TARGET_NAME} PROPERTIES PREFIX "")
+</code></pre>
+</li>
+<li>endif ()<br/>
+else ()<br/>
+set_target_properties (${TARGET_NAME} PROPERTIES LINK_LIBRARIES “”)<br/>
+endif ()[/code]</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks for pointing this out. If I set that as is, I believe the setting would get applied when building for Windows platform using MinGW cross-compiler toolchain on a Linux host system as well. Also, does it have any implication with FindUrho3D CMake module on both Windows and Linux host/build systems?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>This option affects to shared lib.<br/>
+FindUrho3D looking for an import library, I think it won’t affect him.<br/>
+But with cross compilation I don’t know…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Yup. I just did a quick check on the cross-compiling MinGW. It only affect the shared lib name. The import lib name stays the same. I will commit the changes soon.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>May be need to add this option: "set (CMAKE_SHARED_LINKER_FLAGS “${CMAKE_SHARED_LINKER_FLAGS} -static’)”. To remove mingw runtime from dll.<br/>
+Total:</p>
+<pre><code class="lang-auto">@@ -167,6 +167,10 @@
+         get_target_property (LINK_LIBRARIES ${TARGET_NAME} LINK_LIBRARIES)
+         target_link_libraries (${TARGET_NAME} LINK_PRIVATE ${LINK_LIBRARIES})
+     endif ()
++	if (WIN32 AND NOT MSVC)
++		set_target_properties (${TARGET_NAME} PROPERTIES PREFIX "")
++		set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static")        
++	endif ()
+ else ()
+     set_target_properties (${TARGET_NAME} PROPERTIES LINK_LIBRARIES "")
+ endif ()</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The linker flags will be set globally as in other compiler flags for MinGW. I have committed the changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>Ok. Windows way library naming )))</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>JTippetts has run into a problem with the naming change affecting static MinGW-built library (<a >github.com/urho3d/Urho3D/issues/223</a>)</p>
+<p>EDIT: I believe this is fixed now. Tested both a static &amp; shared library build. The static build and shared build import library have lib-prefix, Urho3D.dll does not.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

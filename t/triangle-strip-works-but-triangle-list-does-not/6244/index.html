@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>TRIANGLE_STRIP works but TRIANGLE_LIST does not</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">TRIANGLE_STRIP works but TRIANGLE_LIST does not</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>So I’ve been trying to generate meshes.<br/>
+I have a new class copied from <code>CustomGeometry</code>.<br/>
+I create a test function</p>
+<pre><code class="lang-auto">void TestDrawable::DrawTestGeometry() {
+  batches_.Clear();
+  geometries_.Clear();
+  primitiveTypes_.Clear();
+
+  batches_.Resize(1);
+  geometries_.Resize(1);
+  primitiveTypes_.Resize(1);
+  geometries_[0] = new Geometry(context_);
+  batches_[0].geometry_ = geometries_[0];
+
+  // Current geometry being updated.
+  geometryIndex_ = 0;
+
+  Vector&lt;Vector3&gt; position = {
+      {0, 0, 0}, {0, 0, 1}, {0, 0, 2},
+      {1, 0, 0}, {1, 0, 1}, {1, 0, 2},
+      {2, 0, 0}, {2, 0, 1}, {2, 0, 2},
+  };
+  PODVector&lt;unsigned short&gt; indices{3, 1, 0, 3, 4, 1, 4, 2, 1, 4, 5, 2, 6, 4, 3, 6, 7, 4, 7, 5, 4, 7, 8, 5};
+
+  vertexBuffer_-&gt;SetSize(position.Size(), MASK_POSITION);
+  auto *dest = (float *) vertexBuffer_-&gt;Lock(0, position.Size(), true);
+  for (int i = 0; i &lt; position.Size(); ++i) {
+    *dest++ = position[i].x_;
+    *dest++ = position[i].y_;
+    *dest++ = position[i].z_;
+  }
+
+  SharedPtr&lt;IndexBuffer&gt; indexBuffer_(new IndexBuffer(context_));
+  indexBuffer_-&gt;SetSize(indices.Size(), false);
+  indexBuffer_-&gt;SetData(&amp;indices[0]);
+  geometries_[0]-&gt;SetIndexBuffer(indexBuffer_);
+  geometries_[0]-&gt;SetVertexBuffer(0, vertexBuffer_);
+  geometries_[0]-&gt;SetDrawRange(PrimitiveType::TRIANGLE_LIST,
+                               0,
+                               indices.Size(),
+                               0,
+                               position.Size());
+  vertexBuffer_-&gt;Unlock();
+  vertexBuffer_-&gt;ClearDataLost();
+}
+</code></pre>
+<p>However, this function draws nothing!<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="xVPQFXnyiKKOmzJdzkCuCnMJSjr"  height="500" src="../../../images2/4d20f801fe7ac9bb8f85a8163b2aaea7.png"  width="672"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2028×1508 204 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>When I just simply change the TRIANGLE_LIST to TRIANGLE_STRIPE, the drawing is what I want.</p>
+<pre><code class="lang-auto">geometries_[0]-&gt;SetDrawRange(PrimitiveType:: TRIANGLE_STRIP,
+                               0,
+                               indices.Size(),
+                               0,
+                               position.Size());
+</code></pre>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="1mD2SUWENP7Ojzh2iLokrojtIpw"  height="500" src="../../../images2/9fcf486338b8d9df6375123bdec3a029.png"  width="678"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2046×1508 237 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p><strong>But this does not make any sense to me!</strong><br/>
+The TRIANGLE_LIST should draw from the <code>IndexBuffer</code> while TRIANGLE_STRIP should have a specific order to draw the vertices.</p>
+<p>What’s wrong?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6244" data-username="UrhoIsTheBest">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d75d27d5d93b2fc4395b4ba685be6335.png" width="20"/> UrhoIsTheBest:</div>
+<blockquote>
+<p>What’s wrong?</p>
+</blockquote>
+</aside>
+<p>Are you sure you have correct culling? Try disabling it in material.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>The funny thing is: I don’t have material set for the geometry at all. I removed all materials stuff in my custom new class. I only want to draw raw meshes, probably with vertex color later:</p>
+<pre><code class="lang-auto">drawable-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/VColUnlit.xml"));
+</code></pre>
+<p>So am I doing the wrong thing?<br/>
+Does all geometry needs basic material setting?</p>
+<p>Also, I know we need to update the <code>BoundingBox</code> to make the camera frustum detection. If we don’t set that, the bounding box is simply (0,0,0)-(0,0,0), but that does not cause any problem if (0,0,0) is in the camera frustum. I tested it for the other case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Oh! you are right. The default culling mode is CULL_CCW</p>
+<p>When I added a material and set it to CULL_NONE in the code above. It works!</p>
+<pre><code class="lang-auto">auto *cache = GetSubsystem&lt;ResourceCache&gt;();
+batches_[0].material_ = (cache-&gt;GetResource&lt;Material&gt;("Materials/VColUnlit.xml"));
+batches_[0].material_-&gt;SetCullMode(CullMode::CULL_NONE);
+</code></pre>
+<p>But why the other TRIANGLE_STRIPE works without setting material?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>For stripe you have completely different triangles than for lists, and stripes follow different culling rules. So you have different result.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>From my understanding, the <a href="https://en.wikipedia.org/wiki/Triangle_strip" rel="nofollow noopener">STRIPE</a> has totally different pre-defined order, e.g. (v0, v1, v2), (v2, v1, v3), (v2, v3, v4) and so on. If that’s true, then the triangles mesh would be totally different.<br/>
+e.g. same as:</p>
+<pre><code class="lang-auto">PODVector&lt;unsigned short&gt; indices{0, 1, 2, 2, 1, 3, 2, 3, 4, 4, 3, 5, 4, 5, 6, 6, 5, 7, 6, 7, 8};
+</code></pre>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="AoQr6zDJzODuxCumzCV1DcCFpMo"  height="479" src="../../../images2/0e653095d77619bc07c5deb84d0b4a88.png" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1294×900 9.97 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>I might understand why it works like this after several tests.</p>
+<p>If we set the index buffer, then we are drawing TRIANGLE_LIST even we set STRIPE type. However, the culling mode will use the STRIPE one. So there is some inconsistency here (or default fallback). Maybe it’s intended behavior which I am just not familiar with.</p>
+<p>TRIANGLE_STRIPE drawing will only work when we do not explicitly set the index buffer.</p>
+<p>Does that sounds correct?</p>
+<p>This does not make sense to me when tracking down the source code to <code>OGLGraphics.cpp</code>. But I don’t have better explanation for those tests. I might miss something.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="7" data-topic="6244" data-username="UrhoIsTheBest">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d75d27d5d93b2fc4395b4ba685be6335.png" width="20"/> UrhoIsTheBest:</div>
+<blockquote>
+<p>However, the culling mode will use the STRIPE one.</p>
+</blockquote>
+</aside>
+<p>Exact stripe/list culling algorithm is chosen by GPU basing on primitive type. Urho has no control over it. Urho can only choose whether to draw one side or both.</p>
+<p>Although there may be some magic inside Urho that interferes with… something. Or maybe bug. I don’t feel like debugging right now, but it can be checked. What kind of primitive goes into glDrawElements when you draw stripes?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Could the typo be affecting the outcome? I guess that must be just forum spelling.</p>
+<div class="spoiler">
+<p>Strips are not stripes.</p>
+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Ah! I know why!</p>
+<p><strong>Short Answer</strong><br/>
+Everything works as expected, no bug or anything.</p>
+<p><strong>Long Answer</strong><br/>
+If we don’t set index buffer for <code>TRIANGLE_STRIP</code>. The drawing triangles will iterate from v0, v1, v2 …<br/>
+If we do set index buffer for <code>TRIANGLE_STRIP</code>. The drawing triangles will iterate through the index defined in the index buffer.<br/>
+So in our case, we set the index buffer</p>
+<pre><code class="lang-auto">PODVector&lt;unsigned short&gt; indices{3, 1, 0, 3, 4, 1, 4, 2, 1, 4, 5, 2, 6, 4, 3, 6, 7, 4, 7, 5, 4, 7, 8, 5};
+</code></pre>
+<p>The triangles would be (3, 1, 0), (0, 1, 3), (0, 3, 4), (4, 3, 1)… total <code>indices.Size() - 2</code> triangles.</p>
+<p>If we set a material and make sure culling mode is <code>CULL_NONE</code>.<br/>
+We can see the following draws:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="zpWCAPNs4m65pINZf4dhEMbmu8g"  height="500" src="../../../images2/1bf4be78228377bd8aba79708fda4a60.png"  width="650"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1254×964 18.2 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+Notice that lone line on the right side is from triangle (5, 2, 6), which is from the sequence in the index buffer.</p>
+<p><strong>Then why do we see the correct triangles before?</strong><br/>
+That’s because we did not set the culling mode, so many of triangles shown above is counter direction, thus not rendered.<br/>
+The remaining triangles look like exactly the same as result for <code>TRIANGLE_LIST</code>. <strong>THIS IS JUST COINCIDENCE!</strong></p>
+<p>So <span class="mention">@Eugene</span> is right. The simple answer for my question is <strong>culling mode</strong>.<br/>
+Although there are many other things I learned here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>LOL, I wish, only if compiler is broken <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/><br/>
+But I corrected the title and code in the question. Thanks for typo checking!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="11" data-topic="6244" data-username="UrhoIsTheBest">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d75d27d5d93b2fc4395b4ba685be6335.png" width="20"/> UrhoIsTheBest:</div>
+<blockquote>
+<p>[…] only if compiler is broken <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+</blockquote>
+</aside>
+<p>Yea, I quickly realized that too… but the ubiquity of the typo made me seriously consider it as a possibility for a moment. <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/87e0a7daec339818bcddbf25ee57347b.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

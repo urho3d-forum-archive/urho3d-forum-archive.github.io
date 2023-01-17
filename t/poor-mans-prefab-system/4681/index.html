@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Poor man&rsquo;s prefab system</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Poor man&rsquo;s prefab system</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>I made myself a prefab system. It came out pretty minimalistic. And I’m very happy with it. Even nested prefabs are working (literally better than Unity). Sharing it, so maybe someone will find it useful or give me feedback (because I’m not very confident with C++). And maybe we will make it into PR. Licensed under CC0.</p>
+<p>Here is the video demonstration:<br/>
+</p><div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="PPPIIGSliBI" data-youtube-title="Urho3d prefabs"></div>
+<p>So, basically, each node has a reference to a XMLfile, if it is empty, then nothing happens, it’s a normal node, if it is pointing to a file, then:</p>
+<ol>
+<li>on save will skip saving it’s children and components</li>
+<li>on load this node will load object from this xml file, and applying it’s transform to it.</li>
+</ol>
+<p>I also added live reload handling. And save prefab button. (Using <a  rel="nofollow noopener">this marvelous hack</a>)</p>
+<p>Here is a full code: <a href="https://gist.github.com/Bananaft/63b32123e2e3b6909d782fb7f6914406" rel="nofollow noopener">Node.h and Node.cpp</a><br/>
+I use Urho1.7, so the code is a bit old.</p>
+<p>Basically, I added two new attributes:</p>
+<pre><code>URHO3D_MIXED_ACCESSOR_ATTRIBUTE("Prefab", GetPrefab, SetPrefab, ResourceRef, ResourceRef(XMLFile::GetTypeStatic()), AM_FILE);
+URHO3D_ACCESSOR_ATTRIBUTE("Save Prefab", GetFalse, SavePrefab, bool, false, AM_EDIT);
+</code></pre>
+<p>In Node::SaveXML, after saving id and attributes:</p>
+<pre><code>if (prefab_ != NULL)
+    return true;
+</code></pre>
+<p>And then this four new functions:<br/>
+<aside class="onebox githubgist">
+<header class="source">
+<a href="https://gist.github.com/Bananaft/797f0291ede5451d9f50f4126b56ea3d" rel="nofollow noopener" target="_blank">gist.github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://gist.github.com/Bananaft/797f0291ede5451d9f50f4126b56ea3d" rel="nofollow noopener" target="_blank">https://gist.github.com/Bananaft/797f0291ede5451d9f50f4126b56ea3d</a></h4>
+<h5>prefabs.cpp</h5>
+<pre><code class="C++">    void Node::SetPrefab(const ResourceRef&amp; value)
+    {
+    	UnsubscribeFromEvent(prefab_, E_RELOADFINISHED);
+    	if (value.name_.Empty())
+    	{
+    		prefab_ = NULL;
+    	}
+    	else {
+    
+    		ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();</code></pre>
+This file has been truncated. <a href="https://gist.github.com/Bananaft/797f0291ede5451d9f50f4126b56ea3d" rel="nofollow noopener" target="_blank">show original</a>
+<p>
+</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>And lastly I had to make room in the editor interface, AttributeEditor.as</p>
+<pre><code>const uint MIN_NODE_ATTRIBUTES = 7;
+const uint MAX_NODE_ATTRIBUTES = 11;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Great work!</p>
+<p>I see you have to select some other node (“base”?) and check “save prefab” checkbox for changes to apply<br/>
+whats going on there? Bit not very user-friendly. i wonder if we could make it better.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>In this scene there are three buildings (bases) prefabs, each of them nesting a bunch of lamp prefabs.<br/>
+Here is basically whole scene.xml:<br/>
+<img alt="image" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/c/cdc0999372f8959cf14784feac2bbfd904623a60.png" width="567"/></p>
+<p>In the video, I first copy an object in one of the buildings. If I save the scene, this change will be lost. I have to save it into object file. So I select a parent node, the one named “base”, click “Save Prefab” and two other bases update themselves with this change.</p>
+<p>One improvement I thought about is if you press the “Save prefab” button, but prefab attribute is empty, it goes up the hierarchy until it finds a parent with prefab and saves it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>It would also be great to paint prefab nodes with different colors in the editor.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>SMAA Implementation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">SMAA Implementation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>I’m trying to implement the SMAA post-process in Urho3D (D3D11); but it’s not working (at least not fully).<br/>
+The shader itself is from here<br/>
+<a href="https://github.com/iryoku/smaa/blob/master/SMAA.hlsl" rel="nofollow noopener">https://github.com/iryoku/smaa/blob/master/SMAA.hlsl</a></p>
+<p>So I created a PostProcess xml file:<br/>
+(PostProcess/SMAA.xml)</p>
+<blockquote>
+<pre><code>&lt;renderpath&gt;
+	&lt;rendertarget name="EdgesTex" sizedivisor="1 1" format="rgba" filter="true" /&gt;
+	&lt;rendertarget name="BlendTex" sizedivisor="1 1" format="rgba" filter="true" /&gt;
+	&lt;command type="clear" color="0 0 0 0" output="EdgesTex" /&gt;
+	&lt;command type="clear" color="0 0 0 0" output="BlendTex" /&gt;
+	&lt;command type="quad" vs="SMAA" ps="SMAA" vsdefines="_EDGE_DETECTION" psdefines="_EDGE_DETECTION" output="EdgesTex"&gt;
+		&lt;parameter name="SMAAMetricSize" value="1280.0 720.0" /&gt;
+		&lt;texture unit="diffuse" name="viewport" /&gt;
+	&lt;/command&gt;
+	&lt;command type="quad" vs="SMAA" ps="SMAA" vsdefines="_BLEND_WEIGHT" psdefines="_BLEND_WEIGHT" output="BlendTex"&gt;
+		&lt;parameter name="SMAAMetricSize" value="1280.0 720.0" /&gt;
+		&lt;texture unit="diffuse" name="EdgesTex" /&gt;
+		&lt;texture unit="normal" name="Textures/SMAA_Area.bmp" /&gt;
+		&lt;texture unit="specular" name="Textures/SMAA_Search.bmp" /&gt;
+	&lt;/command&gt;
+	&lt;command type="quad" vs="SMAA" ps="SMAA" vsdefines="_NEIGHBORHOOD_BLEND" psdefines="_NEIGHBORHOOD_BLEND" output="viewport"&gt;
+		&lt;parameter name="SMAAMetricSize" value="1280.0 720.0" /&gt;
+		&lt;texture unit="diffuse" name="viewport" /&gt;
+		&lt;texture unit="normal" name="BlendTex" /&gt;
+	&lt;/command&gt;
+	&lt;command type="quad" vs="CopyFramebuffer" ps="CopyFramebuffer" output="viewport" &gt;
+		&lt;texture unit="diffuse" name="BlendTex" /&gt;
+	&lt;/command&gt;
+&lt;/renderpath&gt;
+</code></pre>
+</blockquote>
+<p>Then the shader used by the Post Process:<br/>
+(Shaders/SMAA.hlsl)</p>
+<blockquote>
+<pre><code>#include "Uniforms.hlsl"
+#include "Transform.hlsl"
+#include "Samplers.hlsl"
+#include "ScreenPos.hlsl"
+#include "PostProcess.hlsl"
+
+
+// ====================================================
+// SMAA DEFINITIONS
+// ====================================================
+#ifdef COMPILEVS
+
+cbuffer CustomVS : register(b6)
+{
+	float2 cSMAAMetricSize;
+}
+
+#endif
+
+#ifdef COMPILEPS
+
+cbuffer CustomPS : register(b6)
+{
+	float2 cSMAAMetricSize;
+}
+
+#endif
+
+
+#define SMAA_RT_METRICS float4(1.0 / cSMAAMetricSize.x, 1.0 / cSMAAMetricSize.y, cSMAAMetricSize.x, cSMAAMetricSize.y)
+#define SMAA_HLSL_4 1
+#define SMAA_PRESET_HIGH
+
+// iryoku's SMAA implementation
+#include "SMAA.inc.hlsl"
+
+
+// ====================================================
+// VERTEX SHADER
+// ====================================================
+void VS(float4 iPos : POSITION,
+	out float2 oScreenPos : TEXCOORD0,
+#if _EDGE_DETECTION
+	out float4 oOffset[3] : TEXCOORD1,
+#endif
+#if _BLEND_WEIGHT
+	out float2 oPixCoord : TEXCOORD1,
+	out float4 oOffset[3] : TEXCOORD2,
+#endif
+#if _NEIGHBORHOOD_BLEND
+	out float4 oOffset : TEXCOORD1,
+#endif
+	out float4 oPos : OUTPOSITION)
+{
+	float4x3 modelMatrix = iModelMatrix;
+	float3 worldPos = GetWorldPos(modelMatrix);
+	oPos = GetClipPos(worldPos);
+	oScreenPos = GetScreenPosPreDiv(oPos);
+
+#if _EDGE_DETECTION
+	SMAAEdgeDetectionVS(oScreenPos, oOffset);
+#endif
+
+#if _BLEND_WEIGHT
+	SMAABlendingWeightCalculationVS(oScreenPos, oPixCoord, oOffset);
+#endif
+
+#if _NEIGHBORHOOD_BLEND
+	SMAANeighborhoodBlendingVS(oScreenPos, oOffset);
+#endif
+}
+
+
+// ====================================================
+// PIXEL SHADER
+// ====================================================
+void PS(float4 iPos : SV_POSITION,
+	float2 iScreenPos : TEXCOORD0,
+#if _EDGE_DETECTION
+	float4 iOffset[3] : TEXCOORD1,
+#endif
+#if _BLEND_WEIGHT
+	float2 iPixCoord : TEXCOORD1,
+	float4 iOffset[3] : TEXCOORD2,
+#endif
+#if _NEIGHBORHOOD_BLEND
+	float4 iOffset : TEXCOORD1,
+#endif
+	out float4 oColor : OUTCOLOR0)
+{
+#if _EDGE_DETECTION
+	float2 luma;
+
+	// Generate the SMAA edgesTex
+	//
+	// tDiffMap = viewport
+
+	luma = SMAALumaEdgeDetectionPS(iScreenPos, iOffset, tDiffMap);
+
+	oColor = float4(luma, float2(0.0, 0.0));
+#endif
+
+#if _BLEND_WEIGHT
+	// Generate SMAA blendTex
+	//
+	// tDiffMap = edgesTex
+	// tNormapMap = area texture
+	// tSpecMap = search texture
+
+	oColor = SMAABlendingWeightCalculationPS(iScreenPos, iPixCoord, iOffset, tDiffMap, tNormalMap, tSpecMap, 0);
+#endif
+
+#if _NEIGHBORHOOD_BLEND
+	// Generate final result
+	//
+	// tDiffMap = viewport
+	// tEmissiveMap = BlendTex
+
+	oColor = SMAANeighborhoodBlendingPS(iScreenPos, iOffset, tDiffMap, tEmissiveMap);
+#endif
+}
+</code></pre>
+</blockquote>
+<p>The edge detection is working:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="edges_tex.png"><img alt="edges_tex" data-base62-sha1="yzbTfj6FbeyHEhp3hv7NAL0Lrl1"  height="500" src="../../../images2/c5c36b82a8e8946025d0a401b4b1ca07.png" width="666"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">edges_tex.png</span><span class="informations">800×600 3.29 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>but the blending weight calculation and final blending is not.<br/>
+I’m not experienced with shaders so any help is greatly appreciated.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>So just at a glance, i noticed that your AreaTex and SearchTex are being loaded as xml files. They will not load properly this way, no errors are generated either. But if you change those to your actual textures .dds or .png or whatever, that might fix your issue. I believe the accompanying xml file for the texture will be parsed when loading the texture thru the renderpath this way as well, hope this helps.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>Specifying the texture with it’s image extension helped (The weight blend pass outputs something), but still not working.</p>
+<p>I’ve run this image in the SMAA demo application and the result is a properly anti-aliased image.<br/>
+<a href="https://imgsli.com/NzI3Ng" rel="nofollow noopener">https://imgsli.com/NzI3Ng</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>Ok, I read through the shader. It relies on bilinear filtering for the weight calculation, so change the filter mode of your two render targets to true. That should get you closer to what you expect. Hope that helps.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>Even after changing the filter mode of the render targets, the result of weight calculation is wrong;<br/>
+I tried using .dds, .bmp and .png textures, to no avail.</p>
+<p>I’ve edited the first post to reflect the current PostProcess/Shader code I’m using.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>Can you post another comparison? I did a really quick implementation like yours this morning and the results looked ok on one of the examples. I didn’t compare with the smaa demo tho. Also I was on directx9 as that’s what I have compiled currently.</p>
+<p>Edit: Also, what do your xml files look like for the area and search textures?<br/>
+This is what I used for both<br/>
+<code>&lt;texture&gt;</code><br/>
+<code>&lt;address coord="u" mode="clamp" /&gt;</code><br/>
+<code>&lt;address coord="v" mode="clamp" /&gt;</code><br/>
+<code>&lt;address coord="w" mode="clamp" /&gt;</code><br/>
+<code>&lt;mipmap enable="false" /&gt;</code><br/>
+<code>&lt;quality low="0" /&gt;</code><br/>
+<code>&lt;/texture&gt;</code></p>
+<p>Edit again: also make sure you’re using the right channels for the area texture. I converted the dx10 images to pngs and had to manually define use of the rg channels as the dx9(sm3) version defaults to ra channels, but if I remember correctly the sm4+ defaults to rg channels anyway, just a thought tho if you were maybe instead using the dx9 texture</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>The texture xmls are exactly like that (I also tried adding a filter=“nearest”). Setting the render targets as sRGB made no difference.</p>
+<p>These are the results from the DX10 demo:<br/>
+<a href="https://imgur.com/a/IvqMo7y" rel="nofollow noopener">https://imgur.com/a/IvqMo7y</a></p>
+<p>These are the results I’m getting:<br/>
+<a href="https://imgur.com/a/FYfsFHc" rel="nofollow noopener">https://imgur.com/a/FYfsFHc</a></p>
+<p>There’s a huge difference between them, although the settings are the same: SMAA_PRESET_ULTRA with LUMA edge detection.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>What does the result of your AA look like? Is it missing edges?</p>
+<p>Here’s what it looks like on my setup</p>
+<p>SMAA<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="aa.jpg"><img alt="aa" data-base62-sha1="dpObVEExr2btMxNxGnJe240vhYt"  height="500" src="../../../images2/1c85c2c946deadf66e1984a724a57caf.jpeg"  width="580"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">aa.jpg</span><span class="informations">832×717 378 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>No AA<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="noaa.jpg"><img alt="noaa" data-base62-sha1="yHB3NziFGoF6nP20zqUt1sS5gM"  height="500" src="../../../images2/3a03ce811b7efa7ae7fac861ff332dd2.jpeg"  width="580"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">noaa.jpg</span><span class="informations">832×717 387 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Edit: Alright, so I compiled the dx10 demo to test my results. And it seems identical to me. Note the output from urho is in linear space, while the rendered images from the demo are sRGB. Here’s the comparisons:</p>
+<p>Urho Edge Detect:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="edge.jpg"><img alt="edge" data-base62-sha1="yTvaTueip8rUIttsAEiYGD604aD"  height="500" src="../../../images2/9476989d4394e9843e5f2a25c0947d37.jpeg"  width="580"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">edge.jpg</span><span class="informations">832×717 383 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Demo Edge Detect:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="dx10demoedges.jpg"><img alt="dx10demoedges" data-base62-sha1="papTklj3QJncamFHpTF6lMtPea4"  height="500" src="../../../images2/63143943315a13e38f6d579b34e00d07.jpeg"  width="580"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">dx10demoedges.jpg</span><span class="informations">832×717 415 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Urho Weights (Gamma corrected):<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="weightGammacorrected.jpg"><img alt="weightGammacorrected" data-base62-sha1="2miVKiJdhYDZVUZEWuqve1JebgH"  height="500" src="../../../images2/8738add347b988ec81fb4af75871a49c.jpeg"  width="580"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">weightGammacorrected.jpg</span><span class="informations">832×717 200 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Demo Weights:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="dx10weight.jpg"><img alt="dx10weight" data-base62-sha1="5wJlwf1VGtNizoxPd3LhnWcGMGj"  height="500" src="../../../images2/2e7e8bf0e8fac7fd8d569d58e0560322.jpeg"  width="580"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">dx10weight.jpg</span><span class="informations">832×717 223 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>Yeah it’s missing edges; it’s like I’m not using any kind of AA.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>Strange, I guess I will build urho with dx11 then and see if I can pinpoint the issue. Guess I should have asked earlier but are you getting any errors on the shader compilation?</p>
+<p>Edit: alright, I compiled a dx11 version and I can confirm that something is indeed off with that. The exact same setup I had working under dx9, looks very strange indeed. I’ll look into it more and see what’s going on.</p>
+<p>Edit again: so I spent part of the afternoon rewriting the shader with some of urho’s legacy defined functions for directx11 to try and match the way the sm3 implementation behaves, but this was unsuccessful. The results exhibited the same issues as running the actual shader. The edge detection has a lot more overlapping red and green segments, and doesn’t detect some edges that the dx9 finds. So I’m not entirely sure what the issue is at this point. I’m not that familiar with dx11, most of my experience is with glsl and I just recently started experimenting with directx9. But it seems to me that urho isn’t handling the texture.SampleLevel command the same way it handles tex2Dlod on dx9</p>
+<p>Update 10/06/19<br/>
+So I’ve done some testing with texture.Sample and texture.SampleLevel and those seem to be behaving correctly. So I guess that’s not the culprit. I tried rewriting the shaders sampling macros to add an argument for SamplerState, bypassing the defined point and linear SamplerState. I was hoping that giving it the SamplerState for the texture being used would get closer to the DirectX9 results, but this was not the case. I’m really baffled because the sm3 version works right out of the box on dx9, and it appears that there’s really not much difference between the sm3 and sm4 implementations other than updating the functions, but they are just api differences, the way it works should be exactly the same. I also tried adjusting the offsets in the vertex shader, but this didn’t help the edge detection either.</p>
+<p>10/06 part 2: I adapted the shader to use the opengl 3 implementation in an opengl build of urho. This works as expected. So either I’m not understanding something correctly in the dx11 side, or this is a bug of some kind with the dx11 renderer. So I guess to use this shader, you’ll need to use either dx9 or opengl3, I can provide you with the shaders I adapted from your original post with either implementation if you’d like. Sorry I couldn’t get it to work in dx11.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>No need to apologize, graphics is complicated. Thanks anyways.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>I’m still gonna see if I can get to the root of the issue. No guarantees, but I’ll spend some time working on it.</p>
+<p>Edit: started breaking it down step by step, starting with the edge detection. The first thing I’ve come across is that performing the dot product on 2 vectors yields different results between dx9 and dx11. I’ve simplified it to just reading the viewport texture and performing a dot product on the rgb channels at the screen position and a vector (0.5, 0.5, 0.5). The result is not a huge difference but noticeable, and the full edge detection algorithm has 7 dot product calculations I think, and I think all those inconsistencies stacking up results in an image that’s quite a bit different than what’s intended. And thats just the edge algorithm! Lol. The opengl version is identical to the dx9 version, so something is off with dx11. I updated the graphics drivers just to see, but that didn’t improve anything.</p>
+<p>Update 10/07/19: getting closer to understanding the issue. Dot product is working correctly, the reason for the discrepancies is due to the sampling position. If I flip all the offsets and reduce the first offset to a quarter pixel the results are much closer to the dx9/opengl results. Not quite right yet, but much, much closer. Not sure why all the offsets need to be flipped, but I’m assuming part of the issue is with the sampler state again. I’ll keep digging into it and see what I come up with.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>My last couple posts were getting lengthy. So I hope it’s ok that I’m making a new post.</p>
+<p>I moved the offset calculation to the pixel shader and that fixed it! The coordinates still need flipped tho. I’ll start debugging the weight blend next. If you’re still interested in this, I’ll post an updated shader when I’m done.</p>
+<p>Edit: scratch what I said about flipping the cords. The provided coords work correctly when the calculation is done in the pixel shader. Running into a few problems still, but I think I will be able to get it working at some point. Tho I do believe there is some kind of bug with dx11 renderer that is the root of the problem. Still looking into it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">PsychoCircuitry</div>
+          <div class="post_content">
+<p>Alright after all this craziness, turns out it was something very simple lol. Again, I’m not that familiar with dx11 so that could be why it wasn’t obvious. But as I was running into issues with rendering during my tests of the adapted shader, there was a line from the original shader that started preventing me from rendering the scene. Anyway in the start of your pixel shader setup remove the line:<br/>
+<code>float4 iPos : SV_POSITION</code><br/>
+Then it works properly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>That was it, it’s working now!<br/>
+Thank you very much!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

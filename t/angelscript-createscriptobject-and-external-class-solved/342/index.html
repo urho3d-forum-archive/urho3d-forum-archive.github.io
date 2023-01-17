@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Angelscript CreateScriptObject and external class [SOLVED]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Angelscript CreateScriptObject and external class [SOLVED]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>In the example files, for AnimatingScene and SkeletalAnimation, there is an example for how to attach a class as a component. (as listed in the “Instantiating a script object”, of this page: <a data-bbcode="true" href="http://urho3d.github.io/documentation/a00016.html">http://urho3d.github.io/documentation/a00016.html</a>).</p>
+<p>It works fine, if the class is available to the global “scriptFile” and inside the same .as file that it is being called from.<br/>
+but if I want to use an external file, I have tried to use this syntax:</p>
+<pre><code class="lang-auto">Node@ graphNode = _scene.CreateChild("CustomGeometry");
+Graph@ graph = cast&lt;Graph&gt;(graphNode.CreateScriptObject(cache.GetResource("ScriptFile","Scripts/lab/Graph.as"), "Graph"));
+//graph.SetParameters(divs,divs,dimes,dimes);
+//graph.SetParameters();</code></pre>
+<p>If I un-comment out the last line there, SetParameters() then the very next line throws an error “Exception ‘Null pointer access’’” (the two commented lines are just two version I am working with, one that has default values, and ones that I give it values, neither of which want to work anyway).</p>
+<p>Am I missing something basic? It will compile with out the SetParameters function call, but then where will i set parameters? It doesnt seem to be listed in the limitations part of the aforementioned scripting page.</p>
+<p>Thank you for your help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>You can add the file to the current module by using a <span class="hashtag">#include</span> directive</p>
+<p><code>#include "Graph.as"
+</code></p>
+<p>If you want to keep the code in its own module and be able to invoke commands you need to use an interface.  Here is my code for that:</p>
+<p>I have <a href="http://IAgent.as" rel="nofollow noopener">IAgent.as</a> which i include <code>#include "IAgent.as</code></p>
+<pre><code class="lang-auto">shared interface IAgent
+{
+    Controls Controls();
+    void SetControls(Controls c);
+    void SetPlayerControlled(bool);
+    void SetTransforms(Vector3, Quaternion);
+    void SetMoveDir(Vector3);
+    Node@ Node();
+}</code></pre>
+<p>My class inherits from it and impliments it</p>
+<p><code>class Agent : ScriptObject, IAgent {}
+</code></p>
+<p>To create that script object I include the IAgent file and</p>
+<pre><code class="lang-auto">				Node@ robot = scene.InstantiateXML(cache.GetFile("Objects/purple_bot.xml"), Vector3(0,0,0), Quaternion(), LOCAL);
+				{
+					ScriptInstance@ si = robot.CreateComponent("ScriptInstance");
+					ScriptFile@ sf = cache.GetResource("ScriptFile", "Scripts/Agent.as");
+					si.CreateObject(sf, "Agent");
+				}</code></pre>
+<p>You can cast that object to an IAgent.</p>
+<p><code>    IAgent@ agent = cast&lt;IAgent&gt;(agentNode.scriptObject);
+</code></p>
+<p>There are not many reasons to do it in seperate modules.  Adding everything into the same module with <span class="hashtag">#include</span> and not using interfaces is the easiest.  However if you are using angelscript hot reloading the entire module is reloaded on change.  If everything is in its own module or some organized division of modules then only the affected modules are reloaded.  It also is good to do if you plan on extending the api to modders since you don’t want people breaking your code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>You can add the file to the current module by using a <span class="hashtag">#include</span> directive </p>
+</blockquote>
+</aside>
+<p>I thought I had. I must have commented that out. And so it does work. Thank you again. It is good to know that other method incase I ever find myself in need.</p>
+<p>I do have a follow up question…</p>
+<p>The “node” attribute that the scriptObject class has access to.<br/>
+In the examples I pointed out eariler, they use the node.Translate() or the node.Rotate() function. In my test those work as expected. On this page <a data-bbcode="true" href="http://urho3d.github.io/documentation/a00238.html">http://urho3d.github.io/documentation/a00238.html</a> There is a method called GetParent() and GetScene().</p>
+<p>I was trying to use those to possibly get access to the scene object that my component is under to potentially draw into the debugrenderer. However i get an error that says that node does not have either of those methods. Just curious what i am missing in this instance.</p>
+<p>Thanks a lot for the help friesencr. I owe you a beer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>node is magic in my brain.  it is only available when the caller is the scriptobject.   if i remember this.node() doesn’t work.  it has to be plain node()  it’s like its a global method on the script that responds to the caller. I do something funny with my code to make the node available to external callers.</p>
+<pre><code class="lang-auto">Node@ GetNode() { return node; }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>That makes sense.</p>
+<p>But I’m trying to call it from the scriptobject.</p>
+<pre><code class="lang-auto">class temp : ScriptObject{
+     void Update(float timeStep){
+          Node@ parent = node.GetParent();
+          Scene@ scene = node.GetScene();
+     }
+}</code></pre>
+<p>both of those calls error: can’t explicitly convert from const int to Node@ or Scene@</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>In the scripting docs it states:</p>
+<aside class="quote">
+<blockquote>
+<p>Whenever only a single parameter is needed, setter and getter functions are replaced with properties. Such properties start with a lowercase letter. If an index parameter is needed, the property will be indexed. Indexed properties are in plural.</p>
+</blockquote>
+</aside>
+<p>What if you try node.parent &amp; node.scene?</p>
+<p>If you get bit by the c++ docs you can find the script docs here -&gt; <a href="http://urho3d.github.io/documentation/a00046.html" rel="nofollow noopener">urho3d.github.io/documentation/a00046.html</a></p>
+<p>They are also distributed in the source under Docs/ScriptAPI.dox</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>Yup, that was it.<br/>
+Those online docs are not as easy to navigate as the c++ ones are, but i’ll spend more time in there. Havent seen the source ones. I’ll investigate those as well. Thanks for fielding my noob stumblings.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

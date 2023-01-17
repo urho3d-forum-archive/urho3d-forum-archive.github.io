@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Use custom generated texture in renderpath xml description</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Use custom generated texture in renderpath xml description</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">diverlin</div>
+          <div class="post_content">
+<p>Greetings!<br/>
+I have problem having dynamically generated mask on C++ and using it in my custom renderpath Custom.xml.</p>
+<p>i read documentation:<br/>
+<code>    Note that if you already have created a named rendertarget texture in code and have stored it into the resource cache by using AddManualResource() you can use it directly as an output (by referring to its name) without requiring a rendertarget definition for it.</code></p>
+<p>and probably miss something or using it in wrong way<br/>
+in C++ I generate sampler</p>
+<pre><code>m_texture(new Urho3D::Image(context-&gt;context()));
+m_texture-&gt;SetName("rtLightMap");
+
+unsigned int width = 1024;
+unsigned int height = 768;
+m_texture-&gt;SetSize(width, height, 3, Urho3D::TEXTURE_RENDERTARGET);
+
+for (int x=0; x&lt;width; ++x) {
+    for (int y=0; y&lt;height; ++y) {
+        m_texture-&gt;SetPixel(x, y, Urho3D::Color(1.0,1.0,1.0));
+    }
+}
+
+context-&gt;cache()-&gt;AddManualResource(m_texture);
+</code></pre>
+<p>in Custom.xml the following renderpath is described:</p>
+<pre><code>&lt;rendertarget name="rtDiffuseMap" sizedivisor="1 1" format="rgba" /&gt;
+&lt;rendertarget name="rtNormalMap" sizedivisor="1 1" format="rgba" /&gt;
+</code></pre>
+<pre><code>&lt;command type="clear" color="0 0 0 0" output="rtDiffuseMap"&gt;&lt;/command&gt;
+&lt;command type="clear" color="0 0 0 0" output="rtNormalMap"&gt;&lt;/command&gt;
+
+&lt;command type="scenepass" pass="normal" output="rtNormalMap"&gt;&lt;/command&gt;
+&lt;command type="scenepass" pass="diffuse" output="rtDiffuseMap"&gt;&lt;/command&gt;
+
+&lt;command type="quad" vs="Urho2DCombine" ps="Urho2DCombine" output="viewport"&gt;
+    &lt;texture unit="diffuse" name="rtDiffuseMap" /&gt;
+    &lt;texture unit="normal" name="rtNormalMap" /&gt;
+    &lt;texture unit="specular" name="rtLightMap" /&gt;
+&lt;/command&gt;
+</code></pre>
+<p>My final viewport is black, because the rendertarget=“rtLightMap” considered be black (I multiply by it’s color in shader Urho2DCombine). if I use the path “asteroid/concept/nm_combine_concept.png” instead of render target name, I got proper scene picture, but with static mask.<br/>
+What I want to have, is dynamic mask in C++ and use it in my renderpath.</p>
+<p>Could someone point me on what I was missing?<br/>
+My appreciation in advance</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>I assume by the presence of the call to m_texture-&gt;SetPixel that m_texture is actually an Image resource, and not a Texture resource. You have to create a named Texture resource instead, and upload data to it from the generated image. Texture resources come in a number of different varieties: Texture2D, Texture3D, TextureCube, Texture2DArray. Texture2D is probably the one you want. You can upload data from an Image using the Texture2D::SetData method.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6332" data-username="diverlin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d081f31d0de9a216af3444f8c0f51e9f.png" width="20"/> diverlin:</div>
+<blockquote>
+<p><code>m_texture-&gt;SetSize(width, height, 3, Urho3D::TEXTURE_RENDERTARGET);</code></p>
+</blockquote>
+</aside>
+<p><code>Image::SetSize</code> has signature <code>(int width, int height, int depth, unsigned components)</code>, so you are basically creating <code>width*height*3</code> 3D texture with TEXTURE_RENDERTARGET=2 color components (red and green)… Probably not what you want to do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">diverlin</div>
+          <div class="post_content">
+<p><a href="https://discourse.urho3d.io/u/JTippetts1">JTippetts1</a><br/>
+thank you! using Urho3D::Texture2D resource works perfectly</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><span class="mention">@diverlin</span> Also, welcome to the forums! <img alt=":confetti_ball:" class="emoji" src="../../../images2/8cc1133d965c492d26cc2ba425a80ea1.png" title=":confetti_ball:"/> <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">diverlin</div>
+          <div class="post_content">
+<p>@ <a href="https://discourse.urho3d.io/u/Modanung">Modanung</a><br/>
+thank you!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

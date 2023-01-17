@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Node::GetScene() return NULL</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Node::GetScene() return NULL</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>hi,<br/>
+I encountered a problem when I call the Node::GetScene() to get the Scene* value.<br/>
+The code like following,<br/>
+void BallMachine::ShootBall()<br/>
+{<br/>
+Scene *scene = GetScene();<br/>
+assert(NULL != scene);<br/>
+SharedPtr ball(new BaseBall(context_));<br/>
+scene-&gt;AddChild(ball);<br/>
+ball-&gt;Init();<br/>
+…<br/>
+}</p>
+<p>When the first time I call this function, the function GetScene() can return the right value for Scene*, but when the second time it return a NULL value, anybody encountered this problem?<br/>
+The BallMachine is a derived class from Node.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>if the GetScene() return null it exactly means that the BallMachine node has somehow remove itself from the scene (somewhere it your code called Scene::NodeRemoved()) or your BallMachine node has been destructed. How do you keep your BallMachine node alive? I would set a breakpoint at Scene::NodeRemoved() and see at which point it is being invoked to troubleshoot the problem. HTH.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>I checked the code again, when the GetScene() return NULL value, the BallMachine’s destruction function not called, and the NodeRemoved() also not called.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Note that I am kind of guessing here as I cannot see your code. My basic assumption is, there is no bug in the Urho3D game engine and the problem is with your code. With that assumption, GetScene() returns null could only happen in two cases.<br/>
+[ol]<br/>
+[li] You have a node that was previously part of the a scene and somehow it is not anymore. Or.[/li]<br/>
+[li] Somehow your code acquire a new BallMachine node that is not yet added into any scene at later stage.[/li][/ol]<br/>
+If you have ruled both of them out then it would be logical (as Mr Spock would say  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/> - I hope you get the joke) that my basic assumption is wrong and you can log a bug in our GitHub.</p>
+<p>Is it possible for you to post a snipet of your code on how you maintain BallMachine node?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It appears that you have subclassed Node as you’re adding a BaseBall type of object as a child scene node.</p>
+<p>If you subclass Node, you need to be quite well aware of Node’s internal functionings. None of the examples do that as it’s a <em>very</em> advanced topic, and for example the Editor will not know how to edit objects that are subclassed from Node, rather it assumes that all children of the Scene are of the type Node. Scene loading and saving holds the same assumption. The usual and recommended method of how you implement new functionality in Urho3D is creating new components instead.</p>
+<p>What is the functionality that BaseBall adds? Could it be rather implemented as a component and added to an ordinary scene node? For examples of custom components check for example the 05_AnimatingScene sample, where a custom Rotator component is created and added to scene nodes.</p>
+<p>EDIT: have added remark in the documentation that Node should not be subclassed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>Thank you very much for your reply, and i carefully tracked the code and found that when I add a new ball node to scene, following code will be called,<br/>
+unsigned id = node-&gt;GetID();<br/>
+if (id &lt; FIRST_LOCAL_ID)<br/>
+{<br/>
+HashMap&lt;unsigned, Node*&gt;::Iterator i = replicatedNodes_.Find(id);<br/>
+if (i != replicatedNodes_.End() &amp;&amp; i-&gt;second_ != node)<br/>
+{<br/>
+LOGWARNING("Overwriting node with ID " + String(id));<br/>
+i-&gt;second_-&gt;ResetScene();<br/>
+}</p>
+<p>i-&gt;second_-&gt;ResetScene(); will be called.<br/>
+So I think the problem is that Ball and BallMachine have the same id, I don’t know whether it is the engine bug or I must guarantee different id for different object?<br/>
+Thanks again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The easiest way to create nodes is to call CreateChild(), which creates the node and adds an ID in one step. Obviously it doesn’t work in your case as you have a custom Node subclass. I’ll have to check what happens with the ID if you new() a node and add it to the scene afterward using AddChild(). This looks like an oversight in the engine; a non-duplicate ID should be assigned also in that case.</p>
+<p>However the point still stands even if the ID problem is fixed, that subclassing Node will lead to trouble.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The ID problem was reproduced and fixed in github latest revision.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>iModelMatrix undeclared in hlsl code</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">iModelMatrix undeclared in hlsl code</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p><code>error X3004: undeclared identifier 'iModelMatrix'</code><br/>
+Isn’t it supposed to be a global variable?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Did you include the necessary headers and set the necessary defines? (Not sure if both of those are a possible problem for your specific issue, but it seems likely to be that one of them is there cause)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2841_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SamFGD</div>
+          <div class="post_content">
+<p>iModelMatrix is defined in Transform.hlsl/glsl and it can only be accessed in the vertex shader because of COMPILEVS.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Turns out putting the actual code at the top of the file and removing the comments solved it? Pretty weird but at least it’s working now</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Now it’s complaining about iNormal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Without actual shader code there’s nothing we can do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Problem is in VS(), the GetWorldNormal</p>
+<pre><code class="lang-auto">#include "Transform.hlsl"
+
+#ifdef COMPILEVS
+uniform float cOutlineWidth = 0.01;
+#endif
+
+#ifdef COMPILEPS
+uniform float4 cOutlineColor = float4(1.0, 1.0, 1.0, 1.0);
+#endif
+
+void VS(float4 iPos : POSITION,
+	out float2 oTexCoord : TEXCOORD0,
+	out float2 oScreenPos : TEXCOORD1,
+	out float4 oPos : OUTPOSITION)
+{
+	float4x3 modelMatrix = iModelMatrix;
+	float3 worldPos = GetWorldPos(modelMatrix);
+	float3 vNormal = GetWorldNormal(modelMatrix);
+// Scale along normal
+	worldPos += vNormal * cOutlineWidth;
+	//gl_Position = GetClipPos(worldPos);
+    oPos = GetClipPos(worldPos);
+
+}
+
+void PS(float2 iTexCoord : TEXCOORD0,
+	float2 iScreenPos : TEXCOORD1,
+	out float4 oColor : SV_Target)
+{
+	oColor = cOutlineColor.rgba;
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Well. You don’t pass the normal into shader. So the compiler cannot find it.<br/>
+You can see how standard shaders pass normal and do the same.</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/bin/CoreData/Shaders/HLSL/LitSolid.hlsl#L8-L68</a></h4>
+<pre class="onebox"><code class="lang-hlsl"><ol class="start lines" start="8" style="counter-reset: li-counter 7 ;">
+<li>void VS(float4 iPos : POSITION,
+</li>
+<li>    #if !defined(BILLBOARD) &amp;&amp; !defined(TRAILFACECAM)
+</li>
+<li>        float3 iNormal : NORMAL,
+</li>
+<li>    #endif
+</li>
+<li>    #ifndef NOUV
+</li>
+<li>        float2 iTexCoord : TEXCOORD0,
+</li>
+<li>    #endif
+</li>
+<li>    #ifdef VERTEXCOLOR
+</li>
+<li>        float4 iColor : COLOR0,
+</li>
+<li>    #endif
+</li>
+<li>    #if defined(LIGHTMAP) || defined(AO)
+</li>
+<li>        float2 iTexCoord2 : TEXCOORD1,
+</li>
+<li>    #endif
+</li>
+<li>    #if (defined(NORMALMAP) || defined(TRAILFACECAM) || defined(TRAILBONE)) &amp;&amp; !defined(BILLBOARD) &amp;&amp; !defined(DIRBILLBOARD)
+</li>
+<li>        float4 iTangent : TANGENT,
+</li>
+<li>    #endif
+</li>
+<li>    #ifdef SKINNED
+</li>
+<li>        float4 iBlendWeights : BLENDWEIGHT,
+</li>
+<li>        int4 iBlendIndices : BLENDINDICES,
+</li>
+<li>    #endif
+</li>
+</ol></code></pre>
+
+  This file has been truncated. <a  rel="nofollow noopener" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Although I admit that design of shader API in Urho is meh.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Thanks a lot for the info! I admit the solution was very simple, but it would’ve been helpful if it was mentioned in the docs.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

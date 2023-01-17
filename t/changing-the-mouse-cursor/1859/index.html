@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Changing the mouse cursor</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Changing the mouse cursor</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Urho seems to be able to change the mouse cursor but my tries are just crashing. How does it work?<br/>
+<a href="http://urho3d.github.io/documentation/1.5/class_urho3_d_1_1_u_i.html" rel="nofollow noopener">urho3d.github.io/documentation/1 … 1_u_i.html</a><br/>
+<a href="http://urho3d.github.io/documentation/1.5/class_urho3_d_1_1_cursor.html" rel="nofollow noopener">urho3d.github.io/documentation/1 … ursor.html</a></p>
+<pre><code class="lang-auto">        //Urho3D::Cursor* cursor=GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetCursor();   // cursor is 0 when trying this
+        static Urho3D::Cursor* cursor=new Urho3D::Cursor(context_);         // doesn't work either, crashes in SetCursor
+std::cout&lt;&lt;(size_t)cursor&lt;&lt;std::endl;
+
+        if(c==mouse_cursor::beam)
+            cursor-&gt;SetShape(Urho3D::CursorShape::CS_IBEAM);
+        else
+            cursor-&gt;SetShape(Urho3D::CursorShape::CS_NORMAL);
+
+        GetSubsystem&lt;Urho3D::UI&gt;()-&gt;SetCursor(cursor);    // GetSubsystem&lt;Urho3D::UI&gt;() is non 0 and seems valid.</code></pre>
+<p>Neither the samples nor the editor seem to change the cursor anywhere, it it currently possible? System default cursor shapes would be fine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I think you still do not grasp that Urho3D’s Input subsystem supports two kinds of mouse: operating-system mouse (the mouse cursor is rendered by OS) and software-rendered mouse (the mouse cursor is rendered by UI subsystem). You change which mouse mode to use with Input::SetMouseVisible(). The code that you posted only makes sense for the latter case. When using-software-rendered mouse, think of the cursor as “just another UI-element”, in fact behind the scene it is a UI-element. So, it is easier to understand why the initial UI::GetCursor() return 0, i.e. you must first use UI::SetCursor() to set it to something initially before the UI::GetCursor() could return it back. You can actually see it in action in Editor but only when you have a very slow machine or you have a very CPU-intensive operation such as loading a very scene file, the editor switches the cursor shapes to CS_BUSY. The CursorShape enumeration that limits the number of cursor shape in software-rendered mouse is actually artificial. You can “register” as many custom shapes as you like. And more over the shape is just a skin deep, you can change whole UI looks by loading alternate UI-style file. Just for completeness sake, you can also change the cursor shape of the OS mouse, although the number of shapes to choose from is genuinely limited by the underlying OS could provide.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>The mouse is visible, I can see the normal arrow cursor.</p>
+<pre><code class="lang-auto">        _context-&gt;GetSubsystem&lt;Urho3D::Input&gt;()-&gt;SetMouseVisible(true);
+        static Urho3D::Cursor* cursor=new Urho3D::Cursor(context_);
+std::cout&lt;&lt;(size_t)GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetCursor()&lt;&lt;std::endl;  // in the first function call this returns 0 in the second a valid value and crashes (I suppose at SetCursor)
+
+           cursor-&gt;SetShape(Urho3D::CursorShape::CS_IBEAM);
+
+        //if(!GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetCursor())    // If I uncomment this it doesn't crash but does also nothing
+            GetSubsystem&lt;Urho3D::UI&gt;()-&gt;SetCursor(cursor);</code></pre>
+<p>I’m never seeing a different cursor. (Windows 7 BTW)<br/>
+Should it work like that?</p>
+<p>Edit: In the editor code I found</p>
+<pre><code class="lang-auto">ui.cursor.shape = CS_BUSY;</code></pre>
+<p>Which could be equivalent to</p>
+<pre><code class="lang-auto">GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetCursor()-&gt;SetShape(Urho3D::CursorShape::CS_IBEAM);</code></pre>
+<p>I tried</p>
+<pre><code class="lang-auto">GetSubsystem&lt;Urho3D::Input&gt;()-&gt;SetMouseVisible(true);
+if(!GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetCursor())
+    GetSubsystem&lt;Urho3D::UI&gt;()-&gt;SetCursor(new Urho3D::Cursor(context_));
+GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetCursor()-&gt;SetShape(Urho3D::CursorShape::CS_BUSY);</code></pre>
+<p>which didn’t crash but also didn’t change the cursor.</p>
+<p>Only</p>
+<pre><code class="lang-auto">GetSubsystem&lt;Urho3D::Input&gt;()-&gt;SetMouseVisible(true);
+GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetCursor()-&gt;SetShape(Urho3D::CursorShape::CS_BUSY);</code></pre>
+<p>crashes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Pre-need to load the cursor image (for software-rendered cursor)</p>
+<p><code>    XMLFile* style = cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml");
+    SharedPtr&lt;Cursor&gt; cursor(new Cursor(context_));
+    cursor-&gt;SetStyleAuto(style);
+    ui-&gt;SetCursor(cursor);
+    ui-&gt;GetCursor()-&gt;SetVisible(true);</code><br/>
+Also, it makes no sense to use OS cursor at the same time</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>You can set the UI-style just once in the UI “root”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Uhm I got something but it’s weird. This is my GUI code now:</p>
+<pre><code class="lang-auto">            XMLFile* style = cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml");
+            UI* ui=GetSubsystem&lt;UI&gt;();
+            ui-&gt;GetRoot()-&gt;SetDefaultStyle(style);
+            SharedPtr&lt;Cursor&gt; cursor(new Cursor(context_));
+            cursor-&gt;SetStyleAuto(style);   // without this I can't see any cursor
+            cursor-&gt;SetShape(Urho3D::CursorShape::CS_RESIZEHORIZONTAL);  // this is one of the defined default cursors
+            ui-&gt;SetCursor(cursor);
+            
+            window=new Window(context_);
+            ui-&gt;GetRoot()-&gt;AddChild(window);
+            window-&gt;SetStyle("Window");
+            window-&gt;SetSize(600,70);
+            window-&gt;SetColor(Color(.0,.15,.3,.5));
+            window-&gt;SetAlignment(HA_LEFT,VA_TOP);
+
+            window_text=new Text(context_);
+            window_text-&gt;SetFont(cache-&gt;GetResource&lt;Font&gt;("Fonts/Anonymous Pro.ttf"),14);
+            window_text-&gt;SetColor(Color(.8,.85,.9));
+            window_text-&gt;SetAlignment(HA_LEFT,VA_TOP);
+            window_text-&gt;SetText("Hello Urho!");
+            window-&gt;AddChild(window_text);</code></pre>
+<p>When setting the cursor every frame:</p>
+<pre><code class="lang-auto">    void HandleUpdate(StringHash eventType,VariantMap&amp; eventData)
+    {
+        GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetCursor()-&gt;SetShape(Urho3D::CursorShape::CS_RESIZEHORIZONTAL);
+...</code></pre>
+<p>I can see the set cursor but only if it’s not over the window. When it is over the window or when I’m not setting it every frame I see the normal arrow cursor.<br/>
+Is that normal?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<pre><code class="lang-auto">void Window::OnHover(const IntVector2&amp; position, const IntVector2&amp; screenPosition, int buttons, int qualifiers, Cursor* cursor)
+{
+    UIElement::OnHover(position, screenPosition, buttons, qualifiers, cursor);
+
+    if (dragMode_ == DRAG_NONE)
+    {
+        WindowDragMode mode = GetDragMode(position);
+        SetCursorShape(mode, cursor);
+    }
+    else
+       SetCursorShape(dragMode_, cursor);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>[quote=“1vanK”][code]<br/>
+void Window::OnHover(const IntVector2&amp; position, const IntVector2&amp; screenPosition, int buttons, int qualifiers, Cursor* cursor)<br/>
+{<br/>
+UIElement::OnHover(position, screenPosition, buttons, qualifiers, cursor);</p>
+<pre><code>if (dragMode_ == DRAG_NONE)
+{
+    WindowDragMode mode = GetDragMode(position);
+    SetCursorShape(mode, cursor);
+}
+else
+   SetCursorShape(dragMode_, cursor);
+</code></pre>
+<p>}<br/>
+[/code][/quote]<br/>
+So Window is setting the cursor shape every frame when hovering. So its normal to set the cursor every frame? Seemed weird.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

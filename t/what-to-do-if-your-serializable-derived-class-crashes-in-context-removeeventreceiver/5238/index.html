@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>What to do if your Serializable-derived class crashes in Context::RemoveEventReceiver</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">What to do if your Serializable-derived class crashes in Context::RemoveEventReceiver</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I created a massive headache for myself recently - I had smashed out a bunch of classes deriving from Serializable, created a tree of specialized nodes (a custom set of derived node classes, nothing to do with Urho3D::Node), and during destruction, I was landing in Context::RemoveEventReceiver, on my deepest node (initially), with pthis=nullptr<br/>
+As my project pulls in the (release) Urho lib, I could not easily investigate the cause of the crash, but I do know my way around ASM, and I was able to inspect the disassembled code and the CPU registers to figure out that one of my objects had not correctly initialized the context_ member.</p>
+<p>The issue was caused as follows:</p>
+<pre><code class="lang-auto">MyClass::MyClass(Context* context):ItsAncestor(context_) { }</code></pre>
+<p>Can you see the problem?<br/>
+It’s such a subtle bug, but it’s super-nasty.</p>
+<p>The input argument “context” is valid on entry - but that’s not what we handed to the ancestor!</p>
+<p>Just a friendly heads-up incase someone else is wondering why their code crashes silently!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Curse of intellisense strikes again</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1929_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">guk_alex</div>
+          <div class="post_content">
+<p>Should the compiler warn you for unused input argument?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I handed in the placeholder member, which we inherited from serializable (actually from Object, deeper again), I did not pass the input argument as intended</p>
+<p>I had a train ticket to pass to the conductor, but i showed him my empty pocket before he had handed me the ticket back to put in my pocket</p>
+<p>the input argument was called context<br/>
+the thing i handed the ancestor was the ultimate holder of context, called context_</p>
+<p>at the time i did so, context_ was still empty</p>
+<p>yes, the compiler should warn you, about unused inputs, if they have no defaults specified</p>
+<p>it never ceases to amuse me, as a programmer, how one character out of place can crash the entire machine</p>
+<p>in my days as an industrial robotics coder, once i put the decimal point in the wrong place in one number in a huge program, and quite some time later, a 50 tonne robot attempted to tear itself apart, at full speed - 30 meters per minute back then (I happened to be nearby, but I was also running other machines too)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yes, for arguments which have no default value specified, for sure - maybe not if there is a default, because it could be a throw-away value depending on the whim of the caller</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

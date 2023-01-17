@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CollisionShape SetTerrain()</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CollisionShape SetTerrain()</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p><em>I am sure this is answered somewhere in the forums but I could not find it. Sorry if (when) this is a repeat.</em></p>
+<p>I have been re-jiggering my entire approach to the architecture of my game. I decided to rely more on the built-in/Bullet engine.</p>
+<p>I have:</p>
+<pre><code class="lang-auto">this-&gt;terrainNode_ = this-&gt;scene_-&gt;CreateChild( Terrain );
+this-&gt;terrainNode_-&gt;SetPosition( Urho3D::Vector3::ZERO );
+auto* terrain = this-&gt;terrainNode_-&gt;CreateComponent&lt; Urho3D::Terrain &gt;();
+terrain-&gt;SetPatchSize( 64 );
+terrain-&gt;SetSpacing( Urho3D::Vector3( 5.0f, 1.0f, 5.0f ) );
+terrain-&gt;SetSmoothing( true );
+terrain-&gt;SetHeightMap( cache-&gt;GetResource&lt; Urho3D::Image &gt;( Textures/HeightMap.png ) );
+terrain-&gt;SetMaterial( cache-&gt;GetResource&lt; Urho3D::Material &gt;( Materials/Terrain.xml ) );
+terrain-&gt;SetOccluder( true );
+
+auto* rigidBody = this-&gt;terrainNode_-&gt;CreateComponent&lt; Urho3D::RigidBody &gt;();
+auto* collisionShape = this-&gt;terrainNode_-&gt;CreateComponent&lt; Urho3D::CollisionShape &gt;();
+collisionShape-&gt;SetTerrain();
+</code></pre>
+<p>for my terrain.</p>
+<p>My height map is as so:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="HeightMap"><img alt="HeightMap" data-base62-sha1="p7vu0aCcmVm9RzdL3Fn8FUaRAYi"  height="500" src="../../../images2/5e797c392367f42257063bb82b8dfd20.png"  width="500"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">HeightMap</span><span class="informations">1024×1024 40.2 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>I have for my player creation:</p>
+<pre><code class="lang-auto">for ( short int i = 0 ; i &lt; PLAYER_COUNT ; i++ ) {
+	this-&gt;players_[ i ] = this-&gt;scene_-&gt;CreateChild( "Player" );
+	Urho3D::Vector3 position( effolkronium::random_static::get( -1000, 1000 ), 0.0f, effolkronium::random_static::get( -1000, 1000 ) );
+	position.y_ = this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;()-&gt;GetHeight( position ) + 50.0f;
+	this-&gt;players_[ i ]-&gt;SetPosition( position );
+	this-&gt;players_[ i ]-&gt;SetScale( Urho3D::Vector3( 100.0f, 50.0f, 100.0f ) );
+	auto* object = this-&gt;players_[ i ]-&gt;CreateComponent&lt; Urho3D::StaticModel &gt;();
+	object-&gt;SetModel( cache-&gt;GetResource&lt; Urho3D::Model &gt;( "Models/Box.mdl" ) );
+	object-&gt;SetMaterial( cache-&gt;GetResource&lt; Urho3D::Material &gt;( "Materials/Stone.xml" ) );
+	object-&gt;SetCastShadows( true );
+
+	auto* rigidBody = this-&gt;players_[ i ]-&gt;CreateComponent&lt; Urho3D::RigidBody &gt;();
+	rigidBody-&gt;SetMass( 5.0f );
+	rigidBody-&gt;SetFriction( 1.0f );
+	rigidBody-&gt;SetCollisionEventMode( Urho3D::COLLISION_ALWAYS );
+	auto* collisionShape = this-&gt;players_[ i ]-&gt;CreateComponent&lt; Urho3D::CollisionShape &gt;();
+	collisionShape-&gt;SetBox( Urho3D::Vector3::ONE );
+
+	this-&gt;players_[ i ]-&gt;CreateComponent&lt; Player &gt;();
+...
+}
+</code></pre>
+<p>I have for my player movement:</p>
+<pre><code class="lang-auto">for ( short int i = 0 ; i &lt; PLAYER_COUNT ; i++ ) {
+	auto position = this-&gt;players_[ i ]-&gt;GetPosition();
+	position.x_ += this-&gt;players_[ i ]-&gt;GetComponent&lt; Player &gt;()-&gt;GetX();
+	position.z_ += this-&gt;players_[ i ]-&gt;GetComponent&lt; Player &gt;()-&gt;GetZ();
+	this-&gt;players_[ i ]-&gt;SetTransform( position, Urho3D::Quaternion( Urho3D::Vector3( 0.0f, 1.0f, 0.0f ), this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;()-&gt;GetNormal( position ) ) );
+}
+</code></pre>
+<p>for my players.</p>
+<p>At the 90° wall, instead of stopping/not being allowed to pass, the player just clips through the wall (after some jittering). Even at the 45° angle (up the hill) the player eventually just falls through the floor. I have tried using <code>ApplyForce()</code> instead but it does not seem to do anything.</p>
+<p>I am pretty sure I am supposed to be using <code>ApplyForce()</code> instead of manipulating the position myself but I can not make it work. I have been studying <em>19_VehicleDemo</em> but what works there does not seem to work for me.</p>
+<p>If I add <code>position.y_ = this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;()-&gt;GetHeight( position ) + 25.0f</code> to the player movement it solves my clipping problem but I lose physics (obviously). Plus the player can now climb vertical walls (obviously, again).</p>
+<p>How am I supposed to be moving the player around or is Bullet just not good with this kind of thing?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<div class="onebox lazyYT lazyYT-container" data-parameters="feature=oembed&amp;wmode=opaque" data-youtube-id="eRQhoxFbItY" data-youtube-title="Movement - Test 1">
+<a href="https://www.youtube.com/watch?v=eRQhoxFbItY" rel="noopener nofollow ugc" target="_blank">
+<img class="ytp-thumbnail-image" height="360" src="../../../images2/9e0eae406435c694e75839bfbab541e8.jpg" title="Movement - Test 1" width="480"/>
+</a>
+</div>
+<p>I got the player moving around (it was me being dumb) using:</p>
+<pre><code class="lang-auto">for ( short int i = 0 ; i &lt; PLAYER_COUNT ; i++ ) {
+	const auto&amp; player = this-&gt;players_[ i ];
+	auto* playerComponent = player-&gt;GetComponent&lt; Player &gt;();
+	auto* rigidBody = player-&gt;GetComponent&lt; Urho3D::RigidBody &gt;();
+
+	rigidBody-&gt;ApplyForce( Urho3D::Vector3( 1, 0, 0 ) * playerComponent-&gt;GetX() );
+	rigidBody-&gt;ApplyForce( Urho3D::Vector3( 0, 0, 1 ) * playerComponent-&gt;GetZ() );
+...
+}
+</code></pre>
+<p>Now it no longer goes through walls (my bad) but flips and spins uncontrollably almost like a top. It also does not have the “pep” it used to have (takes a few moments to get going and stop) which is not desirable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Set angular factor vector to prevent unwanted rotations. In your case, you probably want only Y-axis rotations. So SetAngularFactor(Vector3(0,1,0))</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>Set angular factor vector to prevent unwanted rotations.</p>
+</blockquote>
+</aside>
+<p>Ooohhh, now I understand how it all fits together. Thank you, that was the bit I was missing in my head.</p>
+<p>My code now looks like:</p>
+<pre><code class="lang-auto">for ( short int i = 0 ; i &lt; PLAYER_COUNT ; i++ ) {
+	const auto&amp; player = this-&gt;players_[ i ];
+	auto* playerComponent = player-&gt;GetComponent&lt; Player &gt;();
+	auto* rigidBody = player-&gt;GetComponent&lt; Urho3D::RigidBody &gt;();
+	auto* node = rigidBody-&gt;GetNode();
+
+	const auto playerXVelocity = playerComponent-&gt;GetX();
+	const auto playerZVelocity = playerComponent-&gt;GetZ();
+
+	const auto velocity = rigidBody-&gt;GetLinearVelocity();
+	if ( playerXVelocity == 0 &amp;&amp; playerZVelocity == 0 )
+		rigidBody-&gt;SetLinearVelocity( Urho3D::Vector3( 0, velocity.y_, 0 ) );
+	else
+		rigidBody-&gt;SetLinearVelocity( Urho3D::Vector3( playerXVelocity, velocity.y_, playerZVelocity ) );
+
+	node-&gt;SetRotation( Urho3D::Quaternion( Urho3D::Vector3( 0.0f, 1.0f, 0.0f ), this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;()-&gt;GetNormal( node-&gt;GetPosition() ) ) );
+...
+}
+</code></pre>
+<p>It allows me to move with the gamepad precisely while still working within the physics system. I use <code>ApplyForce()</code> in other places (like for a jumping power-up).</p>
+<div class="onebox lazyYT lazyYT-container" data-parameters="feature=oembed&amp;wmode=opaque" data-youtube-id="HKnlFtOUDJo" data-youtube-title="Movement - Test 2">
+<a href="https://www.youtube.com/watch?v=HKnlFtOUDJo" rel="noopener nofollow ugc" target="_blank">
+<img class="ytp-thumbnail-image" height="360" src="../../../images2/7da7df910f5a4889ec58c7206048e7a8.jpg" title="Movement - Test 2" width="480"/>
+</a>
+</div>
+<p>
+(In the video I am always holding the stick is some direction. It just refuses to move some of the time. I wiggle it a lot and that seems to help.)</p>
+<p>Now I am running into this issue where (with and without <code>ApplyForce()</code> instead of <code>SetLinearVelocity()</code>) the player seems to get stuck on the ground a little. You can see in the video it mostly happens when moving up or right, less so-- but still-- down or left. I ruled out issues with the gamepad.</p>
+<p>When I look for <code>E_NODECOLLISIONSTART</code> events I see lots of them. The player is moving across flat ground but triggering repeated collisions with the terrain. I assume this is due to gravity but I am not sure if it is related to my problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>What’s your gravity set at? Default should be fine though I use slightly stronger. You shouldn’t set linear velocity to move a character. Same as you wouldn’t set position of rigid bodies as it messes with the physics.<br/>
+Does the issue happen with apply force too?<br/>
+What collision shape is on your character? Try a capsule.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>What’s your gravity set at?</p>
+</blockquote>
+</aside>
+<p>Now it is <code>physicsWorld-&gt;SetGravity( Urho3D::Vector3::DOWN * LEVEL_GRAVITY );	// LEVEL_GRAVITY = 1.5</code>.</p>
+<p>It was 1,000 which I did not even realize. Thank you for that. Not sure how that happened; I must have been trying to change some other value and accidentally changed that one.</p>
+<p>A problem with the default gravity-- or near to it-- is that players do not fall nearly quickly enough. The top of the slightest ramp sends them slowly flying into space or very, very slowly falling towards the ground after running off a ledge. I have tried playing with higher mass values (5-25) but then they climb 45° ramps very, very slowly if at all and I still have the flying-into-space problem.</p>
+<aside class="quote no-group" data-post="5" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>You shouldn’t set linear velocity to move a character.</p>
+</blockquote>
+</aside>
+<p>That is unfortunate because it was the type of movement I wanted for the player. I am aiming for a <em>Smash TV</em>/classic twin-stick shooter kind of movement (responsive right away and there is no “floatyness” or “lag” in the movement). I want the player to be able to move on a dime regardless of currently velocity in any direction. <code>ApplyForce()</code> simply does not give me that as far as I can see.</p>
+<aside class="quote no-group" data-post="5" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>What collision shape is on your character? Try a capsule.</p>
+</blockquote>
+</aside>
+<p>I am experimenting with <code>SetCapsule()</code> but honestly not seeing any difference.</p>
+<p>Thank you for your help in this. There are so many values to play with that getting the right combination on my own is proving suuuper difficult. I tried finding a tutorial in addition to the documentation, source, and samples but no luck there.</p>
+<p><strong>Edit</strong><br/>
+Once I get everything working right enough I am going to come back to these old threads and write some blogs about “the right way” to do these things. Maybe someone else does not have to experiment as much I as I am right now in the future.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Well, for responsiveness you could definitely try low mass, higher forces, and then messing with linear damping and setting velocity limits (so they have a max speed). My gravity is like -25 for Y.<br/>
+What is your friction set for the player and the terrain? And mass for player?</p>
+<p>By limiting velocity I mean using setlinearvelocity to an upper limit if the player exceeds it, though usually damping is enough.</p>
+<p>Basically, low mass and a high force will move the body quickly, then a good damping will stop it when you let go of the control. Should be possible to get it how you want. I think the curve of the capsule helps it to not get stuck on things, especially slopes, so try that again at the same time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>Thanks to you the players are moving around nearly perfectly (some tweaks here and there but I will get to that in the polish stage).</p>
+<aside class="quote no-group" data-post="7" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>What is your friction set for the player and the terrain? And mass for player?</p>
+</blockquote>
+</aside>
+<p>Terrain friction is <code>SetFriction( 0.0f )</code>. Player mass is <code>SetMass( 1.0f )</code>. Player friction is <code>SetFriction( 0.0f )</code>. I have my gravity set to -25.</p>
+<p>My players look like this:</p>
+<pre><code class="lang-auto">auto* rigidBody = player-&gt;CreateComponent&lt; Urho3D::RigidBody &gt;();
+rigidBody-&gt;SetMass( 1.0f );
+rigidBody-&gt;SetFriction( 0.0f );
+rigidBody-&gt;SetLinearDamping( 1.0f );
+rigidBody-&gt;SetAngularFactor( Urho3D::Vector3::ZERO );
+</code></pre>
+<p>Everything is looking great except for one thing: The gravity/player mass combination results in falling happening very, very, <em>very</em> slowly (even driving down a ramp the player clears the whole thing with tons of room to spare without ever touching it). If I increase the players mass too much then it will not move no matter how much force I apply. If I increase the gravity then the players start getting stuck on the terrain.</p>
+<p>I am toying with the idea of some additional logic: If the player should be falling temporarily set <code>SetGravityOverride()</code> to something high. That seems hacky as hell though and there must be a better way.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Glad it’s starting to work.<br/>
+What size is this player?<br/>
+So, try a lower linear damping. At 1 it’s going to seriously slow down the player, even fighting gravity. Basically, think of it as “drag,” and put it at like .2 or so.</p>
+<p>1 would basically reduce almost all linear velocity every frame, which is why it’s slowing down like crazy.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="9" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>What size is this player?</p>
+</blockquote>
+</aside>
+<p><code>SetScale( Urho3D::Vector3( 100.0f, 50.0f, 100.0f ) )</code>. This will eventually be replaced by an actual model. It has a turret on top with <code>SetPosition( Urho3D::Vector3( 0, .5, .5 ) )</code> and <code>SetScale( Urho3D::Vector3( .25, .5, 1 ) )</code> but there is no <code>RigidBody</code> on the turret.</p>
+<p>I am going to spend-- probably alot of-- time playing with the variables and taking notes. Thank you for your help so far!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Oh that’s huge. That and the other reasons are why it would fall slowly. Imagine a skyscraper falling over. I mean, you <em>can</em> do that, but seriously just make your character between 1-3 units tall.<br/>
+Have you seen the character demo sample? Might be easy to start with that as a template.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="11" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>Oh that’s huge.</p>
+</blockquote>
+</aside>
+<p>Is it? I will have to rejigger the terrain and heightmap sizes and camera placements. Come to think of it, I have to readjust the scale and speed of everything.</p>
+<p>This is going to take me a little while. Be back later.</p>
+<p><strong>Note to self for later</strong><br/>
+Include scale notes in future blog posts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<p>So I shrunk <em>everything</em> down.</p>
+<p>The player is now at <code>SetScale( Urho3D::Vector3( 3.0f, 1.5f, 3.0f ) )</code>. The terrain is at <em>257</em>x<em>257</em>, <code>SetSpacing( Urho3D::Vector3( 1.0f, 0.05f, 1.0f ) )</code> (1/4th its original size). The camera went from <em>3000</em> units away to <em>150</em> units away. Gravity is <em>1</em>, players are at <em>1</em> mass, <em>1</em> friction, and <em>0.2</em> linear damping.</p>
+<div class="onebox lazyYT lazyYT-container" data-parameters="feature=oembed&amp;wmode=opaque" data-youtube-id="ur3RWV3M4NQ" data-youtube-title="Movement - Test 3">
+<a href="https://www.youtube.com/watch?v=ur3RWV3M4NQ" rel="noopener nofollow ugc" target="_blank">
+<img class="ytp-thumbnail-image" height="360" src="../../../images2/e78b7b86059423e765984797950ca0b7.jpg" title="Movement - Test 3" width="480"/>
+</a>
+</div>
+<p>The players are hopping all the time. I tried different gravity and mass and linear damping but they always hop.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>That should be good with gravity at Vector3(0, -25, 0). Hmm<br/>
+Can I see the whole set up?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="14" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>Can I see the whole set up?</p>
+</blockquote>
+</aside>
+<p>At <em>-25</em> it both gets stuck <em>and</em> hops. A little adorable. Adorable or I am losing my mind.</p>
+<p>Creating the players:</p>
+<pre><code class="lang-auto">for ( short int i = 0 ; i &lt; PLAYER_COUNT ; i++ ) {
+	this-&gt;players_[ i ] = this-&gt;scene_-&gt;CreateChild( "Player" );
+	const auto&amp; player = this-&gt;players_[ i ];
+
+	Urho3D::Vector3 position( effolkronium::random_static::get( -50, 50 ), 0.0f, effolkronium::random_static::get( -50, 50 ) );
+	position.y_ = this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;()-&gt;GetHeight( position ) + 1.0f;
+	player-&gt;SetPosition( position );
+	player-&gt;SetScale( Urho3D::Vector3( 3.0f, 1.5f, 3.0f ) );
+	auto* object = player-&gt;CreateComponent&lt; Urho3D::StaticModel &gt;();
+	object-&gt;SetModel( cache-&gt;GetResource&lt; Urho3D::Model &gt;( "Models/Box.mdl" ) );
+	object-&gt;SetMaterial( cache-&gt;GetResource&lt; Urho3D::Material &gt;( "Materials/Stone.xml" ) );
+	object-&gt;SetCastShadows( true );
+
+	auto* rigidBody = player-&gt;CreateComponent&lt; Urho3D::RigidBody &gt;();
+	rigidBody-&gt;SetMass( 1.0f );
+	rigidBody-&gt;SetFriction( 1.0f );
+	rigidBody-&gt;SetLinearDamping( 0.2f );
+	rigidBody-&gt;SetAngularFactor( Urho3D::Vector3::ZERO );
+	rigidBody-&gt;SetCollisionEventMode( Urho3D::COLLISION_ALWAYS );
+
+	auto* collisionShape = player-&gt;CreateComponent&lt; Urho3D::CollisionShape &gt;();
+	collisionShape-&gt;SetSphere( 1 );
+...
+}
+</code></pre>
+<p>Updating the player each tick:</p>
+<pre><code class="lang-auto">for ( short int i = 0 ; i &lt; PLAYER_COUNT ; i++ ) {
+	const auto&amp; player = this-&gt;players_[ i ];
+	auto* playerComponent = player-&gt;GetComponent&lt; Player &gt;();
+	auto* rigidBody = player-&gt;GetComponent&lt; Urho3D::RigidBody &gt;();
+	auto* node = rigidBody-&gt;GetNode();
+
+	rigidBody-&gt;ApplyForce( Urho3D::Vector3( 1, 0, 0 ) * playerComponent-&gt;GetX() );
+	rigidBody-&gt;ApplyForce( Urho3D::Vector3( 0, 0, 1 ) * playerComponent-&gt;GetZ() );
+
+	node-&gt;SetRotation( Urho3D::Quaternion( Urho3D::Vector3( 0.0f, 1.0f, 0.0f ), this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;()-&gt;GetNormal( node-&gt;GetPosition() ) ) );
+...
+}
+</code></pre>
+<p>Playing with gravity anywhere from <em>-1</em> to <em>-25</em>.</p>
+<p>I have been staring at this since 6:00AM and it is now 8:00PM. Going to get some sleep and pick up in the morning… are water and food still a thing?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Maybe it’s the rotation. Why are you setting the node’s rotation to the terrain normal? To me it seems unnecessary if you’re using physics. If I were making a game without physics for the player, I would do something like that (to keep the player <em>on</em> the ground in the right way), and I would also set the player’s Y height to the terrain height as you did initially because you <em>can</em> manually set positions without physics. Well you can try to do it with physics, but you shouldn’t.</p>
+<p>If you have gravity and collision shapes on the player and terrain the rotation will be correct by the physics alone. I’m not sure if that’s why, but I would try commenting that out.</p>
+<p>Gravity at -1 I would expect that they would be floaty. What kind of game is this going to be? Also, try commenting out the player friction (for now). Maybe it’s bumping a lip in the terrain or something.</p>
+<p>Do you use the debug renderer? I always have mine set up so that I can toggle it with a key and check everything mid-game.</p>
+<p>Sleep helps!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="16" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>Why are you setting the node’s rotation to the terrain normal?</p>
+</blockquote>
+</aside>
+<p>I think that was just an old line from when I was not using the physics engine at first and I just never removed it. Gone now.</p>
+<aside class="quote no-group" data-post="16" data-topic="6938" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>What kind of game is this going to be?</p>
+</blockquote>
+</aside>
+<p>Think <a href="https://www.youtube.com/watch?v=WIPn7RZJ4vg&amp;t=300s" rel="noopener nofollow ugc">Smash TV</a> except PvP with four players and competitive. Many particles effects, many weapons and power-ups. Just mindlessly shooting at each other. This is my first game so I would like to shoot a little higher than Pong but not as high as my dream project. So far I am happy with the results, as difficult as they are proving.</p>
+<p>I have been planning to play with the <code>DebugRenderer</code> but never got around to it. I think I will dedicate some more time to that today.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">grokko</div>
+          <div class="post_content">
+<p>You can set the normal for your players rotation Quaternion to be the terrains direction cosines…</p>
+<pre><code>    float acosA = acos(norm.x_);
+	float acosB = acos(norm.y_);
+	float acosC = acos(norm.z_);
+        
+	float _x = acosA*180/3.14 - 90;
+	float _y = acosB*180/3.14 - 90;
+	float _z = acosC*180/3.14 - 90;
+    
+    Vector3 spine = Vector3(_x,_y,_z);
+    Quaternion _ion;
+    _ion.FromAngleAxis(angle, spine);		
+    pNode()-&gt;SetRotation(_ion); 
+</code></pre>
+<p>That should oriient your player on top of the terrain all the time directed along angle…</p>
+<p>Michael</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2672_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nickwebha</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="18" data-topic="6938" data-username="grokko">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/77772c111fbf1018280a294f944d4eda.png" width="20"/> grokko:</div>
+<blockquote>
+<p>You can set the normal for your players rotation Quaternion to be the terrains direction cosines</p>
+</blockquote>
+</aside>
+<p>How does this differ from something like:</p>
+<pre><code class="lang-auto">auto position = this-&gt;players_[ i ]-&gt;GetPosition();|
+position.x_ += this-&gt;players_[ i ]-&gt;GetComponent&lt; Player &gt;()-&gt;GetX();|
+position.z_ += this-&gt;players_[ i ]-&gt;GetComponent&lt; Player &gt;()-&gt;GetZ();|
+this-&gt;players_[ i ]-&gt;SetTransform( position, Urho3D::Quaternion( Urho3D::Vector3( 0.0f, 1.0f, 0.0f ), this-&gt;terrainNode_-&gt;GetComponent&lt; Urho3D::Terrain &gt;()-&gt;GetNormal( position ) ) );|
+</code></pre>
+<p>?</p>
+<p>(Besides also setting the position).</p>
+<p><strong>Edit</strong><br/>
+I do not have the math background. I need to learn more about quaternions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>I think you need to use impulse or velocity to control physics entity.  Otherwise the physics engine is overriding your manual position control.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">grokko</div>
+          <div class="post_content">
+<blockquote>
+<p>this-&gt;players_[ i ]-&gt;SetTransform( position, Urho3D::Quaternion( Urho3D::Vector3( 0.0f, 1.0f, 0.0f ),</p>
+</blockquote>
+<p>The Quaternion has to have a spine vector wherein the character places his feet on the surface, 90 degrees from the ground plane.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

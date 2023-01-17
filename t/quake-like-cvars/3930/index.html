@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Quake-like CVARs</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Quake-like CVARs</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>I’ve always been a big fan of the Quake CVARs. They allow you to quickly experiment and prototype with values until you find the sweet spot, right there within the game. So, now that my game is going further in Urho, i was trying to find a good way to handle them.</p>
+<p>Right now i have a global std::unordered_map&lt;string, float&gt; that i call from everywhere. I’m pretty sure that globals are evil and so on, but I have no idea how to do this properly. Any suggestions or is this good enough?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Would using <a href="https://urho3d.github.io/documentation/HEAD/_serialization.html">attributes</a> do the trick? That would allow you to modify variables by name.<br/>
+Most classes that inherit from <code>Serializable</code> have code samples of how to register attributes in their <code>RegisterObject</code> method.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/123_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kostik1337</div>
+          <div class="post_content">
+<p>What’s wrong with unordered_map?</p>
+<p>One another thing you can do - when you obtain CVAR somewhere in your code, instead of returning value, you can return a pointer to that value, so when that value changes, your pointer will be pointing to already changed value with no overhead. AFAIK, CVARs in Quake are working the same way</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="2" data-topic="3930">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8b9decec7cc30729aa8f8f7015602d32.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Would using attributes do the trick? That would allow you to modify variables by name.</p>
+<p>Most classes that inherit from Serializable have code samples of how to register attributes in their RegisterObject method.</p>
+</blockquote>
+</aside>
+<p>Yes, but attributes are entity-specific, right? CVARs are global, which can be read by entities.</p>
+<aside class="quote" data-full="true" data-post="3" data-topic="3930">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b032fef93db80a84ba60ed10c6e1b100.png" width="20"/> kostik1337:</div>
+<blockquote>
+<p>What’s wrong with unordered_map?</p>
+<p>One another thing you can do - when you obtain CVAR somewhere in your code, instead of returning value, you can return a pointer to that value, so when that value changes, your pointer will be pointing to already changed value with no overhead. AFAIK, CVARs in Quake are working the same way</p>
+</blockquote>
+</aside>
+<p>I’m not sure if i follow… you mean a <code>map&lt;string, *cvar_t&gt;</code>? Having:</p>
+<pre><code>union {
+  int i;
+  float f;
+  std::string s;
+} cvar_t;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/123_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kostik1337</div>
+          <div class="post_content">
+<p>Can you really have such union? I cannot compile it because of string’s non-trivial constructor or something like that.</p>
+<p>Not necessarily you need map with pointer values, you can have it like <code>map&lt;string, *cvar_t&gt;</code>, and obtain values like<br/>
+auto iterator = cvars.find(“qwe”);<br/>
+cvar_t* var = &amp;iterator-&gt;second;<br/>
+So, when cvar in map changes later, pointer <code>var</code> will be pointing to that changed value.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>Nah, that was just pseudo-code in my head. I’m using only int now, but i will need a union in the future. But hey, cross that bridge when you get there, right? <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/></p>
+<p>Why the iterator though? Is it faster than cvars[“qwe”]?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/123_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kostik1337</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="3930" data-username="smellymumbler">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6da748b8a26de7f4edb17badb98017e7.png" width="20"/> smellymumbler:</div>
+<blockquote>
+<p>Why the iterator though? Is it faster than cvars[“qwe”]?</p>
+</blockquote>
+</aside>
+<p>Pretty sure it’s not, just the matter of style. I usually check if map contains entry with such key, you can’t do this with just operator[]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>I have implemented my devconsole like this (I don’t have the code around)</p>
+<pre><code class="lang-auto">class CVar {
+public:
+// getters and setter
+String GetName() const;
+String GetDescription() const;
+String GetValue() const;
+String GetDefaultValue() const;
+int GetInt() const;
+float GetFloat() const;
+private:
+  String name_;
+  String value_;
+  String default_value_;
+  String description_;
+  int flags_;
+
+  CvarManager* manager_;
+
+  CVar (const String&amp; name,
+      const String&amp; value, 
+      int flags, 
+      const String&amp; description, 
+      float valueMin, 
+      float valueMax,
+      CvarManager* owner);
+}
+
+// in the cvar manager:
+
+class CVarManager {
+public:
+...
+// Register a Cvar with the manager.
+  CvarPtr AddCvar(const std::string&amp; name, const std::string&amp; value,
+                  const std::string&amp; description, int flags = CVAR_ARCHIVE,
+                  bool has_min = false, bool has_max = false,
+                  float valueMin = 0.0f, float valueMax = 0.0f);
+
+  const std::string&amp; GetString(const std::string&amp; name);
+  int GetInt(const std::string&amp; name);
+  float GetFloat(const std::string&amp; name);
+  bool GetBool(const std::string&amp; name);
+    
+  void SetString(const std::string&amp; name, const std::string&amp; value, int flags = 0);
+  void SetBool(const std::string&amp; name, const bool&amp; value, int flags = 0);
+  void SetInt(const std::string&amp; name, const int&amp; value, int flags = 0);
+  void SetFloat(const std::string&amp; name, const float&amp; value, int flags = 0);
+}</code></pre>
+<p>Anywhere in the code:</p>
+<pre><code class="lang-auto">cvarMaxFps = cvar()-&gt;AddCvar("r_maxfps", "60", 
+    "Frame rate limit", CVAR_ARCHIVE, true, false, -1.0f);</code></pre>
+<p>The cvars themselves don’t do much, they just store the data and have getters and setters, but the setters actually call the parent cvar manager’s code. That way you can track changing cvars at a single place and save them as config file on change.</p>
+<p>Using code from Urho3D it can be done much easier using Variant and VariantMap.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="3" data-topic="3930">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c58b28046cb5cd2e93ad6506c241a02b.png" width="20"/> kostik1337:</div>
+<blockquote>
+<p>What’s wrong with unordered_map?</p>
+<p>One another thing you can do - when you obtain CVAR somewhere in your code, instead of returning value, you can return a pointer to that value, so when that value changes, your pointer will be pointing to already changed value with no overhead. AFAIK, CVARs in Quake are working the same way</p>
+</blockquote>
+</aside>
+<p>This is exactly how it works. You register (or declare) a cvar once, then use the resulting pointer to the cvar to read the value from the cvar, so you don’t have to do lookups in the unordered_map everytime. I got so used to that quake style console, I use it in almost every of my projects, even those not having to do anything with graphics <img alt=":smiley:" class="emoji" src="/images/emoji/twitter/smiley.png?v=9" title=":smiley:"/></p>
+<p>Screenshot from my engine:<br/>
+<img alt="quake_style_cvar" height="388" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/6/658234921cb8a3699d228460fb01d7e14916b1c0.jpg" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Sin of 360 degree return bad value</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Sin of 360 degree return bad value</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Please someone can tell me why std::sin(M_PI * 2); or Urho3D::Sin(360.0f) return a bad value.<br/>
+I expect return equal to 0.</p>
+<p>Sample of a returned values: 1.74845553e-07.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>It’s the table maker’s dilemma. The transcendental functions are well known to be unreliable if you’re after accuracy (they have consistency and precision though).</p>
+<p>It’s <em>super</em> fun when you’re dealing Q-numbers.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I use quadratic approximation. Maybe it behaves more how you would expect your sine functions to work.</p>
+<details>
+<summary>
+Code</summary>
+<pre><code class="lang-auto">float LucKey::Sine(float x)
+{
+    x = Cycle(x, -M_PI, M_PI);
+
+    float sin{};
+
+    if (x &lt; 0.0f)
+        sin = 1.27323954f * x + 0.405284735f * x * x;
+    else
+        sin = 1.27323954f * x - 0.405284735f * x * x;
+
+    if (sin &lt; 0)
+        sin = 0.225f * (sin *-sin - sin) + sin;
+    else
+        sin = 0.225f * (sin * sin - sin) + sin;
+
+    return sin;
+}
+float LucKey::Cosine(float x)
+{
+    return Sine(x + M_PI * 0.5f);
+}
+</code></pre>
+<pre><code class="lang-auto">float LucKey::Cycle(float x, float min, float max)
+{
+    float res{ x };
+    if (min &gt; max) {
+
+        float temp{ min };
+        min = max;
+        max = temp;
+    }
+
+    float range{max - min};
+
+    if (x &lt; min)
+        res += range * abs(ceil((min - x) / range));
+    else if (x &gt; max)
+        res -= range * abs(ceil((x - max) / range));
+
+    return res;
+}
+</code></pre>
+</details>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="5538" data-username="AntiLoxy">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/9f8e33a2d37a5d0d39ad80b438e804fb.png" width="20"/> AntiLoxy:</div>
+<blockquote>
+<p>1.74845553e-07.</p>
+</blockquote>
+</aside>
+<p><strong>That</strong> is Zero!<br/>
+[20 char filler]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Actually it’s 0,000000174845553… which <em>is</em> pretty close. <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Ok, so it’s normal that is not a perfect 0, thanks for all !</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codexhound</div>
+          <div class="post_content">
+<p>That’s not incorrect. Those functions are approximations as you can only go so far. 1.749*10e-07 is essentially zero. Just insert a tolerance that turns anything close to 0 into 0.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2525_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Valdar</div>
+          <div class="post_content">
+<p>And to clarify, it’s basically a roundoff error and not specific to Urho.<br/>
+The result of some calculations (especially trigonometry) would require infinite space to hold in floating-point notation. Due to the finite length of memory locations, those results get truncated and you lose a slight amount of accuracy. In most cases, you won’t notice, but in calculations that repeat many times, you should be aware. The error will accumulate each time and potentially become an issue. In those cases, you may want to manually mitigate the error as <span class="mention">@codexhound</span> mentioned.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>Yes. There’s no such thing as a discrete zero value in computer calculations, unless you use something like <a href="http://www.mpir.org/" rel="nofollow noopener">http://www.mpir.org/</a></p>
+<p>more madness here: <a href="https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/" rel="nofollow noopener">https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Interesting links</p>
+<blockquote>
+<h4><a href="https://randomascii.wordpress.com/2012/02/13/dont-store-that-in-a-float/" rel="nofollow noopener">Don’t store that float</a></h4>
+<p>“Elapsed game time should never be stored in a float. Use a double instead.”</p>
+</blockquote>
+<p>Urho uses <code>float</code>s because of backwards compatibility, right? Since - as I understand it - it makes no difference, performance-wise, on modern (64-bit?) architecture.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

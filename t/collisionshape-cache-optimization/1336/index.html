@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CollisionShape Cache Optimization</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CollisionShape Cache Optimization</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>First of all, I don’t know if Urho already does something like this, if so please let me know.</p>
+<p>Bullet’s wiki says different rigid bodies can use the same collision shape. (<a href="http://www.bulletphysics.org/mediawiki-1.5.8/index.php/Collision_Shapes" rel="nofollow noopener">bulletphysics.org/mediawiki- … ion_Shapes</a>)</p>
+<p>I’d like to suggest having a CollisionShape cache that stores unique shape instances, and when a user tries to create a collision shape, the cache will check if there’s already an instance for it to use.<br/>
+CollisionShape can have a “unique” flag to exclude it from caching, in cases where it’s going to be modified after creation.<br/>
+If the user tries to modify a shape it can automatically become unique. It will help to reduce complexity and prevent unexpected behavior for inexperienced users.<br/>
+If the user wants to modify the shape and still cache it, he’ll have to create the modified shape as a new shape to have it cached.</p>
+<p>I argue that in the vast majority of the cases the user will use the same collision shape for every prefab type, creating redundant duplicates of the shape for every instance.<br/>
+So caching shapes by default makes sense.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Is the shapes consume a lot of memory?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>Is the shapes consume a lot of memory?</p>
+</blockquote>
+</aside>
+<p>I’m not worried about memory, it will only save few KBs, before the CPU will be a bottleneck.</p>
+<p>I’m hoping it will help reduce cache misses.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>PhysicsWorld have a some method with name: CleanupGeometryCache</p>
+<pre><code class="lang-auto">void PhysicsWorld::CleanupGeometryCache()
+{
+    // Remove cached shapes whose only reference is the cache itself
+    for (HashMap&lt;Pair&lt;Model*, unsigned&gt;, SharedPtr&lt;CollisionGeometryData&gt; &gt;::Iterator i = triMeshCache_.Begin();
+         i != triMeshCache_.End();)
+    {
+        HashMap&lt;Pair&lt;Model*, unsigned&gt;, SharedPtr&lt;CollisionGeometryData&gt; &gt;::Iterator current = i++;
+        if (current-&gt;second_.Refs() == 1)
+            triMeshCache_.Erase(current);
+    }
+    for (HashMap&lt;Pair&lt;Model*, unsigned&gt;, SharedPtr&lt;CollisionGeometryData&gt; &gt;::Iterator i = convexCache_.Begin();
+         i != convexCache_.End();)
+    {
+        HashMap&lt;Pair&lt;Model*, unsigned&gt;, SharedPtr&lt;CollisionGeometryData&gt; &gt;::Iterator current = i++;
+        if (current-&gt;second_.Refs() == 1)
+            convexCache_.Erase(current);
+    }
+}</code></pre>
+<p>As you see there is something happening with cache<br/>
+and by this i guessing that cache are exist, at last some kind variant of it</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Ok, good to know, saved me quite a lot of trouble in the future.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>There is already a cache for using same models.  Saving the bvh results to a file is a room for improvement.  Great for terrains.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Primitive shapes (boxes etc.) aren’t cached, because we’d still need to be prepared for unique scaling and size parameter. So it could only use the cached shape if the values match exactly, and maintaining the shape cache for all shapes would involve more complex code and some overhead (most likely a suitably keyed HashMap).</p>
+<p>It will be interesting to know the results if you decide to test out primitive shape caching, but as of now it’s not a high priority for the project itself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I looked at how the cache works, using a hash map model pointer and LOD level pair.</p>
+<p>Perhaps like a model object, there could be size &amp; scale object for shapes that is defined once. It’s just a pair/struct of 2 Vector3’s.<br/>
+Keeping an unordered set of unique shape descriptions will be the most optimal solution.<br/>
+For repeated use of the same shape description, the user should be able to pass a reference to an existing shape description, so the pointer can be compared instead.</p>
+<p>I think it could be just as efficient.</p>
+<p>As for testing performance, I previously tried a quick hack which didn’t work.<br/>
+I might try to properly test it by implementing the above suggestion at the end of my current project (no premature optimization).</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

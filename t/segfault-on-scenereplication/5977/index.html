@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>SegFault on SceneReplication</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">SegFault on SceneReplication</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I’m trying to implement Scene Replication into my project, using the Sample by the same name. The sample I’ve gotten to work (there was a syntax error which was just corrected), but I’m getting a Segmentation Fault when replicating the scene.</p>
+<pre><code class="lang-auto">function HandleClientConnected(eventType, eventData)
+   local newConnection = eventData["Connection"]:GetPtr("Connection")
+    newConnection.scene = scene_
+</code></pre>
+<p>I’ve narrowed it down a bit to this section of code. Starting a server and all that works fine. When the client connects it immediately segfaults and the client’s application is closed. The server host application remains running and just says the client disconnected. If I take out this code it works, but obviously nothing happens.</p>
+<p>I suppose this has something to do with my scene? At any rate, how can I figure out what exactly is causing this? Because I’ve got terrain, rocks, tanks, projectiles, sounds, etc. Is there a verbose output somewhere that will tell me why this is segfaulting? Or does anyone know what might be messing up the scene replication?<br/>
+The sample is very simple, just a ball. So I <em>guess</em> I could slowly move my project into that sample to narrow things down, but that’d be tedious.</p>
+<p>As always thanks for the help guys.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Never really used Lua, so I have no idea if this is actually the problem, but could it not know that newConnection is actually a Connection? Does it think it’s just a RefCounted object, for example? Alternatively, is newConnection null?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Did you subscribe to the correct event? Is the scene_ actually set at that point? Here’s the event description <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/blob/master/Source/Urho3D/Network/NetworkEvents.h#L51</a></p>
+<p>Mu guess would be that this handler is subscribed to the wrong event which doesn’t have “Connection” parameter.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>EDIT: it wasn’t only this.</p>
+<p>So I started slowly adding parts of my project to the Sample to figure out what was the culprit. Turns out it was this:</p>
+<pre><code class="lang-auto">SubscribeToEvent(physicsWorld, "PhysicsCollisionStart", "Impact")
+</code></pre>
+<p>Doing this <em>at all</em> is what crashes the client. That’s all it was. Here’s my other events:</p>
+<pre><code class="lang-auto">    SubscribeToEvent("PhysicsPreStep", "HandlePhysicsPreStep")
+    SubscribeToEvent("PostUpdate", "HandlePostUpdate")
+    SubscribeToEvent(connectButton, "Released", "HandleConnect")
+    SubscribeToEvent(disconnectButton, "Released", "HandleDisconnect")
+    SubscribeToEvent(startServerButton, "Released", "HandleStartServer")
+    SubscribeToEvent("ServerConnected", "HandleConnectionStatus")
+    SubscribeToEvent("ServerDisconnected", "HandleConnectionStatus")
+    SubscribeToEvent("ConnectFailed", "HandleConnectionStatus")
+    SubscribeToEvent("ClientConnected", "HandleClientConnected")
+    SubscribeToEvent("ClientDisconnected", "HandleClientDisconnected")
+    SubscribeToEvent("ClientObjectID", "HandleClientObjectID")
+    network:RegisterRemoteEvent("ClientObjectID");
+</code></pre>
+<p>Is this because physicsworld is set as LOCAL?</p>
+<pre><code class="lang-auto">physicsWorld=scene_:CreateComponent("PhysicsWorld", LOCAL)
+physicsWorld:SetGravity(Vector3(0,-9.8,0))
+</code></pre>
+<p>I need to check for those collisions for the bullets and rocks and stuff. How can I use:</p>
+<pre><code class="lang-auto">SubscribeToEvent(physicsWorld, "PhysicsCollisionStart", "Impact")
+</code></pre>
+<p>without the crash?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Has <code>physicsWorld</code> already been defined by the time you’re subscribing to it’s event? What is the code inside <code>Impact</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>My problem is evolving lol.<br/>
+Yeah it’s been defined prior. And even with nothing it was segfaulting…turns out it <em>wasnt</em> just that.</p>
+<p>Ive used the raycast vehicle sample to merge with the scene replication sample. The Ninja Snow sample is nice but I can’t make much sense of it from AngelScript. The script object creation of the raycast vehicle is messing everything up. In the scene replication, a simple ball is created when a client connects, and is assigned to them. I can’t figure out how to take the vehicle script object and create it in place of the ball…</p>
+<p>The tank I made from the raycast demo isn’t bad though.<br/>
+</p><div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="b5Xncimgqm0" data-youtube-title="Evol Tanks Bursting Promo"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Have you tried running it in a debugger and/or building the engine with the SAFE_LUA flag? That might be quicker than trying to guess the cause.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>So I rebuilt following the instructions for SAFE_LUA flag. No difference.<br/>
+When I try to instantiate the vehicle (using the raycast vehicle script object) in place of the ball I get this:</p>
+<pre><code class="lang-auto">[Tue Mar 10 13:32:35 2020] ERROR: RaycastVehicle: Incorrect node id = 117 index: 24
+</code></pre>
+<p>and then a segmentation fault. It’s totally the script object, which I can’t figure out how to convert to just a regular child, since all the movements are not going to go through the script (like Vehicle:FixedUpdate) but instead via the client table (cycling through each client to apply controls).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I took a look <a  rel="nofollow noopener">here</a> and it looks like it’s here:</p>
+<pre><code class="lang-auto">if (!wheelNode)
+{
+    URHO3D_LOGERROR("RaycastVehicle: Incorrect node id = " + String(node_id) + " index: " + String(index));
+    continue;
+}
+</code></pre>
+<p>So I’m wondering if this is because the network is duplicating the scene…maybe that’s throwing off the node_id increment somehow.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Now that I think of it I guess the Raycast vehicle is maybe not really ready for replication. Could you try creating that component as a local one?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I was afraid that was the case. Well, if I do it as:</p>
+<pre><code class="lang-auto">local raycastVehicle = node:CreateComponent("RaycastVehicle", LOCAL)
+</code></pre>
+<p>when creating the vehicle, replacing CreateControllableObject() with CreateVehicle(), the client stops crashing.</p>
+<p>However, the client also doesn’t have a vehicle now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>I was doing Raycast vehicle network replication a while ago and my solution was to make the static model nodes for body and wheels replicated, but the component itself as local.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Hm okay. The way the sample seems to do it is the host controls all of the clients after taking in their inputs. So would having the raycast vehicle local leave all control up to each client?</p>
+<p>EDIT: yeah this really isn’t working. If I take the CreateControllableObject ball and create a raycast vehicle, it’ll crash just because of that component, local or not. I’d love to see how you set it up. Otherwise I think I might be doomed to recreate a vehicle manually.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>I would say that raycast vehicle’s should be only created on the server, clients should only see the replicated scene. Could you show the function that sets up the raycastVehicle? I just checked my other project where I dealt with raycast vehicles and networking and I see that I did just as I said in my previous post, created all the vehicle nodes as replicated, but the raycast components itself - local. One thing to note though is that my implementation was done before the raycast components was introduced in the engine’s core, so the implementation my differ.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I appreciate all the help. When you say make them as replicated, you just mean make them global, and for the others, appending LOCAL to the end, right?</p>
+<p>To make things simpler, I’m sticking as close to the Sample as possible to figure out the vehicle.</p>
+<pre><code class="lang-auto">function HandleClientConnected(eventType, eventData)
+PlaySound(fxConnect,1)
+    -- When a client connects, assign to scene to begin scene replication
+   local newConnection = eventData["Connection"]:GetPtr("Connection")
+    newConnection.scene = scene_
+
+    -- Then create a controllable object for that client
+    local newObject = CreateControllableObject()
+    local newClient = {}
+    newClient.connection = newConnection
+    newClient.object = newObject
+    table.insert(clients, newClient)
+
+    -- Finally send the object's node ID using a remote event
+  local remoteEventData = VariantMap()
+  remoteEventData["ID"] = newObject.ID
+  newConnection:SendRemoteEvent("ClientObjectID", true, remoteEventData)
+end
+
+
+function CreateControllableObject()
+    -- Create the scene node &amp; visual representation. This will be a replicated object
+    local ballNode = scene_:CreateChild("Ball")
+    ballNode.position = Vector3(Random(40.0) - 20.0, 5.0, Random(40.0) - 20.0)
+    ballNode:SetScale(0.5)
+    local ballObject = ballNode:CreateComponent("StaticModel")
+    ballObject.model = cache:GetResource("Model", "Models/Sphere.mdl")
+    ballObject.material = cache:GetResource("Material", "Materials/StoneSmall.xml")
+	local raycastVehicle=ballNode:CreateComponent("RaycastVehicle", LOCAL)
+    -- Create the physics components
+    local body = ballNode:CreateComponent("RigidBody")
+    body.mass = 1.0
+    body.friction = 1.0
+    -- In addition to friction, use motion damping so that the ball can not accelerate limitlessly
+    body.linearDamping = 0.5
+    body.angularDamping = 0.5
+    local shape = ballNode:CreateComponent("CollisionShape")
+    shape:SetSphere(1.0)
+
+    return ballNode
+end
+</code></pre>
+<p>So when a client connects, the server creates a controllable object for them. Clients send in controls and the server loops through these objects and applies those controls accordingly. As soon as I add the raycast vehicle component, whether local or not, I get client crashing.</p>
+<p>Unless I need to do the raycast vehicle component creation elsewhere? I assume that the server is creating these controllable objects, and so they are all being replicated?</p>
+<p>EDIT: As a test, I did the following under the connect function, which should only be used by each client…</p>
+<pre><code class="lang-auto">function HandleConnect(eventType, eventData)
+PlaySound(fxConnect,1)
+    local address = textEdit.text
+    if address == "" then
+        address = "localhost" -- Use localhost to connect if nothing else specified
+    end
+
+    -- Connect to server, specify scene to use as a client for replication
+    clientObjectID = 0 -- Reset own object ID from possible previous connection
+    network:Connect(address, SERVER_PORT, scene_)
+
+UpdateButtons()
+
+test = scene_:CreateChild("test")
+local raycastVehicle = test:CreateComponent("RaycastVehicle", LOCAL)
+    
+end
+</code></pre>
+<p>Same thing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Was able to quickly reproduce this by doing the same thing in C++. The issue that you are seeing is caused by the unitialized <code>RaycastVehicle</code> component. You must properly initialize raycast vehicle like this:</p>
+<pre><code class="lang-auto">local raycastVehicle = node:CreateComponent("RaycastVehicle")
+raycastVehicle:Init()
+</code></pre>
+<p>Check the <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/blob/master/bin/Data/LuaScripts/46_RaycastVehicleDemo.lua#L294-L295</a> for more details</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>That was it!<br/>
+I didn’t realize it required initialization like that. I was getting that line confused with the following function:</p>
+<pre><code class="lang-auto">function Vehicle:Init()
+    -- This function is called only from the main program when initially creating the vehicle, not on scene load
+    local node = self.node
+    local hullObject = node:CreateComponent("StaticModel")
+    self.hullBody = node:CreateComponent("RigidBody")
+    local hullShape = node:CreateComponent("CollisionShape")
+...
+end
+</code></pre>
+<p>and so in my consolidation I assumed I didn’t need to call it and forgot about it. I was just assuming creating the raycast vehicle component was all that was required. I get it now.</p>
+<p>Thanks so much for the help!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

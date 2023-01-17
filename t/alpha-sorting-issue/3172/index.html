@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Alpha sorting issue</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Alpha sorting issue</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I am having some problems with alpha sorting when depthwrite is false. I am using the technique below with two ribbon trails. They are sorted correctly on their own but not together. Is there anyway to fix this or manually sort them? The only way I found to move each point slightly in Z enable the depthwrite, but that at some point would make it too close to the camera.</p>
+<pre><code>&lt;technique vs="Unlit" ps="Unlit" vsdefines="VERTEXCOLOR" psdefines="DIFFMAP VERTEXCOLOR"&gt;
+    &lt;pass name="alpha" depthwrite="false" blend="alpha" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="MHSIm2dhutA" data-youtube-title="Sorting issues"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>That’s not doable without depth write+test. Rendering is always by triangle order in the index buffer in both GL and DX, depth-test is the only ‘sorting’ mechanism.</p>
+<p>Your options:</p>
+<ul>
+<li>k-Buffers (probably not implementable right now)</li>
+<li>Order Independent Transparency</li>
+<li>Batch all of them with overlapping bounds together and sort the triangles/quads</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thank you. I am trying to switch to using depth-test and add offset in the GLSL shader, but it doesn’t seem to work with <code>gl_Position</code>.<br/>
+I added the offset below to the Unlit shader:<br/>
+<code>gl_Position.z *= 0.99;</code><br/>
+And I changed the technique to use depth test.</p>
+<pre><code>&lt;technique vs="Unlit" ps="Unlit" vsdefines="VERTEXCOLOR" psdefines="DIFFMAP VERTEXCOLOR"&gt;
+    &lt;pass name="alpha" depthwrite="true" blend="alpha" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<p>Another option as you suggested is the Order Independent Transparency. How applicable would be in this case and would it be hard to implement?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote" data-post="3" data-topic="3172">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/db4c02596e658dc9102b66ceb5fb9d80.png" width="20"/> sabotage3d:</div>
+<blockquote>
+<p>gl_Position.z *= 0.99;</p>
+</blockquote>
+</aside>
+<p>If their z position is equal, multiplying it by the same scalar would <em>keep</em> them equal, right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Sorry what I meant is that I have set one batch to: <code>gl_Position.z *= 0.99</code> and kept the other as it is. But I got similar problems to the video above. Any other ways of sorting manually or disabling anything else that might affect the sorting of the batches other than the depth. It looks like something else might be overwriting the sorting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>For clarification are you trying to sort them into a specific order as a whole-strips (red strip below green strip below blue strip, etc) or as a complete whole like they’re tangled up in a knot?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>The default sorting of the Ribbon Trail is correct when the depth test is disabled but only for the same batch. I would like to sort multiple batches of Ribbon Trail as if they were one the same batch in order of placement. Any new polygon should be on top of the previous polygons no matter which batch they are from.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Then you still have mostly the same problem with your shader.</p>
+<p>If you multiply Z by 0.99 for the whole batch it’s going to move the whole batch, not parts of it, so it will be impossible for them to tangle/intermix as the whole thing is moving instead of specific segments (unless there’s some selection code you didn’t show).</p>
+<p>Try multiplying Z by the output of any 2d noise function (keyed on X and Y) and see if that gets you at least somewhere.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I was just testing one batch with 0.99 the other with 1.0. I also tried some negative on one batch and positive on another. This is just to test if this approach would work at all. If I can get this to work I will add an attribute to each polygon and multiply it as an offset in the shader. What works for sure if just moving the actual point position before creating the polygon in the update loop, but at some point it would get too close to the camera.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Ok this seems to be working. I have added an index attribute on my polygons as they are already sorted sending it as iObjectIndex in the GLSL shader:</p>
+<pre><code>int index = int(iObjectIndex);
+gl_Position.z = -index * 0.001;
+</code></pre>
+<p>If anyone has better ideas let me know. This method has some problems due to the precision of the depth buffer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>If I change the alpha to 0.5 there are lot of glitches. Do I need custom pass in order to fix it?<br/>
+This test is with <code>depthtest="less"</code><br/>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="5wra6nIqMtI" data-youtube-title="Sorting issues 2"></div></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

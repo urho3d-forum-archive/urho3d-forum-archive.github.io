@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Custom Resource Archive Type</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Custom Resource Archive Type</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>Is there a way to extend Urho3D’s resource system with custom archive types?</p>
+<pre><code>ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+cache-&gt;BackgroundLoadResource&lt;MapFile&gt;( "Maps/ArticWonderland.map" );
+</code></pre>
+<p>The .map file is located inside a proprietary bundle format and I had hoped there was a way I could have wrapped our library using some Urho3D Bundle-like interface that we could register with the ResourceCache system.  Other engines expose similar solutions but I haven’t yet seen how to do with Urho3D.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="3783" data-username="Naros">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ac0823a052afaadbc220556b42cf58c4.png" width="20"/> Naros:</div>
+<blockquote>
+<p>Is there a way to extend Urho3D’s resource system with custom archive types?</p>
+</blockquote>
+</aside>
+<p>Do you want to load Urho resources from this archive?<br/>
+Or it’s enough for you to load the archive into <code>MapFile</code> itself?<br/>
+Code snippet that you posted here should work fine if MapFile is derived from Resource.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<blockquote>
+<p>Do you want to load Urho resources from this archive?</p>
+</blockquote>
+<p>Yes.</p>
+<p>For example, there are <em>XMLFile</em> resources in this bundle that I would have liked to have been able to simply load by using the standard API as follows</p>
+<pre><code>XMLFile xml = GetSubsystem&lt;ResourceCache&gt;()-&gt;LoadResource&lt;XMLFile&gt;( "UI/Constants.xml" );
+</code></pre>
+<p>My hope was that I would be able to supply the <em>ResourceCache</em> with a variety of <em>container</em> implementations and it simply asks these <em>containers</em> if a resource by the name exists and if so, the <em>container</em> would then know how to stream the contents into the <em>Resource</em> object.</p>
+<blockquote>
+<p>Or it’s enough for you to load the archive into <code>MapFile</code> itself?</p>
+</blockquote>
+<p>I’m not sure I understand this.</p>
+<blockquote>
+<p>Code snippet that you posted here should work fine if MapFile is derived from Resource.</p>
+</blockquote>
+<p>Actually, it doesn’t and reports that the resource cannot be loaded.</p>
+<p>This is because <code>ResourceCache</code> calls <code>GetFile</code> that leads to trying to create <code>File</code> object that refers to that path; however it cannot create the <code>File</code> because internally its all based on looking in packages and the file system.  Since that file exists inside a custom bundle file, Urho3D doesn’t seem to have a way to extend the resource subsystem with custom archive format types.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Oh, I see now.<br/>
+It’s not supported now.<br/>
+However, it’s not hard to add support of this feature.<br/>
+This may require some tweaking of <code>PackageFile</code> and <code>ResourceCache</code>, but it’s definetely doable.</p>
+<ul>
+<li>Virtualize <code>PackageFile</code> or extract some interface;</li>
+<li>Extract file creation from <code>ResourceCache::SearchPackages</code> to <code>PackageFile</code> virtual function;</li>
+<li>Somehow replace <code>File</code> with <code>AbstractFile</code> across <code>ResourceCache</code> because it would be almost impossible to make your custom package return true <code>File</code>. May require some interface changes.</li>
+<li>Then just add your package to resource cache and load resources.</li>
+</ul>
+<p>Don’t see any obstacles for now, except some design questions in (3)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>Awesome, I think this could go a long way for Urho3D users who would like to plug-in a custom resource provider solution that doesn’t necessarily fit the compressed archive or file-system paradigm.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>If you want maintainer(s?) to work on this feature request, please report it on GitHub.<br/>
+If you are going to do it on your own, good luck and I’m waiting for PR.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

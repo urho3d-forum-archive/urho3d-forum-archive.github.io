@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Bug for getting documents dir on iOS</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Bug for getting documents dir on iOS</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>Hi, I think the function FileSystem::GetUserDocumentsDir() should return the Documents dir on iOS, but it just return the app dir as the FileSystem::GetProgramDir().<br/>
+So I checked the code and found, the two functions just both call the SDL_IOS_GetResourceDir() function which return the app dir which can not write file to.</p>
+<p>Following code should return the correct Documents dir.</p>
+<p>[code]        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);<br/>
+NSString *basePath = ([paths count] &gt; 0) ? [paths objectAtIndex:0] : nil;</p>
+<pre><code>    const char *temp = [basePath UTF8String];
+    resource_dir = malloc(strlen(temp) + 1);
+    strcpy(resource_dir, temp);[/code]</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>em… there are no corresponding free() in the new code and the existing SDL_IOS_GetResourceDir(). I think NSString provides other way to return a c-string in a buffer. Otherwise I also think it is good to return a user writable directory.<br/>
+<a href="http://stackoverflow.com/questions/1567134/how-can-i-get-a-writable-path-on-the-iphone">stackoverflow.com/questions/1567 … the-iphone</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Thanks. This change is now in.</p>
+<p>Yes, there is a memory leak at exit due to never freeing the copies that we make of those path strings. Those could be freed when destroying the app delegate, but in any case it’s a smallish leak that happens only once.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

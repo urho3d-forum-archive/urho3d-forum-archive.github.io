@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Hardware instancing + animations / massive amount of sprites</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Hardware instancing + animations / massive amount of sprites</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<p>Hey there,</p>
+<p>I’d like to know what approach you’d suggest when using Urho3D for the following case:</p>
+<p>I want to display a large (truly large, think hundreds, possibly up to 1000) amount of animated 3D units at the same time.<br/>
+Now, I know of two methods to achieve that, at least in principle.</p>
+<ol>
+<li>
+<p>Using sprites. I know I wrote 3D before, but sprites would work just as well when available in multiple directions. Heroes Of Annihilated Empires used that approach and had a really unique style that I liked very much:<br/>
+[video]<a href="https://youtu.be/NAoMWOT2eXo?list=PLhG6bWwiy1v5I9fQ-gxohI8ffVCVI96D3&amp;t=65%5B/video%5D" rel="nofollow noopener">https://youtu.be/NAoMWOT2eXo?list=PLhG6bWwiy1v5I9fQ-gxohI8ffVCVI96D3&amp;t=65[/video]</a><br/>
+For that to work, sprites obviously have to be put into the 3D scene with correct clipping and at least alpha testing.<br/>
+I figure something like that could work using BillboardSets, no? Or maybe sprites directly?</p>
+</li>
+<li>
+<p>Hardware instancing. I know that Urho3D automatically does hardware instancing, but does that apply to animations as well? I know hardware instancing with animations is possible (I think Ogre has a demo on that?), but afaik it is a different beast than non-animated hardware instancing.<br/>
+So, is this actually supported in Urho3D?</p>
+</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Skinned instancing is not supported, so you’d need to modify the engine for that, or create your custom skinned model component. One idea would be to write the skin matrices to a texture and read from it in the vertex shader, however I haven’t tried that in practice.</p>
+<p>Though in my tests 1000 animated models using unmodified Urho isn’t a huge stretch, so the instancing is not necessarily a must for that. Using the SkeletalAnimation sample bumped to 1000 models I got a little over 100 FPS with a fairly beefy CPU &amp; GPU. 1000 drawcalls in general isn’t much. The Jack models in SkeletalAnimation are actually 2 drawcalls each, head and body, so if you can use just one geometry/material per model you’d be in even better position. The CPU time to update the animation for all models may even end up dominating the load. Urho does already have a distance-based animation LOD built in, which makes the animation not update every frame for far-away models. You can adjust the severity of the optimization, or also turn it off it you really want all animations to update every frame.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<p>Interesting thought.<br/>
+I’ll try modifying the sample, too, to see those effects.<br/>
+Of course, in a real game, there will be more going on than just animated meshes <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p>Then again, we already kind of established I will do the gameplay on another thread, so it might just be enough.<br/>
+I need to try it.</p>
+<p>What about the massed animated sprites in the 3D world, though?<br/>
+Wouldn’t that be even better, performance wise, even if I have to calculate the exact animation playing for each component?<br/>
+Even if 1000 models would work on top GPU &amp; CPU, I cannot take that for granted and would like to support mid-range PCs as well.<br/>
+Let’s assume 1000 units, consisting of 20 different units, each with 8 directions of animation.<br/>
+If we assume a perfect distribution of all different units &amp; directions, then we would have between 160 (if all equal ones were at the same animation page) and 1000 (if all were on different animation pages) draw calls, with a MUCH lesser triangle count.<br/>
+Of course, I am hoping that animated sprites use the same draw call if on the same animation page, which might be wrong - not exactly an optimization I’d take as guaranteed <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p>Again, I’d need to test that, too, of course, but if you say “No! That’s a stupid idea!” I would save myself the time <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Sprites will be much cheaper than actual skinned models, yes.</p>
+<p>The Urho2D sprite batcher is pretty well optimized and should do drawcall combining for sprites sharing the same material / texture. Alternately, if you find Urho2D classes hard to use in a 3D world you can emulate the same with BillboardSet; in that case I recommend to have one billboardset per material for most efficiency.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<p>Did a few tests by changing the demo code:<br/>
+When I use the 24_Urho2DSprite and pump the amount of coins up to 1000, I don’t even see a difference. The FPS max out at 200 FPS (the limit, I guess?).<br/>
+When I use the 33_Urho2DSpriterAnimation and create 1000 randomly placed little devils (using a random animation), the FPS becomes ~80 (my current machine is just a very mediocre laptop, at best). But I guess that is understandable, given that the devil is much bigger <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>I also upped the Billboard sample up to 20 nodes * 50 billboards and the FPS became 130+.<br/>
+Of course, the Billboard is not animated, and from a small look, I’m not sure if a BillboardSet can actually have animated sprites (other than color animation/rotation, etc.).<br/>
+So I am guessing that BillboardSet per does not really do what I would need (animated sprites), at least out of the box.</p>
+<p>Is there any downside to using Urho2DSprite (AnimatedSprite2D) in a 3D world?<br/>
+I guess I only have to make sure that the Sprites always face the camera, but that sounds doable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You can rotate the sprites’ scene nodes, you’ll just have to do that manually after the camera position/rotation is known for the frame.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<p>Excellent, thanks for your help <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>What is gl_FragData being used for?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">What is gl_FragData being used for?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>So I am learning to write shaders in general and also learning the Urho3D way of doing them.</p>
+<p>Looking at the shaders that Urho3D already has implemented helps a bit.  So I looked at TexturedUnlit.xml and Unlit.glsl and saw that it uses multiple passes in the fragment shader.</p>
+<p>During the passes where it is not writing to gl_FragColor it is writing to gl_FragData at a few set positions in the array.</p>
+<pre><code class="lang-auto">    #if defined(PREPASS)
+        // Fill light pre-pass G-Buffer
+        gl_FragData[0] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[1] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #elif defined(DEFERRED)
+        gl_FragData[0] = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+        gl_FragData[1] = vec4(0.0, 0.0, 0.0, 0.0);
+        gl_FragData[2] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[3] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #else
+        gl_FragColor = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+    #endif</code></pre>
+<p>So my question is what is gl_FragData being used for?  If I take out the other passes the shader seems to work just fine.  It does not seem to be read in later passes so I guess it is probably sending data back to urho3d for some purpose.  But I am just not sure.  Any help would be appreciated.  Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>This is a question about GLSL, not Urho3D.</p>
+<p>FragData is an array counterpart of FragColor. Outside both FragData and FragColor just fill corresponding pixels of corresponding render targets.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>Alright.  What is the shader doing in the other passes?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>It is “Multiple render Targets”.</p>
+<pre><code class="lang-auto">    #if defined(PREPASS)
+        // Fill light pre-pass G-Buffer
+        gl_FragData[0] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[1] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+</code></pre>
+<p>filled two textures that used in CoreData\RenderPaths\Prepass*.xml</p>
+<pre><code class="lang-auto">    &lt;command type="scenepass" pass="prepass" marktostencil="true" metadata="gbuffer"&gt;
+        &lt;output index="0" name="normal" /&gt;
+        &lt;output index="1" name="depth" /&gt;
+    &lt;/command&gt;
+</code></pre>
+<p>And</p>
+<pre><code class="lang-auto">#elif defined(DEFERRED)
+        gl_FragData[0] = vec4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+        gl_FragData[1] = vec4(0.0, 0.0, 0.0, 0.0);
+        gl_FragData[2] = vec4(0.5, 0.5, 0.5, 1.0);
+        gl_FragData[3] = vec4(EncodeDepth(vWorldPos.w), 0.0);
+    #else
+</code></pre>
+<p>filled 4 textures for  CoreData\RenderPaths\Deferred*.xml</p>
+<pre><code class="lang-auto">    &lt;command type="scenepass" pass="deferred" marktostencil="true" vertexlights="true" metadata="gbuffer"&gt;
+        &lt;output index="0" name="viewport" /&gt;
+        &lt;output index="1" name="albedo" /&gt;
+        &lt;output index="2" name="normal" /&gt;
+        &lt;output index="3" name="depth" /&gt;
+    &lt;/command&gt;
+</code></pre>
+<p>Defualt used Forward.xml and this code just ignored. You can delete this <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="3" data-topic="2685">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/cc40270de3be84622a8372cfa1ab8c9a.png" width="20"/> GoogleBot42:</div>
+<blockquote>
+<p>Alright.  What is the shader doing in the other passes?</p>
+</blockquote>
+</aside>
+<p>Urho3D used combination of defines for every passe for turn on and turn off fragments of code (Ubershader approach). So this code not exists for another passes except “prepass” and “deferred”</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>Huh, that is pretty cool!  Thanks 1vanK!  I will start to play with render paths a bit.  Fortunately, there is a page in the documentation on them.  I didn’t even know about them before.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Running lua script in background thread</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Running lua script in background thread</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glhrmfrts</div>
+          <div class="post_content">
+<p>Hello, I’m making most of my game using lua, including my map generator, which takes some time and right now it’s blocking the main thread. I want to run it in the background and display a loading screen while it generates the map, so is it possible to run a lua script in a background thread? I’m using a customized version of the Urho3DPlayer and I have some experience with C++, I’m just not sure how I would approach this using the LuaScript subsystem.</p>
+<p>Thank you</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I’m not sure how you would do that. The Lua script system just isn’t really designed that way. However, while someone more clever than me might be able to devise a solution, my recommendation is to move your map generation stuff into C++. The reason for this is tolua++. The Lua system uses tolua++ to generate the bindings, and as I’ve discovered <a  rel="nofollow noopener">in the past</a> it creates some tables behind the scenes to help it with management (tracking which classes are subclasses of others, etc…) that can grow pretty large. The bad part is, these tables don’t ever get compacted or resized, so as they grow they begin to bog down things like garbage collection.</p>
+<p>Usage patterns that really trigger this behavior cropped up in my own map generation code. When I was generating tile map chunks, I would iterate a chunk on X and Y, and inside I would do Magic™. However, if any of that Magic created any Urho3D objects that were to be managed by tolua++ (things such as Color or Vector3 returned by value from bound functions/methods or created inside the nested loops as locals) then those internal tables would grow huge, and cause nearly immediate performance problems. For that reason (as well as other general performance reasons) I moved all of my map generation logic into C++ routines, and reserved Lua for other, less garbage-intensive tasks.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

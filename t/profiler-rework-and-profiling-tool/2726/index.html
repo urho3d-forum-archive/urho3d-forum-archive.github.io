@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Profiler rework and profiling tool</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Profiler rework and profiling tool</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>As it turns out Urho3D has very VERY basic profiler which is of limited use. Since i have unexplainable performance issues with my attempt at android game i decided to take up the task.</p>
+<p>You can check out the code on <a href="https://github.com/***/Urho3D/commits/feature/Profiler-rework" rel="nofollow noopener">github</a>. Use as you wish but <strong>do not fork</strong>. I will overwrite/<code>rebase -i</code> those commits there to maintain perfect git history.</p>
+<p>Main highlights:</p>
+<ul>
+<li>Reworked bunch of code to avoid as much dynamic memory allocation as possible. Doing that on every interval is costly. Now logging every frame is realistic.</li>
+<li>Cleaned up profiling code from seemingly unrelated places (Timer/Context).</li>
+<li>Added ability to save profiling data to file.</li>
+<li>Added setting to gather statistics only on N intervals.  Now profiler can run indefinitely and once you reproduce the issue you can save profiling data of certain timeframe for inspection.</li>
+<li>Added Qt5-based profiling data viewer tool.</li>
+<li>Added system for supplying multiple data sinks to profiler for data consumption. DebugHud was reworked to use that system.</li>
+</ul>
+<p>I am not done yet though. Ultimate plan is to create network data sink for profiler so we can stream profiling data live from running application to the tool. This should simplify profiling of mobile devices a lot.</p>
+<p>If these changes are acceptable i would love merging them upstream. If you have any ideas - i would love to hear them.</p>
+<p><img height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/221c99ba40e3ad5a03ddf9add16ee494100bf395.png" width="409"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I definetly want it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I’m not using so often profilers<br/>
+Just curious such detalization profiler like this <a href="https://github.com/bombomby/brofiler">https://github.com/bombomby/brofiler</a><br/>
+Is it available to add into Urho3D ?<br/>
+also what profits or trade-off vs default VS Profiler ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<p>Not having to use VS would be one of the most obvious profits to me <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/><br/>
+Both for people working on other platforms and for those simply not liking VS.</p>
+<p>Bonus +1 for Qt.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p><span class="mention">@codingmonkey</span> i wanted to use off-the-shelf parts as much as possible because well… lazy. Thing is there does not seem to be appropriate tools out there. Never seen Brofiler before, but it is of limited use to us as its windows-only. Current profiler appears to gather all the information Brolifier does minus non-main threads. Brolifier does present it in a nicer way though, no denying that.</p>
+<p>As for other profilers - i can not comment on VS, but linux <code>perf</code> tool appears to capture stack traces at user defined frequency. What we end up is a rough estimation on code paths that were seen most times. I am not entirely confident this is enough to troubleshoot very elusive performance problems like i am experiencing. Those micro lag spikes would just get burried in a <a href="https://github.com/brendangregg/FlameGraph" rel="nofollow noopener">flamegraph</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Just added sending profiling data over network. This is still unoptimized as it sends all hash strings over network with each interval, but a good start nonetheless. Works great on local machine. All you have to do is:</p>
+<pre><code>_profilerSink = new ProfilerNetworkSink(context_);
+_profilerSink-&gt;Connect();
+_profilerSink-&gt;SetReconnectDelay(3);
+GetSubsystem&lt;Profiler&gt;()-&gt;AddSink(_profilerSink);
+</code></pre>
+<p>Fire up profiler tool and watch the data flow in.</p>
+<p>Edit: this might be worth looking into though: <a class="inline-onebox-loading" href="https://github.com/yse/easy_profiler" rel="nofollow noopener">https://github.com/yse/easy_profiler</a></p>
+<p>Edit:<br/>
+This stuff is goooood<br/>
+<img height="313" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/160c6fc7453d8b4570bd50743ec1fcbf82bccae3.png" width="690"/></p>
+<p>Edit:<br/>
+A better screenshot: <img height="414" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/1b2ffd7ff24ac558c343fba2502aba024f4ce61a.png" width="690"/><br/>
+I am going to polish integration of this lib instead because honestly - no point in reinventing the wheel when we have a rocket engine here. I do not think i can build a rocket engine, i just want to get my work done / goals reached really.</p>
+<p>As you can see it supports logging performance on all threads as well. Different colors represent different kinds of logged code paths. Orange items are events, blue would be resource loading, yellowish are normal code blocks. We can specify our own colors as well. It already supports sending data over network. I am not sure i can get profiler tree to be printed on debug hud though. Would it be ok to sacrifice that?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/213_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yse</div>
+          <div class="post_content">
+<p>Hello.<br/>
+I’m a maintainer of easy_profiler. I’m glad to see it useful for you.<br/>
+Because the documentation is small at the moment we can help you. Ask question about core and gui and we will answer to the best of our opportunity.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Thank you for kind offer, if i bump into any problems - i definitely will. So far it seems i have things figured out. I noticed there are windows-specific build options <code>EASY_OPTION_EVENT_TRACING</code> and <code>EASY_OPTION_LOW_PRIORITY_EVENT_TRACING</code>. What do they do exactly?</p>
+<p>Edit:<br/>
+Is there any way to access logged events from within application? I cant find anything like it. Closest thing would be <code>dumpBlocksToStream()</code> function but its internal. Reason for this would be displaying currently frame info on screen in game.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/214_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorzs</div>
+          <div class="post_content">
+<p>Hello!</p>
+<p>EASY_OPTION_EVENT_TRACING turns on/off event tracing for Windows to be able to capture thread context switch events. As Windows event tracing requires creation of separate thread for events handling, you may wish to disable it at all - that’s for this option is used.</p>
+<p>EASY_OPTION_LOW_PRIORITY_EVENT_TRACING sets priority for event tracing thread to Low to reduce it’s impact on the application performance, but in that case you can miss some context switch events as profiling session could be stopped before all these events are gathered.</p>
+<p>By the way enabling/disabling event tracing and changing it’s priority can be done via profiler_gui after connecting to the profiled application. So using the above options affects only default state of the profiler.</p>
+<p>As for the last question, there is no such possibility yet, but we are opened for ideas. Which information would you like to access during profiling? Maybe it would be better to display frames in profiler_gui at runtime instead of displaying them in the profiling application?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/214_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorzs</div>
+          <div class="post_content">
+<p>If you try to change the value of the “Frame time” at the tool-bar you would see different colors at the histogram where all frames are displayed (green columns on a screenshot below main blocks diagram). Red color indicates frames which were executed longer than expected.</p>
+<p>If you set “Frame time” to 0 then histogram would be colored in next way: from green color (minimum duration) to red (maximum duration).</p>
+<p>Also this histogram has two modes: overview mode (by default) - when all captured frames are displayed, and zoom mode - when histogram displays only frames which are currently visible on a blocks diagram. Click right mouse button on the histogram to change mode.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote" data-post="9" data-topic="2726">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/3475f22f4cb934cfc7870e1259cdf891.png" width="20"/> victorzs:</div>
+<blockquote>
+<p>As for the last question, there is no such possibility yet, but we are opened for ideas. Which information would you like to access during profiling? Maybe it would be better to display frames in profiler_gui at runtime instead of displaying them in the profiling application?</p>
+</blockquote>
+</aside>
+<p>Currently Urho3D debug hud may display a tree of executed events and how long they took. That information is gathered in intervals and averaged out. Getting access to frame event trees of last T seconds would be sufficient. I definitely agree that viewing this information in profiler_gui live would be better, however if i were to try and get this merged maintainers might require to preserve old functionality as well. Besides displaying that simple tree on screen could also be useful for spotting quick and dirty slowdowns thus speeding up iteration cycles.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/214_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorzs</div>
+          <div class="post_content">
+<p>Getting a tree of events could be very difficult and expensive operation because all events for each thread are stored in one-dimensional (and one-directional) buffer without saving a hierarchy (hierarchy restored by reader and this is a quite expensive operation as you can see when opening a file). This is done to reduce memory and timing cost for store operation as much as possible for profiled application. I’m missing a point why you need to get full tree of events at run-time? Full tree could contain thousands or tens of thousands of events.<br/>
+What can be simple: additionally store duration for top-level events (frames) in a separate container (this is not free of charge though) or store only last frame duration in atomic variable (this should not cost anything) - you could still draw a diagram like on this screenshot: <a  rel="nofollow noopener">https://global.discourse-cdn.com/standard17/uploads/urho3d/original/1X/221c99ba40e3ad5a03ddf9add16ee494100bf395.png</a><br/>
+By the way, do you need to get durations for <em>all threads</em> or for <em>one main thread</em> only?</p>
+<p>P.S. I think it would be better to continue this conversation in private (if it is possible here) as it has a lot of technical details related to easy_profiler and not to Urho3d</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Current profiler shows just current interval (slowest time and averages of event times in certain timespan, say 1 second) information of main thread events. I am just aiming to support current behavior of urho3d with new profiler, thats why i am asking for this.</p>
+<p>To be honest - i am not sure this is even needed. Lets make sure. <span class="mention">@cadaver</span> / <span class="mention">@weitjong</span> - is there a chance PR integrating easy_profiler would be accepted? It has great tool for inspecting data but does not currently easily expose data at runtime so debug hud would loose display of performance data. Is that acceptable?</p>
+<p><span class="mention">@victorzs</span> if maintainers decide this is PR-worthy but we still need to maintain display of said info at runtime i will make an issue on github so we can discuss possible options. I hope they give an OK to loosing performance data display at runtime as it is not of much practical use anyway.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/214_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorzs</div>
+          <div class="post_content">
+<p>Well, as I said getting a duration of frame would be easy. I have just been confused by “displaying a tree of events”. The profiler requires an additional regime though in which it measures only frame times and do not store any events until enabled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/214_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorzs</div>
+          <div class="post_content">
+<p><span class="mention">@rku</span>, there are some changes to profiler: you can now get slowest frame duration (local max since the moment of last query) and previous frame duration in cpu ticks or microseconds.<br/>
+Use <code>profiler::this_thread::frameTimeLocalMax()</code> for getting frame time for current thread or <code>profiler::main_thread::frameTimeLocalMax()</code> for getting frame time for main thread (main thread have to be marked by using <code>EASY_MAIN_THREAD</code> macro to get <code>profiler::main_thread</code> functions work).<br/>
+Just reminding that “frame” means every top-level block (block without parents).</p>
+<p>You can find these changes in develop-HEAD at github repository. We would be thankful for getting a feedback before adding this feature into release version. Any suggestions are welcome.</p>
+<p>P.S.: Another big update is that we have changed GPLv3 license to MIT. Now EasyProfiler could be licensed under either of MIT or Apache v2.0 at your option (as always, you do not need to put both LICENSE files with sources/binaries - you need to put only one license file you like). We are still using double licensing due to compatibility with larger variety of projects.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/214_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorzs</div>
+          <div class="post_content">
+<p>New release <a href="https://github.com/yse/easy_profiler/releases/tag/v1.1.0" rel="nofollow noopener">v1.1.0</a> available.<br/>
+Whats new in a few words:</p>
+<ul>
+<li>GPLv3 license changed to <strong>MIT</strong>.</li>
+<li>Added API functions to get <em>maximum</em> and <em>average</em> duration of frame (for getting information for current thread use <code>profiler::this_thread::</code> ; for getting information for main thread use <code>profiler::main_thread::</code>). Maximum and average duration are calculated always (even if profiler is disabled). You should mark main thread with <code>EASY_MAIN_THREAD</code>.</li>
+<li>Added live <em>FPS Monitor</em> to GUI. You just need to connect to the profiled application and fps monitor will start to receive max/avg frame duration of main thread. You should mark main thread with <code>EASY_MAIN_THREAD</code> in the profiled application. There are several settings for FPS Monitor available (See <em>Settings -&gt; FPS Monitor</em>). If you do not want GUI to send network requests to the profiled application then just hide FPS Monitor ([x] button or right click -&gt; Hide).</li>
+</ul>
+<p>Edit 26.04.2017:<br/>
+Ugh, the forum says that I have reached the reply limit so I have to edit previous post <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/></p>
+<p><span class="mention">@TheComet</span> , <span class="mention">@sabotage3d</span>    Yes, it <strong>could</strong> have issues if the same thread <strong>would</strong> be executed at <strong>different cpu</strong> cores.<br/>
+We have used rtdsc for *nix platforms because it <strong>was</strong> the only fast solution:<br/>
+with clock_gettime we have got ~800ns per block<br/>
+with std:: chrono - ~600ns per block (msvc2013 and gcc4)<br/>
+with rtdsc - ~15ns per block<br/>
+with QueryPerformanceCounter - ~15ns per block</p>
+<p>In our project we have millions of blocks per several seconds profiling session - that’s because we have chosen the last two timers.</p>
+<p>We know that std::chrono has been fixed in msvc2015, but we have not tested yet. Also we have not tested std::chrono for gcc5.</p>
+<p>I think we would add an option to CMakeLists for choosing the timer in release v1.2.0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p><a class="onebox" href="https://msdn.microsoft.com/en-us/library/windows/desktop/ee417693(v=vs.85).aspx" rel="nofollow noopener" target="_blank">https://msdn.microsoft.com/en-us/library/windows/desktop/ee417693(v=vs.85).aspx</a></p>
+<p>I looked at your timing code and I think it is an incorrect decision to make use of the rdtsc instruction. As explained in the link above, it has many issues.</p>
+<p>I see you already use QueryPerformanceCounter for Windows. On linux and mac I suggest using clock_gettime() with CLOCK_PROCESS_CPUTIME_ID</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>If it is C++11 shouldn’t we use std::chrono on every platform?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>This branch (<a href="https://github.com/***/Urho3D/commits/feature/Profiler-rework" rel="nofollow noopener">https://github.com/***/Urho3D/commits/feature/Profiler-rework</a>) no longer exists. Are you still working on it? Do you have plans to merge it into Urho3D’s main branch? I think that will be a great tool to have when using the engine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Since maintainers of Urho3D were not interested in having this, i contributed <code>easy_profiler</code> support to <a href="https://github.com/AtomicGameEngine/AtomicGameEngine/" rel="nofollow noopener">AtomicGameEngine</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>I think that is a great tool to have. Do you like to reopen it so that I can pull it over?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>If you wish to make use of that profiler you should take code straight from Atomic. Porting it would be very easy. Take a look at my <a href="https://github.com/AtomicGameEngine/AtomicGameEngine/pull/1531" rel="nofollow noopener">PR</a> to get idea what changes were needed to be done. Be aware that since PR code received some tweaks and fixes. In short: i replaced <code>Profiler.h</code> and <code>Profiler.cpp</code>, tweaked <code>Object::SendEvent()</code>, added <code>easy_profiler</code> third party dependency and added few other minor changes here and there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>Thanks for the information. I will try. It is a pity that such a great feature not added into Urho3D’s main branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>I ported it back to Urho3D, you may check it out here: <a href="https://github.com/***/Urho3D/" rel="nofollow noopener">https://github.com/***/Urho3D/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>That is great! Thank you. I will check it out.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

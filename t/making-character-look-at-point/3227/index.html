@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Making character look at point</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Making character look at point</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Hi, all!</p>
+<p>Still fighting this for a long time now, but got zero success.</p>
+<p>I want my character to turn his head, neck, chest and eyes to the point in 3D space.<br/>
+This character can have any pose at that time and play animation.<br/>
+Lets consider poses where head is relatively vertical (more vertical than horizontal, or can be made so<br/>
+without much effects).</p>
+<p>So I need:</p>
+<ol>
+<li>turn head to vertical position</li>
+<li>and then turn in direction of target.</li>
+<li>turn chest half-way</li>
+<li>turn neck half-way</li>
+</ol>
+<p>Problems:</p>
+<ol>
+<li>Rotations are relative and accumulative, each one creates its new coordinate system.<br/>
+When quaternion multiplication is done, it is done in order from left to right,<br/>
+so if full transform of head is q1 * q2 * q3 *q4 , only q1 rotates in global space, all the rest<br/>
+rotate in previous quaternion space. With lots of them it becomes very hard to track target rotation.<br/>
+Also the transform is non-commutative, which means order is important. So if I want to convert my rotation from global space to local space, I will need to multiply it by inverse rotations in reversed order.</li>
+<li>To rotate something in global space I will add my rotation at beginning of sequence, it will rotate the whole thing globally. so if q is current rotation of head and qdelta is additional rotation I need to apply, I just do qdelta * q<br/>
+to get q rotated in global space. But general target is usually a bit different - we need to do local rotation<br/>
+so that it comply to global goals. So we need to calculate local delta for each rotating bone, and that is where<br/>
+biggest problem comes.<br/>
+Initially we have some animation running, with head facing front. We have some global point in space, to which we want to look. We have some global node master which represents global character trasform in space.<br/>
+Each bone contributes to that transform using its own quaternion each, having head as final.<br/>
+So having our initial delta rotation, we somehow need to convert it to local rotation of head bone.<br/>
+The simple approach of multiplying by parent’s world transform doesn’t work. That is where I stopped.<br/>
+Tricks like Rotate(x, TS_WORLD) do not help either, so I think the problem is deeper.</li>
+</ol>
+<p>This kind of look-at “IK” works quite well in other engines, like Unity, UE4, Godot. But not in Urho.<br/>
+Probably there is some technical detail about quaternions in Urho, which make it different,<br/>
+so I’d like to know them. Please note that I look for generic solution, not something which assumes vertical position<br/>
+or Z-facing. I assume work in any random initial pose (which makes sense for look-at). In my case I think the problem<br/>
+is solved when character can look-at from head-on pose in addition to standing and sitting.<br/>
+The challenge looks quite tough.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="3227" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>lots of them it becomes v</p>
+</blockquote>
+</aside>
+<p>Your question is too long. Don’t know if anyone will read it.<br/>
+You don’t criticize an engine when you don’t know how to use it. These stuff takes time and need patience. Learning takes time.<br/>
+If you understand the theory correctly, then all engines are the same, including this.</p>
+<p>You problem is about inverse kinematic and are dealing with a chain of maybe 3 bones. By the way, why would a person rotate his spine when looking somewhere? This is unnatural pose. We don’t do this in practice. Unless in extreme combat condition.</p>
+<p>Here’s the simplest solution for you.<br/>
+Just attach another node to the head. Then translate in z a little.<br/>
+Then use inverse kinematic code from Urho.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I don’t know why you say so strange things when we look at something we use whole body.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="jzDCvlWvhfY" data-youtube-title="Inverse Kinematics in XNA: Look-At IK Solver"></div>
+<p>Inverse kinematics in Urho is not yet ready to be used yet. That is why I invent my own wheel.</p>
+<p>As for criticizing - I think I have full right to, also, I did not criticize it in this thread at all, just said Urho is different<br/>
+from other engines regarding this, as  parent 's world transform inverse do not produce local coordinate space.</p>
+<p>I know about long questions and tl;dr;, I’m just going to continue speculation about  transformations here in this thread.<br/>
+The conditions and requirements are quite long.<br/>
+My current head pose is almost default, i.e. facing -Z. but up -s +Y. This looks like this particular heading<br/>
+is really a key to my problems, as it looks like the rotation have problems exclusively for head, (and neck as it have the same orientation). Chest doesn’t have this problem as it is Z-front and rotate properly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I’d say it is first engine I see which is so much depends on everything being Z-front.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<p>It is absolute standard for any engine I’ve ever worked with that all objects (especially animated ones) have the same facing or problems will ensue. And it is quite logical, since otherwise you’d have to manually rotate everything before usage - not even speaking of more complicated things like IK.</p>
+<p>Besides, I just find it a good standard to export every asset facing the same way. More professional than just have things with a random facing <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>No, that is not.</p>
+<ol>
+<li>
+<p>in Start() I check head facing - if I do GetWorldDirection() it faces Vector3::FORWARD.<br/>
+No animation is played, everything is default.<br/>
+All quaternions are identity (1 0 0 0)</p>
+</li>
+<li>
+<p>In HandleSceneDrawableUpdateFinished<br/>
+Sitting animation is played.<br/>
+I added debug geometry and see that head is facing back.<br/>
+Rotating options do not work correctly.<br/>
+If compensated by quat.FromRotationTo(Vector3(0, 0, 1), Vector3(0, 0, -1));<br/>
+look start to work.</p>
+</li>
+</ol>
+<p>There is no such behavior in Unity, and UE4 with the same assets. Look works straightforward.</p>
+<p>So you tell me complete bullshit without any digging into the problem. Please stop doing that.<br/>
+Unless you see where the problem might be, from now on I will consider such posts direct aggression<br/>
+and reserve all right to react in any way I wish.<br/>
+You did not even care to read my previous posts, you did not care at all to understand the nature of problem<br/>
+and after that you tell me I did everything wrong. I really hope your karma will hit you in very bad way.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>The engine behavior is inconsistent and unpredictable, so there is no way to manually compensate<br/>
+bone rotation without hardcoding values. I can’t do all animation retargeting and all bone changes to face Z<br/>
+as that would be enormous waste of time. I try to compensate from code. And that doesn’t really work,<br/>
+while all information should be available to compensate either automatically or from application code.<br/>
+Looks like everything is fine unless animation is played, which turns nodes in weird ways. But I wonder why<br/>
+the actual node weird rotations do not affect model? why node world space suddenly change?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>it looks like changing bones sometimes lead to mess when animation is played.<br/>
+Anyway I found universal solution to fix this for general skeleton case.</p>
+<ol>
+<li>
+<p>Requirements - character faces Z, skeleton is irrelevant, bone facing is irrelevant.</p>
+</li>
+<li>
+<p>Creating child note for head, but setting world position to node_-&gt;GetWorldPosition() + node_-&gt;GetWorldDirection() * 10.0f;</p>
+<p>Node *head_facing = head-&gt;CheateChild(“facing_dir”);<br/>
+head_facing-&gt;SetWorldPosition(node_-&gt;GetWorldPosition()<br/>
++ node_-&gt;GetWorldDirection() * 10.0f);</p>
+</li>
+<li>
+<p>calculate 2 directions - facing and look<br/>
+Vector3 facing_dir = head_facing-&gt;GetWorldPosition() - head-&gt;GetWorldPosition().Normalized();<br/>
+Vector3 target_dir = head-&gt;GetWorldPosition() - head-&gt;GetWorldPosition().Normalized();</p>
+</li>
+<li>
+<p>Calculate rotational difference<br/>
+Quaternion quat;<br/>
+quat.FromRotationTo(facing_dir, target_dir);</p>
+</li>
+<li>
+<p>Rotate to difference:<br/>
+<code>head-&gt;Rotate(quat, TS_WORLD);</code></p>
+</li>
+</ol>
+<p>This can’t be considered a full solution, as it is mere workaround for a bug.<br/>
+But it might be useful to somebody.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/74_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheSHEEEP</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="6" data-topic="3227" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>There is no such behavior in Unity, and UE4 with the same assets. Look works straightforward.</p>
+</blockquote>
+</aside>
+<p>So, you mean in Unity and UE4, you can just import any asset, no matter how it’s facing was done when exported (positive/negative Z, or even positive/negative Y), attach it to any amount of bones and yet they all magically work, facing the same/correct direction without needing any kind of manual adjustment?</p>
+<p>Quite honestly, I just don’t believe that. Meshes are just 3D vector positions, even the idea of “forward” is foreign to them (if not some kind of new format came up that explicitly stores a “this is forward” information with the mesh). An engine has no way of knowing what “forward” means for any 3D asset. It just has a default assumption (which differs for each engine, though most go with forward or negative Z).</p>
+<p>Or are you talking about something completely different?</p>
+<aside class="quote no-group" data-full="true" data-post="6" data-topic="3227" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>So you tell me complete bullshit without any digging into the problem. Please stop doing that.</p>
+</blockquote>
+</aside>
+<p>If you regard a golden rule in 3D development since… well… forever… as complete bullshit, just go ahead and see where it takes you <img alt=":wink:" class="emoji" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title=":wink:"/></p>
+<p>[quote=“slapin, post:6, topic:3227, full:true”]Unless you see where the problem might be, from now on I will consider such posts direct aggression<br/>
+and reserve all right to react in any way I wish.<br/>
+You did not even care to read my previous posts, you did not care at all to understand the nature of problem<br/>
+and after that you tell me I did everything wrong. [/quote]<br/>
+Oh, I did read this thread, but it is hard to tell what exactly is your question or problem. From what I got, everything just points to the same thing: Something does not face the direction you expect it to after a number of manipulations. There can only be three reasons for this:</p>
+<ol>
+<li>You got your math wrong - since I didn’t get what exactly you are even trying to do, I did not comment on this.</li>
+<li>If your math is right, your assets are wrong. If your assets face different directions, the situation is requiring a fix of the assets or a fix in code (which I think you ended up doing?). From what you said, it doesn’t sound like all assets you are using use the same direction of “forward”. From experience, this can easily explain your problems.</li>
+<li>There’s actually a bug in Urho. Perfectly possible, of course, but wouldn’t that have been noticed already, in such an important system as animation?</li>
+</ol>
+<aside class="quote no-group" data-full="true" data-post="6" data-topic="3227" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>I really hope your karma will hit you in very bad way.</p>
+</blockquote>
+</aside>
+<p>If that happens, I will just hit it right back. With a sledge hammer <img alt=":wink:" class="emoji" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title=":wink:"/><br/>
+Nobody is allowed to hit me in very bad ways, especially not cosmic forces!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>To test your code, you could use a trick: switch your asset for something you know for sure it works. You could use the jack or ninja that comes with the examples…<br/>
+If your code doesn’t work with them, you can be reasonably sure the flaw is in your math.<br/>
+Contrariwise, if they work, you can be reasonably sure the flaw is in your model.<br/>
+This left with an option out: the flaw is in the engine. Perfectly possible. But that need you to share a replicable procedure for someone else to test…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>(offtop)</p>
+<aside class="quote no-group" data-post="7" data-topic="3227" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>The engine behavior is inconsistent and unpredictable</p>
+</blockquote>
+</aside>
+<p>I can start a list of ‘inconsistent and unpredictable’ things in the Urho that finally ended up as misuse or misunderstood</p>
+<ol>
+<li>Degenerate trimeshes cause assert in physics</li>
+<li>Quaternion math is surprising</li>
+<li>(this topic subject, TL;DR)</li>
+<li>(reserved for the future)</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Thank you for your humor, I was feeling bad about being too harsh.</p>
+<p>Yes, I speak about different thing. My assets are in general Z-facing (front facing) when exported,<br/>
+but some bones are not, and that seems normal for other engines.</p>
+<p>I have no problem manually rotating bones in any other engines, with animation or not.</p>
+<p>I have really have trouble isolating this, as I’m pretty sure there is bug somewhere, but I can’t<br/>
+really find where, otherwise I would just report it to a bug tracker.</p>
+<p>I’m really open for discussion of what I’m doing wrong, but that should be quite specific thing,<br/>
+not speculation.<br/>
+I do bone rotations in same place IK does them (as my code is kind of IK). I calculate delta difference<br/>
+between target and current bone rotation and apply that difference to a bone. That is simple.<br/>
+The proble mis that bone looks at completely wrong place. Research shows that somehow bone facing direction<br/>
+changes during course of action, as in Start() function the bone is Z-facing, at the event handler the bone becomes<br/>
+anti-z facing. I calculate this using  quat.FromRotationTo(Vector3(0, 0, 1), node_-&gt;GetWorldRotation() * head-&gt;GetWorldDirection()); in 2 places. At Start() I get identity quat, at second place I get inverted quat.<br/>
+So this looks actually like a bug, but I don’t know where it lives.<br/>
+The positioning of node does not change, the only difference is if animation is playing or not, visually head is facing the same spot.</p>
+<p>if I change my IK code to use relative-only positioning (like in one of previous posts) everything works like a charm.<br/>
+That is full story up to current moment. The rush is now lowered, as I can now have look implemented, but I need to<br/>
+add child node to each involved bone to indicate front side, in this case everything works great. I don’t like it but<br/>
+I could not find better way yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<ol>
+<li>A bullet bug. The PR is in queue.</li>
+<li>Not the math, but some engine approach to it.</li>
+<li>
+</li>
+<li>
+</li>
+</ol>
+<p>Why do you even bother writing?<br/>
+If you feel sad that I do not respect people’s work, don’t be.<br/>
+If you consider software as being sacred that nobody can speak ill of,<br/>
+I think you should not be in industry. And yes I do respect work of<br/>
+others and expect the same of mine. And know that errare humanum est,<br/>
+so I should never trust software neither mine nor someone else’s.<br/>
+And there are bugs. Everywhere. Lurking.<br/>
+So if you are not helping, please don’t bother to interfere at all,<br/>
+I’m sure you can find much better and interesting things to do<br/>
+than frustrating me. If you can help, I’m would be really thankful,<br/>
+if you do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Actually, I’d like to help, but this thread is too big and I don’t have enough inspiration to read it. I’ll do it later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>That is really fine by me, don’t rush. I have workaround, so I can manage. The hobby should be fun, no schedules,<br/>
+lots of beer!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Try to walk with your shoulder, arm and spine rotate like that. It is not natural pose.you will get injury.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="8q7N9W5Qzbc" data-youtube-title="Simple head lookat"></div>
+<p>Simple video showing unconstrained one bone head look at from code I pasted responded to one of your other post.<br/>
+You can see that Urho works just fine. Just use the Fabrik inverse kinematic code, or you could implement it in less than 100 lines of code for the ik code base itself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>Hey George, do you have the source of that sample?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I just edit the SkeletalAnimation sample.<br/>
+Add the following globals.</p>
+<p>Urho3D::Node *head [100];<br/>
+Urho3D::Node *man [100];<br/>
+Urho3D::Node *box; //Create this box somewhere.</p>
+<p>Inside generating 100 Jack models I do these.</p>
+<pre><code>man[i] = modelNode;
+head[i] = modelNode-&gt;GetChild("Bip01_Head", true);
+			modelObject-&gt;GetSkeleton().GetBone("Bip01_Head")-&gt;animated_ = false;
+</code></pre>
+<p>Inside update loop I do this.</p>
+<p>box-&gt;SetWorldPosition(head[0]-&gt;GetWorldPosition() + Vector3(0, 3, 2));</p>
+<pre><code>for (int i = 0; i &lt; 100; ++i)
+{
+	Vector3 dir1 = man[i]-&gt;GetWorldDirection(); 
+	Vector3 dir2 = box-&gt;GetWorldPosition() - head[i]-&gt;GetWorldPosition();
+	Quaternion delta(dir1.Normalized(), dir2.Normalized());
+
+	head[i]-&gt;SetRotation(Quaternion());
+	head[i]-&gt;SetWorldRotation(delta*head[i]-&gt;GetWorldRotation());
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Here’s my test:<br/>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="rvSUYXETtTk" data-youtube-title="Urho3D char lookat test"></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">coldev</div>
+          <div class="post_content">
+<p>Please share in Github…</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Hi Lumak,<br/>
+I like that coordinate frame very much. It is very useful for many purposes.</p>
+<p>Can you share it in your useful free components source please.</p>
+<p>Thanks mate</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Yeah, everything cool about your example, except:<br/>
+head[i]-&gt;SetWorldRotation(delta*head[i]-&gt;GetWorldRotation());<br/>
+sets my model’s head 180-degrees rotated and looking away from target.<br/>
+while in rest pose it is Z-facing.<br/>
+But if I use relative rotation via Rotate() and use head’s child node as aid<br/>
+for current head direction,everything works as intended.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>btw, how do you record video of Urho or are you all on windows?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Yes, you could use relative rotation like in my previous respond to your other post.</p>
+<p>head-&gt;SetRotation(head-&gt;GetParent()-&gt;GetWorldRotation().Inverse()* delta* head-&gt;GetWorldRotation());</p>
+<p>Check your character. Maybe send your model to the MOD or developer so they can see what’s wrong with it.</p>
+<p>There are lots great open source recorder if you search for it. E.g. Open Procaster.</p>
+<p>A great pay sourceware is Bandicam.</p>
+<p>Best regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>well, it was working fine until 2 months ago when it broke (I mean video recording), looks like video is out of sync<br/>
+regardless of vsync setting.<br/>
+I don’t really think anybody will touch this problem regardless of what I do, so I will just wait until somebody else is<br/>
+hit by it who cares enough to fix it. I worked it around, made people aware of it, so I don’t care (that much) anymore.<br/>
+If anybody will ask me about it I will help and answer, otherwise, let it go to hell.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="5IUPuzMQU0Y" data-youtube-title="Urho3D - looking at problems"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="16" data-topic="3227" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>Try to walk with your shoulder, arm and spine rotate like that. It is not natural pose.you will get injury.</p>
+</blockquote>
+</aside>
+<p>It is not because you can’t, it is because you get dizzy. And if you stay still there is nothing wrong about looking up.<br/>
+Especially if there’s something falling from the sky. So that is behavior problem, not animation problem.<br/>
+Your reasons to not implement this look like very bad excuse. I won’t go to your single-bone look club.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="25" data-topic="3227" data-username="slapin">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd76f653c5f5a98690a798e37b37d018.png" width="20"/> slapin:</div>
+<blockquote>
+<p>people aware</p>
+</blockquote>
+</aside>
+<p>I never said you can’t. I said you don’t do it.</p>
+<p>Well I won’t rant about it, it self is a field of study. Look it up.</p>
+<p>Well it’s your feature requirement, you need it. I don’t need it, so I won’t create it for you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Please tone down every one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>The energy of youth is too much to be contained :).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Yeah, in my 40s I’m young again! And full of energy :-F~~~</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Yeah and I think I can <strong><em>overdrink</em></strong> anyone here!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Hehe, great to have some humor back :).</p>
+<p>I haven’t try or verify the Urho IK feature yet. But try using the IK code for your problem, it will reduce the effort.</p>
+<p>In the olden day, if all my characters are back to front for other engine, I would create a node with a basic invisible component.<br/>
+Load in my character model attach it to the invisible node and rotate the character.<br/>
+Now my character is child to this parent node with the correct direction.</p>
+<p>Best regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>My character itself IS Z-front, just some bone positions are not Z-front.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/149_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">pqftgs</div>
+          <div class="post_content">
+<p>Had a similar problem about a year ago.  The model was Z = forward, the rig was not.  Tried 3 different engines, all broken, until I exported to FBX.  So there’s probably some kind of black magic going on with import/export.</p>
+<p>Anyhow I’ve since re-made the rig with the same forward facing and no more problems.  I do wish the Urho3D exporter was a little more forgiving… but not enough to bother trying to change it.</p>
+<p>Hope this helps.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="20" data-topic="3227" data-username="coldev">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d89f09a654e090c465429537c93d4215.png" width="20"/> coldev:</div>
+<blockquote>
+<p>Please share in Github…</p>
+<p>Thanks</p>
+</blockquote>
+</aside>
+<p>Was this directed at me? Not sure but this is too simple to be a github repo. I’ll just post it here.</p>
+<p>Test code from the vid:</p>
+<div class="spoiler">
+<pre><code class="lang-auto">void CharacterDemo::TestHeadRotation()
+{
+    if (!character_)
+        return;
+
+    Node* characterNode = character_-&gt;GetNode();
+    Vector3 charPos = characterNode-&gt;GetPosition();
+    Quaternion rot = characterNode-&gt;GetRotation();
+
+    // local x, y pos
+    float xpos = Sin(scene_-&gt;GetElapsedTime() * 90.0f) * 1.25f;// [-1.25 to 1.25]
+    float ypos = Sin(scene_-&gt;GetElapsedTime() * 90.0f * 0.5f); // [-1.0 to 1.0] but at 1/2 the speed
+
+    Node* headNode = characterNode-&gt;GetChild("Mutant:Head", true);
+    Vector3 worldPos = rot * Vector3(xpos, ypos, 1.5f);
+    Vector3 headWorldTarget = headNode-&gt;GetWorldPosition() + worldPos;
+
+    // head lookat rotation
+    // same as what's in HandlePostUpdate() but the headDir is based on lookDir not char rotation
+    Vector3 lookDir = (headWorldTarget - headNode-&gt;GetWorldPosition()).Normalized();
+    Quaternion headDir;
+    headDir.FromLookRotation(lookDir);
+
+    Vector3 headWorldTarget2 = headNode-&gt;GetWorldPosition() + headDir * Vector3(0, 0, -1);
+    headNode-&gt;LookAt(headWorldTarget2);
+
+    // move the cam at an offset and rotation to see the head rotate
+    Vector3 camLookPos = charPos + Vector3(0.0f, 1.0f, 0.0f);
+    Vector3 camPos = charPos + rot * Vector3(-5.0f, 1.0f, 4.0f);
+    cameraNode_-&gt;SetPosition(camPos);
+    cameraNode_-&gt;LookAt(camLookPos);
+
+    // dbg lines
+    DebugRenderer *dbgRenderer = scene_-&gt;GetComponent&lt;DebugRenderer&gt;();
+    dbgRenderer-&gt;AddLine(headWorldTarget, headWorldTarget + Vector3::UP * 0.2f,      Color::GREEN);
+    dbgRenderer-&gt;AddLine(headWorldTarget, headWorldTarget + Vector3::FORWARD * 0.2f, Color::BLUE);
+    dbgRenderer-&gt;AddLine(headWorldTarget, headWorldTarget + Vector3::RIGHT * 0.2f,   Color::RED);
+    dbgRenderer-&gt;AddLine(headWorldTarget, headNode-&gt;GetWorldPosition(),              Color::CYAN);
+
+}
+</code></pre>
+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">coldev</div>
+          <div class="post_content">
+<p>thanks again <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>While your display of gratitude is definitely appreciated. I would like to inform you guys, that there’s a like button bellow each post. Meant for these kind of situations.</p>
+<hr/>
+<p><em>I never really understood why people don’t use the builtin functionality of the site. Not just here. But on every community I’ve been following.</em></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

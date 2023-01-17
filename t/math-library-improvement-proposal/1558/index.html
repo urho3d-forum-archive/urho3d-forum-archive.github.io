@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Math library improvement proposal</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Math library improvement proposal</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">freegodsoul</div>
+          <div class="post_content">
+<p>Hello, Devs!</p>
+<p>I think math library of Urho3D really needs in some improvements.<br/>
+Here is my proposal draft about some useful additions to the lib.<br/>
+The proposal consists of three parts which may refer to each other.</p>
+<p>[size=150]<span class="bbcode-b">1. Subscript [] operator</span>[/size]</p>
+<p>Ability to access to elements of Vectors and Matrices by subscript [] operator. Vectors must return float reference and Matrices - major-vector reference. Usage example:</p>
+<p><code>Matrix3x3 m; 	// create matrix
+... 			// fill matrix with some initial values
+m[2][1] = 1.0f;	// element at [row:3, col:2] will be modified,
+m[0].z = 5.0f;	// element at [row:1, col:3] will be modified ("z" was used instead of "z_" since Part 2)
+// cross product will be accomplished between first and second rows of matrix
+Vector3 cross = m[0].Cross( m[1] ); // "Cross" instead of "CrossProduct" since Part 3</code></p>
+<p>e.g implementation for Vector3:</p>
+<p><code>const float&amp; operator [] ( int i ) const
+{
+	return ( &amp;x_ )[ i ];
+}
+float&amp; operator [] ( int i )
+{
+	return ( &amp;x_ )[ i ];
+}</code></p>
+<p>e.g. implementation for Matrix3x3:</p>
+<p><code>const Vector3&amp; operator [] ( int i ) const
+{
+	return ( ( const Vector3* ) &amp;m00_ )[ i ];
+}
+Vector4&amp; operator [] ( int i )
+{
+	return ( ( Vector3* ) &amp;m00_ )[ i ];
+}</code></p>
+<p>Full list of classes, which should support subscript [] operator:</p>
+<p><code>Vector2
+Vector3
+Vector4
+IntVector2
+Matrix3
+Matrix3x4
+Matrix4
+Color
+Quaternion (Under doubt, because I've never used quaternions directly through member variables, but only via methods and Euler-values)</code></p>
+<p>[size=150]<span class="bbcode-b">2. Shorthands for useful member variables</span>[/size]</p>
+<p>Ability to access to public fields of high-usage classes through short notation, e.g. “x”, “y” and “z” for Vector3 instead of “x_”, “y_”, “z_”.<br/>
+This part can be considered as continuation of thread, that i’ve created earlier: <a data-bbcode="true" href="http://discourse.urho3d.io/t/math-shorter-aliases-for-public-fields-of-core-classes/1546/1">http://discourse.urho3d.io/t/math-shorter-aliases-for-public-fields-of-core-classes/1546/1</a></p>
+<p>I offer to introduce an additional rule into coding conventions (<a data-bbcode="true" href="http://urho3d.github.io/documentation/HEAD/_coding_conventions.html" rel="nofollow noopener">http://urho3d.github.io/documentation/HEAD/_coding_conventions.html</a>), because it seems to be reasonable:<br/>
+<span class="bbcode-i">If class considered as POD and <em>high-usage</em>, if it has only public member fields (examples: Vector3, Color, Ray), then there must be <em>Shorthands</em> or <em>Properties</em> or <em>Aliases</em> (call as you want) for standard member variables in notation: lower-camelcase, have <span class="bbcode-b">NOT</span> an underscore appended.</span></p>
+<p>For example, that how could be declared and documented member variables of Vector2:</p>
+<p><code>union
+{
+	/// X coordinate.
+	float x_;
+	/// [Shorthand] X coordinate.
+	float x;
+};
+union
+{
+	/// Y coordinate.
+	float y_;
+	/// [Shorthand] Y coordinate.
+	float y;
+};</code></p>
+<p>or Ray:</p>
+<p><code>union
+{
+	/// Ray origin.
+	Vector3 origin_;
+	/// Same as origin_
+	Vector3 o;
+};
+union
+{
+	/// Ray direction.
+	Vector3 direction_;
+	/// Same as direction_
+	Vector3 d;
+};</code></p>
+<p>With <span class="bbcode-b">union </span>statements there is no conflict or conformance exception with fifth rule in Coding conventions:</p>
+<aside class="quote">
+<blockquote>
+<p>Variables are in lower-camelcase. Member variables have an underscore appended. For example numContacts, randomSeed_.</p>
+</blockquote>
+</aside>
+<p>What I’m offering is just an <span class="bbcode-b">addition</span> to already existed rules.</p>
+<p>List of classes (in my opinion) which should have shorthands by default:</p>
+<p><code>Vector2
+Vector3
+Vector4
+IntVector2
+IntRect
+Color
+Rect
+Ray
+Plane
+Sphere
+BoundingBox
+</code><br/>
+Under doubt:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>Unnecessary since Part 1:<br/>
+(as matrices usually considered as (two-dimensional) arrays and it is more logically to access to their elements through index)</p>
+<p><code>
+Matrix3
+Matrix3x4
+Matrix4</code></p>
+<p>[size=150]<span class="bbcode-b">Part 3. Shorter methods</span>[/size]</p>
+<p>Also it is may be useful to use shorter names for classic methods like</p>
+<p><code>v1.Dot( v2 );
+v1.Cross( v2 );</code><br/>
+instead of</p>
+<p><code>v1.DotProduct( v2 );
+v2.CrossProduct( v2 );</code><br/>
+Because they can’t be confused with something else.</p>
+<p>[size=150]<span class="bbcode-b">Conclusion</span>[/size]</p>
+<p>My current modification of the math library which I’m using: <a data-bbcode="true" href="http://gdurl.com/148O" rel="nofollow noopener">http://gdurl.com/148O</a><br/>
+It’s not a final proposal, but an opening point for discussion and suggestions. I really like the Urho3D and want it to be even better.<br/>
+I thought about making a pull request as guy with nick <span class="bbcode-b">franck22000</span> advised me, but I’ve never did make it before. So in order to not spend time for reading git help I’ve decided just to create this thread, as I think every day Urho3D have new user and we can save him from PITA <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I guess this extremely short names produce code’s low informativity then you see code first time</p>
+<p><code>   union
+    {
+        /// Ray origin.
+        Vector3 origin_;
+        /// [Shorthand] Ray origin.
+        Vector3 o;
+    };
+    union
+    {
+        /// Ray direction.
+        Vector3 direction_;
+        /// [Shorthand] Ray direction.
+        Vector3 d;
+    };
+};</code></p>
+<p>Why not just?</p>
+<p>Vector3 dir<br/>
+Vector3 orig</p>
+<p>at last just omit this underscore at the end will be also nice</p>
+<p>Vector3 direction<br/>
+Vector3 origin</p>
+<p>i want mention what only underscores as the end are my “pain” and not lenth of names.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">freegodsoul</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]I guess this extremely short names produce code’s low normativity then you see code first time</p>
+<p><code>   union
+    {
+        /// Ray origin.
+        Vector3 origin_;
+        /// [Shorthand] Ray origin.
+        Vector3 o;
+    };
+    union
+    {
+        /// Ray direction.
+        Vector3 direction_;
+        /// [Shorthand] Ray direction.
+        Vector3 d;
+    };
+};</code></p>
+<p>Why not just?</p>
+<p>Vector3 dir<br/>
+Vector3 orig</p>
+<p>at last just omit this underscore at the end will be also nice</p>
+<p>Vector3 direction<br/>
+Vector3 origin</p>
+<p>i want mention what only underscores as the end are my “pain” and not lenth of names.[/quote]</p>
+<p>Simply omitting underscore will be OK too. Here I just wanted to show more variants than one and see what people think about it. Because of ray has so simple structure, and due to a fact that people who using 3D game engine have at least school math background, why not to use mathematically-conventional concepts as names like “O” for origin or “D” for direction vector, but in lowercase. It’s hard to confuse it with something else.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="freegodsoul">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/50f19e8fd1337a821b1ebe58b78e59a9.png" width="20"/> freegodsoul:</div>
+<blockquote>
+<p>due to a fact that people who using 3D game engine have at least school math background</p>
+</blockquote>
+</aside>
+<p>You’re presuming a lot with that line. Truth be told, a lot of people getting into game dev do NOT have high mathematics education. Sure there’s a lot of devs who are math geniuses, but not all. For example, I barely cleared Algebra.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">billyquith</div>
+          <div class="post_content">
+<p>I think the math library is fine as it is. Longer, explanatory variables are good practice, they make code more readable. There are other suggestions to rename the math library, but they generally aim at changing the names to a users individual preference. Soon, someone else will suggest changes that they like, but you don’t. Also, most editors have code completion these days so this can save a lot of typing.</p>
+<p>You should be careful with C/reinterpret casting like that in C++ as it tends to inhibit the compiler from making certain optimisations. It confuses the aliasing. Always use a union where possible.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

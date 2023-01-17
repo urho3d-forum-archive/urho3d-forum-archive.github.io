@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Shader Register B6 vs B5 - cross-talk?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Shader Register B6 vs B5 - cross-talk?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Today, we were experiencing some crazy behavior in Shader, seeing the uniform variables being overwritten by some outside force.     It would work for a while, but then would start messing up reliably after about 30 seconds of panning around our map.</p>
+<p>After trying everything else, we finally figured out that changing “register(b6)” to “register(b5)” worked, miraculously (and we see no other side-effects yet from this).</p>
+<p><span class="hashtag">#ifdef</span> COMPILEPS<br/>
+cbuffer CustomPS : register(b5)  &lt;== changing this from (b6) to (b5) FIXES the issue.<br/>
+{<br/>
+bool cShowRelief;   &lt;== this parameter alone GOES HAYWIRE, sporadically. (gets overwritten?)<br/>
+float cAlpha;<br/>
+float cOwnshipAltitudeFt;<br/>
+float cAltThreshWarn;<br/>
+float cAltThreshDanger;<br/>
+}<br/>
+<span class="hashtag">#endif</span></p>
+<p>Questions:</p>
+<ol>
+<li>Is there any reason why we can’t/shouldn’t use register b5?</li>
+<li>Does anyone have any clues as to why register b6 could have some sort of cross-talk/overwriting occurring?</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Update, the following change ALSO fixes our issue, combining the final two uniforms into a float2, as follows:</p>
+<p><span class="hashtag">#ifdef</span> COMPILEPS<br/>
+cbuffer CustomPS : register(b6)<br/>
+{<br/>
+bool cShowRelief;<br/>
+float cAlpha;<br/>
+float cOwnshipAltitudeFt;<br/>
+float2 cThreshHolds;     &lt;=== combined cAltThreshWarn/Danger into a float2, also fixes this.<br/>
+}<br/>
+<span class="hashtag">#endif</span></p>
+<p>This is making no sense to us.   Anyone got any clues?</p>
+<p>Luckily this final workaround does work, so we’re going to “go with it”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>If we ignore a possibility of driver bug messing up with packing bool into uniform buffer… I don’t know. Perhaps Urho messes up parsing such layout, I dunno.<br/>
+It’s hard to tell without actual GPU debugging (I prefer Visual Studio debugger, which is still quite trash)</p>
+<p>Personally I would have just avoided using bool uniforms alltogether. You have floats and integers.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>FYI – I encountered this same behavior again tonight – only impacting HLSL.   One Shader’s parameters overwriting another’s.   This time, I’m not making any sense of it.     One way to fix it is to have a single fake float constant defined (that I don’t even use) – and for some reason this clears up the issue.</p>
+<p>It works fine in GLSL.   After hours of playing around with this – still no real progress, other than figuring out a kludge that seem “seems to magically work” for this one instance.</p>
+<p>Here’s the shader that is failing:</p>
+<pre><code class="lang-auto">#ifdef COMPILEPS
+cbuffer CustomPS : register(b6)
+{
+    uniform float4 cColor;
+    //uniform float cBOGUSPARAMETER; // Adding this, fixes the issue, otherwise "cColor" is overridden by crosstalk from another shader.
+}
+#endif
+
+void PS(
+    float2 oTexCoord : TEXCOORD0,
+    out float4 oColor : OUTCOLOR0)
+{
+    float4 diffColor = cColor * Sample2D(DiffMap, oTexCoord).bgra;
+    oColor = diffColor;
+}
+</code></pre>
+<p>Does anyone have any clues as to what might be causing this?   It seems like an Urho bug to me, at this point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>I spent another 4 hours trying to find the pattern to this – and turns out it’s worse than I thought.   I could make this error happen in a great many situations – all HLSL.   The fix to issues were all nonsense stuff (like above) – but at least these kludges work.   And so we can move on.</p>
+<p>This bug exists in UrhoSharp, not <a href="http://Urho3D.NET" rel="noopener nofollow ugc">Urho3D.NET</a> – because <a href="http://Urho3D.NET" rel="noopener nofollow ugc">Urho3D.NET</a> uses OpenGL on Windows, and so avoids usage of HLSL entirely.   And so I’m going to just live with the silly workaround, and we’re glad that this workaround actually works.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

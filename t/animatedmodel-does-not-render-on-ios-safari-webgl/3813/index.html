@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>AnimatedModel does not render on iOS Safari WebGL</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">AnimatedModel does not render on iOS Safari WebGL</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/720_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">eldog</div>
+          <div class="post_content">
+<p>On iOS 11 Safari using a StaticModel will render just fine, but when I try to use a AnimatedModel (mine has bones), it does not appear to render anything. I can interact with the rest of the scene just fine, but the AnimatedModel is not visible.</p>
+<p>Android WebGL and desktop WebGL render the AnimatedModel. I’m not sure where to look, I’m wondering if there is an ios specific define that may need to be enabled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Confirmed. When I checked WebGL demos on iOS yesterday, I saw this bug on the Navigation demo.</p>
+<p>Debugging graphics is in my top 5 of most hated things. Debugging mobiles too.</p>
+<p>I doubt there is any magic define. It looks like shader issue. Maybe bones uniforms are not updated, maybe they are not fetched properly. Maybe this is shader compiler bug, maybe it’s Urho fault.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The graphics on WebGL assumes desktop-like capabilities, so it’s likely to need scaling back / removing those assumptions if running on a mobile device. The shadow issue is very likely similar.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>But what is the best way to do that? Sounds like the server needs to have two versions of the build, one for desktop and one for mobile browsers, and then the JS loader on the client side decides which version to load at run time?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>That sounds cumbersome, so the ifdef checks would need to preferably become runtime capability queries instead, where possible.</p>
+<p>Of course, when / if you get bgfx, the problem is likely to be moved from the lowlevel renderer to elsewhere, but principle remains the same.</p>
+<p>But yeah, in general multiple capability levels are a headache…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The problem with web platform is, the “binary” (WASM or asm.js) is not installed, at most it is only cached and downloaded on demand when the cache expires. Assuming we were able to do multi-implementation in a single binary and to allow dynamic switch during run time based on the client capabilities, the binary would surely become bigger and it contains the other bits that the client will not require.</p>
+<p>What would be ideal is the build system able to generate multiple binary modules (one common + one for each target deployment) in one go during compile time; and the JS on client side is responsible to load the correct modules during run time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/720_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">eldog</div>
+          <div class="post_content">
+<p>Found a solution.</p>
+<p>Similar to the Raspberry Pi, the problem is the maximum number of bones. Probably to do with the number of uniforms that iOS safari supports, there’s <a href="https://github.com/mrdoob/three.js/issues/7807" rel="nofollow noopener">this issue</a> on threejs that describes a similar problem they experienced.</p>
+<p>The change required was in <code>Graphics::GetMaxBones()</code> <a  rel="nofollow noopener">here</a>. I changes it to <code>return 16;</code> and it worked, I don’t know what the correct number for iOS Safari is at the moment (according to that threejs issue they like to change it from time to time).</p>
+<p><img alt="bunion-ios" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/5/58c50d21fb2f26c45a14749208f47b85aface8de.gif" width="280"/></p>
+<p>Animations running at 60fps on iOS <img alt=":slight_smile:" class="emoji" src="/images/emoji/twitter/slight_smile.png?v=9" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

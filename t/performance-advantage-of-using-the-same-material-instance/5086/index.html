@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Performance advantage of using the same material instance?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Performance advantage of using the same material instance?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Lets say I have two objects with identical materials - does it matter if its actually the same material instance or two different materials with the same properties, from performance perspective? Ofc reusing materials have benefits of less RAM used, but does it affect CPU / GPU usage, like for example does it cause redundant copying of data to shaders or something similar?</p>
+<p>I’m asking because I want to know if I can benefit from smart materials caching mechanism for runtime-generated materials I have, where RAM is not really an issue.</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>From a performance perspective, there’s little cost on the gpu side, and really not that much memory footprint either. There are use-cases where we want materials to be unique, shared, or global.</p>
+<p>Using one material instance on multiple renderable objects means that any changes made to the master material object will affect all the renderables that share it.</p>
+<p>Using multiple material instances allows you to modify the material uniquely for one target renderable (make a character glow), or for a subset of renderables (make one army of soldiers red, and another blue)</p>
+<p>How you choose to use materials really depends on the requirements of your game.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Isn’t it the batch count affected by this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Absolutely, of course, batch count is affected by the number of unique Materials, but in most engines, instances of a unique material with different material properties don’t generally affect the batch count, since the renderables are usually bucketed by material type, maybe sorted by z-order (eg 2D stuff), but generally not by material instance attributes. Specifically for Urho, I admit I don’t know as I’ve spent little time with the rendering pipeline, but I would be suprised if using say, different colours in different instances of the same basic diffuse material caused the batch count to panic.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1929_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">guk_alex</div>
+          <div class="post_content">
+<p>You can benefit from using the same material if the object count and the number of materials is high enough and the engine supports it. But the effect can be not noticeable because of other aspects of render orders and existing rendering pipeline. But if your object count is less then 1000 I suggest just not to worry about it, or make proof-of-concept tests to be sure if it worth it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Here is a graphics optimization check list from Unity</p>
+<h2>Simple checklist to make your game faster</h2>
+<ul>
+<li>Keep the vertex count below 200K and 3M per frame when building for PC (depending on the target GPU).</li>
+<li>If you’re using built-in shaders, pick ones from the <strong>Mobile</strong> or <strong>Unlit</strong> categories. They work on non-mobile platforms as well, but are simplified and approximated versions of the more complex shaders.</li>
+<li>Keep the number of different materials per scene low, and share as many materials between different objects as possible.</li>
+<li>Set the <code>Static</code> property on a non-moving object to allow internal optimizations like <a href="https://docs.unity3d.com/Manual/DrawCallBatching.html" rel="nofollow noopener">static batching</a>A technique Unity uses to draw GameObjects on the screen that combines static (non-moving) GameObjects into big Meshes, and renders them in a faster way. <a href="https://docs.unity3d.com/Manual/DrawCallBatching.html" rel="nofollow noopener">More info</a><br/>
+See in <a href="https://docs.unity3d.com/Manual/Glossary.html#StaticBatching" rel="nofollow noopener">Glossary</a>.</li>
+<li>Only have a single (preferably directional) <code>pixel light</code> affecting your geometry, rather than multiples.</li>
+<li>Bake lighting rather than using dynamic lighting.</li>
+<li>Use compressed texture formats when possible, and use 16-bit textures over 32-bit textures.</li>
+<li>Avoid using fog where possible.</li>
+<li>Use <a href="https://docs.unity3d.com/Manual/OcclusionCulling.html" rel="nofollow noopener">Occlusion Culling</a><br/>
+to reduce the amount of visible geometry and draw-calls in cases of complex static scenes with lots of occlusion. Design your levels with occlusion culling in mind.</li>
+<li>Use skyboxes to “fake” distant geometry.</li>
+<li>Use pixel shaders or texture combiners to mix several textures instead of a multi-pass approach.</li>
+<li>Use <code>half</code> precision variables where possible.</li>
+<li>Minimize use of complex mathematical operations such as <code>pow</code> , <code>sin</code> and <code>cos</code> in pixel shaders.</li>
+<li>Use fewer textures per fragment.</li>
+</ul>
+<p>More to read <a href="https://docs.unity3d.com/Manual/OptimizingGraphicsPerformance.html" rel="nofollow noopener">https://docs.unity3d.com/Manual/OptimizingGraphicsPerformance.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Thank you all, really useful advises!</p>
+<aside class="quote no-group" data-post="5" data-topic="5086">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/16e1b50d8de20a70b46956f4d20fb0fa.png" width="20"/> guk_alex:</div>
+<blockquote>
+<p>You can benefit from using the same material if the object count and the number of materials is high enough and the engine supports it.</p>
+</blockquote>
+</aside>
+<p>What do you mean by “if the engine supports it” - does Urho support it or not?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>Sounds like everybody knows general theory, but no-one really knows how Urho works specifically <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1929_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">guk_alex</div>
+          <div class="post_content">
+<p>I can’t be sure without digging in it. But with very brief review I found this in the code:</p>
+<pre><code>/// Construct from a drawable's source 
+explicit Batch(const SourceBatch&amp; rhs) :
+    distance_(rhs.distance_),
+    renderOrder_(rhs.material_ ? rhs.material_-&gt;GetRenderOrder() : DEFAULT_RENDER_ORDER),
+    ...</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>This is probably about z-sorting for 2d renderables (i.e. the UI elements) but do dig on, I’m really interested to see if you can chase this render pipe, I have not yet tried</p>
+<p>In 3D, we tend to leave z-sorting to the per pixel level these days, because the hardware can usually do it better than we can.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>We’re sort of off-topic, perhaps we need a new post about the render pipe <img alt=":wink:" class="emoji" src="../../../images2/537e3e653d641df5b9858e75faf3862a.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Also note that <code>StaticModelGroup</code>s enforce the same material on all instances, just like Unity’s <em>static batching</em>. Using custom shaders can be a way of adding variation despite all these models sharing a material.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

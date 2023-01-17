@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CScriptArray - how to unpack via typename</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CScriptArray - how to unpack via typename</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>So, AngelScript has returned an array type to C++ caller… it’s a CScriptArray<br/>
+I can tell the subtype is Node@.<br/>
+ie, the script returned an Array&lt;Node@&gt;</p>
+<p>I want to unpack the CScriptArray to a Vector&lt;Node*&gt;, and/or VariantVector.<br/>
+I know the typename is Node.<br/>
+How can I get there?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Does something like <code>Vector&lt;T&gt; ArrayToVector(CScriptArray* arr)</code> work from the AngelScript/APITemplates.h file?</p>
+<p>Or is the idea to do it with a non-template function that takes a String[Hash] of the typename? If the latter, I would go with putting everything in a Variant and use a VariantVector, as you’ve already basically solved how to do that from just the type name for generic return values, right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I can’t use template methods such as ArrayToVector because I can’t presume to know in advance what data type(s) I’ll be working with - I do have access to name strings…</p>
+<p>I think I have solved the issue… required some further changes to ScriptFile.cpp but essentially I’m leveraging the fact that angelscript arrays can only hold two kinds of objects: handles and values. With one special exception case, handles typically represent pointers to Urho objects that derive from RefCounter. Values are typically types whose Urho type info can be queried from Variant::GetTypeFromName, with the only notable exception being that Variant itself is a supported value type.</p>
+<p>If I give up on template specialization at runtime, and restrict myself to VariantVector, it looks like I’ll be able to handle angelscript array runtime specialization with what little type information I have.</p>
+<p>This effectively means that angelscript array will always be unpacked into a VariantVector when returning arrays from angelscript to c++ caller.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>It’s a bit painful but the <a href="https://gist.github.com/JSandusky/51f12192f40b90b4a09ee9138820e74c" rel="nofollow noopener">asPEEK debugging code</a> shows more of the nitty-gritty of accessing Angelscript objects C++ side. Can’t for the life of me remember how much array handling there was … I do recall it and remembering it sucked.</p>
+<blockquote>
+<p>If I give up on template specialization at runtime, and restrict myself to VariantVector, it looks like I’ll be able to handle angelscript array runtime specialization with what little type information I have.</p>
+</blockquote>
+<p>That’s probably the smarter choice. Restricting to VariantVector / StringVector / ResourceRefList returns implies a lot in regards to constraints and reduces how robust you might have to be.</p>
+<p>If a returned CScriptArray contains exclusively angelscript defined types then any C++ code attempting to store them will have to bump/dec the reference counts for those objects. Obviously you don’t look to be after going that far, but using the generic type looks like you could be.</p>
+<p>VariantVector (and kin) makes it a lot clearer … provided Variant <code>VoidPtr</code> isn’t supported for Angelscript objects, but that isn’t that bad as it would still be clear that ref-counts are the end-user’s responsibility.</p>
+<p>I’m warning you of those points specifically because of your BehaviorTree thread - from my own experience with a C++ side BT-core that supported tree-nodes defined in angelscript.</p>
+<hr/>
+<p>I’ve done this before, from what I saw in the other thread you’re on the right track. There is no getting this <em>truly</em> right, so pick a point and settle on it.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

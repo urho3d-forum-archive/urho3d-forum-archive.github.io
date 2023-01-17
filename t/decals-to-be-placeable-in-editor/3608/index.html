@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Decals to be placeable in editor</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Decals to be placeable in editor</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>It would be cool to be able to slap some decals on the level or model and save it to xml.</p>
+<p>As I see it: you add DecalSet to your model, then add a child node and add actual decal component to it. Then you can set the size, material, and drag it around. This component will remove and add again a decal on every parameter or transform change. Once level or object is loaded this components and child nodes can be removed.</p>
+<p>What do you guys think on feature in general and proposed solution in particular?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>I’ve done something similar using angelscript scripts, although a bit rough around the edges. I think using angelscript to add level-editor components is a pretty solid strategy, but more something that fits in the community repo when that gets going.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Can you share your work? Even If it is half broken, I want to see it, because I’m thinking about making it myself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Sure, it’s even cruder than I remember:</p>
+<pre><code>const StringHash EVENT_START("Start");
+const StringHash EVENT_DELAYEDSTART("DelayedStart");
+const StringHash EVENT_NODEPOSITIONUPDATE("NodePositionUpdate");
+const StringHash EVENT_COMPONENTENABLEDCHANGED("ComponentEnabledChanged");
+
+class DecalSphere: ScriptObject
+{
+  float Radius = 1.0;
+  float Depth = 1.0;
+  Vector3 OffsetPosition = Vector3(0,0,0);
+  private float updateRate = 0.1;
+  private bool updated = true;
+  private float updateTimer = 0.0;
+  private Vector3 lastPos;
+  private Vector3 lastOffsetPosition;
+  private float lastRadius;
+  private float lastDepth;
+  private Quaternion lastRotation;
+
+  void Start()
+  {
+    SubscribeToEvent("ComponentEnabledChanged", "Run");
+    SubscribeToEvent("SceneUpdate", "NodeUpdate");
+    lastPos = node.position;
+    lastRotation = node.rotation;
+    lastRadius = Radius;
+    lastDepth = Depth;
+    lastOffsetPosition = OffsetPosition;
+  }
+
+  void NodeUpdate(StringHash eventType, VariantMap&amp; eventData)
+  {
+    float timeStep = eventData["TimeStep"].GetFloat();
+
+    updateTimer += timeStep;
+    if (!lastRotation.Equals(node.rotation) || !lastPos.Equals(node.position) || Abs(lastRadius - Radius) &gt; 0.001 || Abs(lastDepth - Depth) &gt; 0.001 || !lastOffsetPosition.Equals(OffsetPosition))
+    {
+      updated = false;
+    }
+
+    if (!updated &amp;&amp; updateTimer &gt;= updateRate)
+    {
+      Print("ASD");
+      updateTimer = 0.0f;
+      updated = true;
+      lastPos = node.position;
+      lastRotation = node.rotation;
+      lastRadius = Radius;
+      lastDepth = Depth;
+      lastOffsetPosition = OffsetPosition;
+      Run(EVENT_NODEPOSITIONUPDATE, VariantMap());
+      Print("ZSD");
+    }
+  }
+
+  void Run(StringHash eventType, VariantMap&amp; eventData)
+  {
+    if (eventType == EVENT_COMPONENTENABLEDCHANGED)
+    {
+      if (eventData["Node"].GetPtr() !is node)
+        return;
+
+      if (eventData["Component"].GetPtr() !is node.GetComponent("ScriptInstance"))
+        return;
+    }
+
+    node.position -= OffsetPosition;
+    Sphere sphere;
+    sphere.Define(node.position , Radius);
+    Drawable@[]@ drawables = octree.GetDrawables(sphere, DRAWABLE_GEOMETRY, 127);
+    Print(drawables.length);
+
+    DecalSet@ decals = node.GetComponent("DecalSet");
+    decals.RemoveAllDecals();
+    for (uint i = 0; i &lt; drawables.length; ++i)
+    {
+      if (drawables[i] is decals)
+        continue;
+      Print(drawables[i].typeName);
+      decals.AddDecal(drawables[i], node.position, node.rotation, Radius, 1.0f, Depth, Vector2(0,0), Vector2(1,1), 0.0f, 0.1f);
+    }
+    node.position += OffsetPosition;
+    Print(decals.numDecals);
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

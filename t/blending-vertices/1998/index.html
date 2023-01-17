@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Blending vertices</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Blending vertices</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I’m using VertexBuffer to generate some vertices.<br/>
+I’m using a 3rd party library that seems to create “layers” of vertices with the same position.</p>
+<pre><code class="lang-auto">graphics-&gt;SetBlendMode(BLEND_ALPHA);
+
+float* dest = (float*)vertexBuffer_-&gt;Lock(0, draw-&gt;TotalVertices, true);
+
+for (int i = 0; i &lt; draw-&gt;LayerCount; i++)
+{
+        DrawList* dl = draw-&gt;Layer[i];
+
+        for (int j = 0; j &lt; dl-&gt;VertexBuffer.Size(); j++)
+        {
+                VertBuffer vb = dl-&gt;VertexBuffer[j];
+                
+                *dest++ = vb.pos.x;
+                *dest++ = vb.pos.y;
+                *dest++ = 0.f; // that library doesn't provide any Z coord so I think the issues is here...
+                ... // color
+                ... // uv     
+        }
+}
+
+vertexBuffer_-&gt;Unlock();
+...
+</code></pre>
+<p>When the 3rd party library have 1 layer, everything works correctly but when it have more than 1 I see some artifacts with alpha channel.<br/>
+Is possible to blend those “layers”?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Here is a code snippet on how Bullet’s softbody data is copied to Urho vbuff:</p>
+<pre><code class="lang-auto">            unsigned char* pVertexData = (unsigned char*)vb_-&gt;Lock(0, vb_-&gt;GetVertexCount());
+        
+            // copy bullet's softbody data to vertex buffer
+            if (pVertexData)
+            {
+                unsigned numVertices = vb_-&gt;GetVertexCount();
+                unsigned vertexSize = vb_-&gt;GetVertexSize();
+                unsigned uElementMask = vb_-&gt;GetElementMask();
+        
+                for (int i = 0; i &lt; body_-&gt;m_nodes.size(); ++i)
+                {
+                    btSoftBody::Node&amp; n = body_-&gt;m_nodes[i];
+                    unsigned char *pDataAlign = (pVertexData + i * vertexSize);
+
+                    // position
+                    if ( uElementMask &amp; MASK_POSITION )
+                    {
+                        Vector3 &amp;src = *reinterpret_cast&lt;Vector3*&gt;( pDataAlign );
+                        src = ToVector3( n.m_x );
+                        pDataAlign += sizeof( Vector3 );
+                    }
+
+                    // normal
+                    if ( uElementMask &amp; MASK_NORMAL )
+                    {
+                        Vector3 &amp;normal = *reinterpret_cast&lt;Vector3*&gt;( pDataAlign );
+                        normal = ToVector3( n.m_n );
+                        pDataAlign += sizeof( Vector3 );
+                    }
+                }
+                vb_-&gt;Unlock();</code></pre>
+<p>Problem with yours is that it’s missing:<br/>
+<span class="bbcode-b"><br/>
+unsigned char *pDataAlign = (pVertexData + i * vertexSize);<br/>
+</span><br/>
+to align to a correct buffer offset in the j-loop.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<pre><code class="lang-auto">            vertexBuffer_-&gt;SetSize(draw-&gt;TotalVertices, Urho3D::MASK_POSITION | Urho3D::MASK_COLOR | Urho3D::MASK_TEXCOORD1, true);
+            ...
+
+            unsigned char* dataAlign = (dest + i * vertexSize);
+
+            if (elementMask &amp; Urho3D::MASK_POSITION)
+            {
+                Urho3D::Vector3&amp; src = *reinterpret_cast&lt;Urho3D::Vector3*&gt;(dataAlign);
+                src = Urho3D::Vector3(vert.pos.x, vert.pos.y, 0.f);
+                dataAlign += sizeof(Urho3D::Vector3);
+            }
+
+            if (elementMask &amp; Urho3D::MASK_COLOR)
+            {
+                unsigned int&amp; src = *reinterpret_cast&lt;unsigned int*&gt;(dataAlign);
+                src = vert.col;
+                dataAlign += sizeof(unsigned int);
+            }
+
+            if (elementMask &amp; Urho3D::MASK_TEXCOORD1)
+            {
+                Urho3D::Vector2&amp; src = *reinterpret_cast&lt;Urho3D::Vector2*&gt;(dataAlign);
+                src = Urho3D::Vector2(vert.uv.x, vert.uv.y);
+                dataAlign += sizeof(Urho3D::Vector2);
+            }</code></pre>
+<p>Its hard to explain but in short its better than before but still have issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I don’t see your entire source code, but I’m guessing there’s still the layer i-loop and the dl-&gt;VertexBuffer j-loop. If that’s the case then your urho vbuff index would be incremented as:</p>
+<p>graphics-&gt;SetBlendMode(BLEND_ALPHA);</p>
+<p>float* dest = (float*)vertexBuffer_-&gt;Lock(0, draw-&gt;TotalVertices, true);<br/>
+<span class="bbcode-b">unsigned idxVBuff = 0;</span></p>
+<p>for (int i = 0; i &lt; draw-&gt;LayerCount; i++)<br/>
+{<br/>
+DrawList* dl = draw-&gt;Layer[i];</p>
+<pre><code>    for (int j = 0; j &lt; dl-&gt;VertexBuffer.Size(); j++)
+    {
+            VertBuffer vb = dl-&gt;VertexBuffer[j];
+           unsigned char* dataAlign = (dest + [b]idxVBuff++[/b] * vertexSize);
+</code></pre>
+<p>. . .</p>
+<p>Secondly, if you adjust the vbuff then you may have to also tweak your indexbuff.<br/>
+<span class="bbcode-b">set your vertex triangle draw order</span></p>
+<p>And lastly, having adjusted your vbuff and ibuff, you’ll need to reset the geometry draw range by calling:<br/>
+<span class="bbcode-b">    pGeometry-&gt;SetDrawRange( pGeometry-&gt;GetPrimitiveType(), 0, pIbuffer-&gt;GetIndexCount(), 0, pVbuffer-&gt;GetVertexCount() );</span></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>I don’t get what you mean by</p>
+<p>“Secondly, if you adjust the vbuff then you may have to also tweak your indexbuff.<br/>
+set your vertex triangle draw order”.</p>
+<p>How do I access the draw order?</p>
+<p>I also don’t have access to geometry as I only use IndexBuffer and VertexBuffer.<br/>
+Could be this the issue? Should I use a Geometry instead of simple IndexBuffer and VertexBuffer?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Maybe your <span class="bbcode-b">DrawList* dl</span> has the triangle list?</p>
+<p>You don’t need geometry.  It’s just my preference to modify Model-&gt;Geometry-&gt;VertexBuffer and -&gt;IndexBuffe to avoid writing anything else unrelated.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>That was an abstract type I wrote to keep things simple. Here is the full code.</p>
+<pre><code class="lang-auto">
+void GUI::Draw(ImDrawData* draw_data)
+{
+    Urho3D::Graphics* graphics = GetSubsystem&lt;Urho3D::Graphics&gt;();
+
+    ImDrawList** const cmd_lists = draw_data-&gt;CmdLists;
+    int cmd_lists_count = draw_data-&gt;CmdListsCount;
+
+    if (cmd_lists_count == 0)
+        return;
+
+    vertexBuffer_-&gt;SetSize(draw_data-&gt;TotalVtxCount + 500, Urho3D::MASK_POSITION | Urho3D::MASK_COLOR | Urho3D::MASK_TEXCOORD1, true);
+    indexBuffer_-&gt;SetSize(draw_data-&gt;TotalIdxCount + 1000, true);
+    
+    // Lock vertices and indices
+    unsigned char* vtx_dst = (unsigned char*)vertexBuffer_-&gt;Lock(0, draw_data-&gt;TotalVtxCount, true);
+    unsigned* idx_dst = (unsigned*)indexBuffer_-&gt;Lock(0, draw_data-&gt;TotalIdxCount, true);
+
+    unsigned idxVBuff = 0;
+
+    for (int n = 0; n &lt; draw_data-&gt;CmdListsCount; n++)
+    {
+        const ImDrawList* cmd_list = draw_data-&gt;CmdLists[n];
+
+        unsigned int numVertices = vertexBuffer_-&gt;GetVertexCount();
+        unsigned int vertexSize = vertexBuffer_-&gt;GetVertexSize();
+        unsigned int elementMask = vertexBuffer_-&gt;GetElementMask();
+
+        for (int i = 0; i &lt; cmd_list-&gt;VtxBuffer.size(); i++)
+        {
+            ImDrawVert vert = cmd_list-&gt;VtxBuffer[i];
+
+            unsigned char* dataAlign = (vtx_dst + idxVBuff++ * vertexSize);//(vtx_dst + i * vertexSize);
+
+            *reinterpret_cast&lt;Urho3D::Vector3*&gt;(dataAlign) = Urho3D::Vector3(vert.pos.x, vert.pos.y, 0.f);
+            dataAlign += sizeof(Urho3D::Vector3);
+
+            *reinterpret_cast&lt;unsigned int*&gt;(dataAlign) = vert.col;
+            dataAlign += sizeof(unsigned int);
+
+            *reinterpret_cast&lt;Urho3D::Vector2*&gt;(dataAlign) = Urho3D::Vector2(vert.uv.x, vert.uv.y);
+            dataAlign += sizeof(Urho3D::Vector2);
+ 
+        }
+
+        for (int i = 0; i &lt; cmd_list-&gt;IdxBuffer.size(); i++)
+        {
+            ImDrawIdx idx = cmd_list-&gt;IdxBuffer[i];
+            idx_dst[i] = idx;
+        }
+    }
+
+    vertexBuffer_-&gt;Unlock();
+    indexBuffer_-&gt;Unlock();
+
+    graphics-&gt;SetVertexBuffer(vertexBuffer_);
+    graphics-&gt;SetIndexBuffer(indexBuffer_);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Where you populate the vbuff and ibuff looks okay to me. I’m not sure about the below:</p>
+<p>. . .<br/>
+graphics-&gt;Draw(Urho3D::TRIANGLE_LIST, idx_offset, pcmd-&gt;ElemCount, vtx_offset, 0, cmd_list-&gt;VtxBuffer.size()); // not sure if you need  vtx_offset since the triangle list starts from 0??<br/>
+}</p>
+<pre><code>        idx_offset += pcmd-&gt;ElemCount; // not sure if this should be idx_offset += elemcount * 3; if each element is a triangle
+    }
+
+    vtx_offset += cmd_list-&gt;VtxBuffer.size(); // is this needed since there's only a single vbuff and the triangle list starts from 0??
+</code></pre>
+<p>. . .</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>What about your indexbuffer index in:<br/>
+for (int i = 0; i &lt; cmd_list-&gt;IdxBuffer.size(); i++)<br/>
+{<br/>
+ImDrawIdx idx = cmd_list-&gt;IdxBuffer[i];<br/>
+idx_dst[i] = idx;<br/>
+}</p>
+<p>Shouldn’t that be set like what you did with idxVBuff?:<br/>
+int idxIBuff = 0;<br/>
+idx_dst[idxIBuff++] = idx;</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Oh yea seems to work. Thank you very much!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Ok, cool.</p>
+<p>I thought of one more thing.  If your <span class="bbcode-b"> cmd_list-&gt;IdxBuffer</span> has a triangle order specific to <span class="bbcode-b">cmd_list-&gt;VtxBuffer</span> then you might need to account for where the current index offset is:</p>
+<p>int curIndexOffset = idxIBuff;</p>
+<p>for (int i = 0; i &lt; cmd_list-&gt;IdxBuffer.size(); i++)<br/>
+{<br/>
+ImDrawIdx idx = cmd_list-&gt;IdxBuffer[i];<br/>
+idx_dst[ idxIBuff++ ] = idx + curIndexOffset;<br/>
+}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>IdxBuffer is just an array of ImDrawIdx. ImDrawIdx is unsigned int.<br/>
+The previous code seems to work correctly. I think the issue was the index of the Urho3D::IndexBuffer, I forgot to keep in mind the extra counter  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Ok, if it’s working.</p>
+<p>Now, a pic of what’s working would be cool <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Here <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/2163fe85d10cc0d651a6a2d04efe61d0.png" title=":stuck_out_tongue:"/><br/>
+<img alt="" height="" src="../../../images2/92f395bd4be3630155abd8b97ee3f06d.jpg" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>That looks awesome! Gratz!</p>
+<p>lol about “TNX LUMAK” haha, and you’re welcome! <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

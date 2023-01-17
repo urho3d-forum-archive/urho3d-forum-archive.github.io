@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Regarding Serialization (to files)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Regarding Serialization (to files)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve written a small StateManager, deriving from Object, and a baseclass for GameStates, deriving from Component.</p>
+<p>That all works fine, I then tried experimenting with serializing component properties (aka Attributes) to disk.<br/>
+Following the docs as best I could understand them, I have some code in a derived GameState class that looks like this:<br/>
+public:<br/>
+float myValue=666.0f;</p>
+<pre><code>    static void RegisterObject(Context* context){
+        context-&gt;RegisterFactory&lt;GameMainMenuState&gt;();
+        URHO3D_ATTRIBUTE("My Value",float,myValue,666.0f,AM_DEFAULT);
+    }
+</code></pre>
+<p>Later, I attempt to serialize the entire scene to an XML file as follows:<br/>
+Urho3D::File serializer(context_, “testscene.xml”, FILE_WRITE);<br/>
+GetNode()-&gt;GetScene()-&gt;SaveXML(serializer);</p>
+<p>I should mention that I am manually calling the static method to register factory and attribute early in the application startup code.</p>
+<p>The problem is that during serialization, my custom attribute is never written to disk: the built-in attributes are showing up for Nodes, but not for any Component, including my custom component.</p>
+<p>What am I doing wrong? I assume that since Component derives from Serializable, and can hold Attributes, that these would be Serialized too.</p>
+<p>PS - I just checked, I can successfully query the attribute variant using GetAttribute, and I can also successfully query the Context directly for the same. So my attribute is definitely registered with the Context, it’s just failing to be Serialized, despite having AM_DEFAULT mode.<br/>
+The only thing that appears to be different about my implementation with respect to the Samples is that my Component is a Derived class (correctly registered as such, and playing well with Urho in every other respect, including custom events). GameStateX derives from IGameState, which in turn derives from Component… with this arrangement, Serialization appears to be failing!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Digging into the Serialization code beginning with Node::SaveXML( ), and drilling all the way down to Serializable::SaveXML( ), I could see no reason why my attribute would <em>not</em> be saved.<br/>
+The only way to know for sure, would be to trace Urho, which I’m currently pulling in as a static library built in Release mode. I’m really not inclined to set up a special project for tracing Urho internals just for this one issue, and really hoping that somebody can spot my mistake <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+<p>Examining the SceneLoadExample.xml file, I can see that, under certain conditions, component attributes are indeed serialized - but what are the conditions? Must we set an attribute <em>via its accessor</em> before it will be serialized? I notice in that example, one instance of StaticModel Component has two attribute serialized, while another instance has three attributes serialized - this indicates to me that they must have somehow been marked as ‘dirty’ prior to serialization - am I on the right track?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p><img alt="MyOutput" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/f/f68f8fe24e05ce7390762845cda5b15f0edf04e3.png" width="416"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Never mind, I trudged back through the Serialization code a second time, and this time I noticed that there is an early-out if the attribute’s value, at the time of serialization, equals its default value (as specified via the URHO3D_ATTRIBUTE macro).</p>
+<p>I’ve since checked - it does not matter if you modify an attribute manually, or via SetAttribute, it will serialize correctly, but ONLY if the current value has changed from the default value - otherwise, it will be silently dropped from the output. This makes perfect sense to me, as it is assumed that our attributes are preset to the same values as those specified in our macro - but there is no actual CHECK for this, which gets me to thinking - why do we need to specify a default value for an attribute at all, when the “default” value (at the time we registered our attribute) can be determined via its accessor at runtime? It smells a little redundant to specify a default value at all, given it can be queried via the accessor, given the type is known. Just a thought that we might be able to eliminate one argument from that macro…</p>
+<p>Oh well, just happy that my issue was resolved <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The idea of having attributes is to allow the components to be editable via editor. The default value is a way for the editor to reset the value back.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Thanks weitjong!, yes I appreciate that attributes are mainly about working with the Editor. I don’t use the editor at this point, I was focused solely on serialization with respect to loading and saving stateful components.</p>
+<p>Your reply does help me understand the reason for a default value to be provided - initially I still could not see a reason why the macro expansion could not access the existing member value, but when I tried to write a macro that could do so, I realized the problem: we’re meant to be registering our class from a static method, prior to any instantiation of the class… the AttributeAccessor requires an object instance to query, and we don’t (and should not) have any instance to query at this stage - silly me <img alt=":blush:" class="emoji" src="../../../images2/f7219af3a28b187e66a8a7d9ec923fbb.png" title=":blush:"/></p>
+<p>Well, now that I have serialization working, I think I’ll rewrite my state manager to take full advantage of it. The current stack-based implementation can’t take full advantage, because it can add and remove entire gamestates arbitrarily, meaning that they may not be around during serialization - I might have to rework it to just disable inactive states via their container node.</p>
+<p>Questions: <span class="hashtag">#1</span>, can Components be disabled? and <span class="hashtag">#2</span>, if a node (or component) is disabled, will it still be serialized? I’m sick of looking at the serializer code, but I don’t recall seeing anything about inactive nodes/components.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>They both can be disabled separately. They should still be serialized regardless.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Thanks weitjong - exactly what I wanted to hear! This makes me feel better about tearing up my current stack-based state manager, before I go anywhere near writing my first game under Urho.</p>
+<p>Can nodes/components OPT OUT of serialization without being removed from a scene?<br/>
+I can think of cases where I want to omit certain objects from serialization without having to tear the scene apart…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>Mark any node/component as temporary if You don’t want to save it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>You guys are a great help, thanks so much for helping me with the learn curve !!<img alt=":fist_left:" class="emoji" src="../../../images2/f58fc9ede14d0ce54ed4df7592d0e436.png" title=":fist_left:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

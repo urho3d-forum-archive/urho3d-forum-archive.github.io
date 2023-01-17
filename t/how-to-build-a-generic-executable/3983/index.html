@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to build a generic executable?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to build a generic executable?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1260_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JKGiih</div>
+          <div class="post_content">
+<p>I built both the engine and <a  rel="nofollow noopener">this example project</a> by running the cmake_generic.sh script and then running make, assuming that the resulting executable would work on any 64-bit system, but when I try to run it on another machine with a different CPU I get the “Illegal instruction” error. I also tried, instead of running the script, just running cmake with the URHO3D_DEPLOYMENT_TARGET option set to generic, but I still got the same error. Is there something I’m doing wrong?</p>
+<p>Also, when I run cmake_generic.sh in the project directory, I get the error “post_cmake: command not found”, which I don’t get when running the same script to build the engine itself. Are there some other scripts I’m supposed to copy to the project directory?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Since you are using *.sh, I assume you are using Linux host system. And if so, instead of following the wiki page which may or may not be up-to-date anymore, you can use our scaffolding task via Rake. You need to have Ruby/Rake installed though, which is usually just a command away to get it installed. Once that prerequisite is fulfilled then in the project root directory of Urho3D, type in this command:</p>
+<p><code>rake scaffolding dir=/path/to/your/new/project/source/tree</code></p>
+<p>Cd to your new project source tree and replace the placeholder cpp and h files with your own code then you are all set. Your new project is now setup with all the build scripts borrowed from Urho3D project. That should solve your “post_cmake: command not found” problem.</p>
+<p>As for the deployment target, make sure that build option is being used when you are building Urho3D library and when using the library in your own project.</p>
+<pre><code class="lang-auto">cd /path/to/Urho3D/project/source/tree &amp;&amp; rake cmake URHO3D_DEPLOYMENT_TARGET=generic &amp;&amp; rake make
+cd /path/to/your/new/project/source/tree &amp;&amp; rake cmake URHO3D_DEPLOYMENT_TARGET=generic URHO3D_HOME=/path/to/Urho3D/project/build/tree &amp;&amp; rake make
+</code></pre>
+<p>Note the URHO3D_HOME is pointing to Urho3D project build tree, not source tree.</p>
+<p>HTH.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1260_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JKGiih</div>
+          <div class="post_content">
+<p>Thanks, that got rid of the post_cmake error, however the illegal instruction error remains. When I compile the project on the older CPU (T9600) it runs on the newer one (i5-3450) but not the other way around, which to me seems like the binary is not really generic.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>This is how we have setup our build system. When the <code>URHO3D_DEPLOYMENT_TARGET</code> build option is not explicitly set then it is default to value ‘native’. This is good for testing the binary in your own host system because the compiler will generate the binary targeting exactly your system. If you use high end PC then this binary is of no use for lower end or older PC than yours. It is easy to understand why the reverse is fine because newer PC should be able to execute binary targeted for older PC.</p>
+<p>However, if you set the build option to target a specific CPU target then the compiler is configured to generate binary compatible for that specific target only. Presumably all the higher CPU model  in the same family should not have problem with this binary too. But again the lower model than this specific target would have problem to run this binary.</p>
+<p>Finally, when the build option is set to ‘generic’ then currently the build system just leaves out setting the compiler flags all together. So, the effective setting is based on the default setting of the compiler toolchain you are using. It may not generate binary as “generic” as it should be, depending on what is being defaulted by the compiler. Perhaps this can be considered as a bug in our build system then. When the build option is set to ‘generic’, it should have configured the compiler as such instead of leaving it for chance. I see what I can do about it later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1260_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JKGiih</div>
+          <div class="post_content">
+<p>Ok, that explains it, I’ve definitely set some CPU-specific GCC flags that should be overridden by the build scripts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I have made a commit. Can you help to verity if it fixes your problem. Thanks.</p>
+<p>The <code>-mtune</code> compiler flags is now set to ‘generic’ regardless. But it should be preempted by the <code>-march</code> compiler flags which is set based on the <code>URHO3D_DEPLOYMENT_TARGET</code> build option. The <code>-mtune</code> flag is configured in such a way that it is still possible to be optionally overwritten via CMake. e.g.</p>
+<p><code>rake cmake URHO3D_DEPLOYMENT_TARGET=core2 CMAKE_CXX_FLAGS='-mtune=sandybridge' CMAKE_C_FLAGS='-mtune=sandybridge'</code></p>
+<p>This build configuration will emit two <code>-mtune</code> flags, but since the user provided one comes last, it should be the one in effect.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1260_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JKGiih</div>
+          <div class="post_content">
+<p>Still doesn’t work. What’s weird is that when I run <code>gcc -c -Q --help=target</code> it shows -mtune being set to generic and -march set to x86-64 – so I guess it must be some other flag causing the problem?</p>
+<p>I’m running Gentoo so GCC is likely compiled with some non-standard default options. I’ll try playing around with my system configuration and see if I can figure this out.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I am sorry to hear that. For what it’s worth, each GCC version may have its own meaning of ‘generic’, so setting the lowest denominator CPU model as your target explicitly may have more deterministic result.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

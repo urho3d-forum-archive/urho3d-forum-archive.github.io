@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Integrate vuforia, possible?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Integrate vuforia, possible?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorfence</div>
+          <div class="post_content">
+<p>I am busy integrate vuforia with urho3d (only for android by now)</p>
+<p>This is so hard for me as a new bee. But I desired to see them working together.</p>
+<p>I try to draw vuforia’s camera background in urho3d’s update event listener.</p>
+<p>As below:</p>
+<pre><code class="lang-auto">void Player::Start() {
+  ...
+  SubscribeToEvent(E_UPDATE, HANDLER(Player, HandleUpdate));
+  ...
+}
+
+void Player::HandleUpdate(StringHash eventType, VariantMap&amp; eventData) {
+  QCAR::State state = QCAR::Renderer::getInstance().begin();
+
+  //** 
+  QCAR::CameraDevice&amp; cameraDevice = QCAR::CameraDevice::getInstance();
+  QCAR::VideoMode videoMode = cameraDevice. getVideoMode(QCAR::CameraDevice::MODE_DEFAULT);
+  
+  //**  Configure the video background
+  QCAR::VideoBackgroundConfig config;
+  config.mEnabled = true;
+  config.mSynchronous = true;
+  config.mPosition.data[0] = 0.0f;
+  config.mPosition.data[1] = 0.0f;
+  config.mSize.data[0] = 720;
+  config.mSize.data[1] =1280;
+  QCAR::Renderer::getInstance().setVideoBackgroundConfig(config);
+
+  //** dont work, black window, dont't know why
+  // QCAR::Renderer::getInstance().drawVideoBackground();
+
+  //** get frame image
+  QCAR::State state = QCAR::Renderer::getInstance().begin();
+  ///QCAR::setFrameFormat( QCAR::RGB565, true );
+  QCAR::setFrameFormat( QCAR::RGB888, true );
+  QCAR::Frame qcarframe = state.getFrame();
+  const QCAR::Image *imageRGB888 = NULL;
+  for(int i=0; i&lt;qcarframe.getNumImages();i++) {
+    const QCAR::Image *pimg  = qcarframe.getImage(i);
+    if (pimg-&gt;getFormat() == QCAR::RGB888) {
+      imageRGB888 = pimg;
+      break;
+    }
+  }
+
+  //** found image, this works!!
+  if (imageRGB888 != NULL) {
+    __android_log_print(ANDROID_LOG_INFO, "Player", "found imageRGB888");
+    const short* pixels = (const short*) imageRGB888-&gt;getPixels();
+    int width = imageRGB888-&gt;getWidth();
+    int height = imageRGB888-&gt;getHeight();
+    int numPixels = width * height;
+
+    //*** todo: draw image
+    
+    __android_log_print(ANDROID_LOG_INFO, "Player","888image size: %d %d", width, height);
+  }
+
+  QCAR::Renderer::getInstance().end();
+}</code></pre>
+<p>Some explain:<br/>
+“drawVideoBackground” never working as offical demo, I saw only a black window.<br/>
+google again and again, I found the camera frame image can be fetched.<br/>
+So, my current question is:<br/>
+how to display the buffered image as urho3d’s background? (I wish that no need to modify urho3d’s source code)</p>
+<p>By the way, I’d like to see urho3d engine integerate vuforia in future <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You can insert a quad rendering command in the renderpath after clear and before the rendering commands, to make it draw a texture each frame before rendering the 3D scene.</p>
+<p>For example, a modified Forward.xml renderpath that would draw the mushroom texture:</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+    &lt;command type="quad" vs="CopyFramebuffer" ps="CopyFramebuffer"&gt;
+        &lt;texture unit="diff" name="Textures/Mushroom.dds" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+    ...</code></pre>
+<p>To replace this with the video texture, you must create a Texture2D, set a name for it, for example “VideoTexture”, add it to the resource cache as a manual resource (ResourceCache::AddManualResource()) so the renderpath can find it, and set the texture unit in the quad command as follows:</p>
+<pre><code class="lang-auto">      &lt;texture unit="diff" name="VideoTexture" /&gt;</code></pre>
+<p>Now you can use SetData() on the Texture2D to upload the camera image data. I have no idea however what the performance will be on Android, when modifying (reuploading) the video texture every frame.</p>
+<p>As for Vuforia integration, we only integrate fully permissive open source libraries with BSD / zlib -like licensing into the Urho3D base, so that rather falls for an external contributor, who creates a separate project (“Urho Vuforia integration” or something like that), and people can then use it if they agree with the licensing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I have tried this integration before. The performance on Android is acceptable. My approach is similar to what have been outlined by cadaver.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorfence</div>
+          <div class="post_content">
+<p>Thanks for your reply, this saved me!!!<br/>
+Followed cadaver’s idea, I saw the camera video as background(seems good performance), it’s so exciting <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/><br/>
+And it’s a very elegance idea I think. I like it.</p>
+<p>The only problem is the video is 90 degree rotated, can you point me how to solve this?<br/>
+Can I rotate the texture mapping or something else? How?</p>
+<p>Code for uploading the camera image data:</p>
+<pre><code class="lang-auto">  if (imageRGB888 != NULL) {
+    const unsigned char* pixels = (const unsigned char*) imageRGB888-&gt;getPixels();
+    int width = imageRGB888-&gt;getWidth();
+    int height = imageRGB888-&gt;getHeight();
+    //*** draw image
+    image-&gt;SetData(pixels);
+    bool result=mTexture-&gt;SetData(image);
+  }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You could make a copy of the CopyFramebuffer shader that samples the texture in a rotated fashion (faster), or make a rotated pixel buffer on the CPU before you SetData() to the texture (slower).</p>
+<p>Normally texture scrolling / scaling / rotation would be controlled from material but renderpath quad commands don’t use materials, only textures.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">victorfence</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>…make a copy of the CopyFramebuffer shader that samples the texture in a rotated fashion (faster)…</p>
+</blockquote>
+</aside>
+<p>I’v made my own CopyFramebuffer shader, this work like a charm, thanks <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

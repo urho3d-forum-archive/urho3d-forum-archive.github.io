@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Static RigidBody enters sleeping state after being still for a while</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Static RigidBody enters sleeping state after being still for a while</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>Hi guys,</p>
+<p>I just found that if <code>RigidBody</code> with zero mass stops moving for a while, it will become <strong>“deactivated”</strong> and stops all collisions.</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener" target="_blank">urho3d/Urho3D/blob/6802a83fcd259430098426480d6c045114c0786c/Source/ThirdParty/Bullet/src/BulletDynamics/Dynamics/btRigidBody.h#L499</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="489" style="counter-reset: li-counter 488 ;">
+<li>
+<li>		return m_inverseMass + normal.dot(vec);</li>
+<li>	}</li>
+<li>
+<li>	SIMD_FORCE_INLINE btScalar computeAngularImpulseDenominator(const btVector3&amp; axis) const</li>
+<li>	{</li>
+<li>		btVector3 vec = axis * getInvInertiaTensorWorld();</li>
+<li>		return axis.dot(vec);</li>
+<li>	}</li>
+<li>
+<li class="selected">	SIMD_FORCE_INLINE void updateDeactivation(btScalar timeStep)</li>
+<li>	{</li>
+<li>		if ((getActivationState() == ISLAND_SLEEPING) || (getActivationState() == DISABLE_DEACTIVATION))</li>
+<li>			return;</li>
+<li>
+<li>		if ((getLinearVelocity().length2() &lt; m_linearSleepingThreshold * m_linearSleepingThreshold) &amp;&amp;</li>
+<li>			(getAngularVelocity().length2() &lt; m_angularSleepingThreshold * m_angularSleepingThreshold))</li>
+<li>		{</li>
+<li>			m_deactivationTime += timeStep;</li>
+<li>		}</li>
+<li>		else</li>
+</li></li></li></li></ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>It seems we need to set active to <code>DISABLE_DEACTIVATION</code> and add as an interface to <code>RigidBody</code>.</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener" target="_blank">urho3d/Urho3D/blob/6802a83fcd259430098426480d6c045114c0786c/Source/ThirdParty/Bullet/src/BulletDynamics/Dynamics/btRigidBody.h#L518</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="508" style="counter-reset: li-counter 507 ;">
+<li>		}</li>
+<li>		else</li>
+<li>		{</li>
+<li>			m_deactivationTime = btScalar(0.);</li>
+<li>			setActivationState(0);</li>
+<li>		}</li>
+<li>	}</li>
+<li>
+<li>	SIMD_FORCE_INLINE bool wantsSleeping()</li>
+<li>	{</li>
+<li class="selected">		if (getActivationState() == DISABLE_DEACTIVATION)</li>
+<li>			return false;</li>
+<li>
+<li>		//disable deactivation</li>
+<li>		if (gDisableDeactivation || (gDeactivationTime == btScalar(0.)))</li>
+<li>			return false;</li>
+<li>
+<li>		if ((getActivationState() == ISLAND_SLEEPING) || (getActivationState() == WANTS_DEACTIVATION))</li>
+<li>			return true;</li>
+<li>
+<li>		if (m_deactivationTime &gt; gDeactivationTime)</li>
+</li></li></li></li></ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Please correct me if this is not accurate.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

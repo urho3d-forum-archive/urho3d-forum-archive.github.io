@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CMake and VS-2010</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CMake and VS-2010</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Hi!</p>
+<p>I tried building Urho3D on Win7 x64 using Visual Studio 2010, and am running into problems. I’ll list in detail what I did.</p>
+<p>[code](get version 1.23)<br/>
+git clone <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D.git</a><br/>
+cd Urho3D<br/>
+git checkout -b stable v1.23</p>
+<p>(generate nmake makefiles)<br/>
+mkdir build-vc10<br/>
+cd build-vc10<br/>
+cmake -G “NMake Makefiles” …</p>
+<p>(compile)<br/>
+nmake</p>
+<p>NOTE: This was done from inside the “Visual Studio Development Console 2010”, which is basically the windows command prompt only with some extra local environment variables set up.[/code]</p>
+<p>The first error I got was the following:</p>
+<p><img alt="" height="" src="../../../images2/551109838427aaa2d499eda7db1a60e8.png" width=""/></p>
+<p>I edited CMakeLists.txt in the Urho3D root directory to disable precompiled headers and retried. Everything went fine until this next error popped up:</p>
+<p><img alt="" height="" src="../../../images2/17f8b09887fa87968bbeb1413bc9a27e.png" width=""/></p>
+<p>Does anyone know what’s going on?</p>
+<p>The library compiles fine on my linux machine using gcc 4.6.3</p>
+<p>[EDIT] When running nmake again after the last error, I get the following, different error message:</p>
+<p><img alt="" height="" src="../../../images2/9b18218e3e000a385ecfb09f3902c457.png" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Is there a specific reason you want to use version 1.23? I would actually recommend just using master (or at least 1.3) for more features and fixes.</p>
+<p>I don’t think out-of-source build, or using Urho as an external library is supported in 1.23 version yet, so you have to use the provided cmake_vs2010.bat file, which will setup an in-source build.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I tried compiling master, and the first issue with precompiled headers did not show up anymore. I am still getting the second error though.</p>
+<p>Interestingly, if I generate Visual Studio solution files and compile it through the IDE, it successfully compiles everything, where as if I try to use nmake, it hangs at the second error.</p>
+<p>I need to use nmake because I’m setting up a continuous integration server and the build process needs to be instantiated from the command line.</p>
+<p>I also have a question regarding static/dynamic configurations: If I specify -DCMAKE_BUILD_TYPE=Debug and -DURHO3D_LIB_TYPE=Shared, this should build the debug version of a shared lib version, right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I have not tested “NMake Makefiles” generator at all, it’s possible there’s a bug either in our CMake script, or in the generator, in relation to precompiled headers.</p>
+<p>I suggest that you use the “Visual Studio 10” generator like you would if compiling manually with VS, but then invoke MSBuild to build the Urho solution automatically. The VS generator includes both debug &amp; release configs into the solution file, but you can choose the config when running MSBuild, eg.</p>
+<p>MSBuild Urho3D.sln /p:Configuration=Debug</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">carlomaker</div>
+          <div class="post_content">
+<p>I use without problem  cmake 2.8.12.1 with vs2010 ( cmake_vs2010.bat)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>For build Urho3D by NMake, need disable precompiled header in Assimp.<br/>
+Easy way:<br/>
+patch for file Urho3D\Source\ThirdParty\Assimp\CMakeLists.txt</p>
+<p>[code]@@ -701,10 +701,16 @@ SET( CONTRIB_FILES<br/>
+# Necessary to show the headers in the project when using the VC++ generator:</p>
+<pre><code>${Boost_SRCS}
+</code></pre>
+<p>)</p>
+<p>if (MSVC)</p>
+<ul>
+<li>
+<p>if (CMAKE_BUILD_TOOL STREQUAL “nmake”)</p>
+</li>
+<li>
+<pre><code>  set(NMAKE TRUE)
+</code></pre>
+</li>
+<li>
+<p>endif ()</p>
+</li>
+</ul>
+<p>+endif ()</p>
+<ul>
+<li>
+</li>
+</ul>
+<p>+if (MSVC AND NOT NMAKE)</p>
+<pre><code> foreach(FILE ${SOURCE_FILES})
+
+     if (${FILE} MATCHES "[A-Za-z0-9 _/]*[.]cpp")
+
+         if (${FILE} MATCHES "AssimpPCH.cpp$")
+
+             set_source_files_properties(${FILE} PROPERTIES COMPILE_FLAGS "/YcAssimpPCH.h")
+
+         else ()
+</code></pre>
+<p>[/code]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

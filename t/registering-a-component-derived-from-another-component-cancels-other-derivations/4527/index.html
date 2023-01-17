@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Registering a component derived from another component cancels other derivations</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Registering a component derived from another component cancels other derivations</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">HaeferlKaffee</div>
+          <div class="post_content">
+<p>I’m trying to create a base component to be used as a timer, with a blank function for an action when the timer reaches 0. If being used in a derived function, the derived class’ function should be called instead. My problem is that when registering these components to be used as factories, the last derived class is forced, like so:</p>
+<p><em>base</em><br/>
+|<em>-&gt;<em>derived1</em><br/>
+|</em>-&gt;<em>derived2</em></p>
+<pre><code>RegisterObject(base);
+RegisterObject(derived1);
+RegisterObject(derived2); 
+</code></pre>
+<p>When trying to attach a <em>derived1</em> to an object, it will instead attach a <em>derived2</em>, the inverse if the order of the two is reversed.</p>
+<p>Current source:</p>
+<pre><code>    ...
+class SelfDestructor : public LogicComponent {
+	URHO3D_OBJECT(SelfDestructor, LogicComponent);
+
+public:
+	SelfDestructor(Context* context);
+
+	/// Register object factory and attributes.
+	static void RegisterObject(Context* context);
+	void Start() override;
+	void Update(float timeStep) override;
+	void setTimer(float t);
+	void resetTimer();
+	virtual void Destruct() {}; //Only to be overriden, no base.
+
+protected:
+	float time = 0.0f;
+	float timeMax = 0.0f;
+	bool complete = false;
+};
+
+class SelfEmitToggler : public SelfDestructor { //First subclass
+	URHO3D_OBJECT(SelfEmitToggler , SelfDestructor);
+public:
+	SelfEmitToggler(Context* context);
+	static void RegisterObject(Context* context);
+protected:
+	void Destruct() override;
+};
+
+class SelfNodeRemover : public SelfDestructor { //Second subclass
+	URHO3D_OBJECT(SelfNodeRemover , SelfDestructor);
+public:
+	SelfNodeRemover(Context* context);
+	static void RegisterObject(Context* context);
+protected:
+	void Destruct() override;
+};
+</code></pre>
+<p>Which are registered by:</p>
+<pre><code>Lightning::RegisterObject(context_);
+SelfDestructor::RegisterObject(context_);
+SelfEmitToggler::RegisterObject(context_);
+</code></pre>
+<p>In the above, only SelfEmitToggler can be attached, in that only its version of Destruct(); will be called, rather than SelfDestructor’s.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>This is normal behaviour when overriding. To make sure the parent class’s function is used, call it by prepending its namespace:</p>
+<pre><code class="lang-auto">void SelfNodeRemover::Destruct()
+{
+    //Code before calling parent function
+
+    SelfDestructor::Destruct();
+
+    //Code after calling parent function
+}
+</code></pre>
+<p>Since <code>SelfDustructor::Destruct()</code> is commented with “no base”, you may want to make it a <em>virtual function</em> by replacing <code>{}</code> by <code>= 0</code> like so:</p>
+<pre><code class="lang-auto">    virtual void Destruct() = 0;
+</code></pre>
+<p>This will make <code>SelfDestruct</code> an <em>abstract class</em>, which cannot be instantiated.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

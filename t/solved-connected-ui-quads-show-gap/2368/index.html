@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] connected UI quads show gap</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] connected UI quads show gap</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Drawing connected UI quads show a gap. The points of the left of the 2nd quad are equal to points on the right of the 1st quad.</p>
+<p>I don’t expect there to be a gap, but why does it show?</p>
+<p><img alt="" height="282" src="../../../images2/ac4cbae699582ea9cfed86cf29811b79.jpg" width="360"/></p>
+<p>Quads: (top left, top right, bottom left, bottom right)</p>
+<pre><code class="lang-auto">    RectQuad quadList[2] =
+    {
+        // a0, b0, c0, d0
+        { Vector2(110.008f, 116.000f), Vector2(196.595f, 116.192f), Vector2(109.991f, 323.999f), Vector2(196.684f, 324.191f) },
+
+        // a1, b1, c1, d1 where a1 = b0, c1 = d0
+        { Vector2(196.595f, 116.192f), Vector2(260.244f, 114.675f), Vector2(196.684f, 324.191f), Vector2(261.163f, 322.588f) },
+    };</code></pre>
+<p><span class="bbcode-b">Simple test code</span><br/>
+drop it into and replace Samples/37_UIDrag/UIDrag.cpp</p>
+<p>[spoiler][code]<br/>
+// Copyright © 2008-2016 the Urho3D project.<br/>
+//<br/>
+// Permission is hereby granted, free of charge, to any person obtaining a copy<br/>
+// of this software and associated documentation files (the “Software”), to deal<br/>
+// in the Software without restriction, including without limitation the rights<br/>
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell<br/>
+// copies of the Software, and to permit persons to whom the Software is<br/>
+// furnished to do so, subject to the following conditions:<br/>
+//<br/>
+// The above copyright notice and this permission notice shall be included in<br/>
+// all copies or substantial portions of the Software.<br/>
+//<br/>
+// THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR<br/>
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,<br/>
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE<br/>
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER<br/>
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,<br/>
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN<br/>
+// THE SOFTWARE.<br/>
+//</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/Core/CoreEvents.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/UI/Button.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/UI/Font.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/UI/Text.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/UI/UIEvents.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/Zone.h&gt;</p>
+<p><span class="hashtag">#include</span> “UIDrag.h”</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/DebugNew.h&gt;</p>
+<p>//=============================================================================<br/>
+//=============================================================================<br/>
+class UIQuad : public UIElement<br/>
+{<br/>
+URHO3D_OBJECT(UIQuad, UIElement);<br/>
+public:<br/>
+static void RegisterObject(Context* context);</p>
+<pre><code>UIQuad(Context *context);
+~UIQuad();
+
+virtual void GetBatches(PODVector&lt;UIBatch&gt;&amp; batches, PODVector&lt;float&gt;&amp; vertexData, const IntRect&amp; currentScissor);
+
+void SetBlendMode(BlendMode mode)    { blendMode_ = mode;  }
+void SetImgRect(const IntRect&amp; rect) { imageRect_ = rect;  }
+
+void SetTexture(Texture* texture);
+void AddQuad(Vector2 &amp;a, Vector2 &amp;b, Vector2 &amp;c, Vector2 &amp;d);
+</code></pre>
+<p>protected:<br/>
+void ClearBatches();</p>
+<p>protected:<br/>
+SharedPtr     texture_;<br/>
+float                  invTextureWidth_;<br/>
+float                  invTextureHeight_;<br/>
+IntRect                imageRect_;<br/>
+BlendMode              blendMode_;<br/>
+PODVector       vertexData_;<br/>
+PODVector     batches_;<br/>
+};</p>
+<p>//=============================================================================<br/>
+//=============================================================================<br/>
+URHO3D_DEFINE_APPLICATION_MAIN(UIDrag)</p>
+<p>//=============================================================================<br/>
+//=============================================================================<br/>
+UIDrag::UIDrag(Context* context) :<br/>
+Sample(context)<br/>
+{<br/>
+UIQuad::RegisterObject(context);<br/>
+}</p>
+<p>void UIDrag::Start()<br/>
+{<br/>
+// Execute base class startup<br/>
+Sample::Start();</p>
+<pre><code>GetSubsystem&lt;Renderer&gt;()-&gt;GetDefaultZone()-&gt;SetFogColor(Color(0.3f, 0.3f, 0.9f));
+
+// Set mouse visible
+String platform = GetPlatform();
+if (platform != "Android" &amp;&amp; platform != "iOS")
+    GetSubsystem&lt;Input&gt;()-&gt;SetMouseVisible(true);
+
+// Create the UI content
+CreateGUI();
+CreateInstructions();
+
+// Hook up to the frame update events
+SubscribeToEvents();
+
+// Set the mouse mode to use in the sample
+Sample::InitMouseMode(MM_FREE);
+</code></pre>
+<p>}</p>
+<p>void UIDrag::CreateGUI()<br/>
+{<br/>
+ResourceCache* cache = GetSubsystem();<br/>
+UI* ui = GetSubsystem();</p>
+<pre><code>UIElement* root = ui-&gt;GetRoot();
+root-&gt;SetDefaultStyle(cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml"));
+
+// UI quads
+Texture2D *quatTex2d = cache-&gt;GetResource&lt;Texture2D&gt;("Textures/UI.png");
+UIQuad *uiQuad = root-&gt;CreateChild&lt;UIQuad&gt;();
+
+// the IntRect(84,87,85,88) position is where the white rectangle is in the UI.png
+uiQuad-&gt;SetImgRect(IntRect(84,87,85,88));
+uiQuad-&gt;SetTexture(quatTex2d);
+//uiQuad-&gt;SetColor(Color::RED);
+
+struct RectQuad
+{
+    Vector2 a, b, c, d;
+};
+
+// problem drawing ui quads is that there's a gap between the 2 quads connected
+RectQuad quadList[2] =
+{
+    // a0, b0, c0, d0
+    { Vector2(110.008f, 116.000f), Vector2(196.595f, 116.192f), Vector2(109.991f, 323.999f), Vector2(196.684f, 324.191f) },
+
+    // a1, b1, c1, d1 where a1 = b0, c1 = d0
+    { Vector2(196.595f, 116.192f), Vector2(260.244f, 114.675f), Vector2(196.684f, 324.191f), Vector2(261.163f, 322.588f) },
+};
+
+for ( int i = 0; i &lt; 2; ++i )
+{
+    uiQuad-&gt;AddQuad(quadList[i].a, quadList[i].b, quadList[i].c, quadList[i].d );
+}
+</code></pre>
+<p>}</p>
+<p>void UIDrag::CreateInstructions()<br/>
+{<br/>
+}</p>
+<p>void UIDrag::SubscribeToEvents()<br/>
+{<br/>
+SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(UIDrag, HandleUpdate));<br/>
+}</p>
+<p>void UIDrag::HandleDragBegin(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+using namespace DragBegin;<br/>
+Button* element = (Button*)eventData[P_ELEMENT].GetVoidPtr();</p>
+<pre><code>int lx = eventData[P_X].GetInt();
+int ly = eventData[P_Y].GetInt();
+
+IntVector2 p = element-&gt;GetPosition();
+element-&gt;SetVar("START", p);
+element-&gt;SetVar("DELTA", IntVector2(p.x_ - lx, p.y_ - ly));
+
+int buttons = eventData[P_BUTTONS].GetInt();
+element-&gt;SetVar("BUTTONS", buttons);
+
+Text* t = (Text*)element-&gt;GetChild(String("Text"));
+t-&gt;SetText("Drag Begin Buttons: " + String(buttons));
+
+t = (Text*)element-&gt;GetChild(String("Num Touch"));
+t-&gt;SetText("Number of buttons: " + String(eventData[P_NUMBUTTONS].GetInt()));
+</code></pre>
+<p>}</p>
+<p>void UIDrag::HandleDragMove(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+using namespace DragBegin;<br/>
+Button* element = (Button*)eventData[P_ELEMENT].GetVoidPtr();<br/>
+int buttons = eventData[P_BUTTONS].GetInt();<br/>
+IntVector2 d = element-&gt;GetVar(“DELTA”).GetIntVector2();<br/>
+int X = eventData[P_X].GetInt() + d.x_;<br/>
+int Y = eventData[P_Y].GetInt() + d.y_;<br/>
+int BUTTONS = element-&gt;GetVar(“BUTTONS”).GetInt();</p>
+<pre><code>Text* t = (Text*)element-&gt;GetChild(String("Event Touch"));
+t-&gt;SetText("Drag Move Buttons: " + String(buttons));
+
+if (buttons == BUTTONS)
+    element-&gt;SetPosition(IntVector2(X, Y));
+</code></pre>
+<p>}</p>
+<p>void UIDrag::HandleDragCancel(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+using namespace DragBegin;<br/>
+Button* element = (Button*)eventData[P_ELEMENT].GetVoidPtr();<br/>
+IntVector2 P = element-&gt;GetVar(“START”).GetIntVector2();<br/>
+element-&gt;SetPosition§;<br/>
+}</p>
+<p>void UIDrag::HandleDragEnd(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+using namespace DragBegin;<br/>
+Button* element = (Button*)eventData[P_ELEMENT].GetVoidPtr();<br/>
+}</p>
+<p>void UIDrag::HandleUpdate(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+}</p>
+<p>//=============================================================================<br/>
+//=============================================================================<br/>
+void UIQuad::RegisterObject(Context* context)<br/>
+{<br/>
+context-&gt;RegisterFactory();</p>
+<pre><code>URHO3D_COPY_BASE_ATTRIBUTES(UIElement);
+</code></pre>
+<p>}</p>
+<p>UIQuad::UIQuad(Context *context)<br/>
+: UIElement(context)<br/>
+, blendMode_(BLEND_REPLACE)<br/>
+, imageRect_(IntRect::ZERO)<br/>
+{<br/>
+SetSize(1, 1);<br/>
+}</p>
+<p>UIQuad::~UIQuad()<br/>
+{<br/>
+}</p>
+<p>void UIQuad::GetBatches(PODVector&amp; batches, PODVector&amp; vertexData, const IntRect&amp; currentScissor)<br/>
+{<br/>
+for ( unsigned i = 0; i &lt; batches_.Size(); ++i )<br/>
+{<br/>
+UIBatch &amp;batch     = batches_[ i ];<br/>
+unsigned beg       = batch.vertexStart_;<br/>
+unsigned end       = batch.vertexEnd_;<br/>
+batch.vertexStart_ = vertexData.Size();<br/>
+batch.vertexEnd_   = vertexData.Size() + (end - beg);</p>
+<pre><code>    vertexData.Resize( batch.vertexEnd_ );
+    memcpy( &amp;vertexData[ batch.vertexStart_ ], &amp;vertexData_[ beg ], (end - beg) * sizeof(float) );
+
+    UIBatch::AddOrMerge( batch, batches );
+
+    // restore
+    batch.vertexStart_ = beg;
+    batch.vertexEnd_   = end;
+}
+</code></pre>
+<p>}</p>
+<p>void UIQuad::SetTexture(Texture* texture)<br/>
+{<br/>
+texture_ = texture;<br/>
+invTextureWidth_ = 1.0f/(float)texture_-&gt;GetWidth();<br/>
+invTextureHeight_ = 1.0f/(float)texture_-&gt;GetHeight();<br/>
+}</p>
+<p>void UIQuad::ClearBatches()<br/>
+{<br/>
+vertexData_.Clear();<br/>
+batches_.Clear();<br/>
+}</p>
+<p>void UIQuad::AddQuad(Vector2 &amp;a, Vector2 &amp;b, Vector2 &amp;c, Vector2 &amp;d)<br/>
+{<br/>
+struct VertexData<br/>
+{<br/>
+float x;<br/>
+float y;<br/>
+float u;<br/>
+float v;<br/>
+Color col;<br/>
+};</p>
+<pre><code>VertexData ver[6];
+
+ver[0].x = a.x_;
+ver[0].y = a.y_;
+ver[0].u = (float)imageRect_.left_ * invTextureWidth_;
+ver[0].v = (float)imageRect_.top_ * invTextureHeight_;
+ver[0].col = color_[C_TOPLEFT];
+ver[1].x = b.x_;
+ver[1].y = b.y_;
+ver[1].u = (float)imageRect_.right_ * invTextureWidth_;
+ver[1].v = (float)imageRect_.top_ * invTextureHeight_;
+ver[1].col = color_[C_TOPRIGHT];
+ver[2].x = d.x_;
+ver[2].y = d.y_;
+ver[2].u = (float)imageRect_.right_ * invTextureWidth_;
+ver[2].v = (float)imageRect_.bottom_ * invTextureHeight_;
+ver[2].col = color_[C_BOTTOMRIGHT];
+
+ver[3].x = a.x_;
+ver[3].y = a.y_;
+ver[3].u = (float)imageRect_.left_ * invTextureWidth_;
+ver[3].v = (float)imageRect_.top_ * invTextureHeight_; 
+ver[3].col = color_[C_TOPLEFT];
+ver[4].x = d.x_;
+ver[4].y = d.y_;
+ver[4].u = (float)imageRect_.right_ * invTextureWidth_;  
+ver[4].v = (float)imageRect_.bottom_ * invTextureHeight_;
+ver[4].col = color_[C_BOTTOMRIGHT];
+ver[5].x = c.x_;
+ver[5].y = c.y_;
+ver[5].u = (float)imageRect_.left_ * invTextureWidth_;  
+ver[5].v = (float)imageRect_.bottom_ * invTextureHeight_;
+ver[5].col = color_[C_BOTTOMRIGHT];
+
+// scissor min/max
+int minx =  M_MAX_INT, miny =  M_MAX_INT;
+int maxx = -M_MAX_INT, maxy = -M_MAX_INT;
+
+for ( int i = 0; i &lt; 6; ++i )
+{
+    if ((int)ver[i].x &lt; minx ) minx = (int)ver[i].x;
+    if ((int)ver[i].x &gt; maxx ) maxx = (int)ver[i].x;
+    if ((int)ver[i].y &lt; miny ) miny = (int)ver[i].y;
+    if ((int)ver[i].y &gt; maxy ) maxy = (int)ver[i].y;
+}
+
+IntRect scissor(minx, miny, maxx, maxy);
+UIBatch batch( this, blendMode_, scissor, texture_, &amp;vertexData_ );
+
+unsigned begin = batch.vertexData_-&gt;Size();
+batch.vertexData_-&gt;Resize(begin + 6*UI_VERTEX_SIZE);
+float* dest = &amp;(batch.vertexData_-&gt;At(begin));
+
+// set start/end
+batch.vertexStart_ = begin;
+batch.vertexEnd_   = batch.vertexData_-&gt;Size();
+
+for ( int i = 0; i &lt; 6; ++i )
+{
+    dest[0+i*UI_VERTEX_SIZE]              = ver[i].x; 
+    dest[1+i*UI_VERTEX_SIZE]              = ver[i].y; 
+    dest[2+i*UI_VERTEX_SIZE]              = 0.0f;
+    ((unsigned&amp;)dest[3+i*UI_VERTEX_SIZE]) = ver[i].col.ToUInt();
+    dest[4+i*UI_VERTEX_SIZE]              = ver[i].u; 
+    dest[5+i*UI_VERTEX_SIZE]              = ver[i].v;
+}
+
+UIBatch::AddOrMerge( batch, batches_ );
+</code></pre>
+<p>}[/code][/spoiler]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Nvm, just figured it out.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

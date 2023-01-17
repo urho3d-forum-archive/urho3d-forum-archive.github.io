@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Draggable/resizable auxiliary viewport</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Draggable/resizable auxiliary viewport</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Code sample to create a draggable/resizable auxiliary viewport.</p>
+<p>Steps:<br/>
+- Create a Window<br/>
+- Subscribe to DragMove event<br/>
+- Apply Window’s position/size to viewport<br/>
+Note that I’ve assumed that using DragMove event is better than using Update event.</p>
+<p>Can be tested with example 09_MultipleViewports.</p>
+<p>Lua</p>
+<p>[spoiler]At the end of SetupViewports():</p>
+<pre><code class="lang-auto">	-- Create an invisible/draggable/resizable Window for Viewport#1
+	camWindow = ui.root:CreateChild("Window", "CamWindow")
+	local rect = renderer:GetViewport(1).rect -- Get Viewport#1's IntRect
+	camWindow:SetPosition(rect.left, rect.top)
+	camWindow:SetSize(rect.size)
+	ui.root.defaultStyle = cache:GetResource("XMLFile", "UI/DefaultStyle.xml")
+	camWindow:SetStyleAuto()
+	camWindow.imageRect = IntRect(48, 16, 64, 32) -- Apply a transparent frame
+	if GetPlatform() == "Android" or GetPlatform() == "iOS" then camWindow.resizeBorder = IntRect(20, 20, 20, 20) end -- Increase resize borders on mobiles to ease edges' grabbing
+	camWindow.opacity = 0.5 -- Hide Window (partially or fully)
+	camWindow.movable = true
+	camWindow.resizable = true
+	-- Subscribe to DragMove event
+	SubscribeToEvent(camWindow, "DragMove", "HandleDragMoveViewport")
+	-- Create a mouse cursor
+	input.mouseVisible = true
+	local style = cache:GetResource("XMLFile", "UI/DefaultStyle.xml")
+	local cursor = ui.root:CreateChild("Cursor")
+	cursor:SetStyleAuto(style)
+	ui.cursor = cursor
+	cursor:SetPosition(graphics.width / 2, graphics.height / 2)</code></pre>
+<p>At the end of file:</p>
+<p><code>
+function HandleDragMoveViewport(eventType, eventData)
+	local draggedElement = eventData:GetPtr("UIElement", "Element") -- Get the dragged UI element (camWindow)
+	local posX=draggedElement.position.x -- Get current Window left position
+	local posY=draggedElement.position.y -- Get current Window top position
+	renderer:GetViewport(1):SetRect(IntRect(posX, posY, posX + draggedElement.width, posY + draggedElement.height))
+end
+</code>[/spoiler]</p>
+<p>AngelScript</p>
+<p>[spoiler]At the end of SetupViewports():</p>
+<pre><code class="lang-auto">	// Create an invisible/draggable/resizable Window for Viewport#1
+	Window@ camWindow = ui.root.CreateChild("Window", "CamWindow");
+	IntRect rect = renderer.viewports[1].rect; // Get Viewport#1's IntRect
+	camWindow.SetPosition(rect.left, rect.top);
+	camWindow.SetSize(rect.width, rect.height); // rect.size doesn't work
+	ui.root.defaultStyle = cache.GetResource("XMLFile", "UI/DefaultStyle.xml");
+	camWindow.SetStyleAuto();
+	//camWindow.imageRect = IntRect(48, 16, 64, 32); // TODO: Apply a transparent frame (currently don't know how to access Window's BorderImage from script)
+	if (GetPlatform() == "Android" || GetPlatform() == "iOS") camWindow.resizeBorder = IntRect(20, 20, 20, 20); // Increase resize borders on mobiles to ease edges' grabbing
+	camWindow.opacity = 0.5; // Hide Window (partially or fully)
+	camWindow.movable = true;
+	camWindow.resizable = true;
+	// Subscribe to drag events
+	SubscribeToEvent(camWindow, "DragMove", "HandleDragMoveViewport");
+	// Create a mouse cursor
+	XMLFile@ style = cache.GetResource("XMLFile", "UI/DefaultStyle.xml");
+	Cursor@ cursor = Cursor();
+	cursor.SetStyleAuto(style);
+	ui.cursor = cursor;
+	cursor.SetPosition(graphics.width / 2, graphics.height / 2);</code></pre>
+<p>At the end of file:</p>
+<p><code>
+void HandleDragMoveViewport(StringHash eventType, VariantMap&amp; eventData)
+{
+	UIElement@ draggedElement = eventData["Element"].GetPtr(); // Get the dragged UI element (camWindow)
+	int posX=draggedElement.position.x; // Get current Window left position
+	int posY=draggedElement.position.y; // Get current Window top position
+	renderer.viewports[1].rect = IntRect(posX, posY, posX + draggedElement.width, posY + draggedElement.height);
+}
+</code>[/spoiler]</p>
+<p>C++</p>
+<p>[spoiler]In MultipleViewports.h:</p>
+<ul>
+<li>Add ‘class Window;’ to namespace Urho3D</li>
+<li>Add new function in private:</li>
+</ul>
+<pre><code class="lang-auto">    /// Handle auxiliary viewport drag/resize.
+    void HandleDragMoveViewport(StringHash eventType, VariantMap&amp; eventData);</code></pre>
+<p>In MultipleViewports.cpp:</p>
+<p>Includes:</p>
+<pre><code class="lang-auto">#include "Rect.h"
+#include "UIElement.h"
+#include "UIEvents.h"
+#include "Window.h"</code></pre>
+<p>At the end of MultipleViewports::SetupViewports()</p>
+<pre><code class="lang-auto">	// Create an invisible/draggable/resizable Window for Viewport#1
+	UI* ui = GetSubsystem&lt;UI&gt;();
+	Window* camWindow = new Window(context_);
+    ui-&gt;GetRoot()-&gt;AddChild(camWindow);
+	IntRect rect = renderer-&gt;GetViewport(1)-&gt;GetRect(); // Get Viewport#1's IntRect
+	camWindow-&gt;SetPosition(rect.left_, rect.top_);
+	camWindow-&gt;SetSize(rect.Size());
+	XMLFile* style = cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml");
+	camWindow-&gt;SetStyleAuto(style);
+	camWindow-&gt;SetImageRect(IntRect(48, 16, 64, 32)); // Apply a transparent frame
+	if (GetPlatform() == "Android" || GetPlatform() == "iOS") camWindow-&gt;SetResizeBorder(IntRect(20, 20, 20, 20)); // Increase resize borders on mobiles to ease edges' grabbing
+	camWindow-&gt;SetOpacity(0.5); // Hide Window (partially or fully)
+	camWindow-&gt;SetMovable(true);
+	camWindow-&gt;SetResizable(true);
+	// Subscribe to DragMove event
+	SubscribeToEvent(camWindow, E_DRAGMOVE, HANDLER(MultipleViewports, HandleDragMoveViewport));
+	// Create a mouse cursor
+    SharedPtr&lt;Cursor&gt; cursor(new Cursor(context_));
+    cursor-&gt;SetStyleAuto(style);
+    ui-&gt;SetCursor(cursor);
+    cursor-&gt;SetPosition(graphics-&gt;GetWidth() / 2, graphics-&gt;GetHeight() / 2);</code></pre>
+<p>At the end of file:</p>
+<p><code>
+void MultipleViewports::HandleDragMoveViewport(StringHash eventType, VariantMap&amp; eventData)
+{
+	UIElement* draggedElement = static_cast&lt;UIElement*&gt;(eventData["Element"].GetPtr()); // Get the dragged UI element (camWindow)
+	int posX=draggedElement-&gt;GetPosition().x_; // Get current Window left position
+	int posY=draggedElement-&gt;GetPosition().y_; // Get current Window top position
+	GetSubsystem&lt;Renderer&gt;()-&gt;GetViewport(1)-&gt;SetRect(IntRect(posX, posY, posX + draggedElement-&gt;GetWidth() , posY + draggedElement-&gt;GetHeight()));
+}
+</code>[/spoiler]</p>
+<p>EDIT: added optional transparent Border frame and made edges’ grabbing easier on mobiles.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Camera follow ball</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Camera follow ball</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I have an issue that I can’t fix. I have a 3D ball which I move by applying forces.<br/>
+The problem is the camera. I can’t make it following the ball without rotating.</p>
+<pre><code class="lang-auto">void Sample::HandlePostUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    Node* ballNode = objectNode;
+
+    const float CAMERA_MIN_DIST = 1.0f;
+    const float CAMERA_INITIAL_DIST = 5.0f;
+    const float CAMERA_MAX_DIST = 20.0f;
+
+    Quaternion dir(ballNode-&gt;GetRotation().YawAngle(), Vector3::UP);
+    dir = dir * Quaternion(yaw_, Vector3::UP);
+    dir = dir * Quaternion(pitch_, Vector3::RIGHT);
+
+    Quaternion rot = ballNode-&gt;GetRotation();
+
+    Vector3 cameraTargetPos = ballNode-&gt;GetPosition() -dir * Vector3(0.0f, 0.0f, 10.f);
+    Vector3 cameraStartPos = ballNode-&gt;GetPosition();
+    
+    Ray cameraRay(cameraStartPos, cameraTargetPos - cameraStartPos);
+    float cameraRayLength = (cameraTargetPos - cameraStartPos).Length();
+    PhysicsRaycastResult result;
+    scene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;RaycastSingle(result, cameraRay, cameraRayLength, 2);
+    if (result.body_)
+        cameraTargetPos = cameraStartPos + cameraRay.direction_ * (result.distance_ - 0.5f);
+
+    cameraNode_-&gt;SetPosition(cameraTargetPos);
+    cameraNode_-&gt;SetRotation(dir);
+}</code></pre>
+<p>Controls seems also inverted.<br/>
+yaw_ and pitch_ are related to the camera.</p>
+<p>Trying to get something similar to this:<br/>
+<a href="https://www.youtube.com/watch?v=KAgIJcHNE4s" rel="nofollow noopener">youtube.com/watch?v=KAgIJcHNE4s</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/994_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">magic.lixin</div>
+          <div class="post_content">
+<p>just use Node::LookAt</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Solved the problem partially by creating the camera node as subnode and adding an offset to make it behind the ball.<br/>
+Now the problem is the raycast since the camera have local coords.</p>
+<p>Summarizing I have:<br/>
+-ObjectNode (Global)<br/>
+-CameraNode (Local coords)<br/>
+-Camera pitch &amp; yaw</p>
+<p>How can I solve raycasting?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Have you looked at those Urho3D samples that have camera control? The character demo and vehicle demo, for example. Both use raycast too.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Tried the code from Vehicle sample but since the ball have no constraints (freedom on all axis) the camera rotates when the ball rotate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You should be able to ignore the ball’s rotation. Do not even parent to it, just get its world position each frame and calculate camera position backward from it (+ camera direction) according to your mouse look yaw &amp; pitch parameters, and the desired distance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>But how to avoid camera looking inside terrain or other static objects?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Change the camera distance (or otherwise the position, however you like) if you get a raycast hit inside scenery. VehicleDemo, CharacterDemo, NinjaSnowWar all do this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Some games do also give the camera a collider or make it a full physical object.</p>
+<p>I heard from an interesting bug in a RTS game where the camera was a destructible(!) object. When the player looked at an explosion from too close the camera “object” was destroyed and the camera could no longer be moved  <img alt=":unamused:" class="emoji" src="../../../images2/21382c100a852239caa7667da5bafe68.png" title=":unamused:"/> .</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Vehicle demo suffers from the same issue. I replaced the vehicle with a sphere.</p>
+<p>You can check by replacing Vehicle script object at the end of 19_VehicleDemo.as</p>
+<pre><code class="lang-auto">class Vehicle : ScriptObject
+{
+    RigidBody@ hullBody;
+
+    // Vehicle controls.
+    Controls controls;
+
+    void Load(Deserializer&amp; deserializer)
+    {
+        controls.yaw = deserializer.ReadFloat();
+        controls.pitch = deserializer.ReadFloat();
+    }
+
+    void Save(Serializer&amp; serializer)
+    {
+        serializer.WriteFloat(controls.yaw);
+        serializer.WriteFloat(controls.pitch);
+    }
+
+    void Init()
+    {
+        // This function is called only from the main program when initially creating the vehicle, not on scene load
+        StaticModel@ hullObject = node.CreateComponent("StaticModel");
+        hullBody = node.CreateComponent("RigidBody");
+        CollisionShape@ hullShape = node.CreateComponent("CollisionShape");
+
+        node.scale = Vector3(1.f, 1.0f, 1.0f);
+        hullObject.model = cache.GetResource("Model", "Models/Sphere.mdl");
+        hullObject.material = cache.GetResource("Material", "Materials/Stone.xml");
+        hullObject.castShadows = true;
+        hullShape.SetSphere(1.f);
+        hullBody.mass = 5.0f;
+        hullBody.linearDamping = 0.2f; // Some air resistance
+        hullBody.angularDamping = 0.5f;
+        hullBody.collisionLayer = 1;
+        hullBody.friction = 5.f;
+    }
+
+    void FixedUpdate(float timeStep)
+    {
+        float newSteering = 0.0f;
+        float accelerator = 0.0f;
+
+        if (controls.IsDown(CTRL_FORWARD))
+        {
+            Quaternion dir(controls.yaw, Vector3(0.0f, 1.0f, 0.0f));
+            hullBody.ApplyImpulse(dir * Vector3(0.0f, 0.0f, 1.0f) * .3f);
+        }
+        if (controls.IsDown(CTRL_BACK))
+        {
+            Quaternion dir(controls.yaw, Vector3(0.0f, 1.0f, 0.0f));
+            hullBody.ApplyImpulse(dir * Vector3(0.0f, 0.0f, -1.0f) * .3f);
+        }
+        if (controls.IsDown(CTRL_LEFT))
+        {
+            Quaternion dir(controls.yaw, Vector3(0.0f, 1.0f, 0.0f));
+            hullBody.ApplyImpulse(dir * Vector3(-1.0f, 0.0f, 0.0f) * .3f);
+        }
+        if (controls.IsDown(CTRL_RIGHT))
+        {
+            Quaternion dir(controls.yaw, Vector3(0.0f, 1.0f, 0.0f));
+            hullBody.ApplyImpulse(dir * Vector3(1.0f, 0.0f, 0.0f) * .3f);
+        }
+
+        // Apply downforce proportional to velocity
+        Vector3 localVelocity = hullBody.rotation.Inverse() * hullBody.linearVelocity;
+        hullBody.ApplyForce(hullBody.rotation * Vector3(0.0f, -1.0f, 0.0f) * Abs(localVelocity.z) * DOWN_FORCE);
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

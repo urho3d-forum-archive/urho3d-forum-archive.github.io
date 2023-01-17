@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Why don’t 2D bodies with a ConstraintPrismatic2D collide in Urho3D despite SetCollideConnected(true)?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Why don’t 2D bodies with a ConstraintPrismatic2D collide in Urho3D despite SetCollideConnected(true)?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/923_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cirosantilli</div>
+          <div class="post_content">
+<p>This is a copy of <a href="https://discourse.urho3d.io/t/why-dont-2d-bodies-with-a-constraintprismatic2d-collide-in-urho3d-despite-setcollideconnected-true-ask-question/3840">https://discourse.urho3d.io/t/why-dont-2d-bodies-with-a-constraintprismatic2d-collide-in-urho3d-despite-setcollideconnected-true-ask-question/3840</a> with everything inlined here to remove any political references.</p>
+<p>For other types of constraints, e.g. <code>ConstraintRope2D</code>, <code>SetCollideConnected(true)</code> has the expected effect.</p>
+<p>However, for <code>ConstraintPrismatic2D</code>, I can’t make the bodies collide when the constraint is applied.</p>
+<p>To test this out, take 5e8a2756db27ff88098cab351822c6f2f1ed9ea9 and hack the sample <code>Source/Samples/32_Urho2DConstraints/Urho2DConstraints.cpp</code> so that the prismatic constraint allows both bodies to touch:</p>
+<pre><code>// Create a ConstraintPrismatic2D
+CreateFlag("ConstraintPrismatic2D", 2.53f, 3.0f); // Display Text3D flag
+Node* boxPrismaticNode = box-&gt;Clone();
+tempBody = boxPrismaticNode-&gt;GetComponent&lt;RigidBody2D&gt;(); // Get body to make it static
+tempBody-&gt;SetBodyType(BT_STATIC);
+Node* ballPrismaticNode = ball-&gt;Clone();
+boxPrismaticNode-&gt;SetPosition(Vector3(3.3f, 2.5f, 0.0f));
+ballPrismaticNode-&gt;SetPosition(Vector3(3.3f, 2.0f, 0.0f));
+
+ConstraintPrismatic2D* constraintPrismatic = boxPrismaticNode-&gt;CreateComponent&lt;ConstraintPrismatic2D&gt;();
+constraintPrismatic-&gt;SetOtherBody(ballPrismaticNode-&gt;GetComponent&lt;RigidBody2D&gt;()); // Constrain ball to box
+constraintPrismatic-&gt;SetAxis(Vector2(0.0f, 1.0f)); // Slide from [0,0] to [1,1]
+constraintPrismatic-&gt;SetAnchor(Vector2(3.3f, 2.5f));
+constraintPrismatic-&gt;SetLowerTranslation(-1.0f);
+constraintPrismatic-&gt;SetUpperTranslation(0.5f);
+constraintPrismatic-&gt;SetEnableLimit(true);
+constraintPrismatic-&gt;SetMaxMotorForce(1.0f);
+constraintPrismatic-&gt;SetMotorSpeed(0.0f);
+constraintPrismatic-&gt;SetCollideConnected(true);
+</code></pre>
+<p>Now, the anchor and dynamic bodies can be superposed with the mouse, and they don’t collide despite <code>constraintPrismatic-&gt;SetCollideConnected(true);</code>.</p>
+<p>I have also uploaded a minimalistic test on GitHub: <a href="https://github.com/cirosantilli/Urho3D-cheat/blob/e6cc904660fcf89ec558415d7da1f191f38b42f1/prismatic_collide_connected.cpp" rel="nofollow noopener">https://github.com/cirosantilli/Urho3D-cheat/blob/e6cc904660fcf89ec558415d7da1f191f38b42f1/prismatic_collide_connected.cpp</a></p>
+<p>Collision works as expected for <code>ConstraintRope2D</code>, which has <code>SetCollideConnected(true);</code> set by default, in the same example if you move the bodies with the mouse.</p>
+<p>If I test the same thing on the Box2D testbed, by hacking the <code>Prismatic.h</code> testbed example at f655c603ba9d83f07fc566d38d2654ba35739102<br/>
+slightly to contain:</p>
+<pre><code>#ifndef PRISMATIC_H
+#define PRISMATIC_H
+
+// The motor in this test gets smoother with higher velocity iterations.
+class Prismatic : public Test
+{
+public:
+	Prismatic()
+	{
+		b2Body* ground = NULL;
+		{
+			b2BodyDef bd;
+			ground = m_world-&gt;CreateBody(&amp;bd);
+
+			b2EdgeShape shape;
+			shape.Set(b2Vec2(-40.0f, 0.0f), b2Vec2(40.0f, 0.0f));
+			ground-&gt;CreateFixture(&amp;shape, 0.0f);
+		}
+
+		{
+			b2PolygonShape shape;
+			shape.SetAsBox(1.0f, 1.0f);
+
+			b2BodyDef bd;
+			bd.type = b2_dynamicBody;
+			bd.position.Set(0.0f, 0.0f);
+			bd.angle = b2_pi;
+			bd.allowSleep = false;
+			b2Body* body = m_world-&gt;CreateBody(&amp;bd);
+			body-&gt;CreateFixture(&amp;shape, 5.0f);
+
+			b2PrismaticJointDef pjd;
+
+			// Bouncy limit
+			b2Vec2 axis(0.0f, 1.0f);
+			axis.Normalize();
+			pjd.Initialize(ground, body, b2Vec2(0.0f, 0.0f), axis);
+
+			// Non-bouncy limit
+			//pjd.Initialize(ground, body, b2Vec2(-10.0f, 10.0f), b2Vec2(1.0f, 0.0f));
+
+			pjd.motorSpeed = 10.0f;
+			pjd.maxMotorForce = 10000.0f;
+			pjd.enableMotor = true;
+			pjd.lowerTranslation = -20.0f;
+			pjd.upperTranslation = 20.0f;
+			pjd.enableLimit = true;
+			pjd.collideConnected = true;
+
+			m_joint = (b2PrismaticJoint*)m_world-&gt;CreateJoint(&amp;pjd);
+		}
+	}
+
+	void Keyboard(int key)
+	{
+		switch (key)
+		{
+		case GLFW_KEY_L:
+			m_joint-&gt;EnableLimit(!m_joint-&gt;IsLimitEnabled());
+			break;
+
+		case GLFW_KEY_M:
+			m_joint-&gt;EnableMotor(!m_joint-&gt;IsMotorEnabled());
+			break;
+
+		case GLFW_KEY_S:
+			m_joint-&gt;SetMotorSpeed(-m_joint-&gt;GetMotorSpeed());
+			break;
+		}
+	}
+
+	void Step(Settings* settings)
+	{
+		Test::Step(settings);
+		g_debugDraw.DrawString(5, m_textLine, "Keys: (l) limits, (m) motors, (s) speed");
+		m_textLine += DRAW_STRING_NEW_LINE;
+		float32 force = m_joint-&gt;GetMotorForce(settings-&gt;hz);
+		g_debugDraw.DrawString(5, m_textLine, "Motor Force = %4.0f", (float) force);
+		m_textLine += DRAW_STRING_NEW_LINE;
+	}
+
+	static Test* Create()
+	{
+		return new Prismatic;
+	}
+
+	b2PrismaticJoint* m_joint;
+};
+
+#endif
+</code></pre>
+<p>then those bodies do obey <code>pjd.collideConnected = true;</code> as expected.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

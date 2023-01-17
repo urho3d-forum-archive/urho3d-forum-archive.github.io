@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Pistons in Urho</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Pistons in Urho</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I’m thinking about how to make a 3d piston work with physics. Basically, a piston connecting two seperate rigid bodies which can push them away and draw them near. There are no slider constraints for 3d. I tried simply adjusting a constraint’s world positions (using a hinge constraint with zeroed high/low limits) but that doesn’t push the bodies apart, it simply moves the anchor point, as seen in debug renderer.<br/>
+Anyone have an idea? Feels wasteful to destroy the joint, apply force to the bodies, and recreate the joint.</p>
+<p>Maybe it could be done with specifically controlled and hidden hinge joints. I might try this. So green is the piston, connecting two box models, sticks/circles are hinges. Piston is only a static model with animation, no rigid body. Might work.<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screenshot_20210731-233634_PENUP"><img alt="Screenshot_20210731-233634_PENUP" data-base62-sha1="vsg8HP5CVBY9YrJNL5miyjduGxT"  height="500" src="../../../images2/a9d72daa6aa9060491c173a7b769533c.jpeg"  width="343"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot_20210731-233634_PENUP</span><span class="informations">1436×2092 134 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I’m pretty sure there are slider constraints. At least in some versions of Bullet.</p>
+<p><a class="onebox" href="https://docs.panda3d.org/1.10/python/programming/physics/bullet/constraints" rel="noopener nofollow ugc" target="_blank">https://docs.panda3d.org/1.10/python/programming/physics/bullet/constraints</a></p>
+<p>Edit:</p>
+<p>Definitely Urho’s version as well:</p>
+<aside class="onebox allowlistedgeneric" data-onebox-src="https://urho3d.io/documentation/HEAD/_constraint_8h.html#a5c5622ec0bb151f27185a4902ff1a4c2">
+<header class="source">
+<a href="https://urho3d.io/documentation/HEAD/_constraint_8h.html#a5c5622ec0bb151f27185a4902ff1a4c2" rel="noopener nofollow ugc" target="_blank">Urho3D</a>
+</header>
+<article class="onebox-body">
+<h3><a href="https://urho3d.io/documentation/HEAD/_constraint_8h.html#a5c5622ec0bb151f27185a4902ff1a4c2" rel="noopener nofollow ugc" target="_blank">Source/Urho3D/Physics/Constraint.h File Reference</a></h3>
+<p>Urho3D is a free lightweight, cross-platform 2D and 3D game engine implemented in C++ and released under the MIT license. Greatly inspired by OGRE and Horde3D.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I stand corrected. I guess I didn’t check the api and probably was confusing Weld and Sliders. There’s no Weld constraint. Well, good. I’ll just use the slider, then. Can’t believe I missed that. Thanks, you probably saved me a few hours of messing with hinges before realizing I didn’t need to.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>A weld is a fixed constraint. Adding it is pretty much just:</p>
+<p>CreateConstraint()</p>
+<pre><code class="lang-auto">    case CONSTRAINT_FIXED:
+    {
+        btTransform ownFrame(ToBtQuaternion(rotation_), ToBtVector3(ownBodyScaledPosition));
+        btTransform otherFrame(ToBtQuaternion(otherRotation_), ToBtVector3(otherBodyScaledPosition));
+        constraint_ = new btFixedConstraint(*ownBody, *otherBody, ownFrame, otherFrame);
+    } break;
+</code></pre>
+<p>ApplyFrames()</p>
+<pre><code class="lang-auto">    case FIXED_CONSTRAINT_TYPE:
+    {
+        auto* c = static_cast&lt;btFixedConstraint*&gt;(constraint_.Get());
+        btTransform ownFrame(ToBtQuaternion(rotation_), ToBtVector3(ownBodyScaledPosition));
+        btTransform otherFrame(ToBtQuaternion(otherRotation_), ToBtVector3(otherBodyScaledPosition));
+        c-&gt;setFrames(ownFrame, otherFrame);
+    } break;
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Well Im doing scripting and it wasnt under constraint types is what I meant. Basically I do hinges with 0 lowlimit/highlimit and axis. Seems to work. Should/can I switch to what you said?<br/>
+Or in most cases I child one of the nodes and add matching collision shapes and bodies to just one.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

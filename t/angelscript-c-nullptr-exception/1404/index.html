@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Angelscript + C++. Nullptr exception</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Angelscript + C++. Nullptr exception</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<p>I created scene in the editor and try to load it. I have followed AngelScript file, that does not want to work.</p>
+<p>First, I load the scene like this</p>
+<p>[code]   SharedPtr file = g_pApp-&gt;GetConstantResCache()-&gt;GetFile(levelResource);<br/>
+m_pScene = new Scene(context_);<br/>
+m_pScene-&gt;LoadXML(*level);</p>
+<pre><code>m_pCameraNode = m_pScene-&gt;CreateChild("MainCamera");
+m_pCameraNode-&gt;CreateComponent&lt;Camera&gt;();
+
+// Set an initial position for the camera scene node above the plane
+m_pCameraNode-&gt;SetPosition(Vector3(0.0f, 2.0f, -10.0f));
+SharedPtr&lt;Viewport&gt; viewport(new Viewport(context_, m_pScene, m_pCameraNode-&gt;GetComponent&lt;Camera&gt;()));
+m_pRenderer-&gt;SetViewport(1, viewport);
+</code></pre>
+<p>[/code]</p>
+<ol start="2">
+<li>Then I have followed action script, which attachedto the object. All work fine, until I pressed space, in order to create prefab  and try to set initial impulse.</li>
+</ol>
+<p>[code]class Cannon : ScriptObject<br/>
+{<br/>
+if (input.keyDown[KEY_SPACE] &amp;&amp; shootDelay &lt;= 0.0f)<br/>
+{<br/>
+shootDelay = 1.0f;<br/>
+Shoot();<br/>
+AnimationController@ animCtrl = node.GetComponent(“AnimationController”);<br/>
+animCtrl.SetTime(“Models/Shoot.ani”, 0.0f);<br/>
+animCtrl.PlayExclusive(“Models/Shoot.ani”, 0, false, 0.0f);<br/>
+}<br/>
+}</p>
+<pre><code>void Shoot()
+{
+    Vector3 position = node.GetChild("CannonballPlace", true).worldPosition;
+
+    XMLFile@ xml = cache.GetResource("XMLFile", "Objects/Cannonball.xml");
+    Node@ newNode = scene.InstantiateXML(xml, position, Quaternion());
+    
+    RigidBody@ body = newNode.GetComponent("RigidBody");
+    body.ApplyImpulse(node.rotation * Vector3(0.0f, 1.0f, 0.0f) * 15.0f);
+}
+</code></pre>
+<p>}[/code]</p>
+<p>When I try to InstantiateXML, my program crashed and I have the following output.</p>
+<p><span class="bbcode-b">ERROR: Scripts/Cannon.as:47,13 - Exception ‘Null pointer access’ in 'void Cannon::Update(float)'<br/>
+AngelScript callstack:<br/>
+Scripts/Cannon.as:void Cannon::Update(float):47,13<br/>
+</span></p>
+<p>I have checked that all path are correct.</p>
+<p>How I can fix it ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<p>[quote=“Sinoid”]Are you using 1.4 or HEAD from git?</p>
+<p>Also, include the entire code from your Cannon.as file - or at least prefix the lines you do provide with their line numbers. Almost impossible to help with what you’ve given.[/quote]</p>
+<p>I am not quite sure, but I think I use 1.4 version. I just clone repository from <a  rel="nofollow noopener">github.com/urho3d/Urho3D</a>, and compiled it with vs2013. But, what is HEAD version ?</p>
+<p>I uploaded Cannon.as file below. I get error, when press space, like this</p>
+<p><span class="bbcode-b">[Sat Oct 03 09:51:27 2015] ERROR: Scripts/Cannon.as:19,9 - Exception ‘Null pointer access’ in ‘void Cannon::Shoot()’<br/>
+AngelScript callstack:<br/>
+Scripts/Cannon.as:void Cannon::Shoot():19,9<br/>
+Scripts/Cannon.as:void Cannon::Update(float):7,4<br/>
+</span></p>
+<p>Also I have checked, that if I comment <span class="bbcode-b">Shoot</span> function, animation works fine.</p>
+<p><img alt="" height="" src="../../../images2/4b29ea5ae69a3390a1a430b28d54f8db.png" width=""/></p>
+<p>UPDATED.</p>
+<p>I have written function Shoot() in C++. All works fine. So, there is problem with AngelScript, especially with InstantiateXML fucntion.  <img alt=":exclamation:" class="emoji" src="../../../images2/65073176cb6bc6f96079729d7cec5ae9.png" title=":exclamation:"/></p>
+<p><code>Vector3 pos = m_pScene-&gt;GetChild("CannonballPlace", true)-&gt;GetWorldPosition();
+			XMLFile* xml = g_pApp-&gt;GetConstantResCache()-&gt;GetResource&lt;XMLFile&gt;("Objects/Cannonball.xml");
+			Node* newNode = m_pScene-&gt;InstantiateXML(xml-&gt;GetRoot(), pos, Quaternion());
+			RigidBody* body = newNode-&gt;GetComponent&lt;RigidBody&gt;("RigidBody");
+			body-&gt;ApplyImpulse(m_pScene-&gt;GetChild("Cannon")-&gt;GetRotation() * Vector3(0.0f, 1.0f, 0.0f) * 15.0f);</code></p>
+<p>I tried to write in script <span class="bbcode-b">xml.root</span> too, but it failed anyway.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sinoid:</div>
+<blockquote>
+<p>[quote]I am not quite sure, but I think I use 1.4 version. I just clone repository from <a  rel="nofollow noopener">github.com/urho3d/Urho3D</a>, and compiled it with vs2013. But, what is HEAD version ?</p>
+</blockquote>
+</aside>
+<p>That would be HEAD/master. Angelscript was recently updated in master, I just needed to know whether you were using Angelscript 2.29 or 2.30.2.</p>
+<p>Everything appears to be fine with InstantiateXML.</p>
+<p>Can you post the XML of your Objects/Cannonball.xml that you’re trying to instantiate?[/quote]</p>
+<p>This is <span class="bbcode-b">Cannonball.xml </span>.</p>
+<p><code>&lt;?xml version="1.0"?&gt;
+&lt;node id="3"&gt;
+	&lt;attribute name="Is Enabled" value="true" /&gt;
+	&lt;attribute name="Name" value="Cannonball" /&gt;
+	&lt;attribute name="Position" value="0 3.5 3.5" /&gt;
+	&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+	&lt;attribute name="Scale" value="1 1 1" /&gt;
+	&lt;attribute name="Variables" /&gt;
+	&lt;component type="StaticModel" id="12"&gt;
+		&lt;attribute name="Model" value="Model;Models/Cannonball.mdl" /&gt;
+		&lt;attribute name="Material" value="Material;Materials/Cannonball.xml" /&gt;
+	&lt;/component&gt;
+	&lt;component type="ScriptInstance" id="14"&gt;
+		&lt;attribute name="Delayed Method Calls" value="0" /&gt;
+		&lt;attribute name="Script File" value="ScriptFile;Scripts/CannonBall.as" /&gt;
+		&lt;attribute name="Class Name" value="Dying" /&gt;
+		&lt;attribute name="time" value="0" /&gt;
+	&lt;/component&gt;
+	&lt;component type="CollisionShape" id="15"&gt;
+		&lt;attribute name="Shape Type" value="Sphere" /&gt;
+		&lt;attribute name="Size" value="0.8 0.5 1" /&gt;
+	&lt;/component&gt;
+	&lt;component type="RigidBody" id="16"&gt;
+		&lt;attribute name="Physics Position" value="0 3.5 3.5" /&gt;
+		&lt;attribute name="Mass" value="1" /&gt;
+	&lt;/component&gt;
+&lt;/node&gt;
+</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<p>From what I’m suspecting its either a null reference was returned for the rigid body when instantiated from xml or the Node@ reference held by the “node” attribute of the Canon ScriptClass was lost. Can you post the code of <a href="http://CanonBall.as" rel="nofollow noopener">CanonBall.as</a>, it might be a bit helpful.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/f4748da84624d02ddd97927fbea23bd6.png" width="20"/> Bluemoon:</div>
+<blockquote>
+<p>From what I’m suspecting its either a null reference was returned for the rigid body when instantiated from xml or the Node@ reference held by the “node” attribute of the Canon ScriptClass was lost. Can you post the code of <a href="http://CanonBall.as" rel="nofollow noopener">CanonBall.as</a>, it might be a bit helpful.</p>
+</blockquote>
+</aside>
+<p><span class="bbcode-b"><a href="http://CanonBall.as" rel="nofollow noopener">CanonBall.as</a></span></p>
+<p><code>
+class Dying : ScriptObject
+{
+    float time = 0.0f;
+    void Update(float timeStep)
+    {
+        time += timeStep;
+        if (time &gt; 10.0f)
+            node.Remove();
+    }
+}</code></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Loading resource after ReleaseRef() segfaults</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Loading resource after ReleaseRef() segfaults</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>In a previous question of mine (see <a data-bbcode="true" href="http://discourse.urho3d.io/t/when-are-resources-deallocated/1717/1">this thread</a>) I was told it was possible to call <span class="bbcode-b">cache-&gt;GetResource(“thingy.xml”)-&gt;ReleaseRef();</span>. It appears if you ReleaseRef() a resource after loading and using it, loading another resource of the same type will segfault.</p>
+<p><code>void App::Start()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    for(int i = 0; i &lt; 10; i++)
+    {
+        XMLFile* f = cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml");
+        f-&gt;GetRoot();     // segfaults for i=1, works at i=0
+        f-&gt;ReleaseRef();
+    }
+}</code></p>
+<p>Another, simpler example even:</p>
+<p><code>void App::Start()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    for(int i = 0; i &lt; 10; i++)
+    {
+        XMLFile* f = cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml"); // segfaults for i=1, works at i=0
+        f-&gt;ReleaseRef();
+    }
+}</code></p>
+<p>In the first case, GetRoot() fails because <span class="bbcode-b">document_</span> is NULL:</p>
+<p>[code]XMLElement XMLFile::GetRoot(const String&amp; name)<br/>
+{<br/>
+pugi::xml_node root = document_-&gt;first_child(); // document_ is NULL.</p>
+<pre><code>// SNIP
+</code></pre>
+<p>}[/code]</p>
+<p>In the second case, GetResource() fails because refCount_ is pointing to garbage:</p>
+<p>[code]void RefCounted::ReleaseRef()<br/>
+{<br/>
+assert(refCount_-&gt;refs_ &gt; 0); // refCount_ is 0x642f74656d6f002f (this is a garbage value)</p>
+<pre><code>// SNIP
+</code></pre>
+<p>}[/code]</p>
+<p>After some analysis, the reason is simple: ResourceCache isn’t notified of the resource being destroyed when manually calling ReleaseRef() on it, which means ResourceCache will continue to hold an invalid pointer to the destroyed resource.</p>
+<p>So what is the correct way of destroying a resource from the cache manually?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Calling ReleaseRef() manually when something is managed by shared pointers (such as the resource map of ResourceCache) is a bad idea, because it disturbs the pointers’ automated refcount management.</p>
+<p>The ResourceCache has the family of ReleaseResource() functions, please use these. In extreme situation use ResourceCache::GetAllResources() and const cast it as necessary so that you can modify the resource map directly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Also you can simply use the cache-&gt;GetTempResource() which won’t store the resource in the cache but only in a smart <a href="http://pointer.So" rel="nofollow noopener">pointer.So</a> once it goes out of scope it will be deleted.</p>
+<p><code>void App::Start()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    for(int i = 0; i &lt; 10; i++)
+    {
+        SharedPtr&lt;XMLFile&gt; f = cache-&gt;GetTempResource&lt;XMLFile&gt;("UI/DefaultStyle.xml");
+        // Do something with f 
+       // f will be deleted once goes out of scope... nothing to release here
+    }
+}</code></p>
+<aside class="quote">
+<blockquote>
+<p>It appears if you ReleaseRef() a resource after loading and using it, loading another resource of the same type will segfault.</p>
+</blockquote>
+</aside>
+<p>Well that’s exacly what should happen if you releaseRef().You should ALWAYS Release those refs that were prevoiusly AddRef()'d.</p>
+<p>[quote] XMLFile* f = cache-&gt;GetResource(“UI/DefaultStyle.xml”);<br/>
+f-&gt;ReleaseRef();[/quote]<br/>
+This is wrong since the only ref is stored by the ResourceCache and you releasing it.</p>
+<p>It was my fault…<img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> in the other topic i didn’t explaied Urho’s ref counting very well.<br/>
+So</p>
+<ol>
+<li>Call ReleaseRef() only if you AddRef() previously.</li>
+<li>The easiest way to get rid of unused resources is call cache-&gt;RemoveAllResources(). This will remove all resources with refCount == 1 (referenced only by the cache , not used elesewhere)</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

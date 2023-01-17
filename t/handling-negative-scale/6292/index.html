@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Handling negative scale</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Handling negative scale</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3871_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glebedev</div>
+          <div class="post_content">
+<p>In Urho3D the render code always respects culling set in the material.</p>
+<p>Batch::Prepare:</p>
+<pre><code>        CullMode effectiveCullMode = pass_-&gt;GetCullMode();
+    // Get cull mode from material if pass doesn't override it
+    if (effectiveCullMode == MAX_CULLMODES)
+        effectiveCullMode = isShadowPass ? material_-&gt;GetShadowCullMode() : material_-&gt;GetCullMode();
+</code></pre>
+<p>In Unity3D if Scale of an object is set to negative value so the object matrix changes handedness it flips culling mode (at least it looks like in). As a result an object with a scale (1,1,-1) still looks correct.</p>
+<p>Should Urho3D do the same thing?</p>
+<p>Or maybe I’m getting this wrong and there is another way to achieve same effect.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>This might be useful:</p>
+<aside class="quote" data-post="32" data-topic="6029">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/missing-faces-obj-to-mdl/6029/32">Missing faces .obj to .mdl</a> <a class="badge-wrapper bullet" href="/c/discussions/7"><span class="badge-category-bg" style="background-color: #25AAE2;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Discussions about using Urho3D.">Discussions</span></a>
+</div>
+<blockquote>
+    I think Dave’s on the right track. You can flip the normals in the vertex shader section of the LitSolid shader file, as an example: 
+void VS()
+{
+. . .
+  vec3 n = cCameraPos - worldPos;
+  if (dot(n, vNormal) &lt; 0.0)
+  {
+    vNormal *= -1.0;
+  }
+}
+
+Of course you’ll have to set cull=“none” in your material, as you’ve done previously. 
+Edit: It might be more convenient to write it as: 
+  vNormal = -vNormal;
+  </blockquote>
+</aside>
+<p>Maybe change the condition of the if-statement to one checking for a negative scale product of the ModelViewMatrix? …and then negate <code>vNormal</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3871_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glebedev</div>
+          <div class="post_content">
+<p>Something should be done on engine side to culling otherwise vertex shader won’t be executed. Actually this could be done in compute shader but there isn’t one available for all platforms <img alt=":frowning:" class="emoji" src="../../../images2/c383444e3b50f1554d2f21c7c206ca52.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="6292" data-username="Modanung">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5d066064059214c6e598dd0962f38c68.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>and then negate <code>vNormal</code></p>
+</blockquote>
+</aside>
+<p><code>vNormal</code> has nothing to do with the culling, so shaders are not a solution.</p>
+<p><span class="mention">@glebedev</span> culling is currently configured here:<br/>
+</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/97b09f848b9388c0b3cd116906cc0ab3b442ded0/Source/Urho3D/Graphics/Batch.cpp#L213</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="203" style="counter-reset: li-counter 202 ;">
+<li>}
+</li>
+<li>graphics-&gt;SetBlendMode(blend, pass_-&gt;GetAlphaToCoverage() || material_-&gt;GetAlphaToCoverage());
+</li>
+<li>graphics-&gt;SetLineAntiAlias(material_-&gt;GetLineAntiAlias());
+</li>
+<li>
+</li>
+<li>bool isShadowPass = pass_-&gt;GetIndex() == Technique::shadowPassIndex;
+</li>
+<li>CullMode effectiveCullMode = pass_-&gt;GetCullMode();
+</li>
+<li>// Get cull mode from material if pass doesn't override it
+</li>
+<li>if (effectiveCullMode == MAX_CULLMODES)
+</li>
+<li>    effectiveCullMode = isShadowPass ? material_-&gt;GetShadowCullMode() : material_-&gt;GetCullMode();
+</li>
+<li>
+</li>
+<li class="selected">renderer-&gt;SetCullMode(effectiveCullMode, camera);
+</li>
+<li>if (!isShadowPass)
+</li>
+<li>{
+</li>
+<li>    const BiasParameters&amp; depthBias = material_-&gt;GetDepthBias();
+</li>
+<li>    graphics-&gt;SetDepthBias(depthBias.constantBias_, depthBias.slopeScaledBias_);
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>// Use the "least filled" fill mode combined from camera &amp; material
+</li>
+<li>graphics-&gt;SetFillMode((FillMode)(Max(camera-&gt;GetFillMode(), material_-&gt;GetFillMode())));
+</li>
+<li>graphics-&gt;SetDepthTest(pass_-&gt;GetDepthTestMode());
+</li>
+<li>graphics-&gt;SetDepthWrite(pass_-&gt;GetDepthWrite() &amp;&amp; allowDepthWrite);
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>But the issue is that drawable scale is already lost at thus point, you only have an array of world transforms that may have different meanings depending on geometry type.<br/>
+What’s worse, you may have instancing enabled here, and you cannot render both inverted and normal geometry in one call.<br/>
+So if you want to do something, you have to do it somewhere before instancing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="6292" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p><code>vNormal</code> has nothing to do with the culling, so shaders are not a solution.</p>
+</blockquote>
+</aside>
+<p>Thanks, I’m spitting in the dark here. <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

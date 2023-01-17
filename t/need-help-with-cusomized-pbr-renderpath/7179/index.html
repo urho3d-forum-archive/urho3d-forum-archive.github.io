@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Need help with cusomized PBR renderpath</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Need help with cusomized PBR renderpath</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>So the question is quite complex. I tried to play with PBR materials and i really like the result. I decided to replace materials in my game with PBR materials (if all goes well).<br/>
+As you may know i’m working on a game that uses pre rendered backgrounds that requires very tricky and complex rendering to make it work. Previously (in ForwardHWDepth) i did work out how to render meshes into Depth map ONLY and even succeeded to make these DepthOnly meshes to cast and receive shadows.</p>
+<p>So far i managed to do almost the same with PBR (Rendering in depth only and casting shadows by these depth meshes are working) but i just can manage to figure out how to configure my technique to make these “Depth meshes” receive light and shadows.</p>
+<p>This is what i got so far.<br/>
+Modified version of PBRDeferredHWDepth.xml :</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="specular" sizedivisor="1 1" format="rgba16f" /&gt;
+    &lt;rendertarget name="albedo" sizedivisor="1 1" format="rgba16f" /&gt;
+    &lt;rendertarget name="normal" sizedivisor="1 1" format="rgba16f" /&gt;
+    &lt;rendertarget name="depth" sizedivisor="1 1" format="readabledepth" /&gt;
+    &lt;command type="clear" color="0 0 0 0" depth="1.0" stencil="0" depthstencil="depth" /&gt;
+    &lt;command type="clear" color="0.1 0.7 0.1 0.1" output="albedo" depthstencil="depth"/&gt;
+    &lt;command type="clear" color="0 0 0 0" output="specular" depthstencil="depth" /&gt;
+    &lt;command type="clear" color="0 0 0 0" output="normal" depthstencil="depth" /&gt;
+	
+	&lt;command type="quad" tag="PreRendered" vs="PreRendered" ps="PreRendered" output="viewport" &gt;
+		&lt;parameter name="DesaturationPower" value="0.2" /&gt;
+		&lt;parameter name="BlendPassColor" value="0.2 0.22 0.2 1.0" /&gt;
+		&lt;parameter name="GrainValue" value="1.0" /&gt;
+		&lt;parameter name="GrainStrength" value="0.08" /&gt;
+		&lt;parameter name="ScreenSizeOffset" value="1.0 0.937500007" /&gt;
+		&lt;parameter name="ScreenScrollOffset" value="0.0 0.0" /&gt;
+		&lt;texture unit="diffuse" name="viewport" /&gt;
+		&lt;texture unit="normal" name="cathedral_corridor01_CameraZone001.jpg" /&gt;
+	 &lt;/command&gt;	
+	
+    &lt;command type="clear" color="0 0 0 0" depth="1.0" output="depth" depthstencil="depth" /&gt;
+	&lt;command type="scenepass" pass="DepthOnly" output="depth"/&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="deferred" marktostencil="true" vertexlights="true" metadata="gbuffer" depthstencil="depth"&gt;
+        &lt;output index="0" name="specular" /&gt;
+        &lt;output index="1" name="albedo" /&gt;
+        &lt;output index="2" name="normal" /&gt;
+    &lt;/command&gt;
+    &lt;command type="lightvolumes" vs="PBRDeferred" ps="PBRDeferred" psdefines="PBRDEFERRED PBR HWDEPTH" vsdefines="PBR" output="viewport" depthstencil="depth"&gt;
+        &lt;texture unit="specular" name="specular" /&gt;
+        &lt;texture unit="albedo" name="albedo" /&gt;
+        &lt;texture unit="normal" name="normal" /&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="postopaque" depthstencil="depth"/&gt;
+    &lt;command type="scenepass" pass="refract" depthstencil="depth"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" depthstencil="depth" psdefines="HWDEPTH"&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" depthstencil="depth" /&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>The rendering works like this :<br/>
+-First i render my background (The PReRendered pass above)<br/>
+-Then i clear the depth<br/>
+-Then i render the depth meshes (this pass writes only in depth map and leave all the pixel information on the screen untouched)<br/>
+-Finally render everything else.</p>
+<p>My TEchnique for depth pass only looks like this</p>
+<pre><code class="lang-auto">&lt;technique&gt;
+	&lt;pass name="DepthOnly" vs="Depth" ps="Depth"/&gt;
+	&lt;pass name="light" vs="PBRLitSolid" ps="PBRLitSolid" psdefines="DIFFMAP PBR IBL" blend="subtract" /&gt;
+	&lt;pass name="shadow" vs="Shadow" ps="Shadow" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>The shadow pass is working the invisible Depth meshes cast shadows properly on regular meshes but the light pass is wrong because the depth meshes can’t receive lights nor shadows. Any idea how to fix this ? Or is it even possible ?<br/>
+Thanks !</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Found the problem !!! I defined the light pass in the technique but the renderpath had no light pass defined so it never happened. Added and it works as expected.</p>
+<p>This is why i still think Urho3d is the best engine out there ! Easy to use , easy to expand and easy to modify.<br/>
+The creativity ,experience and talent of the developers are amazing !<br/>
+Keep up the good work !</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Some short video of this in action. The background is a 2d image and there is a floor plane that is rendered into depth map only and exists only to receive shadows. PBR looks awesome. Maybe it’s not optimized for large complex levels but in my use case with few models per segment will do the job perfectly</p>
+<div class="onebox lazyYT lazyYT-container" data-parameters="feature=oembed&amp;wmode=opaque" data-youtube-id="C3htGfzdPy0" data-youtube-title="infested pbr test">
+<a href="https://www.youtube.com/watch?v=C3htGfzdPy0" rel="noopener nofollow ugc" target="_blank">
+<img class="ytp-thumbnail-image" height="360" src="../../../images2/a5b284770afe861870e57c25a7f063f8.jpg" title="infested pbr test" width="480"/>
+</a>
+</div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@Dave82</span> Looks great. I’ve always wanted to try pbr shaders in a urho3d project. I was always under the impression that they are real demanding on your hardware, and not such great performance.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

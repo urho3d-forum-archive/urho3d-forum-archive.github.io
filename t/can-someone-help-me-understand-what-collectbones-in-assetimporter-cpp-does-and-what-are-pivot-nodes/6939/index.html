@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Can someone help me understand what CollectBones in AssetImporter.cpp does, and what are Pivot nodes?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Can someone help me understand what CollectBones in AssetImporter.cpp does, and what are Pivot nodes?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elfstone</div>
+          <div class="post_content">
+<pre><code class="lang-auto">    for (unsigned i = 0; i &lt; model.meshes_.Size(); ++i)
+    {
+        aiMesh* mesh = model.meshes_[i];
+        aiNode* meshNode = model.meshNodes_[i];
+        aiNode* meshParentNode = meshNode-&gt;mParent;
+        aiNode* rootNode = nullptr;
+
+        for (unsigned j = 0; j &lt; mesh-&gt;mNumBones; ++j)
+        {
+            aiBone* bone = mesh-&gt;mBones[j];
+            String boneName(FromAIString(bone-&gt;mName));
+            aiNode* boneNode = GetNode(boneName, scene_-&gt;mRootNode, true);
+            if (!boneNode)
+                ErrorExit("Could not find scene node for bone " + boneName);
+            necessary.Insert(boneNode);
+            rootNode = boneNode;
+
+            for (;;)
+            {
+                boneNode = boneNode-&gt;mParent;
+                if (!boneNode || ((boneNode == meshNode || boneNode == meshParentNode) &amp;&amp; !animationOnly))
+                    break;
+                rootNode = boneNode;
+                necessary.Insert(boneNode);
+            }
+
+            if (rootNodes.Find(rootNode) == rootNodes.End())
+                rootNodes.Insert(rootNode);
+        }
+
+        // When model is partially skinned, include the attachment nodes of the rigid meshes in the skeleton
+        if (haveSkinnedMeshes &amp;&amp; !mesh-&gt;mNumBones)
+        {
+            aiNode* boneNode = meshNode;
+            necessary.Insert(boneNode);
+            rootNode = boneNode;
+
+            for (;;)
+            {
+                boneNode = boneNode-&gt;mParent;
+                if (!boneNode || ((boneNode == meshNode || boneNode == meshParentNode) &amp;&amp; !animationOnly))
+                    break;
+                rootNode = boneNode;
+                necessary.Insert(boneNode);
+            }
+
+            if (rootNodes.Find(rootNode) == rootNodes.End())
+                rootNodes.Insert(rootNode);
+        }
+    }
+
+    if (rootNodes.Empty())
+        return;
+
+    model.rootBone_ = *rootNodes.Begin();
+</code></pre>
+<p>I understand it’s trying to follow every bone node in a mesh, until it reaches the root bone. And if there are multiple roots it has to find a common root for them.</p>
+<p>But what is the purpose of “animationOnly”? <code>(boneNode == meshNode || boneNode == meshParentNode) &amp;&amp; !animationOnly</code></p>
+<p>So the loop breaks if it reaches a meshNode or its parent only when animationOnly is false – You’d expect when a parameter is named <em>Only</em> , certain operations are skipped when it’s true.</p>
+<p>And after some failures, trying to manipulate the root bone while importing, I found out that when there are so called “Pivot” nodes in the FBX, the resulting model.rootBone_ seems to be wrong. The pivot nodes (***$AssimpFbx$_PreRotation/_Rotation/_Translation) that are parents to the real root bone seem to be the reason.</p>
+<p>I set the AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS flag false, the pivot nodes are gone, and my code is working for the moment. The innermost loops break when the new boneNode == meshParentNode, which shouldn’t be a bone – when the pivots are present, the meshParentNode is the first pivot, and the loop breaks when boneNode == NULL and rootBone is the root of the entire scene.</p>
+<p>But what are Pivot nodes really? Are they literally just pivots that I can ignore if the transformations from the root node are handled correctly? What am I risking if I don’t preserve them?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

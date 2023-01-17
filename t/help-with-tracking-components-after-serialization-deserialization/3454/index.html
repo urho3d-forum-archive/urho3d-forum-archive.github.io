@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Help with tracking components after serialization/deserialization</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Help with tracking components after serialization/deserialization</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/503_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alex-Doc</div>
+          <div class="post_content">
+<p>I’m making a Component which relies on Component IDs for functioning, serialization and deserialization.<br/>
+I’ve just noticed that some IDs are duplicated along the scene, making the whole ID system unreliable for me, as the Scene does not seems to provide recursion in GetComponent().</p>
+<p>I know I could manually check the double IDs and eventually use a free ID, but I’d prefer if there’s another way to track down a component when serializing/deserializing.</p>
+<p>Is there something I’m missing?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="1" data-topic="3454">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8a921bbe6313284d77fc74b5bef2a2ef.png" width="20"/> Alex-Doc:</div>
+<blockquote>
+<p>Is there something I’m missing?</p>
+</blockquote>
+</aside>
+<p>Components must not have duplicate IDs.<br/>
+Can you share minimal sample with reproducible problem?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/503_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alex-Doc</div>
+          <div class="post_content">
+<p>Sorry, my fault, after further investigation I found out that the problem is the ID will change when I instantiate the xml containing the component, so my way of retrieving the component will not work.</p>
+<p>I have to figure out something better.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Check what the SceneResolver class does when an xml is instantiated. If your ID’s are attributes that have been annotated with AM_NODEID or AM_COMPONENTID, they should get rewritten. Though if your usecase is complex I don’t guarantee it will work out of the box.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/503_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alex-Doc</div>
+          <div class="post_content">
+<p>Thanks, I’m now trying with a different approach, based on node names as I could iterate through the children of the node.</p>
+<p>However I’m facing a weird issue, I have probably overlooked something, but it seems the Node cannot find an existing child when loading:</p>
+<pre><code class="lang-auto">void PODAnimationController::SetAnimationControllersAttr( const VariantVector&amp; value )
+{
+   animationControllers_.Clear();
+   for( unsigned i = 0; i &lt; value.Size(); i++ )
+   {
+      Node* node = node_-&gt;GetChild( value[i].GetString() , true );
+      if( node )
+      {
+         AnimationController* controller = node-&gt;GetComponent&lt;AnimationController&gt;();
+         if( controller )
+            animationControllers_.Push( controller );
+         else
+            URHO3D_LOGERROR( "PODAnimationController::SetAnimationControllersAttr: value is not AnimationController type!" );
+      }
+      else
+      {
+         URHO3D_LOGERROR( "PODAnimationController::SetAnimationControllersAttr: Node \"" + value[i].GetString() + "\" not found in children of \"" + node_-&gt;GetName() + "\"!" );
+         continue;
+      }
+   }
+}</code></pre>
+<pre><code class="lang-auto">void PODAnimationController::RegisterObject( Context* context )
+{
+   context-&gt;RegisterFactory&lt;PODAnimationController&gt;();
+
+   URHO3D_MIXED_ACCESSOR_ATTRIBUTE( "AnimationControllers", GetAnimationControllersAttr, SetAnimationControllersAttr, VariantVector, Variant::emptyVariantVector, AM_DEFAULT  );
+}</code></pre>
+<p>While it’s able to find it through AngelScript:<br/>
+<div class="onebox imgur-album">
+<a href="https://imgur.com/a/49w74" rel="nofollow noopener" target="_blank">
+<span class="outer-box" style="width:600px">
+<span class="inner-box">
+<span class="album-title">[Album] Imgur: The magic of the Internet</span>
+</span>
+</span>
+<img height="315" src="../../../images2/28be151f84ad0d192fcce91db6c2557a.jpg" title="Imgur: The magic of the Internet" width="600"/>
+</a>
+</div>
+</p>
+<p>Any help is welcome.</p>
+<p>EDIT:</p>
+<p>I’ve just found that <code>node_-&gt;GetChildren().Size();</code> returns 0, considering this, where am I supposed to load my data while making sure that the children are already in there?</p>
+<p>EDIT 1:</p>
+<p><strong>Solved:</strong> I just needed to assign the child names in the above function to a <code>Vector&lt;String&gt;</code> and move the children related part to <code>ApplyAttributes()</code>.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

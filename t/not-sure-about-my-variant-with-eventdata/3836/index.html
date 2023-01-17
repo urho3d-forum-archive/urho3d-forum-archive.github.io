@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Not sure about my Variant with eventData</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Not sure about my Variant with eventData</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/704_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sirop</div>
+          <div class="post_content">
+<p>Hello.</p>
+<p>Suppose I send eventData like:</p>
+<pre><code>void SplineEditor::SendEventIndexSelected(int index)
+{
+using namespace IndexSelected;
+
+VariantMap&amp; eventData = GetEventDataMap();
+
+float data[6];
+
+data[0] = splineVector_[index].x_;
+data[1] = splineVector_[index].y_;
+data[2] = splineVector_[index].z_;
+
+data[3] = splineOrientVector_[index].x_; // Pan
+data[4] = splineOrientVector_[index].y_;  // Tilt
+data[5] = splineOrientVector_[index].z_;  // Roll
+
+eventData[P_DATA]= Variant(data);
+SendEvent(E_ITEMSELECTED, eventData);
+}
+</code></pre>
+<p>and process/receive eventData by:</p>
+<pre><code>void Navigation::HandleSplineItemSelected(StringHash eventType, VariantMap &amp;eventData)
+{
+
+uint8_t* data;
+data = (uint8_t*)eventData[IndexSelected::P_DATA].GetVoidPtr();
+float x = *(float*)&amp;data[0];
+float y = *(float*)&amp;data[4];
+float z = *(float*)&amp;data[8];
+float pa = *(float*)&amp;data[12];
+float ta = *(float*)&amp;data[16];
+float ra = *(float*)&amp;data[20];
+
+cameraNode_-&gt;SetPosition(Vector3(x,y,z));
+cameraNode_-&gt;SetRotation(Quaternion(ta, pa, ra));
+}
+</code></pre>
+<p>Especially the lines:</p>
+<pre><code> eventData[P_DATA]= Variant(data);   
+</code></pre>
+<p>and</p>
+<pre><code> data = (uint8_t*)eventData[IndexSelected::P_DATA].GetVoidPtr();
+</code></pre>
+<p>are somewhat doubtful for me. May it be that simple?</p>
+<p>Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>If you want to send two vectors why not just send two vectors ?</p>
+<p><code>eventData["splineVector"] = splineVector;
+eventData["splineOrientVector"] = splineOrientVector;
+SendEvent(E_ITEMSELECTED, eventData);</code></p>
+<p>and process like this :</p>
+<p><code>
+cameraNode_-&gt;SetPosition(eventData["splineVector"].GetVector3());
+cameraNode_-&gt;SetRotation(QUaternion(eventData["splineOrientVector"].GetVector3()));
+</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/704_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sirop</div>
+          <div class="post_content">
+<p>Good. But I am still curious if my approach as in the first post is valid.<br/>
+We’ll check it then with debug statements.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/123_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kostik1337</div>
+          <div class="post_content">
+<aside class="quote" data-post="1" data-topic="3836">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8275640a8f8f8c9e83776bd02e60a2b4.png" width="20"/> sirop:</div>
+<blockquote>
+<p>float data[6];</p>
+</blockquote>
+</aside>
+<p>Your data is located on stack and it is “freed” when SendEventIndexSelected method exits. So, if you need to pass it to another method, allocate it on heap with new: float* data = new float[6] and delete[] it when you need.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="5" data-topic="3836">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b032fef93db80a84ba60ed10c6e1b100.png" width="20"/> kostik1337:</div>
+<blockquote>
+<p>Your data is located on stack and it is “freed” when SendEventIndexSelected method exits.</p>
+</blockquote>
+</aside>
+<p><code>SendEventIndexSelected</code> is exited after <code>HandleSplineItemSelected</code> call, so why not?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/123_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kostik1337</div>
+          <div class="post_content">
+<p>Ah, right, I forgot that method subscribers are called immediately, that should work</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/704_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sirop</div>
+          <div class="post_content">
+<p>I incline to use your approach as it is more ellegant.</p>
+<p>But how does such an event have to be declared?</p>
+<pre><code>// if element selection changed:
+URHO3D_EVENT(E_INDEXSELECTED, IndexSelected)
+{
+  URHO3D_PARAM(P_DATA, Data);                  
+}
+</code></pre>
+<p>or schould it be smth. like</p>
+<pre><code> URHO3D_EVENT(E_INDEXSELECTED, IndexSelected)
+ {
+    URHO3D_PARAM("splineVector", Data); 
+    URHO3D_PARAM("splineOrientVector", Data);              
+ } 
+</code></pre>
+<p>?</p>
+<p>Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Just declare a variant map and add your params to it and finally send it.</p>
+<p>void SplineEditor::SendEventIndexSelected(int index)<br/>
+{<br/>
+VariantMap eventData;<br/>
+eventData[“splineVector”] = splineVector[index];<br/>
+eventData[“splineOrientVector”] = splineOrientVector[index];<br/>
+SendEvent(E_ITEMSELECTED , eventData);<br/>
+}</p>
+<p>and process it in your handler</p>
+<p>void Navigation::HandleSplineItemSelected(StringHash eventType, VariantMap &amp;eventData)<br/>
+{<br/>
+cameraNode_-&gt;SetPosition(eventData["splineVector].GetVector3());<br/>
+Vector3 rotation = eventData[“splineOrientVector”];<br/>
+cameraNode_-&gt;SetRotation(Quaternion(rotation.x_ , rotation.y_ , rotation.z_));<br/>
+}</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

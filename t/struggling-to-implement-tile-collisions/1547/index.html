@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Struggling to implement tile collisions</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Struggling to implement tile collisions</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Useless</div>
+          <div class="post_content">
+<p>Hi i’m new in programming stuff, i i’m struggling to check collision with an Spriter Animated Sprite and a tile. I tried messing with the bounding box from the AnimatedSprite2D and creating a custom from an tile node, but i don’t seen to understand it well, it don’t intersect. Do anyone</p>
+<p>i’m following this article: <a data-bbcode="true" href="http://www.wildbunny.co.uk/blog/2011/12/14/how-to-make-a-2d-platform-game-part-2-collision-detection/" rel="nofollow noopener">http://www.wildbunny.co.uk/blog/2011/12/14/how-to-make-a-2d-platform-game-part-2-collision-detection/</a></p>
+<pre><code class="lang-auto">    void ResolveCollision(Node* tile) {
+        BoundingBox actorBBox = animSprite-&gt;GetBoundingBox();
+        actorBBox.Transform(node_-&gt;GetTransform());
+
+        std::cout &lt;&lt; "tile " &lt;&lt; tile-&gt;GetPosition().ToString().CString() &lt;&lt; "\n;";
+        std::cout &lt;&lt; node_-&gt;GetPosition().ToString().CString() &lt;&lt; "\n;";
+
+        if (actorBBox.IsInside(tile-&gt;GetPosition()) != OUTSIDE)
+            std::cout &lt;&lt; "NOT FIRING" &lt;&lt; "\n";
+    }
+
+    void PosCollisions(float timeStep) {
+        Vector2 position = node_-&gt;GetPosition2D() + Vector2(0, 0.5f);
+        Vector2 predictedPos = position + (Vector2(velocity.x_, velocity.y_) * timeStep);
+
+        Vector2 min = Vector2(Min(position.x_, predictedPos.x_), Min(position.y_, predictedPos.y_));
+        Vector2 max = Vector2(Max(position.x_, predictedPos.x_), Max(position.y_, predictedPos.y_));
+
+
+        int mapMinX = -1;
+        int mapMinY = -1;
+        map_-&gt;PositionToTileIndex(mapMinX, mapMinY, min);
+
+        int mapMaxX = -1;
+        int mapMaxY = -1;
+        map_-&gt;PositionToTileIndex(mapMaxX, mapMaxY, max);
+
+        for (int x = mapMinX; x &lt;= mapMaxX; x++) {
+            for (int y = mapMinY; y &lt;= mapMaxY; y++) {
+                Node* tile = map_-&gt;GetLayer(0)-&gt;GetTileNode(x, y);
+                if (tile) {
+                    ResolveCollision(tile);
+                }
+            }
+        }
+    }</code></pre>
+<p>Edit: Updated Code</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Why not use the Physics2D components?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Useless</div>
+          <div class="post_content">
+<p>Box2D is a overkill for me… for that i would have to fight the engine to make the desirable behavior.</p>
+<p>Also is there a way to setup a static bbox on the scml file?</p>
+<p>Made something a bit simpler:<br/>
+Point based</p>
+<p>[code]      void AdjustPosition(Vector2 pos, float timeStep) {<br/>
+Vector2 tilePos = (node_-&gt;GetPosition2D() + pos + (Vector2(velocity.x_, velocity.y_) * timeStep));<br/>
+Node* tile = GetTileNode(tilePos);<br/>
+if (tile == NULL)<br/>
+return;<br/>
+Vector3 dir = tile-&gt;GetPosition() - node_-&gt;GetPosition() + pos;<br/>
+dir.Normalize();</p>
+<pre><code>    //dir = GetGreaterAxis(dir); //Need to check if the tile axis is occluded
+
+    if (dir.y_ &lt; 0) {
+        node_-&gt;SetPosition2D(Vector2(node_-&gt;GetPosition2D().x_, tile-&gt;GetPosition2D().y_ + 0.32f - 0.01f));
+        velocity.y_ = 0;
+        return;
+    }
+    if (dir.x_ &lt; 0) {
+        //Tile size + half character width + 0.2
+        node_-&gt;SetPosition2D(Vector2(tile-&gt;GetPosition2D().x_ + 0.64 - 0.2f, node_-&gt;GetPosition2D().y_));
+        //velocity.x_ = 0;
+        return;
+    }
+    if (dir.x_ &gt; 0) {
+        node_-&gt;SetPosition2D(Vector2(tile-&gt;GetPosition2D().x_ - 0.1f, node_-&gt;GetPosition2D().y_));
+        //velocity.x_ = 0;
+        return;
+    }
+}
+
+void ResolveCollisions(float timeStep) {
+    AdjustPosition(Vector2(0, 0), timeStep);
+    AdjustPosition(Vector2(0.1, 0.2), timeStep);
+    AdjustPosition(Vector2(0.1, 0.5), timeStep);
+    AdjustPosition(Vector2(-0.1, 0.2), timeStep);
+    AdjustPosition(Vector2(-0.1, 0.5), timeStep);
+}  [/code]</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

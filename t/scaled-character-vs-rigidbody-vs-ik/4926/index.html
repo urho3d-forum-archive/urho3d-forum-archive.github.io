@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Scaled Character vs RigidBody vs IK</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Scaled Character vs RigidBody vs IK</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I noticed when I tried to apply a ragdoll armature to one of my AnimatedModels, that the physics bodies were receiving Scale from the Nodes associated with Bones in the Skeleton - they receive “Joint Scaling”.<br/>
+Since I was scaling my model down 100x via an “adjustment node” near the root, this meant that my physics shapes, when attached to the model, shrank to the size of match sticks.<br/>
+For the character’s outer collision hull, I was able to avoid this by attaching directly to the character’s root node, which is just above the adjustment node, but I ignored the issue of ragdoll segments, instead I just disabled relevant code, and turned my attention elsewhere.</p>
+<p>Recently, I tried attaching IK to the animated model’s legs, and noticed that debug-drawing was not displaying at all - I believe this was also caused by my scaling node.</p>
+<p>I’d like to know if I am correct: firstly, do rigidbodies receive scaling from parent nodes as they certainly appear to, and secondly, does scaling also affect the IK system?</p>
+<p>If the answer is yes to both of these questions, I will be tempted to extend the AssetExporter to provide a means to scale geometry by a given value, so I can get rid of the scaling node, without having to manually load every affected model into a modelling app, apply scale, and export it again (given that I’d still need to run the exported model back through AssetExporter, it seems like a redundant step).</p>
+<p>[EDIT]<br/>
+For rigidbodies, I discovered that I can add yet another “adjustment node” as a child of a bone node, which “cancels” the previous scaling, and attach my rigidbody to that node, this solves the issue of rigidbodies inheriting scale, but it seems like a poor solution to the problem. Have not yet tested the same concept on the IK system, but I suspect it will be a viable workaround there as well.</p>
+<p>[EDIT]<br/>
+It’s a shame Urho3D’s CollisionShape component does not implement Bullet’s “Local Scale” - this would be preferable to additional “descaling” nodes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Here’s the experimental code I am using for setting up ragdoll bodyparts on an animated model.<br/>
+The Ragdoll Sample only creates the ragdoll shapes at the very last moment, and it assumes a lot about the pose of the model.<br/>
+By creating the rigidbodies early, and driving them in kinematic mode, the ragdoll (when activated) will inherit the existing pose of the armature.<br/>
+I have some other reasons for wanting to create my ragdoll armature in advance of ragdoll mode being enabled - One is that I can tell which bodypart was hit during an attack, and apply damage and additive “twitching” to just the relevant region of the animated model. Another is that I can perform more accurate “foot-planting” by detecting collisions (and lack thereof) between the feet and the static world, rather than generating footfall events via animation triggers.</p>
+<pre><code class="lang-auto">        void GamePlayState::CreateRagdollPart(Node* adjustNode, String boneName, ShapeType tshape, Vector3 size_, Vector3 pos_, Quaternion rot_)
+        {
+                        
+            // Locate the Node associated with BodyPart (eg left thigh)
+            Node* boneNode = adjustNode-&gt;GetChild(boneName,true);
+
+            // Check for inherited scale on the bone node
+            Node* descale = boneNode;
+            Vector3 scale = descale-&gt;GetWorldScale();
+            if(scale != Vector3(1,1,1))
+            {
+                // Create a child node to eliminate inherited scale
+                descale = boneNode-&gt;CreateChild();
+                descale-&gt;SetScale( Vector3(1,1,1) / descale-&gt;GetWorldScale() );
+            }
+
+            // Create rigidbody, and set non-zero mass so that the body becomes dynamic
+            auto* body = descale-&gt;CreateComponent&lt;RigidBody&gt;();
+            // Set the collision layer and mask
+            body-&gt;SetCollisionLayerAndMask(CollisionFilter::NonPlayerCharacter, CollisionFilter::Static || CollisionFilter::PlayerCharacter);
+            // Give the body some mass, or it won't move
+            body-&gt;SetMass(1.0f);
+            // Set body to Kinematic mode, so it follows Animations
+            body-&gt;SetKinematic(true);
+            // Only report collisions while body is "awake" (kinematic bodies never sleep...)
+            body-&gt;SetCollisionEventMode(COLLISION_ACTIVE);
+            // Set up the shape of the body
+            auto* shape = descale-&gt;CreateComponent&lt;CollisionShape&gt;();
+            if (tshape == SHAPE_BOX)
+                shape-&gt;SetBox(size_, pos_, rot_);
+            else
+                shape-&gt;SetCapsule(size_.x_, size_.y_, pos_, rot_);
+
+        }</code></pre>
+<p><img alt="legs" height="403" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/2/2aacf2aefce29328af084c316fa89591aa196bfd.png" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>It’s a minor detail, but are you familiar of the constant <code>Vector3</code>'s like <code>Vector3::ONE</code> and <code>Vector3::RIGHT</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I didn’t know about Vector3::ONE, must have missed that. I know about the cardinal directions, and zero.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="4926">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>does scaling also affect the IK system?</p>
+</blockquote>
+</aside>
+<p>The IK solver reads and writes global positions/rotations to and from Urho’s scene graph. Thus, scale is irrelevant. Internally the solver assumes the scale is 1.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>The IK debug drawing is wrong in a scaled armature.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="onebox githubissue">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com/urho3d/Urho3D</a>
+</header>
+<article class="onebox-body">
+<a href="https://github.com/TheComet" rel="nofollow noopener">
+<img class="thumbnail onebox-avatar" height="96" src="https://avatars1.githubusercontent.com/u/3390890?v=2&amp;s=96" width="96"/>
+</a>
+<h4><a  rel="nofollow noopener" target="_blank">Issue: IK Debug drawing wrong on scaled nodes</a></h4>
+<div class="date" style="margin-top:10px;">
+<div class="user" style="margin-top:10px;">
+	opened by <a href="https://github.com/TheComet" rel="nofollow noopener" target="_blank">TheComet</a>
+	on <a  rel="nofollow noopener" target="_blank">2019-08-08</a>
+</div>
+<div class="user">
+</div>
+</div>
+<pre class="content" style="white-space: pre-wrap;">https://discourse.urho3d.io/t/scaled-character-vs-rigidbody-vs-ik/4926/5
+Whoever is in charge of the labels can assign me to this issue.</pre>
+<div class="labels">
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

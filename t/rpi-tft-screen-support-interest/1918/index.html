@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>RPi - TFT Screen Support interest</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">RPi - TFT Screen Support interest</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">XGundam05</div>
+          <div class="post_content">
+<p>Is there any interest in adding TFT display support for the RPi builds <span class="bbcode-i">(e.g. the <a data-bbcode="true" href="https://www.adafruit.com/products/2298" rel="nofollow noopener">PiTFT 2.8" from Adafruit</a>)</span>? I’m currently working on it, but didn’t know if there’d be enough interest to attempt to add it to Urho itself.</p>
+<p>If there is, I’ll make sure it conforms to the Urho code conventions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>It certainly looks interesting. Adding a few hard buttons on the side and you have yourself a handheld game console. Having said that, I don’t think the hardware interfacing layer needs to be in the Urho3D library, unless I totally misunderstood you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">XGundam05</div>
+          <div class="post_content">
+<p>I’m taking a look to see if I can pop it out from the engine code.</p>
+<p>Right now I let the engine render, and then I copy the framebuffer from the HDMI over to the framebuffer for the TFT (standard /dev/fb1, but I have it so you can change it if that’s not the case). The framebuffer copy code is currently called in Engine-&gt;RunFrame.</p>
+<p>However, as I think about it as I type this, I could potentially just extend Application and stuff the call in there…that sounds like a much better option actually.</p>
+<p>Thanks for the thinking point <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>EDIT: I should clarify a bit, the TFT display communicates over SPI, and so it doesn’t actually have access to the GPU (so no OpenGL). Hence the render has to take place on the GPU and then get manually copied over to the TFT framebuffer. By handling it in the application doing the render, I can make sure that the framebuffer I’m copying from isn’t being currently written to.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I have not done this before, so take my words with a grain of salt. If the TFT is immediately recognized by the Linux kernel as /dev/fb1 then you already have a good start. If I were you I would probably look at SDL library to see how to utilize that piece of equipment as Urho3D actually relies on SDL to provide the context for audio, video, input, etc. I believe when done correctly, the Urho3D application (with a few exceptions) does not actually need to “know” where it being run.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">XGundam05</div>
+          <div class="post_content">
+<p>Since the pixel data is pumped out over <a data-bbcode="true" href="https://www.raspberrypi.org/documentation/hardware/raspberrypi/spi/README.md" rel="nofollow noopener">SPI</a> on the GPIO, SDL won’t actually respect use of the TFT framebuffer if you have an OpenGL context. It works for any context which doesn’t use hardware acceleration, but the GPU doesn’t actually have a way to communicate with the TFT framebuffer (just the HDMI and RCA display circuits).</p>
+<p>I’ve propped up a TFTApplication class, that’s essentially a copy of the Application class (needed to override the non-virtual Run() method). Ive got a supporting TFTDisplay class that uses Dispmanx and mmap to copy the accelerated framebuffer over to the TFT. Won’t have a chance to test it tonight, but should have a chance sometime this weekend <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Normally for fast prototyping I would probably go the same route as yours. However, in this case I believe the interfacing has to be done at the correct layer for better chance of success. If your interfacing code is only at the application level then it might not able to do much beside copying the pixels to /dev/fb*. Without any modifications, of course SDL library won’t actually aware of the TFT display. But the same is true with Urho3D library, isn’t it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">XGundam05</div>
+          <div class="post_content">
+<p>Right now I’m going for the “get it working” part. Next is the “get it right” part <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p>So far, my research isn’t showing any way around copying from one framebuffer to the other. The SPI interface is what has been the bane of OpenGL on SPI displays since, well, the first Pi. Because there is no hardware connection to the SPI pins/interface from the GPU, the process goes: CPU-&gt;GPU Render-&gt;CPU-&gt;Bit-Bang over SPI.</p>
+<p>I’ll take a look in the FBTFT driver code and Device Tree Overlay tho, and see how they get the kernel to treat it as a framebuffer. That may yield some better information/a better way to directly integrate it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">XGundam05</div>
+          <div class="post_content">
+<p><span class="bbcode-b">Question:</span> is there a way to force the fullscreen resolution to a lower resolution that isn’t in the same aspect ratio? (Linux)</p>
+<p>In dealing with the HDMI framebuffer, it’s optimal to have it set to the same size…which can be done in the boot config.txt, but I was hoping to not make users mess with that (so that other applications would run normally over HDMI).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>You probably can do that when you write a “custom” video driver in the SDL library. Currently SDL defines one video driver for RPI which calls Broadcom graphics_get_display_size() function to get the display size during its initialization (see RPI_VideoInit). I suppose it always get the fullscreen size for the HDMI (or as per defined in the boot config). I would probably have a look there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">XGundam05</div>
+          <div class="post_content">
+<p>Well, for now I have it working with setting up the HDMI settings in the boot config <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>Now that it’s working, time to refactor and redesign to make it right <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p><a data-bbcode="true" href="https://twitter.com/XGundam05/status/715003331530207234?s=09" rel="nofollow noopener"><img alt="" height="" src="../../../images2/1eff10b63a3a1742a45ab3027313900a.jpg" width=""/></a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">XGundam05</div>
+          <div class="post_content">
+<p>I’ve added support (using the framebuffer copy method) into the Engine. For right now I plan on maintaining it as a separate fork.</p>
+<p>Github repo: <a data-bbcode="true" href="https://github.com/xgundam05/Urho3D/tree/PiTFTDisplay" rel="nofollow noopener">xgundam05/Urho3D</a></p>
+<p>The additional engine parameters are as follows:<br/>
+<span class="bbcode-b">EnableTFT</span> : Boolean, default=false. Enables TFT Display in engine initialization<br/>
+<span class="bbcode-b">TFTSourceBuffer</span> : Integer, default=0. Source display to copy from. Raspbian Jessie sets TV (HDMI/RCA) out as 0<br/>
+<span class="bbcode-b">TFTFramebuffer</span> : String, default="/dev/fb1". Framebuffer location of the TFT display. FBTFT DT Overlays in Rasbian Jessie default to “/dev/fb1”</p>
+<p>TODO List:</p>
+<ul>
+<li>Add detection, reassignment and restoring of console framebuffer (currently this is handled via bash script)</li>
+<li>Add detection, initialization and restoring of TV Out settings (available via VideoCore libraries, currently handled via boot/config.txt settings)</li>
+</ul>
+<p>Urho3D Samples:<br/>
+[video]<a href="https://youtu.be/O9kJeXT-VtY%5B/video%5D" rel="nofollow noopener">https://youtu.be/O9kJeXT-VtY[/video]</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks for sharing it.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

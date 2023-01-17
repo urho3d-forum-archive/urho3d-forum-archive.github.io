@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Albedo g-buffer and sRGB</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Albedo g-buffer and sRGB</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>In my project I use deferred lighting, HDR and linear pipeline (not PBR).<br/>
+There is this annoying banding in albedo. It happens on subtexel level, so after initial sampling and linear interpolation. All images are in lossless PNG.<br/>
+Pic1 banding example: <a href="https://i.imgur.com/phMaSYr.png" rel="nofollow noopener">https://i.imgur.com/phMaSYr.png</a><br/>
+Pic2 banding example: <a href="https://i.imgur.com/CWAnxLJ.png" rel="nofollow noopener">https://i.imgur.com/CWAnxLJ.png</a></p>
+<p>A friend of mine suggested me to try and switch albedo buffer to sRGB. It worked:<br/>
+Pic3 no banding <a href="https://i.imgur.com/6vmLvuB.png" rel="nofollow noopener">https://i.imgur.com/6vmLvuB.png</a></p>
+<p>But there is a problem. I have two types of geometry. regular polygonal geometry and raymarched geometry (fractal) drawn into the g-buffer by quad command after scene path. After I switched albedo buffer to sRGB polygonal geometry became darker, while raymarched one stayed the same:</p>
+<p>Pic4 before-after comparsion: <a href="https://i.imgur.com/47qFQxZ.png" rel="nofollow noopener">https://i.imgur.com/47qFQxZ.png</a></p>
+<p>I have to do liear-to-gamma pow(albedo, 1/2.2) in model’s pixel shader to compensate for that. So it seems like GPU correctly converts information when quad command writes into sRGB rendertarget, and when lightpass reads it, but not when scene pass writes into it.</p>
+<p>Is it a bug? a feature?</p>
+<p>I can also fix this banding by setting albedo buffer to rgba16f format. But that will increase memory bandwidth. And I can’t see any quality compromises comparing 8bit srgb to 16bit.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Assuming you’re using a texture on the model, it’s just how it works. <code>Read non-gamma corrected texture data -&gt; write non-corrected data to gamma correct buffer -&gt; conversion to gamma ends up darker than desired</code>. More of a <em>that’s just how the math works out</em> than bug or feature.</p>
+<p>You either correct in the shader or set your input texture to be sRGB as well, which does the 1/2.2 (<code>pow(1/2)</code> actually) by itself.</p>
+<p>Not sure if it applies to newer Intels, but the older ones hate using hardware sRGB - it was horrifyingly slow on an HD4000, pretty sure they just emulate it as a full buffer copy of the framebuffer (which murder an already fill-rate limited GPU).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Thank you for reply. Yes, it seems like only models with textures are affected. All my albedo textures are set to srgb, however, with srgb albedo buffer I can see diferent behavior on same texture.</p>
+<p>Just figured, that urho does not convert textures on load as I thought, so it seems that quad command and  scenepass model read textures diferently, rather than write rendertarget diferently.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4558" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Not sure if it applies to newer Intels, but the older ones hate using hardware sRGB - it was horrifyingly slow on an HD4000, pretty sure they just emulate it as a full buffer copy of the framebuffer (which murder an already fill-rate limited GPU).</p>
+</blockquote>
+</aside>
+<p>I have raymarched 3d fractal, deferred shading and light scattering, Intel 4000 can go straight to hell.</p>
+<p>EDIT: I mean, you probably have to set resolution to 640x480 to get double digit fps, don’t think extra buffer copy will make any difference.</p>
+<p>I think even deferred shading alone is too much of fill rate overhead for HD 4000. I</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

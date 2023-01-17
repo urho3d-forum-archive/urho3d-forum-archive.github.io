@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Shader passes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Shader passes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I want to use two passes on some custom vertices.<br/>
+What I could not figure out is this scheme:</p>
+<p>graphics-&gt;SetShaderParameter(…)<br/>
+graphics-&gt;Draw(…)<br/>
+// How to have the first processed vertices as input on the second draw call?<br/>
+graphics-&gt;SetShaderParameter(…)<br/>
+graphics-&gt;Draw(…)</p>
+<p>I don’t want to have dependency on the scene/camera to create a rendertarget.<br/>
+Is there a way to work on this low level and have the processed data as input on the new draw call?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you mean transform feedback, that isn’t implemented in Urho.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Basically the shader just modify fragment uniforms, so what change effectively are pixels and not vertex.<br/>
+But again what comes to my mind is RenderTarget with Scene/Camera/Material/etc… dependency.<br/>
+I draw vertices without creating any material for them and I don’t know how to capture drawed pixels.</p>
+<p>graphics-&gt;SetVertexBuffer(vBuff);<br/>
+graphics-&gt;SetIndexBuffer(iBuff);<br/>
+graphics-&gt;SetShaders(vs, ps);</p>
+<p>graphics-&gt;SetShaderParameter(“EffectAmount”, effectAmount);<br/>
+graphics-&gt;Draw(Urho3D::TRIANGLE_LIST, 0, iBuff-&gt;GetIndexCount(), 0, vBuff-&gt;GetVertexCount());</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Ah, now I understand. You want to do the same as what the renderpath post-process chain does automatically. Sampling &amp; writing to same rendertarget is illegal, so you need to have 2 rendertarget textures and do:</p>
+<ul>
+<li>Set rendertarget 1</li>
+<li>Render pass 1</li>
+<li>Set rendertarget 2</li>
+<li>Assign rendertarget 1 to some texture unit (SetTexture)</li>
+<li>Sample the texture unit when rendering pass 2</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>First of all all my code is executed in an E_ENDRENDERING event.</p>
+<p>I have some issues:</p>
+<p>Adding just:<br/>
+SharedPtr renderTexture(new Texture2D(context_));<br/>
+renderTexture-&gt;SetSize(size.x_, size.y_, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);<br/>
+…<br/>
+graphics-&gt;Draw(…);</p>
+<p>Invalidates the Draw call which doesn’t draw anything.<br/>
+The issue seems to be with SetSize.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

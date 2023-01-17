@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>VertexBuffer SetSize crash inside Urho3D::Geometry</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">VertexBuffer SetSize crash inside Urho3D::Geometry</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi guys I need some help with this as I spent quite a while and I cannot solve it on my own. I have added a new method inside the Geometry class and I am trying to create new VertexBuffer but when I call SetSize it crashes. Inside the method I have:</p>
+<p><code>SharedPtr&lt;VertexBuffer&gt; cVertBuffer(new VertexBuffer(context_));
+cVertBuffer-&gt;SetShadowed(true);
+cVertBuffer-&gt;SetSize(GetVertexCount() * instances.Size(), vertexBuffers_[0]-&gt;GetElementMask(), false);</code><br/>
+Everything passed to SetSize seems to be valid in the debugger. The last method of the crash is at glGenBuffers(1, &amp;object_) inside the OGLVertexBuffer, VertexBuffer::Create() method. If I create the VertexBuffer headless it doesn’t crash. The same applies for the IndexBuffer.</p>
+<p><code>#3	0x00000001000b4ccb in Urho3D::Geometry::CreateCombinedGeometry() const at Geometry.cpp:465
+#2	0x0000000100112e6b in Urho3D::VertexBuffer::SetSize(unsigned int, unsigned int, bool) at OGLVertexBuffer.cpp:197
+#1	0x0000000100112828 in Urho3D::VertexBuffer::Create() at OGLVertexBuffer.cpp:406</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Well i’m test this code:</p>
+<p><code>        SharedPtr&lt;VertexBuffer&gt; vb = SharedPtr&lt;VertexBuffer&gt;(new VertexBuffer(context_));
+        vb-&gt;SetShadowed(true);
+        vb-&gt;SetSize(10000000, MASK_POSITION | MASK_NORMAL | MASK_COLOR | MASK_TEXCOORD1, false);</code><br/>
+and it’s working fine</p>
+<p>Did you modify Geometry class inside?<br/>
+why you think if it’s has been already created you need to create VB again ? Maybe if you decide to create new VB, probably you will need release old VB ?</p>
+<p>I suppose what Drawables have some methods for update geometry in it self internally.<br/>
+Every frame (if it pushed to renderer) it check some flags in UpdateGeometry()<br/>
+for example:</p>
+<pre><code class="lang-auto">void Drawable::UpdateGeometry(const FrameInfo&amp; frame)
+{
+    if (bufferSizeDirty_ || indexBuffer_-&gt;IsDataLost())
+        UpdateBufferSize();
+
+    if (bufferDirty_ || vertexBuffer_-&gt;IsDataLost() || forceUpdateVertexBuffer_)
+        UpdateVertexBuffer(frame);
+}</code></pre>
+<p>you may manage this flags (in your derived class)  - bufferSizeDirty_, bufferDirty_ if you need reassemble VB by some reason.<br/>
+and Drawable::UpdateBufferSize() you just setup IB size (and may feed it with indexes) and also setup VB.SetSize()</p>
+<p>and in method Drawable::UpdateVertexBuffer(const FrameInfo&amp; frame) you just assemble your VB feed it with new geometry.<br/>
+There is no place where new VB been created. It already exits by default.</p>
+<p>I don’t known, but you may try just SetSize and feed VB with new geom and do not allocate new.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks codingmonkey. Yes I am modifying the geometry class but I cannot use a reference to the same geometry as I am doing a new combined buffer of multiple instances. I looked into other classes in Urho3D and this seems to work. I think you are right I might need to update the geometry somewhere else as well but I am not sure where. Maybe I should just make a new class and inherit from Geometry instead of adding new methods.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>Ive been using customgeometry, and at least there it is easy to just add or remove the stuff in the end. It is bit harder to remove vertices from the middle though, so I’ve been swapping the ones from the end to the middle. Although I think in general I am doing lots of things wrong, such as defining many customgeometries for creating armature/skeleton with customgeometry for my voxel modeling thingie.</p>
+<p>I think CustomGeometry by default has support for multiple geometries, I just haven’t figured out how I could give different transformations to the geometries. I also noticed that for some reason, even if I use same material for all the geometries, at least when the material is created on the fly by modifying texture, the geometries for some reason do not become single batch. Again this is probably just me being dumb, which is nothing unusual.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>CustomGeometry is not intelligent. If you create 2 subgeometries, they also create 2 draw calls even with same materials.</p>
+<p>Drawcall combining only happens in Urho automatically via hardware instancing. The requirements are same Geometry, same Material, same lighting conditions. In case of CustomGeometry, the Geometries are always unique, therefore no instancing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Can we create custom geometry with new vertex and index buffer inside the Geometry class or it is not recommended?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You must have some way to supply the Geometry to the rendering pipeline, in other words probably your own Drawable subclass, unless you put the Geometry inside a Model resource, in which case it can be rendered by a normal StaticModel component. The latter way is demonstrated by the DynamicGeometry sample.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I am already calling this method inside the StaticModelGroup. If I try to create new vertex or index buffer and the set the size inside StaticModelGroup::UpdateBatches it crashes. Is there anything specific I need to do in order to sync it with the gpu buffer? Outside of Urho3D classes this usually works.</p>
+<p><code>SharedPtr&lt;IndexBuffer&gt; ib(new IndexBuffer(context_));
+ib-&gt;SetShadowed(true);
+ib-&gt;SetSize(10, false);</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Outside of Urho3D classes this usually works.<br/>
+Hey, I looked into your brunch with smg instansing and trying to create similar feature<br/>
+and at first look it seem working fine.</p>
+</blockquote>
+<p>look at this: <a href="https://github.com/MonkeyFirst/Urho3D/commit/d7d6f3b975324a684942541d15a871a2b04ce022">github.com/MonkeyFirst/Urho3D/c … a2b04ce022</a></p>
+<p>you may copy from this brunch SMG <em>.h/</em>.cpp files and try to figure out with this.</p>
+<p>how it works:<br/>
+add node<br/>
+add to node smg component<br/>
+set model<br/>
+set material</p>
+<p>add some nodes to smg’s node as children<br/>
+move child nodes<br/>
+select SMG component<br/>
+select menu EDIT -&gt; Add children to SM-group<br/>
+set Use static instancing to true</p>
+<p><a data-bbcode="true" href="http://savepic.su/6835727.htm"><img alt="" height="" src="../../../images2/c27d71fd9cdd6d74d38315c4b5d1c22f.png" width=""/></a></p>
+<p>you may change child nodes positions and static blob will be reassembled per change</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks a lot codingmonkey, but I am getting the same crash maybe when I merged the master branch it was broken I don’t have other explanation. As I just took your changes and merged them in the branch I already had.<br/>
+It crashes now at:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>I will try from scratch with a clean branch.<br/>
+<span class="bbcode-b">UPDATE:</span> I built your branch from scratch bu the same thing happens.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>strange, but I only update my fork yesterday and add this feature (based on your code, with few changes)<br/>
+I use vs2013 to compile debug and release and it’s working fine in my case.<br/>
+did you try run Urho3DPlayer in debug mode, and debug problem place step by step?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I tried both in C++ and in the Editor. They both crash at the same place. For the C++ test I just added the lines below inside the HugeObjectCount demo and I tried reducing the number of objects to 10. I also tested the DynamicGeometry example and it works fine. I am under OSX 10.10 and I am using Xcode to compile. Is it possible that my videocard is the problem, its gtx 260?</p>
+<p><code>...
+lastGroup-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+lastGroup-&gt;SetStatic(true);
+...</code><br/>
+It looks like the _object is zero compared to working example outside the engine’s classes.<br/>
+<img alt="" height="402" src="../../../images2/f0edd6b3ecb8f0f1e47d0f0bbbef1b23.png" width="379"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I doubt it’s problems stem from the graphics card, although it is possible version of the driver can somehow influence on this.<br/>
+Most likely your compiler have some -pedantic settings?<br/>
+In addition, the code can contain any unforeseen errors, I wrote a testvy variat it needs polishing.<br/>
+I tested, only the editor with one SMG and one thing what very important - model should be without LODs otherwise this instansing does not work as expected.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I am just testing with the default box model. I just tested on my Linux machine at work I tested both gcc and clang and the same crash happens. If you are building on Windows are you using the DirectX API? Because in my tests I can only test with the OpenGL API. I think is something to do where the graphics is initialized after we create the vertex and index buffers. Maybe I need to set the buffers manually in the graphics subsystem?</p>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>At least you shouldn’t create anything GPU-related before you have done Graphics::SetMode() (normally done in engine initialization.) Otherwise the GL context is null and you will quite certainly crash.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>SetMode is already called, but because the code is initialized inside StaticModelGroup I think it might be called before the graphics is initialized. Is there a good way to make sure they are synced?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>If you are building on Windows are you using the DirectX API?<br/>
+actually no) most of last time I use only GL renderer</p>
+</blockquote>
+<p>try to do test:<br/>
+Compile again my brunch and use <span class="bbcode-b">only Urho3D Editor to test this instancing</span>, i’m just curious it still will be crashing or no?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I just tried in the Editor at work on my linux machine and it is not crashing. It is really strange as I tried at home and it was crashing in the Editor. Finally I found the problem is in HugeObjectCount we have already nodes with the same name and when we switch to useGroups_ they are not properly initialized. It is quite unstable but alteast it is working.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>It is quite unstable but alteast it is working.<br/>
+Well, my congrats )</p>
+</blockquote>
+<p>Earlier I do some primitive test with this instancing and old(dynamic) and do not found extra boost from this tech )<br/>
+more over, I found only more using memory GPU bandwidth with this static instancing (test on over 2 million vertexes)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks a lot for your help. This technique is mainly for mobile I am getting huge boost atleast double the FPS on an old tablet. Unity has these features out of the box as well.<br/>
+<span class="bbcode-b">UPDATE:</span> I think I am going crazy but it is still crashing at home on my OSX box.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Is it possible that this is some kind of threading issue as it happens only on OSX? Might be something to do with the clang compiler. The Graphics subsytem is already present when the GPUObject and the VertexBuffer are created everything seems fine. Can anyone else verify this on OSX?<br/>
+<img alt="" height="208" src="../../../images2/7d5567bffe176b2013f1509d5410f78e.png" width="525"/><br/>
+<span class="bbcode-b">UPDATE:</span> It seems we can’t create new vertex buffers inside UpdateBatches().</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

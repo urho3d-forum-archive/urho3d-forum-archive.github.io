@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Adding SFINAE for Container Operators</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Adding SFINAE for Container Operators</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Presently the code for containers like Vector and HashMap define <code>operator ==</code> and <code>operator !=</code> using <code>operator !=</code> for the value types. This generally works fine - you just get an error when comparing the containers with types that don’t support the operator, but that can generally be fixed in the user code.</p>
+<p>However, the existence of the operators is throwing off some template magic used by the sol3 Lua binding library I am trying to use to make new Lua bindings with - it should fall back to a pointer comparison when the operator isn’t defined, but it finds that it is defined, but then that produces a compiler error for numerous classes (e.g. <code>CustomGeometryVertex</code>, in a vector with <code>Urho3D::CustomGeometry::GetVertices</code>) because there is no <code>operator !=</code> defined for the class. Adding some SFINAE magic to the <code>operator ==</code> for the container classes fixes the issue, though it doesn’t look to great (could be improved a bit with some helper classes, and I’m no expert in template magic, so perhaps it can be done better even without them). Here’s an example for Vector:</p>
+<pre><code class="lang-auto">
+    /// Test for equality with another vector.
+    template&lt;class U=T&gt;
+    bool operator ==(std::enable_if_t&lt;std::is_same_v&lt;std::void_t&lt;decltype(std::declval&lt;const U&amp;&gt;() != std::declval&lt;const T&amp;&gt;())&gt;, void&gt;,
+                     const Vector&lt;U&gt;&amp;&gt; rhs) const
+    {
+        if (rhs.size_ != size_)
+            return false;
+
+        T* buffer = Buffer();
+        T* rhsBuffer = rhs.Buffer();
+        for (i32 i = 0; i &lt; size_; ++i)
+        {
+            if (buffer[i] != rhsBuffer[i])
+                return false;
+        }
+
+        return true;
+    }
+</code></pre>
+<hr/>
+<p><strong>What are your thoughts on adding such a change to Urho?</strong> We don’t need to - it just means more work in the tool generating the bindings, and maybe missing some functions from the result, but it is certainly doable.</p>
+<p>By all means, feel free to suggest more elegant ways to make it happen as well.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

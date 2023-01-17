@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Trying to figure out FPS</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Trying to figure out FPS</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I’m trying to figure out what’s killing my FPS.  I have a I7-2700k CPU, 16 gig ram, EVGA GTX 950 ti, 128 GB ssd, and huge HD. I’m not sure why the framerate isn’t about 60 fps.</p>
+<p>Test Video<br/>
+<a href="https://www.youtube.com/watch?v=VlugiYVOZxQ" rel="nofollow noopener">youtube.com/watch?v=VlugiYVOZxQ</a></p>
+<p>Other<br/>
+<a href="https://www.youtube.com/watch?v=r4gcA_GKlQw" rel="nofollow noopener">youtube.com/watch?v=r4gcA_GKlQw</a></p>
+<p>I’m using these base code for this scene. I disabled all rigidbody and collisions since this is pretty much pre-defined.</p>
+<p>Vivienne</p>
+<p>[code]</p>
+<p>void MainMenuView::CreateManualScene(void)<br/>
+{<br/>
+// Update Renderer<br/>
+AnimationManager * pAnimationManager = g_pApp-&gt;GetGameLogic()-&gt;GetAnimationsManager();</p>
+<pre><code>// Update renderer setting decrease rendering quality and increase frame rate
+m_pRenderer-&gt;SetShadowQuality(SHADOWQUALITY_SIMPLE_16BIT);
+m_pRenderer-&gt;SetShadowMapSize(1024);
+m_pRenderer-&gt;SetDynamicInstancing(true);
+m_pRenderer-&gt;SetTextureQuality(QUALITY_MEDIUM);
+m_pRenderer-&gt;SetMaterialQuality(QUALITY_MEDIUM);
+
+// Update scene
+m_pScene = SharedPtr&lt;Scene&gt;(new Scene(context_));
+
+
+// Reset Scene for Applications Manager
+pAnimationManager-&gt;SetScene(m_pScene);
+
+// Add octree
+m_pScene-&gt;CreateComponent&lt;Octree&gt;();
+
+// Load a demo file
+LevelManager* pLevelManager = g_pApp-&gt;GetGameLogic()-&gt;GetLevelManager();
+pLevelManager-&gt;LoadLevel(m_pScene, "Levels/LoginScene1.xml", false);
+
+// Create a temporary Vector
+PODVector&lt;CameraComponent *&gt; Cameras;
+
+// Get scene camera components
+m_pScene-&gt;GetComponents(Cameras, "CameraComponent");
+
+// Create a iternator
+PODVector&lt;CameraComponent *&gt;::Iterator thisComponent;
+
+// Loop through each component
+for(thisComponent = Cameras.Begin(); thisComponent!=Cameras.End(); ++thisComponent)
+{
+    if((*thisComponent)-&gt;GetDefault() == true)
+    {
+        // Get the Camera Component Node
+        m_pCameraNode = (*thisComponent)-&gt;GetNode();
+
+        // Set new Viewport using CameraComponent
+        m_pViewport = new Viewport(context_, m_pScene, m_pCameraNode-&gt;GetComponent&lt;CameraComponent&gt;());
+
+        break;
+    }
+}
+
+// If Camera Node is not Null then there must have been a default camera
+if(m_pCameraNode==NULL)
+{
+    // Create a scene node for the camera, which we will move around
+    // The camera will use default settings (1000 far clip distance, 45 degrees FOV, set aspect ratio automatically)
+    m_pCameraNode = m_pScene-&gt;CreateChild(String("Camera").ToHash(), CreateMode::LOCAL);
+    m_pCameraNode-&gt;CreateComponent&lt;Camera&gt;();
+
+    // Set Position
+    m_pCameraNode-&gt;SetPosition(Vector3(-400.0f,60.0f,200.0f));
+
+    // Test Look at
+    m_pCameraNode-&gt;LookAt(Vector3(0.0f,0.0f,0.0f));
+    m_pCameraNode-&gt;GetComponent&lt;Camera&gt;()-&gt;SetFarClip(2000.0);
+
+    // Set new Viewport using Camera
+    m_pViewport = new Viewport(context_, m_pScene, m_pCameraNode-&gt;GetComponent&lt;Camera&gt;());
+
+}
+
+// Set Viewport
+m_pRenderer-&gt;SetViewport(0, m_pViewport);
+
+SharedPtr&lt;RenderPath&gt; m_pFXRenderPath= m_pViewport-&gt;GetRenderPath()-&gt;Clone();
+
+m_pFXRenderPath-&gt;Append(g_pApp-&gt;GetConstantResCache()-&gt;GetResource&lt;XMLFile&gt;("PostProcess/Bloom.xml"));
+m_pFXRenderPath-&gt;Append(g_pApp-&gt;GetConstantResCache()-&gt;GetResource&lt;XMLFile&gt;("PostProcess/FXAA3.xml"));
+
+// Make the bloom mixing parameter more pronounced
+m_pFXRenderPath-&gt;SetShaderParameter("BloomMix", Vector2(0.98f, 0.02f));
+m_pFXRenderPath-&gt;SetEnabled("Bloom", true);
+m_pFXRenderPath-&gt;SetEnabled("FXAA3", true);
+
+// Set active path
+m_pViewport-&gt;SetRenderPath(m_pFXRenderPath);
+
+// Create a temporary Vector
+PODVector&lt;AnimationControllerComponent *&gt; AnimationControllers;
+
+// Get scene AnimationController components
+m_pScene-&gt;GetComponents(AnimationControllers, "AnimationControllerComponent");
+
+// Create a iternator
+PODVector&lt;AnimationControllerComponent *&gt;::Iterator thisControllerComponent;
+
+// Loop through each component
+for(thisControllerComponent = AnimationControllers.Begin(); thisControllerComponent!=AnimationControllers.End(); ++thisControllerComponent)
+{
+   pAnimationManager-&gt;AddAnimationController(*thisControllerComponent);
+}
+
+return;[/code]
+</code></pre>
+<p>}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Present = 850 ms (try without imgui interface)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>(try without imgui interface)</p>
+</blockquote>
+</aside>
+<p>At least add additional profiling to imgui to get a better idea of what impact it’s making. However I will agree that it is the most likely culprit.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="thebluefish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bf1ad5330f9831ec6d82214e91751e5d.png" width="20"/> thebluefish:</div>
+<blockquote>
+<p>[quote=“1vanK”](try without imgui interface)</p>
+</blockquote>
+</aside>
+<p>At least add additional profiling to imgui to get a better idea of what impact it’s making. However I will agree that it is the most likely culprit.[/quote]</p>
+<p>Maybe. Itook out the ImGui base elements which did not help much Now I’m looking at this. I might remove firstly the get screen size every frame which is overkill. The Update Scene and Physics part average around 60, just everything else isn’t.</p>
+<p>[code]void ImGuiInterface::HandleBeginFrame(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+URHO3D_PROFILE(ImGuiInterface_BeginFrame);<br/>
+using namespace BeginFrame;<br/>
+float timeStep = eventData[P_TIMESTEP].GetFloat();</p>
+<pre><code>// Setup display size (every frame to accommodate for window resizing)
+ImGuiIO&amp; io = ImGui::GetIO();
+io.DisplaySize = ImVec2((float)graphics_-&gt;GetWidth(), (float)graphics_-&gt;GetHeight());
+
+// Setup time step
+io.DeltaTime = timeStep &gt; 0.0f ? timeStep : 1.0f / 60.0f;
+
+// Setup inputs
+// mouse input handling
+if (input_-&gt;IsMouseVisible() &amp;&amp; !input_-&gt;GetTouchEmulation())
+{
+    IntVector2 pos = input_-&gt;GetMousePosition();
+    // Mouse position, in pixels (set to -1,-1 if no mouse / on another screen, etc.)
+    io.MousePos.x = (float)pos.x_;
+    io.MousePos.y = (float)pos.y_;
+}
+else
+{
+    io.MousePos.x = -1.0f;
+    io.MousePos.y = -1.0f;
+}
+// TODO: Joystick input handling
+
+// TODO: touch input handling
+if (touchId_ != -1)
+{
+    io.MousePos.x = (float)touchPos_.x_;
+    io.MousePos.y = (float)touchPos_.y_;
+    io.MouseDown[0] = touch_;
+    // disable tracking
+    if (!touch_)
+        touchId_ = -1;
+}
+else
+    io.MouseDown[0] = input_-&gt;GetMouseButtonDown(MOUSEB_LEFT);
+
+io.MouseDown[1] = input_-&gt;GetMouseButtonDown(MOUSEB_RIGHT);
+io.MouseDown[2] = input_-&gt;GetMouseButtonDown(MOUSEB_MIDDLE);
+io.MouseWheel = (float)input_-&gt;GetMouseMoveWheel();
+
+io.KeyCtrl = input_-&gt;GetQualifierDown(QUAL_CTRL);
+io.KeyShift = input_-&gt;GetQualifierDown(QUAL_SHIFT);
+io.KeyAlt = input_-&gt;GetQualifierDown(QUAL_ALT);
+
+// Start the frame
+ImGui::NewFrame();
+
+// show screenkeyboard on text edit
+if (useScreenKeyboard_)
+    input_-&gt;SetScreenKeyboardVisible(io.WantTextInput);
+</code></pre>
+<p>}</p>
+<p>void ImGuiInterface::HandleEndRendering(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+URHO3D_PROFILE(ImGuiInterface_Rendering);<br/>
+ImGui::Render();<br/>
+}[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>That should work. What does it say now when you run the game?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="thebluefish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bf1ad5330f9831ec6d82214e91751e5d.png" width="20"/> thebluefish:</div>
+<blockquote>
+<p>That should work. What does it say now when you run the game?</p>
+</blockquote>
+</aside>
+<p>Roughly the same numbers.</p>
+<p><a href="http://i.imgur.com/u1YlTHt.png" rel="noopener nofollow ugc">i.imgur.com/u1YlTHt.png</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>You need to look all the functions that are used in E_ENDRENDERING</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>A large amount of time spent in Present can simply mean that the GPU has a lot of work to do. You seem to be doing at least several shadowed lights and postprocesses. Have you tried disabling these? (note that the profiler entries under Render but before Present don’t accurately represent GPU work, it’s just the CPU time taken to submit those render commands). Also, do you have Vsync on? If yes, disable it to see your actual framerate, otherwise it’s always 60 divided by something. Vsync waiting goes under Present in the profiler.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>A large amount of time spent in Present can simply mean that the GPU has a lot of work to do. You seem to be doing at least several shadowed lights and postprocesses. Have you tried disabling these? (note that the profiler entries under Render but before Present don’t accurately represent GPU work, it’s just the CPU time taken to submit those render commands). Also, do you have Vsync on? If yes, disable it to see your actual framerate, otherwise it’s always 60 divided by something. Vsync waiting goes under Present in the profiler.</p>
+</blockquote>
+</aside>
+<p>I took everyone advice. ImGui wasn’t the problem but I should optimize that code. The main culprit is the light, shadows, and the VSync.</p>
+<p>I got the FPS up from 22/30 to 54 with everything put back. The rest is optimizing the scene.</p>
+<p>I was able to pull this off and the video is a bit smoother compared to the original.</p>
+<p><a href="https://www.youtube.com/watch?v=v1XraHiSf9w" rel="nofollow noopener">youtube.com/watch?v=v1XraHiSf9w</a></p>
+<p>Ironically, the ground map works better and I get the full 200 fps.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

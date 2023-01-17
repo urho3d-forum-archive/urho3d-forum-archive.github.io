@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Question about Safe Lua</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Question about Safe Lua</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>If I build with URHO3D_SAFE_LUA=1, the resulting Urho3DPlayer binary in /bin/ should be different, right?</p>
+<p>I followed the getting started on linux guide to rebuild and when doing cmake I do:</p>
+<pre><code class="lang-auto">cmake . -DURHO3D_SAFE_LUA=1
+</code></pre>
+<p><a href="https://urho3d.github.io/documentation/1.6/_building.html" rel="nofollow noopener">Here</a> it says to put -DOPTION=value. I don’t know why the D, though.</p>
+<p>However, with the resulting Urho3dPlayer binary, I still get segmentation faults without any other information as to why. With certain errors, I’ll be told via the console, or in a terminal, about the error. But other times I just get segmentation fault, core dumped and nothing else. It’s too time consuming to track everything down and guess why it’s crashing.</p>
+<p>What is Safe_Lua supposed to do here? I don’t see any real difference. Or, did I build incorrectly? What’s the best way to troubleshoot this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>My understanding (as someone who doesn’t use Lua) is that the Safe Lua flag builds Lua with certain safety checks about types and such, which gives you the error messages in the console you describe. However, if there was are not in the Lua side but the c++ side you’ll still get errors. Of course, there seems to me to be areas that could be considered overlapping - null function arguments, for example - is that a Lua error, a c++ error, or not an error, which may break things even with the Safe Lua flag. Possible example: doing something with an empty vector’s Front() element.</p>
+<p>To assist in tracking down errors:</p>
+<ul>
+<li>Check the log for any unexpected error/warning messages</li>
+<li>Run your program in a debugger so you see where it’s actually having the segmentation fault and can go up there stack a bit too find the source (hopefully - this may be very hard using Lua/Angel Script.</li>
+</ul>
+<p>Others may have more/better suggestions. I focus on c++ for my projects, so my go-to solution to find the problem is just run it in a debugger, which has worked 99% of the time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>As opposed to many other people here I work with Lua primarily. almost all of my code-base for urho3d is in lua.  I do use safe lua and I must warn that if you are going to use it, you may get errors which are almost impossible to resolve due to the unnecessary const values in some of the package bindings so its usage is experimental for the most part and as a result of that you may want to familiarise yourself with how tolua++ works and the .pkg format so you can easily fix it. its not that difficult.</p>
+<p>If you want a quick test that Safe Lua works, you can try giving incorrect parameter such as a int to a function which expects a vector and it should give you an error, under normal circumstances it will not.  This sadly also affects some functions who’s parameters have annotations such as const and causes frivolous errors.</p>
+<p>Don’t expect safe lua to cover you for memory issues, if you don’t properly manage memory such as not using :new() when you are passing things created in Lua to C++ structures. Memory management between Urho3D C++ and Lua is tricky but doable if you keep the rules in mind. Safe Lua will mostly provide simple type checking but beyond that its not much use.</p>
+<p>Additionally you may want to build in debug mode so you can use gdb to see where things go wrong as opposed to relying on safe lua to do it. if you see pointer related issues its probably because the C++ structures decided to delete something you are still using in Lua, this is often the majority of errors that I get, and its sometimes guess work to determine if everything is deleted properly, but generally if you pass something to a C++ structure then it has control over it and Lua must not interfere otherwise its double deleted.</p>
+<p>For GDB I advise creating a script so it should be as simple as running a debug.sh in your project directory. you can execute a script in gdb with <code>gdb -x &lt;script&gt;.cgdb</code><br/>
+Personally mine looks like</p>
+<pre><code class="lang-auto">file "/Projects/Tools/Urho3d/build/bin/Urho3DPlayer"
+r '/Projects/&lt;project&gt;/uroh3d.lua' -w -p 'Data;CoreData;urho_ext;' -pp '/Projects/Tools/Urho3d/build/bin/Urho3DPlayer;/Projects/&lt;project&gt;;'
+</code></pre>
+<p>I have an additional local path added urho_ext I use to manage project specific data such as shaders, render paths etc.</p>
+<p>Good luck! and if you want better support for lua and can’t have it any other way you can try using sol2 which has a binding converter from tolua++ pkg to its own format. I haven’t tried it but its on my todo list.</p>
+<p>For your cmake question:<br/>
+If I recall correctly the D value is for Debug.  so -DURHO3D_SAFE_LUA=1 unpacks to “when building in debug mode build with safe lua”<br/>
+Personally I would suggest using the cmake gui, which works on both linux and windows for the ease of use as you can simply tick the options you want.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="5994" data-username="Avagrande">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4b5ee9a397199168aa0012943d28b8ef.png" width="20"/> Avagrande:</div>
+<blockquote>
+<p>If I recall correctly the D value is for Debug. so -DURHO3D_SAFE_LUA=1 unpacks to “when building in debug mode build with safe lua”</p>
+</blockquote>
+</aside>
+<p>I’m not certain, but I thought it was just how you set it for any build type, and that it meant something along the lines of define (e.g. define URHO3D_SAFELUA = 1 when generating the build files).</p>
+<p>Agreed about cmake-gui, though. Generally it makes things a lot easier, and keeps you from misspelling the flags.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>Yep thank you, you are right. Just checked in the manual.</p>
+<pre><code class="lang-auto">-D &lt;var&gt;:&lt;type&gt;=&lt;value&gt;, -D &lt;var&gt;=&lt;value&gt;
+Create a cmake cache entry.
+
+When cmake is first run in an empty build tree, it creates a CMakeCache.txt file and populates it with customizable settings for the project. This option may be used to specify a setting that takes priority over the project’s default value. The option may be repeated for as many cache entries as desired.
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

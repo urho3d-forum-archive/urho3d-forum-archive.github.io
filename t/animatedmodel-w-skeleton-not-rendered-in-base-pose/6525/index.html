@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>AnimatedModel w/Skeleton not rendered in base pose</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">AnimatedModel w/Skeleton not rendered in base pose</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>I’m importing some custom models into Urho3D using a custom <code>Model</code> implementation (which extends <code>Model</code> and overrides serializing the data from a custom format)  and passing this to the standard <code>AnimatedModel</code> class.  If I don’t applying a <code>Skeleton</code> to the custom <code>Model</code>, the model is then rendered as I would expect.  But as soon as I apply the model’s skeleton, it is no longer rendered or at least visible.</p>
+<p>I’m setting the skeleton which consists of 26 bones in total as follows:</p>
+<pre><code class="lang-auto">Urho3D::Skeleton skeleton;
+auto &amp;bones = skeleton.GetModifiableBones();
+for (unsigned i = 0u; i &lt; modelFile-&gt;GetBones().Size(); ++i)
+{
+  const auto &amp;modelBone = modelFile-&gt;GetBoneByIndex(i);
+
+  Urho3D::Bone bone;
+  bone.name_ = Urho3D::ToString("%u", modelBone.boneId);
+  bone.nameHash_ = bone.name_;
+  bone.initialPosition_ = modelBone.pivot.ToUrho3D();
+  // we do not define the following in our bone definitions
+  // additionally, bounding box, offset matrix, and radius aren't in the data
+  bone.initialRotation_ = Urho3D::Quaternion::IDENTITY;
+  bone.initialScale_ = Urho3D::Vector3::ONE;
+  bone.parentIndex_ = (modelBone.parentBone == -1 ? i : modelBone.parentBone);
+
+  bones.Push(bone);
+  if (bone.parentIndex_ == i)
+    skeleton.SetRootBoneIndex(i);
+}
+
+// Set the skeleton on the Model
+SetSkeleton( skeleton );
+</code></pre>
+<p>I wouldn’t expect that an <code>AnimationTrack</code> needs to be bound to the model because if I disable applying that to the model in the SkeletalAnimation example, the model renders with the skeleton &amp; the base model pose just fine.</p>
+<p>Is there potentially something else I need to be setting properly for this to work?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Maybe the bounding box and/or the nodes for the bones? But those may also be set by the skeleton?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>From what I can tell from the code, when no skeleton is defined, the <code>boneBoundingBox_</code> is defined as as the default infinite bounding box.  a new bone uses the same infinite bounding box by default, therefore when no collision is being applied, this should all be fine.  When no collision mask is being applied, I don’t see where <code>radius_</code> is necessary either.</p>
+<p>Just stepped through the bone creation step and those are being created as I would expect them, with the appropriate parent/child relationships being defined between the bones and the nodes within the scene.</p>
+<p>The only questionable part here to me was the Bone’s <code>offsetMatrix_</code>.  This gets used when the model calls <code>UpdateSkinning</code> but the default is an identity matrix, so technically this leads to populating the skin matrices by either the constructed bone node’s transform or the model’s depending if a node is yet attached to the bone at the time the method is called, which again should all be fine.</p>
+<p>Suffice to say I’m still stumped.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

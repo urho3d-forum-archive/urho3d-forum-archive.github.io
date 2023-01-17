@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Material Texture HashMap vs Vector</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Material Texture HashMap vs Vector</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I was looking through the material code, and I was wondering why Material used a <code>HashMap&lt;TextureUnit, SharedPtr&lt;Texture&gt; &gt;</code> rather than a <code>Vector&lt;SharedPtr&lt;Texture&gt;&gt;</code> or even just a <code>SharedPtr&lt;Texture&gt;[(int)MAX_TEXTURE_UNITS]</code> to store its textures?</p>
+<p>Even on a 64 bit system that should only require 128 bytes on Desktop, so ~8000 materials to get 1 Megabyte of extra memory used by using the fixed size array (assuming there were no textures in any of the material - the more units that are used, the less the comparative increase, and presumably at the point of having thousands of materials that will be negligible compared to the number of textures in use). From my (limited) understanding, using an array of contiguous memory should be faster than using the HashMap, and that would reduce checking if a texture unit is present to simply checking against nullptr rather than having to check the map.</p>
+<p>Granted, I may have just missed something that should make it obvious, or may be misunderstanding the map-vs-array tradeoff.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>My (semi-educated) guess is that Urho3D development started a while ago before all the latest engine design hype of ECS, procedural programming and CPU cache optimizations. And in order to develop a general purpose engine you sometimes have to compromise performance in order to have flexibility (see also the Godot engine design philosophy document).</p>
+<p>Having said that, I’m very convinced that there are many areas of performance improvement for Urho3D, but there just aren’t enough developers around with the necessary time (and maybe skills) to work on them. But the greatest benefit of a free, open source project is that you can always go into the code and hack anything you want.<br/>
+One of the first things I’ve hacked into my custom branch is a StringView hack. If you think your material is not optimized, how about every time you pass a String around (and that’s everywhere), memory is allocated on the heap, the string is copied into that allocated block and that’s just to pass it to a function and then when you return from the function the memory is released to the heap.<br/>
+So yeah, there are many areas of improvements for sure, but the good thing is no one is stopping you from fixing them (at least in your own branch <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/>).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I think the only reason is being simpler to use. With hash map, one always know how many textures are set and can apply only them. With vector, one have to check all the slots.</p>
+<p>Having said that, I don’t believe that this is a place that needs to be fixed. Not until it’s proved otherwise.<br/>
+You know, I can spend an evening listing things that are impacting performance <em>more</em> than container used in material.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>Can you list a few major ones, I’m trying to squeeze the maximum performance for my game so I might look into hacking a few things if possible (at least in my custom branch)!?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Okay.</p>
+<ol>
+<li>
+<p>Scene Octree is fully traversed two times: to collect zones and occluders, and to collect geometries and lights. Even if you have no occluders, or only a few, Urho checks every single geometry for being occluder. So, double work for drawable collection. See <code>View::GetDrawables</code>.</p>
+</li>
+<li>
+<p>Moreover, Octree traversal tend to be slower than brute-force in multithreaded environment.</p>
+</li>
+<li>
+<p>Major part of <code>View</code> is single-threaded without any fundamental reason. Theoretically, all operations except rendering itself can be multithreaded. Practically, only <code>UpdateBatches</code> and <code>UpdateGeometry</code> are truly multithreaded in Urho. Lights processing is somewhat multithreaded too, but only if you have a lot of small lights. If you have single dominant light (i.e. any outdoors scene with sun), it’s not multithreaded.</p>
+</li>
+<li>
+<p>There’s no real lighting option except using per-pixel lights. And they cause x2-xN triangle and batch count. If you want to make mobile game, you have to ensure you have one draw call per object in 95% of cases. But how would you do so if you need more than one light? Urho has no baked lighting. Urho <em>does</em> have per-vertex lights, but they are worthless. First, per-vertex lights are literally broken now (but this is fixable). Second, when limit of per-vertex lights per-object is reached, they “fallback” to pixel lights. This defeats the point, a bit. Third, when you have per-vertex lights and per-pixel light(s), <em>object is rendered at least twice, unconditionally</em>. This completely defeats the point of using per-vertex lights on mobiles.</p>
+</li>
+</ol>
+<ol start="5">
+<li>Constant buffers are misused in Urho. Urho updates constant buffers before every draw op, even tho it is recommended to update constant buffers as rarely as possible.<br/>
+This leads to one funny consequence. Constant buffers are supposed to be an optimization, but they actually make rendering slower and they are disabled in Urho OpenGL backend unconditionally. So, if you are using Urho DX11 backend, you receive penalty for using constant buffers all the time, because they are not optional in DX11. I actually did some crude testing with Urho Graphics backend. When I optimized constant buffers, I got about +10% FPS in stress test scenario. Don’t blindly trust this number, tho, because I didn’t do any propper testing and profiling.</li>
+</ol>
+<p>This is what I remember right now. I’ll update my post here if I recall something else later.</p>
+<p>PS. In (4) I ignore Deferred rendering because it’s not always acceptable option. But yea, you can use it and pray it will make things faster and not slower.</p>
+<p>PPS. Yeah, I’m listing things that are hard to fix. If they were easy to fix, they would have already been fixed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Oh, I’ve just remembered one more thing, about deferred render path this time.</p>
+<ol start="6">
+<li>Urho cannot tell if drawable is opaque (and can use deferred rendering) or translucent (and must use forward rendering) until the very last moment. Therefore, even if you enable deferred rendering and have no translucent objects, Urho will do significant part of forward-rendering-only stuff even if the results will never be used.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Lua script won&rsquo;t subscribe to events</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Lua script won&rsquo;t subscribe to events</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Hello! I’m trying to run Lua scripts. Everything is going fine except for the event subscribing.</p>
+<p>So, I start by loading and executing lua files in the .cpp:</p>
+<pre><code class="lang-auto">cache-&gt;GetResource&lt;LuaFile&gt;("LuaScripts/01_HelloWorld.lua");
+cache-&gt;GetResource&lt;LuaFile&gt;("LuaScripts/Utilities/Sample.lua");
+
+LuaScript* script = new LuaScript(context_);
+
+script-&gt;ExecuteFile("LuaScripts/01_HelloWorld.lua");
+LuaFunction* start = script-&gt;GetFunction("Start");
+start-&gt;BeginCall();
+start-&gt;EndCall();</code></pre>
+<p>After building and running the project I get following messages:</p>
+<p><img alt="" height="346" src="../../../images2/cc3a3d6e042be6319719b395b8557ef7.png" width="489"/></p>
+<p>Apparently, something is preventing Lua scripts from registering events… Or should I put something specific in the .cpp code?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>I’ll post the entire program here in order to make it clear what I’m doing. So, I’m just trying to hook in Lua script into Main.cpp and continue development in Lua from that point (I know I’m not supposed to do all the dev in Lua, but I want to do it for the sake of learning and fun). Here is the entire code:</p>
+<pre><code class="lang-auto">#include &lt;Urho3D/Engine/Application.h&gt;
+#include &lt;Urho3D/Engine/Engine.h&gt;
+#include &lt;Urho3D/Input/InputEvents.h&gt;
+using namespace Urho3D;
+class MyApp : public Application
+{
+public:
+  MyApp(Context* context) :
+    Application(context)
+  {
+  }
+  virtual void Setup()
+  {
+    // Called before engine initialization. engineParameters_ member variable can be modified here
+    engineParameters_["FullScreen"] = false;
+
+    context_-&gt;RegisterSubsystem(new LuaScript(context_));
+  }
+  virtual void Start()
+  {
+    // Called after engine initialization. Setup application &amp; subscribe to events here
+    SubscribeToEvent(E_KEYDOWN, URHO3D_HANDLER(MyApp, HandleKeyDown));
+
+    LuaScript* luaScript = new LuaScript(context_);
+    luaScript-&gt;ExecuteFile("Data/LuaScripts/TestScene.lua");
+    LuaFunction* lf = luaScript-&gt;GetFunction("Start");
+    lf-&gt;BeginCall();
+    lf-&gt;EndCall();
+  }
+  virtual void Stop()
+  {
+    // Perform optional cleanup after main loop has terminated
+  }
+  void HandleKeyDown(StringHash eventType, VariantMap&amp; eventData)
+  {
+    using namespace KeyDown;
+    // Check for pressing ESC. Note the engine_ member variable for convenience access to the Engine object
+    int key = eventData[P_KEY].GetInt();
+    if (key == KEY_ESC)
+      engine_-&gt;Exit();
+  }
+};
+URHO3D_DEFINE_APPLICATION_MAIN(MyApp)</code></pre>
+<p>The example works just fine. However, I cannot subscribe to any event via Lua script. Lua complains that it cannot find callback functions specified in respective SubscribeToEvent function calls. So, everything gets loaded, displayed and animated, but there is no input handling, no scene update, etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>OK, I’ve figured it out. I was forgetting to register a particular Lua script with the context:</p>
+<pre><code class="lang-auto">#include &lt;Urho3D/Engine/Application.h&gt;
+#include &lt;Urho3D/Engine/Engine.h&gt;
+#include &lt;Urho3D/Input/InputEvents.h&gt;
+using namespace Urho3D;
+class MyApp : public Application
+{
+public:
+  MyApp(Context* context) :
+    Application(context)
+  {
+  }
+  virtual void Setup()
+  {
+    // Called before engine initialization. engineParameters_ member variable can be modified here
+    engineParameters_["FullScreen"] = false;
+    
+    // THIS LINE HAS NO EFFECT SINCE THE POINTER TO THE new LuaScript IS LOST
+    context_-&gt;RegisterSubsystem(new LuaScript(context_));
+  }
+  virtual void Start()
+  {
+    // Called after engine initialization. Setup application &amp; subscribe to events here
+    SubscribeToEvent(E_KEYDOWN, URHO3D_HANDLER(MyApp, HandleKeyDown));
+
+    LuaScript* luaScript = new LuaScript(context_);
+
+    // REGISTER luaScript WITH the context_
+    context_-&gt;RegisterSubsystem(luaScript);
+
+    luaScript-&gt;ExecuteFile("Data/LuaScripts/TestScene.lua");
+    LuaFunction* lf = luaScript-&gt;GetFunction("Start");
+    lf-&gt;BeginCall();
+    lf-&gt;EndCall();
+  }
+  virtual void Stop()
+  {
+    // Perform optional cleanup after main loop has terminated
+  }
+  void HandleKeyDown(StringHash eventType, VariantMap&amp; eventData)
+  {
+    using namespace KeyDown;
+    // Check for pressing ESC. Note the engine_ member variable for convenience access to the Engine object
+    int key = eventData[P_KEY].GetInt();
+    if (key == KEY_ESC)
+      engine_-&gt;Exit();
+  }
+};
+URHO3D_DEFINE_APPLICATION_MAIN(MyApp)</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Instead of creating a new LuaScript subsystem, why not just use the existing?</p>
+<pre><code class="lang-auto">LuaScript* luaScript = context_-&gt;GetSubsystem&lt;LuaScript&gt;();</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Attribute animation and event questions</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Attribute animation and event questions</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>My situation is this: i want to move object certain amount of distance and remove it from the world. Natural fit seems attribute animations. This is what i got:</p>
+<pre><code class="lang-auto">&lt;?xml version="1.0"?&gt;
+&lt;objectanimation&gt;
+    &lt;attributeanimation name="Position" interpolationmethod="Linear" wrapmode="Once" speed="1"&gt;
+        &lt;keyframe time="0" type="Vector3" value="0 0 0" /&gt;
+        &lt;keyframe time="1" type="Vector3" value="0 15 0" /&gt;
+        &lt;eventframe time="1" eventtype="1" /&gt;
+    &lt;/attributeanimation&gt;
+&lt;/objectanimation&gt;</code></pre>
+<p>To see if animation is finished i decided to use “eventframe” (undocumented feature it seems).</p>
+<p>Q1: Why eventtype is uint? ( <a  rel="nofollow noopener">github.com/urho3d/Urho3D/blob/m … n.cpp#L123</a> ). It ends up converted to StringHash. Would it not be better to allow string types so they have more meaningful names? I could make PR changing it to string, but it is not backwards-compatible so need developer blessing on this one. Ofc it can be made backwards-compatible with ugly hack of converting numeric strings to integers before generating StringHash but its ugly.</p>
+<p>Q2: Can we modify scene graph from “eventframe” event? I want to remove node from scene graph when animation is done.</p>
+<pre><code class="lang-auto">animation-&gt;SubscribeToEvent(StringHash(1), URHO3D_HANDLER(MyObj, OnPickupAnimationEnd));
+...
+void MyObj::OnPickupAnimationEnd(StringHash eventType, VariantMap&amp; eventData)
+{
+    node_-&gt;Remove();
+}</code></pre>
+<p>Thing is it causes crash somewhere within attribute animation code at a later time so i guess modifying scene graph is not permitted at that time. Still need clarification.</p>
+<p>Q3: Is there a way to “queue” some events to certain step? So we can send events at any time and be sure they are executed during E_SCENEUPDATE step for example. I have not seen such functionality while checking out source code. Maybe this is worthy feature request? Or maybe there is another solution to this problem?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lizardperson</div>
+          <div class="post_content">
+<p>I have a very similar question which fits the same topic, so I’ll post it here, instead of creating another thread.</p>
+<p>Q4: How can I add attribute animation at the handling of frame event?<br/>
+I add position animation to the camera node and register event on the last frame.<br/>
+Then I put the same code which adds animation to the camera inside the event handler. It outputs the debug string (“TWEEN END”), but for some reason doesn’t add the next animation to the camera node.<br/>
+I tried to remove running animation first(the commented line), but it doesn’t change anything and camera just stops after the first animation’s end.</p>
+<p><code>void HandleTweenEnd(StringHash eventType,VariantMap&amp; eventData)
+{
+	 Log::Write(LOG_INFO,String("TWEEN END"));
+	 //cameraNode_-&gt;RemoveAttributeAnimation("Position");
+	 SharedPtr&lt;ValueAnimation&gt; positionAnimation(new ValueAnimation(context_));
+	 positionAnimation-&gt;SetKeyFrame(0.0f, cameraNode_-&gt;GetPosition());
+	 positionAnimation-&gt;SetKeyFrame(0.5f, cameraNode_-&gt;GetPosition() + cameraNode_-&gt;GetDirection() * 3);
+	 positionAnimation-&gt;SetEventFrame(0.5f, "TweenEnd");
+	 cameraNode_-&gt;SetAttributeAnimation("Position", positionAnimation, WM_ONCE);
+}</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sir_Nate</div>
+          <div class="post_content">
+<p>Regarding Q4, I would guess it does not do anything with the new animation because of how Animatable handles finished animations in updating them:</p>
+<p>[code]void Animatable::UpdateAttributeAnimations(float timeStep)<br/>
+{<br/>
+if (!animationEnabled_)<br/>
+return;</p>
+<pre><code>Vector&lt;String&gt; finishedNames;
+for (HashMap&lt;String, SharedPtr&lt;AttributeAnimationInfo&gt; &gt;::ConstIterator i = attributeAnimationInfos_.Begin();
+     i != attributeAnimationInfos_.End(); ++i)
+{
+    if (i-&gt;second_-&gt;Update(timeStep))
+        finishedNames.Push(i-&gt;second_-&gt;GetAttributeInfo().name_);
+}
+
+for (unsigned i = 0; i &lt; finishedNames.Size(); ++i)
+    SetAttributeAnimation(finishedNames[i], 0);
+</code></pre>
+<p>}[/code]<br/>
+My guess would be that removing and adding the Position animation still marks the position animation as finished, and so it just ends up being removed (even though it is a new animation).</p>
+<p>Regarding Q3, As far as I know there is not, though I don’t think it’s too hard to add. If the event sender is not important, you can just add an object that stores the events in a map&lt;EventType, multimap&lt;EventType, VariantMap&gt;&gt; and have it subscribe to the first event type, and when it receives that event send all of the events in the second container (a multimap is probably not the best solution – perhaps a vector of pairs or something instead). If caller is important, you then need to store the caller as well, and ensure that the caller either still exists (i.e. store in SharedPtr&lt;&gt;) or handle the case that the caller is deleted. You then just have a QueueEvent(EventType sendon, EventType willSend, VariantMap data) that adds it to that container and subscribes to the sendon events, with a generic handler that will empty the map of those events, sending all of them with their willSend types, and unsubscribing from that eventtype.</p>
+<p>As to Q2, the crashing is probably because you are removing the node that is in the middle of updating it’s attribute animations, and removing it probably releases the last reference, causing it to be deleted while it is still executing a function (that later does stuff with this, which has been deleted). My suggestion would be to mark the object with a remove flag, and on the update event remove it. Alternatively, consider adding specific object that simply deletes all of it’s children during the update event, and reparent the object to that node instead of removing it directly. As far as I know modifying the scene graph is allowed at this time. You simply aren’t allowed to delete the object that is updating it’s animations and causing that event to be called.</p>
+<p>Regarding Q1, I assume it’s for efficiency reasons involved in the size of StringHash vs String, and, more importantly, in the equality comparisons, though I’m not a developer and I’m not at all certain.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Thanks for clarifications Nate. Though i think you are mistaken regarding Q1. Thing is uint is converted to StringHash. If eventframe type was text string it would also be converted to string hash. There are no performance considerations here as it only makes difference when loading xml, and that happens really rare (relatively to other events).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lizardperson</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sir Nate:</div>
+<blockquote>
+<p>Regarding Q4</p>
+</blockquote>
+</aside>
+<p>Thanks! You’re right, Nate, it sends event and then marks attribute animation as finished, even if it was reset inside event handler.<br/>
+I think, comparing pointer to ValueAnimation before and after the sending of event and making necessary adjustments could fix this behavior.<br/>
+I myself fixed it by marking the object first, resending event from the update and handling it from there. I’m writing the tweening interface class based on attribute animation functionality, so additional clutter is hidden inside the implementation.<br/>
+For users who work with attribute animations directly, patch of this problem would be helpful, I believe, as chaining of animations can be very useful.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

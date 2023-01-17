@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Stretchable sprites/images (aka 9-patch or 9-slice)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Stretchable sprites/images (aka 9-patch or 9-slice)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>Does Urho3D support stretchable sprites, either with <a href="https://developer.android.com/guide/topics/graphics/2d-graphics.html#nine-patch" rel="nofollow noopener">nine patch</a>/9-slice images, or some other way?</p>
+<p>Otherwise, any suggestions on how to do a 2D platform that can grow and shrink? I thought of using plain images for different parts of the intended sprite (repeatable and static) and then arrange the corresponding multiple sprites spatially so they would look like a single object. But I guess such a “platform” would have to be composed of several scene nodes and would be quite heavy. And I suppose that could have negative impacts on GPU acceleration. Besides, resource creation would be cumbersome.</p>
+<p>Is there a better way to non-uniformly scale a source image at run-time, to dynamically obtain an image that can be used as a sprite?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>BorderImage uses this approach, but it only for UI</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>Thanks, indeed this does not seem to be usable for purposes other than UI. Any other suggestions?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<ul>
+<li>AnimatedModel with <em>key shapes / morphs</em>
+</li>
+<li>Dynamic geometry</li>
+</ul>
+<p>Either wrapped in a custom class.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>Thanks <span class="mention">@Modanung</span>. Your suggestions got me thinking. If I understand properly, they both involve 3d mesh manipulation though. I would rather avoid that in a 2D-only context.</p>
+<p>I am not familiar with dynamic geometries and I have the impression they would be too complex for this case. As for an animation approach, I suppose I could use AnimatedSprite2D. I will keep that in mind, but I think I will try a different approach first, one that does not require bones or keyframes:</p>
+<ol>
+<li>Define a “stretchable entity resource” with
+<ul>
+<li>sprite (image, rectangle, hotspot, etc.)</li>
+<li>stretchable rectangle (can be reduced to horizontal or vertical line if only one dimension can be stretched)</li>
+<li>collision polygon</li>
+</ul>
+</li>
+<li>Have a stretchable entity class that reads this and provides a stretch(x, y) by
+<ul>
+<li>creating a node with 9 subnodes, one for each cardinal point (N, S, E, W, NE, …) plus one for the center © [only create 3 subnodes if only 1 dimension can be stretched]</li>
+<li>assigning a sprite to each of the nodes, based on the same image but with different rectangles (derived from the original rectangle and the stretchable rectangle<sup><a href="#myfootnote1">1</a></sup>)</li>
+<li>scaling nodes N, C, and S horizontally to stretch horizontally</li>
+<li>scaling nodes W, C, and E vertically to stretch vertically</li>
+<li>changing collision polygon vertices accordingly</li>
+</ul>
+</li>
+<li>other details from the top of my head:
+<ul>
+<li>override necessary methods (e.g. flip)</li>
+<li>flip for negative stretching amounts</li>
+<li>stretching below a ZERO stretch rectangle falls back to scalling corner nodes; scalling back up reverts that</li>
+</ul>
+</li>
+</ol>
+<p>Stretching could then be animated with a ValueAnimation.</p>
+<p>What do you think? Do you see important downsides to this approach? More suggestions/discussion welcome!</p>
+<hr/>
+<p><a name="myfootnote1"><sup>1</sup></a> e.g.:<br/>
+* NE.left_ = orig_rect.left_<br/>
+* NE.right_ = stretch_rect.left_<br/>
+* NE.top_ = orig_rect.top_<br/>
+* NE.bottom_ = stretch_rect.top_</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/941_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taymindis</div>
+          <div class="post_content">
+<p>Hi Ricab,</p>
+<p>has this feature available now? Do you have any suggestion or reference to create a Patch9Sprite?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>I don’t think so, I am afraid I never got around to it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I recall Torque Engine having this, prior to being called Torque3D.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I guess you could use a UIComponent to render a BorderImage to a plane. Like in the <a >Hello3DGUI</a> sample.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="9" data-topic="2805">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8b9decec7cc30729aa8f8f7015602d32.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>I guess you could use a UIComponent to render a BorderImage to a plane.</p>
+</blockquote>
+</aside>
+<p>It sounds a bit overkill.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Agreed, but maybe less so then my previous suggestions. <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>this: <a >https://github.com/urho3d/Urho3D/pull/2168/files#diff-957a3aa78761fe8f659474aacf99975aR2322</a> is probably what you’ll need once merged with the main branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>Thanks for the link. How exactly do you envision using this? Perhaps having a StretchableSprite2D class that would resize and overwrite the underlying image data in <a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_drawable2_d.html#aaa3ee2dfe5f37c32ed8fd11a3b169e6e" rel="nofollow noopener">UpdateSourceBatches</a>, according to the world scale? And how would the new image data be loaded into the GPU? Wouldn’t it be problematic to do that each frame?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>The setsubimage() fn is designed more for a static copy, you’ll have to modify it to accommodate stretch. I don’t know the requirement specification so I couldn’t say how frequently you should resize the image, but I definitely wouldn’t resize it every frame.  There should be some kind of world scale range which indicate when image resizing and stretching should occur.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<blockquote>
+<p>I don’t know the requirement specification</p>
+</blockquote>
+<p>Considering “stretch” here to be just what 9-patch images do, ideally what I see is:</p>
+<ol>
+<li>for the client, stretching should be as trivial as scaling; perhaps just using the same Node::Scale API (see below)</li>
+<li>stretch should be “animatable”, with no significant penalty (in performance or ease-of-use) relative to scaling</li>
+</ol>
+<p>Perhaps stretching could be encapsulated in a component of the <code>Drawable2D</code> family. The client would just call <code>Node::Scale</code> normally and stretchable components would react by stretching (falling back to scale if below minimum stretch). Some additional API could be provided by the stretchable component to allow for regular scaling (useful mainly for scene setup).</p>
+<p>A basic <em>use-case</em> would be growing/shrinking platforms.</p>
+<p>I am not sure how something like this could be implemented though… Input still very much welcome</p>
+<hr/>
+<p>EDIT: just saw <a href="https://discourse.urho3d.io/t/does-urho3d-have-patch9imagesprite/3748">this</a> other topic. Will have a look at what Eugene suggests there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Should just start with static stretch and onto dynamic once you got static working. This might help you get started: <a href="https://github.com/GarageGames/Torque3D/blob/development/Engine/source/gfx/gfxDrawUtil.cpp#L353">https://github.com/GarageGames/Torque3D/blob/development/Engine/source/gfx/gfxDrawUtil.cpp#L353</a></p>
+<p>edit: I was looking for the 9-patch source code but couldn’t find it, and instead, found the drawBitmapStretch fn linked above. I have no idea if that’s what you’re looking for or whether it actually works because I just found the function while browsing and it sounded like it’s something that you’re looking to do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>OK, thanks. I’ll need to find some quality time to look at this properly, but the algorithmic part of it is clearer in my mind, at least in the <code>Drawable2D</code> component approach I mentioned. Still not perfectly sure about the wisdom of such a design though…</p>
+<p>Let’s say we do <code>class StretchableSprite2D : public Drawable2D</code>. Note the following implications:</p>
+<ul>
+<li>the feature would be limited to 2D – due to separation between Renderer and Renderer2D, using <code>StretchableSprite2D</code> in 3D would be convoluted at best</li>
+<li>no easy way to do regular scale – the component could provide additional API, like <code>ActivateNormalScale(bool)</code> or something, but doesn’t sound very elegant</li>
+<li>has the potential to break client expectations – someone who scales a node might expect internal similarity to be maintained. For instance, today you can work at any scale as long as everything is scaled by the same amount (ignoring precision issues); with stretchable sprites, that would no longer be true (different aspect at different scales).</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>It might be more versatile if you have a function, such as:</p>
+<pre><code class="lang-auto">void SetBitmapAutoScaleFactor(const Vector2 &amp;scaleFactor)
+{
+   autoScaleFactor_ = scaleFactor;
+}</code></pre>
+<p>and say that the auto-scaling required to scale must be whole value:</p>
+<pre><code class="lang-auto">IntVector2 newUnitScale = node_-&gt;GetWorldScale() * autoScaleFactor_; // don't know if world scale returns float or vec3
+
+if (newUnitScale.x_ != unitScale_.x_)
+  ** scale bitmap</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>Right, so basically providing a way to set the <em>intrinsic</em> scale in the sprite directly, correct? I agree that would be a natural way to address the second item above.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Oh, I thought specifying the limitations of the other bullet list item was actually a solution. But, let’s bounce off some ideas.</p>
+<p><em>I’m going to imagine that this feature is targeted to something akin to a builder-kit and will reference examples from such.</em></p>
+<blockquote>
+<p>the feature would be limited to 2D – due to separation between Renderer and Renderer2D, using StretchableSprite2D in 3D would be convoluted at best</p>
+</blockquote>
+<p>I agree the 2D texture stretching cannot be applied to 3 dimensions.  But this might be circumvented by how your 3D model is UV mapped. Imagine a wall structure for a building: 10x5x1 (WxHxD). You can uv map the model in a such way that all 9-patches are covered by WxH, but the Depths skip the center patch and only map the edges of the patch.  And by limiting the scaling to only WxH, I imagine it’d look pretty good and not convoluted.</p>
+<aside class="quote">
+<blockquote>
+<p>has the potential to break client expectations – someone who scales a node might expect internal similarity to be maintained. For instance, today you can work at any scale as long as everything is scaled by the same amount (ignoring precision issues); with stretchable sprites, that would no longer be true (different aspect at different scales).</p>
+</blockquote>
+</aside>
+<p>Same as before. Certain 3D model templates would have restriction on which axis it can be scaled.  But isn’t it true that the purpose of the 9-patch image is designed so that when stretched, it’d still look ok?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>Sorry for the delay. Right, all that you say makes sense. I am basically trying to anticipate possible criticism to find an approach that sounds sensible to other people.</p>
+<p>You see, for my particular purposes I could cut corners (probably just wrap 9 nodes in a class, with a static sprite each, and scale the central ones as needed). But I would like to contribute something more general back, so better to bounce some ideas as you say and then start on the right track <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

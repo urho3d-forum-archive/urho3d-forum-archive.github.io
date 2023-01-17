@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How can I get the face info from a raycast?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How can I get the face info from a raycast?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pihozamo</div>
+          <div class="post_content">
+<p>I would like to know if it’s possible to get the face (triangle, quad, …) info from a raycast collision result.</p>
+<p>What I’m doing right now is getting the collision position from the raycast result and calculating the distance from all the geometry vertexes so I can get the nearest point, however I feel like there is a better way.</p>
+<p>Looking at the documentation for the RayQueryResult class it seems that there’s no info about the intercepted face, only the whole Geometry, in this case the drawable_ variable.</p>
+<p>So if I could get the intercepted face info I could just filter it down to that face’s vertexes.</p>
+<p>Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p><strong>A:</strong></p>
+<p>Add an <code>unsigned subObjectElementIndex_</code> to RayQueryResult that defaults to <code>M_MAX_UNSIGNED</code>. Update <code>Ray::HitDistance</code> to be able to output the index in the index buffer of the first triangle vertex (the index of the index, not the index of the vertex). Make relevant changes to <code>Geometry</code> to bubble that up and use it in <code>StaticModel::ProcessRayQuery</code>, recording the index whenever the distance checks pass.</p>
+<p>Then fix all the places that are unhappy about adding the extra parameter to Ray::HitDistance, fix scripting bindings, etc.</p>
+<p>The rest of RayQueryResult already contains what you need to get in order to get the vertex and index data as well as vertex data description for pulling out the vertex attributes you care about for your <em>whatever-it-means-here-triangle</em>.</p>
+<hr/>
+<p><strong>B:</strong></p>
+<p>Roll a bespoke / copy-pasta of Ray::HitDistance to use after first successful cast to cast again and capture out more data.</p>
+<hr/>
+<p><strong>C:</strong></p>
+<p>Tweak Ray::HitDistance to accept an <em>output-count</em> and thus treat the input pointers as the start of an array, where the first element is the hit position, and the next N are the element data that was used for the triangle of the hit.  Then somehow bubble that mess of information back up and hope you don’t end up ever having more types of triangles you need to get.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>is this in the wiki? this should be in the wiki <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>So has anyone actually made a solution to this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I don’t know, but since I have some experience with both physics and graphics raycasting I could add it to my todo list? I would definitely like to say that we can always provide more information from collision queries than we already do. I think its an area where we can do better. I personally should know this, it’s a beginner thing in directx to pick triangles</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I just poked around a bit - Urho3D::RayQueryResult does not tell us which triangle we hit - however it does tell us the exact UV coordinates of the hitpoint (which indicates that yes we COULD have returned that extra information…)</p>
+<p>In another time, I had to use barycentric coordinates to determine the UV of the hit point (terrain painting, coming soon!) - given there is no internal acceleration structure for hit queries in the Model class, and assuming that all UVs are “unique” (subject to interpretation of the definition), I reckon the fastest way to determine which triangle was hit is to check every triangle in the model, to find out if we can map the UV hit coordinate back to a barycentric coordinate within that triangle. In the case of unique UVs, there will be only one hit result (and so a chance to terminate our search early). In the case of shared UVs, we have to do a second test to figure out which hit result is closest, and/or sort the results by distance.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>In Material class calling function SetShaderParameter using an ID</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">In Material class calling function SetShaderParameter using an ID</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mohamed.chit</div>
+          <div class="post_content">
+<p>I have a material instance with a parameter, which should be updated during the game each frame.</p>
+<p>To do so, i have to pass the name of the shader parameter (a string) to “SetShaderParameter”. Therefore update this parameter in the material.</p>
+<p>isn’t that very costly? why there is not a function to pass simply the “parameter id”? as these parameters have specific IDs usually when shaders are compiled.</p>
+<p>is it possible to have that, that would be i think a lot faster than passing the name of the parameter (string).</p>
+<p>I think one of you would suggest to use animation, i cannot do that, since the values are actually coming from different library, i can only update the material parameter each frame.</p>
+<p>I would be very glad to get a reply from you.</p>
+<p>Best regards.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6408" data-username="mohamed.chit">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6b7deb2eec6bb8d43e99bd1f85b400f5.png" width="20"/> mohamed.chit:</div>
+<blockquote>
+<p>isn’t that very costly? why there is not a function to pass simply the “parameter id”? as these parameters have specific IDs usually when shaders are compiled.</p>
+</blockquote>
+</aside>
+<p>The issue is that <code>Material</code> is <code>Resource</code> that can be loaded and <em>saved</em>.<br/>
+And you cannot really save shader parameter to XML if you have only ID, you need full name.</p>
+<p>This dichotomy between “strings as text” and “strings as hashes” is deep architectural issue that appears in different places of the engine. I don’t think there’s easy and nice solution that lets <code>Material</code> accept shader parameters by hash instead of name.</p>
+<p><code>Scene</code> has somewhat similar (or, to be precise, opposite) issue – if you add variables to <code>Node</code>, their names are stored as hash. So when we changed hash function for string (it happened once a few years ago), actual <code>Scene</code> files became corrupted.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mohamed.chit</div>
+          <div class="post_content">
+<p>Why not to use the same concept in java, there are some fields marked as transient, you could have a transient parameter id in material class, it is not part of the Material (Resource) save/load, but it exists only at runtime, in-memory and can be used to speed-up finding the parameter, i think that would be great.</p>
+<p>I may have 100s of materials in a scene, I need to update theirs material parameters each frame, using material parameter ID would really enhance perfomance.</p>
+<p>it is just a suggestion, I am not even sure that it can be implemented.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="6408" data-username="mohamed.chit">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6b7deb2eec6bb8d43e99bd1f85b400f5.png" width="20"/> mohamed.chit:</div>
+<blockquote>
+<p>there are some fields marked as transient, you could have a transient parameter id in material class, it is not part of the Material (Resource) save/load, but it exists only at runtime, in-memory and can be used to speed-up finding the parameter</p>
+</blockquote>
+</aside>
+<p>Shader parameters are <em>already</em> part of save/load.<br/>
+You may add new shader parameter via <code>SetShaderParameter</code>, therefore you must provide full name and not hash.</p>
+<p>The best thing you can do is to extend <code>Material</code> API so it lets you find <em>existing</em> parameter and modify its value. Nothing prevents you from doing so, it’s simple change.<br/>
+All you need to do is to update <code>shaderParameters_</code> and refresh some cached values…<br/>
+<a  rel="noopener nofollow ugc">https://github.com/urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/Material.cpp#L979</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mohamed.chit</div>
+          <div class="post_content">
+<p>I thought about your suggestion, even if it is simple, I would not do it, because I would not like to compile Urho3D for each platform, I simply download binaries, which are supported.<br/>
+Or If i make changes, they become part of Urho3D itself.<br/>
+It would be great to have such feature, to pass an ID instead of a name, this would improve the perfomance a lot.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>This seems like it could make for a welcome and easily digestible PR?</p>
+<p>Also, welcome to the forums! <img alt=":confetti_ball:" class="emoji" src="../../../images2/8cc1133d965c492d26cc2ba425a80ea1.png" title=":confetti_ball:"/> <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Adding component type and functions into the Editor</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Adding component type and functions into the Editor</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I am trying to be able to use  “GameAssetManager@  AssetManager;” in angelscript for example including calling functions from it. I know how to register components but I’m not sure how to register it fully in the script engine. I’m starting off with this base code.</p>
+<p>[code]void EngineEditorApp::Start()<br/>
+{<br/>
+// Start the app<br/>
+EngineApp::Start();</p>
+<pre><code>// Register here
+GameAssetManager::RegisterObject(context_);
+
+// Get Resource path
+ResourceCache * ResCache = g_pApp-&gt;GetConstantResCache();
+
+m_bIsInit = true;
+
+// Set Script file
+String scriptFileName_ = String("Scripts/Editor.as");
+String extension = GetExtension(scriptFileName_);
+
+if (extension != ".lua" &amp;&amp; extension != ".luc")
+{
+    // Instantiate and register the AngelScript subsystem
+    context_-&gt;RegisterSubsystem(new Script(context_));
+
+    // Get Script engine
+    asIScriptEngine * ThisScriptEngine = GetSubsystem&lt;Script&gt;()-&gt;GetScriptEngine();
+
+    // Pass Engine
+    GameAssetManager::RegisterAPI(ThisScriptEngine);
+
+    // Hold a shared pointer to the script file to make sure it is not unloaded during runtime
+    scriptFile_= ResCache -&gt;GetResource&lt;ScriptFile&gt;(scriptFileName_);
+
+    /// \hack If we are running the editor, also instantiate Lua subsystem to enable editing Lua ScriptInstances
+
+    // If script loading is successful, proceed to main loop
+    if (scriptFile_ &amp;&amp; scriptFile_-&gt;Execute("void Start()"))
+    {
+        // Subscribe to script's reload event to allow live-reload of the application
+        SubscribeToEvent(scriptFile_, E_RELOADSTARTED, URHO3D_HANDLER(EngineEditorApp, HandleScriptReloadStarted));
+        SubscribeToEvent(scriptFile_, E_RELOADFINISHED, URHO3D_HANDLER(EngineEditorApp, HandleScriptReloadFinished));
+        SubscribeToEvent(scriptFile_, E_RELOADFAILED, URHO3D_HANDLER(EngineEditorApp, HandleScriptReloadFailed));
+
+        return;
+    }
+}
+</code></pre>
+<p>}<br/>
+[/code]</p>
+<p>and</p>
+<p>[code]<span class="hashtag">#include</span> “EngineStd.h”</p>
+<p><span class="hashtag">#include</span> </p>
+<p>using namespace std;</p>
+<p><span class="hashtag">#include</span> “GameAsset.h”<br/>
+<span class="hashtag">#include</span> “GameAssetRules.h”<br/>
+<span class="hashtag">#include</span> “GameAssetManager.h”</p>
+<p><span class="hashtag">#include</span> “Urho3D/AngelScript/APITemplates.h”</p>
+<p>// constructor - initialize set default<br/>
+GameAssetManager::GameAssetManager(Context* context)<br/>
+:LogicComponent(context)<br/>
+,m_pGameAssetLibrary(NULL)<br/>
+,m_pGameAssetRuleLibrary(NULL)<br/>
+,m_pGameAssetResources(NULL)</p>
+<p>{<br/>
+// GameAssetLibrary<br/>
+m_pGameAssetLibrary = new Vector&lt;GameAsset*&gt;();<br/>
+m_pGameAssetRuleLibrary = new Vector&lt;GameAssetRule*&gt;();</p>
+<p>}</p>
+<p>// Register Subsystem<br/>
+void GameAssetManager::RegisterObject(Context* context)<br/>
+{<br/>
+///context -&gt; RegisterSubsystem(new GameAssetManager(context));</p>
+<pre><code>context-&gt;RegisterFactory&lt;GameAssetManager&gt;("EngineStd");
+
+
+return;
+</code></pre>
+<p>}</p>
+<p>void GameAssetManager::RegisterAPI(asIScriptEngine * engine)<br/>
+{<br/>
+engine-&gt;RegisterObjectType(“GameAssetManager”,0, asOBJ_REF); // asOBJ_REF because you wanted a reference call</p>
+<pre><code>engine-&gt;RegisterObjectBehaviour("GameAssetManager",asBEHAVE_ADDREF,"void f()",asFUNCTION(FakeAddRef),asCALL_CDECL_OBJLAST);
+engine-&gt;RegisterObjectBehaviour("GameAssetManager",asBEHAVE_RELEASE,"void f()",asFUNCTION(FakeReleaseRef),asCALL_CDECL_OBJLAST);
+</code></pre>
+<p>}</p>
+<p>// setup asset path<br/>
+void GameAssetManager::Init(void)<br/>
+{<br/>
+// get file system<br/>
+FileSystem* filesystem = GetSubsystem();</p>
+<pre><code>m_pGameAssetResources = new GameAssetData(context_);
+
+// Set Data filename
+m_pGameAssetResources-&gt;SetAddDataFile(String("GameData.pak"));
+
+// initalize base assets
+InitializeBaseGameAssets();
+
+return;
+</code></pre>
+<p>}</p>
+<p>// add game asset - base symbol<br/>
+GameAsset * GameAssetManager::AddGameAsset(String GA_Name, String GA_Symbol,GameAssetType GA_Type, GameAssetState GA_State)<br/>
+{<br/>
+// if asset library is null<br/>
+if(!m_pGameAssetLibrary)<br/>
+{<br/>
+return NULL;<br/>
+}</p>
+<pre><code>// check valid
+if(GA_Name.Empty() || GA_Symbol.Empty())
+{
+    return NULL;
+}
+
+// check if state or type is valid
+if(GA_Type == GAType_None || GA_State==GAState_None)
+{
+    return NULL;
+}
+
+// create new game asset
+GameAsset * newGameAsset;
+
+newGameAsset = new GameAsset(context_);
+
+newGameAsset -&gt;SetSymbol(GA_Symbol);
+newGameAsset -&gt;SetTypeState(GA_Type, GA_State);
+
+// add to library
+m_pGameAssetLibrary-&gt;Push(newGameAsset);
+
+
+return newGameAsset;
+</code></pre>
+<p>}</p>
+<p>[/code]</p>
+<p>In the header I defined RegisterObject and RegisterAPI as static void</p>
+<p>When I run the editor it says GameAssetManager is not a valid name identifier in the global namespace and the rest of the .as script doesn’t compile.  I modifed the code to the above.</p>
+<p>I’m just get this when compiling.</p>
+<p><code>||=== Build: EngineEditor in Urho3D (compiler: GNU GCC Compiler) ===|
+rho3D-Hangars-Myfork-BuildEditor/include/Urho3D/ThirdParty/AngelScript/angelscript.h|421|error: cannot convert ?GameAssetManager::FakeAddRef? from type ?void (GameAssetManager::)(void*)? to type ?void (GameAssetManager::*)(void*)?|
+rho3D-Hangars-MyForkEditor/Source/EngineStd/GameAssetManager/GameAssetManager.cpp|42|note: in expansion of macro ?asFUNCTION?|
+Urho3D-Hangars-Myfork-BuildEditor/include/Urho3D/ThirdParty/AngelScript/angelscript.h|421|error: cannot convert ?GameAssetManager::FakeReleaseRef? from type ?void (GameAssetManager::)(void*)? to type ?void (GameAssetManager::*)(void*)?|
+Urho3D-Hangars-MyForkEditor/Source/EngineStd/GameAssetManager/GameAssetManager.cpp|43|note: in expansion of macro ?asFUNCTION?|
+Urho3D-Hangars-Myfork-BuildEditor/include/Urho3D/ThirdParty/AngelScript/angelscript.h||In instantiation of ?asSFuncPtr asFunctionPtr(T) [with T = void (GameAssetManager::*)(void*)]?:|
+rho3D-Hangars-MyForkEditor/Source/EngineStd/GameAssetManager/GameAssetManager.cpp|42|required from here|
+Urho3D-Hangars-Myfork-BuildEditor/include/Urho3D/ThirdParty/AngelScript/angelscript.h|1184|error: invalid cast from type ?void (GameAssetManager::*)(void*)? to type ?size_t {aka long unsigned int}?|
+||=== Build failed: 3 error(s), 2 warning(s) (0 minute(s), 20 second(s)) ===|
+</code></p>
+<p>Any help is appreciated.</p>
+<p>Vivienne</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>This is the header file.</p>
+<p>[code]<span class="hashtag">#ifndef</span> GameAssetManager_GameAssetManager_Included<br/>
+<span class="hashtag">#define</span> GameAssetManager_GameAssetManager_Included</p>
+<p><span class="hashtag">#include</span> “GameAssetData.h”</p>
+<p>using namespace std;<br/>
+using namespace Urho3D;</p>
+<p>class URHO3D_API GameAssetManager : public LogicComponent<br/>
+{<br/>
+URHO3D_OBJECT(GameAssetManager, LogicComponent);<br/>
+public:<br/>
+// Constructor and Destructor<br/>
+GameAssetManager(Context* context);<br/>
+~GameAssetManager();</p>
+<pre><code>// Register API
+static void RegisterObject(Context* context);
+
+// Fpr scripting
+static void RegisterAPI(asIScriptEngine * engine);
+
+void FakeAddRef(void * ptr);
+void FakeReleaseRef(void* ptr);
+
+// initialize
+void Init(void);
+
+// add game asset - base symbol
+GameAsset* AddGameAsset(String GA_Name, String GA_Symbol, GameAssetType GA_Type, GameAssetState GA_State);
+
+// search asset by name
+GameAsset* FindGameAssetByKeyword(String Keyword, bool useName);
+GameAsset* FindGameAssetByName(String Keyword){ return FindGameAssetByKeyword(Keyword, true); };
+GameAsset* FindGameAssetBySymbol(String Keyword){ return FindGameAssetByKeyword(Keyword, false); };
+
+// load initialial assets
+void InitializeBaseGameAssets(void);
+
+// load game assets
+bool LoadGameAssets(void)
+{
+    if(m_pGameAssetLibrary == NULL || m_pGameAssetResources == NULL)
+    {
+        return NULL;
+    }
+
+    // load into memory
+    return m_pGameAssetResources-&gt;LoadGameAssets(m_pGameAssetLibrary);
+};
+
+
+// find a specific asset
+GameAsset* GetGameAssetByIdx(unsigned int idx);
+
+// get total assets
+unsigned int GetTotalGameAssets(void);
+
+// delete asset
+bool DeleteGameAsset(GameAsset* RemoveGameAsset);
+</code></pre>
+<p>private:<br/>
+// Game Asset Library - Actual data<br/>
+Vector&lt;GameAsset*&gt;*		m_pGameAssetLibrary;<br/>
+Vector&lt;GameAssetRule*&gt;* m_pGameAssetRuleLibrary;</p>
+<pre><code>GameAssetData*			m_pGameAssetResources;
+</code></pre>
+<p>};</p>
+<p><span class="hashtag">#endif</span><br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I made my game into a library so I can link it to Urho3DPlayer.<br/>
+Just look how Urho exposes AngelScript API and do the same.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“Enhex”]I made my game into a library so I can link it to Urho3DPlayer.<br/>
+Just look how Urho exposes AngelScript API and do the same.[/quote]</p>
+<p>I’m looking aat the code. Just stuck on registering a object and behaviour… I’m trying the FakeRef method but just getting cannot convert type so behavious aren’t setup.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Try looking at “void RegisterPhysicsAPI(asIScriptEngine* engine)” or other functions that expose things to the AS API.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hi</p>
+<p>I got this far.</p>
+<p>I am just having problems figuring how to get the Node updated to the selected node. I tried LastSelectedNode.Get() pointer then  assigned CreatedGameAsset to it.  That creates a call stack / seg fault error. Hmmm.</p>
+<p><a href="http://i.imgur.com/dcbMEjE.png" rel="nofollow noopener">i.imgur.com/dcbMEjE.png</a></p>
+<p>Vivienne</p>
+<pre><code class="lang-auto">void HandleGameAssetChooserDoubleClickedItem(StringHash eventType, VariantMap&amp; eventData)
+{
+    // load resources here
+    GameAssetManager@ pAssetManager = GetGameAssetManager();
+    GameAssetFactory@ pAssetFactory = GetGameAssetFactory();
+
+    // Get Game Asset Symbol
+    Text@ symbolTextItem = eventData["Element"].GetPtr();
+    String symbolNameString = symbolTextItem .vars["Symbol"].GetString();
+
+    // Get Gane Asset
+    const GameAsset@ SelectedGameAsset = pAssetManager.FindGameAssetBySymbol(symbolNameString,false);
+
+    // Generate a node
+    Node@ CreatedGameAsset= pAssetFactory.CreateNode(SelectedGameAsset, INVALID_GAME_NODE_ID);
+
+    return;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>I just tried the following but not sure what’s wrong. It crashes and when I try any of the listview. I can’t tell if it’s calling the handler.</p>
+<pre><code class="lang-auto">   // Create a UI
+    void CreateGameAssetChooserUI()
+    {
+        // second one is not needed just added
+        if (gameAssetChooserWindow !is null)
+        {
+            if(gameAssetChooserWindow.visible==false)
+            {
+                gameAssetChooserWindow.visible=true;
+                gameAssetChooserWindow.BringToFront();
+            }
+            return;
+        }
+
+       gameAssetChooserWindow = LoadEditorUI("UI/EditorGameAssetChooser.xml");
+
+       // get file list
+       gameAssetsList = gameAssetChooserWindow.GetChild("GameAssetList",true);
+
+       // Subscribe to Events
+       SubscribeToEvent(gameAssetChooserWindow.GetChild("CloseButton",true),"Released","HandleGameAssetChooserCloseButton");
+
+       // add ui
+       ui.root.AddChild(gameAssetChooserWindow);
+
+       // Bring window to front and position to screen width-300,100
+       gameAssetChooserWindow.SetPosition(ui.root.width-300, 100);
+       gameAssetChooserWindow.BringToFront();
+
+       GameAssetChooserBuildList();
+
+       //Subscribe
+       SubscribeToEvent(gameAssetsList, "ItemDoubleClicked", "HandleGameAssetChooserDoubleClickedItem");
+    }
+
+    // Build List
+    void GameAssetChooserBuildList()
+    {
+        // load resources here
+        GameAssetManager@ pAssetManager = GetGameAssetManager();
+        GameAssetFactory@ pAssetFactory = GetGameAssetFactory();
+
+       // get file list
+       //gameAssetsList = gameAssetChooserWindow.GetChild("GameAssetList",true);
+
+
+        uint NumberOfGameAssets = pAssetManager.GetTotalGameAssets();
+
+        for(uint i=0;i&lt;NumberOfGameAssets;i++)
+        {
+             GameAsset@ ThisAsset = pAssetManager.GetGameAssetByIdx(i);
+
+                // Create elements
+                UIElement@ container2 = UIElement();
+                container2.SetLayout(LM_HORIZONTAL, 4);
+                container2.SetFixedHeight(ATTR_HEIGHT);
+                gameAssetsList.AddItem(container2);
+
+                Text@ text = container2.CreateChild("Text");
+                text.text =  ThisAsset.GetAssetSymbol();
+                text.name =  String("Symbol");
+                // Set Style
+                text.SetStyleAuto();
+
+                // Set Style
+                text.style="EditorChooserText";
+        }
+
+
+        return;
+    }
+
+
+ void HandleGameAssetChooserDoubleClickedItem(StringHash eventType, VariantMap&amp; eventData)
+    {
+        // load resources here
+        GameAssetManager@ pAssetManager = GetGameAssetManager();
+        GameAssetFactory@ pAssetFactory = GetGameAssetFactory();
+
+        // Get Game Asset Symbol
+        Text@ symbolTextItem = eventData["Element"].GetPtr();
+        String symbolNameString = symbolTextItem.text.Trimmed();
+
+        // Get Gane Asset
+        const GameAsset@ selectedGameAsset = pAssetManager.FindGameAssetBySymbol(symbolNameString,false);
+
+        // Create a gameNode
+        Node@ gameNode =  pAssetFactory.CreateNode(selectedGameAsset, INVALID_GAME_NODE_ID);   // basically 0
+
+        if(gameNode!is null)
+        {
+            // Add Child to Scene
+            editorScene.AddChild(gameNode);
+        }
+
+        return;
+    }</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

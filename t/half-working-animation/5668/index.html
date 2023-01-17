@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Half working animation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Half working animation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">VladBolotov</div>
+          <div class="post_content">
+<p>Hello. I was playing around with Urho animation system. I want to animate grabber (Open/Close animation). But I am stuck with weird behavior: in blender all animation looks good for me, but when I am trying to export animation and model to Urho only right part of mesh is moving.</p>
+<p>Here is video: <a href="https://youtu.be/XwktXtbv_B0" rel="nofollow noopener">https://youtu.be/XwktXtbv_B0</a></p>
+<p>Here is blend file and exported data: <a href="https://drive.google.com/file/d/1y6zX8azHHd5uoWABFJ9MnWDFggycagXx/" rel="nofollow noopener">https://drive.google.com/file/d/1y6zX8azHHd5uoWABFJ9MnWDFggycagXx/</a></p>
+<p>Here is how I added mesh and animation into Urho:</p>
+<pre><code class="lang-auto">//! Create the Grabber
+        {
+            m_grabberNode = m_scene-&gt;CreateChild("Grabber");
+            m_grabberNode-&gt;SetPosition(m_boxNode-&gt;LocalToWorld(Urho3D::Vector3(0.0f, 0.0f, 0.0f)));
+
+            auto grabberObject = m_grabberNode-&gt;CreateComponent&lt;Urho3D::AnimatedModel&gt;();
+            m_grabberNode-&gt;CreateComponent&lt;Urho3D::AnimationController&gt;();
+
+            grabberObject-&gt;SetModel(cache-&gt;GetResource&lt;Urho3D::Model&gt;("Models/Grabber.mdl"));
+            grabberObject-&gt;ApplyMaterialList("Materials/Grabber.txt");
+            grabberObject-&gt;SetCastShadows(true);
+
+
+            for (auto i = 0; i &lt; grabberObject-&gt;GetSkeleton().GetNumBones(); ++i) {
+                auto bone = grabberObject-&gt;GetSkeleton().GetBone(i);
+                auto boneNode = bone-&gt;node_;
+
+                auto boneRigidBody = boneNode-&gt;CreateComponent&lt;Urho3D::RigidBody&gt;();
+                boneRigidBody-&gt;SetTrigger(true);
+                boneRigidBody-&gt;SetFriction(1.0f);
+                boneRigidBody-&gt;SetMass(0.0f);
+                boneRigidBody-&gt;SetLinearDamping(0.1f);
+                boneRigidBody-&gt;SetAngularDamping(0.1f);
+                boneRigidBody-&gt;SetCollisionLayer(1);
+                auto boneCollisionShape = boneNode-&gt;CreateComponent&lt;Urho3D::CollisionShape&gt;();
+                boneCollisionShape-&gt;SetBox(bone-&gt;boundingBox_.Size() * 0.7f, bone-&gt;boundingBox_.Center());
+            }
+
+        }
+</code></pre>
+<pre><code class="lang-auto">//! Animate the Grabber
+{
+  if (Space Pressed)) {
+       m_grabberOpened = !m_grabberOpened;
+       auto animator = m_grabberNode-&gt;GetComponent&lt;Urho3D::AnimationController&gt;(true);
+       if (m_grabberOpened) {
+          animator-&gt;PlayExclusive("Animation/GrabberOpen.ani", 0, false, 0.5f);
+          } else {
+              animator-&gt;PlayExclusive("Animation/GrabberIDLE.ani", 0, false, 0.5f);
+          }
+  }
+}
+</code></pre>
+<p>Blender v2.77 with Blender to Urho3D export plugin from master branch (branch for 2.8 does not work for me).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I think you will have to add a <em>root bone</em> to your armature - a bone to which the other bone chains would be parented - for the animation controller to traverse all branches of the tree.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2525_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Valdar</div>
+          <div class="post_content">
+<p>You <em>may</em> need a root bone, but you have an Armature as the base, which I think should serve the same purpose.<br/>
+Did you tick the box for “Apply modifers” before exporting? It looks like you have an Armature modifier that you haven’t ‘applied’ to the model. Worth a try if you haven’t.<br/>
+Another thing you could try, just to troubleshoot, is to export to FBX and then use ASSIMP to convert to .mdl and see if you get the same results (I think you’ll need to change the FBX export setting of Armature from ‘Null’ to ‘Root’)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">VladBolotov</div>
+          <div class="post_content">
+<p><span class="mention">@Modanung</span> <span class="mention">@Valdar</span><br/>
+Thank you, guys. Creating the Root armature did the trick.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to create transparent Overlay layer?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to create transparent Overlay layer?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We have a map app which overlays airspaces onto a single transparent layer.  The bottom layer Map is 100% opaque.  The airspaces however, where they overlap, should NOT blend, but instead the last-to-render should dominate.   See image included - it shows two airspaces, Gray &amp; Red, which overlap.  But as you can see the Red Layer is dominant, and so where they overlap (circled in Blue pen), the transparency is ONLY RED (and NOT a blend between Red + Gray).</p>
+<p>To achieve this, we’ve implemented an ugly HACK.  We placed a physical plane in 3D space in front of our camera, and then rendered these transparent objects to this Plane’s Texture (RTT) as 100% opaque (no blending).  Then we take the resulting plane, and render it to the Main Camera, using a shader that makes it only 40% opaque.</p>
+<p>This kludge hack is ugly/kludging.   What we REALLY want is to just have a 2nd Camera that renders to an offscreen RenderBuffer, and then to render that buffer to the Main Camera using the 40% opacity shader.</p>
+<p>We do not know how to render one Camera’s resulting RenderBuffer to another Camera directly.</p>
+<p>(Thus we did the hack by placing a physical plane in the scene, positioned 1.866 Z units in front of the other camera… which is too kludgy, and giving us issues when Viewport size starts to change, etc).</p>
+<p>So in short, we’d like to know how to:</p>
+<ol>
+<li>Have two camera in scene (one is the Main Camera, the other just renders to an offscreen Buffer).</li>
+<li>As final pass, render the 2nd camera’s Render Buffer into the Main Camera’s Render Buffer with 40% opacity.</li>
+</ol>
+<p>Main thing is I don’t know how to tell the MainCamera to execute a pass like this.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="oIOvjtbmZdbCcegRzlZgnA6mT43"  height="500" src="../../../images2/9a4340626159f5afdb18345c60ad5fd2.jpeg"  width="608"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1077×885 468 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I think the way to render the final second texture into the main camera scene would be to add a pass to the renderpath. There are a few examples of different modifications to it (for Bloom and such) that might be helpful (unfortunately I don’t do much with the render path, so I can’t really help you beyond that).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6686" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>We do not know how to render one Camera’s resulting RenderBuffer to another Camera directly.</p>
+</blockquote>
+</aside>
+<p>Add the render-target texture you use for the view as a manual resource. <code>bool ResourceCache::AddManualResource(Resource* resource)</code>, that’ll make it available for lookup by name in your other render-paths. That’s fine as long as your needs are reasonably constrained (it’s a band-aid, not a dependency manager).</p>
+<p>If you do have some crazy dependencies or arbitrary quantities of views then you’ll like need to clone render-paths and directly edit the textureName_[…] in the commands for whatever naming/indexing scheme you cook up.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>SirNate0 and JSandusky - thank you.  Combining your two responses together is the solution we’ll be pursuing.</p>
+<ol>
+<li>Using PostProcessing examples, to create the added RenderPass for a “quad” shader.</li>
+<li>From the Transparency Camera, naming the RenderTexture a name that can then be used as input to the PostProcessing Shader (by name).</li>
+</ol>
+<p>Our situation is just that simple - a singular Transparency layer for the whole screen. I don’t foresee it getting any more complex than that.</p>
+<p>Now I’ve got to go get familiar with modifying the RenderPath and PostProcessing – seems like this should be easy.</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>OK - I was able to achieve a POC success by combining the “MultipleViewport” sample with “RenderToTexture” and naming that Texture “RealTimeTransparency”, and then instead of using “Bloom” used my own shader called “TransparentOverlay” that simply combines the “viewport” texture with “RealtimeTransparency”.  It works!</p>
+<p>HOWEVER: I still have a KLUDGE, in that the RenderToTexture scene never happens UNLESS I also render that Texture into a scene to be viewed by the MainCamera (what is done with the RenderToTexture Demo, where there is a “screenObject”).</p>
+<p>Therefore, my HACK is to include in the main scene, the following “screenNode” object. Without this code, the “RenderToTexture” never happens.</p>
+<p>Code:<br/>
+Node screenNode = CameraNode.CreateChild(“Screen”);<br/>
+screenNode.Position = new Vector3(0.0f, 0.0f, 0.2f);<br/>
+screenNode.Rotation = new Quaternion(-90.0f, 0.0f, 0.0f);<br/>
+screenNode.Scale = new Vector3(0.000001f, 0.0f, 0.000001f);<br/>
+StaticModel screenObject = screenNode.CreateComponent();<br/>
+screenObject.Model = cache.GetModel(“Models/Plane.mdl”);</p>
+<pre><code>			Material renderMaterial = new Material();
+			renderMaterial.SetTechnique(0, cache.GetTechnique("Techniques/DiffUnlit.xml"), 0, 0);
+			renderMaterial.SetTexture(TextureUnit.Diffuse, renderTexture);
+			screenObject.SetMaterial(renderMaterial);
+</code></pre>
+<p>===<br/>
+Question:  How do I force the rendering of this Offscreen Texture? (without this kludge)</p>
+<p>Without the kludge, the RenderTexture remains blank, as my Transparency scene never renders, because Urho appear to be culling it out entirely (since it can’t tell that I’m trying to use the RenderTexture result for a MainCamera PostProcessing shader).</p>
+<p>If needed I can keep the kludge – as I’m scaling the “screenObject” to “0.000001” size, so that it doesn’t even consume 1 pixel… Even though it’s &lt; 1 pixel on screen, it’s still always-in-view for the MainCamera, it forces the “TransparentCamera” to render (as the Main Camera says that this “screenobject” is “in frustum” and therefore, must render).</p>
+<p>If I remove the ScreenObject from this scene, the “TransparentCamera” (which renders to Texture) NEVER renders… and therefore, my RealTimeTransparency Texture will remain unrendered.</p>
+<p>I hope I’m saying all of this correctly for you to understand.</p>
+<p>In short, how to I force Urho to render the “TransparentCamera” when it’s simply rendering to a Texture, which Urho thinks is “not in use” (and therefore, does NOT bother to render it at all).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Default behaviour is update only when visible.</p>
+<p>Did you set the render-surface’s update mode to <code>SURFACE_UPDATEALWAYS</code>? You can also use <code>RenderSurface::QueueUpdate(...)</code> when you need control over it (like rendering cubemaps).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Yep, that worked.  I just needed to set the TransparentLayerTexture’s RenderSurface.UpdateMode to ALWAYS.   Now I don’t need the in-frustum “screenObject”.   Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

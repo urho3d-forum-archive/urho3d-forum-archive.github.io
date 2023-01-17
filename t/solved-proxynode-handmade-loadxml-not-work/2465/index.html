@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] ProxyNode handmade: LoadXML not work!</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] ProxyNode handmade: LoadXML not work!</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1177_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">f1af</div>
+          <div class="post_content">
+<p>Hellow! I have<br/>
+vehicle.xml and <a href="http://vehicle.as" rel="nofollow noopener">vehicle.as</a><br/>
+It’s <em>one</em> vehicle for one million level locations.<br/>
+I have level_00.xml, it have Node, Node have ScriptInstance component and this script:</p>
+<pre><code class="lang-auto">class ProxyNode : ScriptObject
+{
+    String sourceXML;
+
+    void DelayedStart()
+    {
+        log.Info("ProxyNode: sourceXML = " + sourceXML);
+        XMLFile@ xmlfile = cache.GetResource("XMLFile", sourceXML);
+        if ((xmlfile !is null) and (node.GetComponents().length == 1))
+        {
+            if (node.LoadXML(xmlfile.GetRoot(), true))
+            {
+                log.Warning("LoadXML!!!");
+            }
+        }
+    }
+}</code></pre>
+<p>And I load scene like this:</p>
+<p><code>    scene_ = Scene("level_00");
+    scene_.LoadXML(cache.GetFile("Scenes/level_00.xml"));
+</code></p>
+<p>And Urho is crashed =(</p>
+<p>It’s bug or I do somthing wrong?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1177_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">f1af</div>
+          <div class="post_content">
+<p>I resolve this problem!<br/>
+Scheme of my code was hare:</p>
+<pre><code class="lang-auto">main.as, load -&gt;
+level.xml, have -&gt;
+Node + ScriptInstance component, linked -&gt;
+ProxyNode.as, loadXML -&gt;                     // Not work, becouse:
+PlayerVehicle.xml, have -&gt;
+Node + ScriptInstance component, linked -&gt;  // Error is here!
+main.as, include -&gt;                         // Error is here!
+PlayerVehicle.as</code></pre>
+<p>And <span class="bbcode-b">loadXML</span> is crashed Urho.</p>
+<p>I just change last step:</p>
+<pre><code class="lang-auto">PlayerVehicle.xml, have -&gt;
+Node + ScriptInstance component, linked -&gt;
+PlayerVehicle.as</code></pre>
+<p>and all works fine.</p>
+<hr/>
+<p>But now I need handle and change Save process of this node… Mayde someone have similar ProxyNode class?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1177_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">f1af</div>
+          <div class="post_content">
+<p>It’s worked solution:</p>
+<p>[code]class ProxyNode : ScriptObject<br/>
+{<br/>
+String sourceXML;</p>
+<pre><code>void DelayedStart()
+{
+    XMLFile@ xmlfile = cache.GetResource("XMLFile", sourceXML);
+    if (xmlfile !is null)
+    {
+        Node@ newNode = scene.CreateChild();
+        if (newNode.LoadXML(xmlfile.GetRoot(), true))
+        {
+            newNode.SetTransform(node.position, node.rotation);
+            log.Info("ProxyNode: load successful, filename \"" + sourceXML + "\"");
+        }
+        newNode.temporary = true;
+    }
+}
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Android Studio 2.3 build with gradle</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Android Studio 2.3 build with gradle</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>I’ve got stuck trying to build Urho3D on latest Android Studio 2.3. Previous tutorials on how to build for Android are outdated, the command “android update project” is no longer supported. So I’ve imported the project as Eclipse project, then added a cmake step to the gradle script that builds the native library. Couple of problems appear:</p>
+<ol>
+<li>
+<p><strong>CheckCompilerToolchain.cmake - check_extension and check_feature_enabled</strong> fail with error <strong>“Could not check compiler toolchain as it <span class="hashtag">#does</span> not handle ‘-E -dM’ compiler flags correctly”</strong>. If I comment out the FATAL_ERROR message, it compiles just fine. This happens with clang as default compiler, if I specify gcc, I get errors when linking - “relocation overflow in R_ARM_THM_CALL”.</p>
+</li>
+<li>
+<p>Linker fails with <strong>undefined reference to armFuncR0</strong>, I turned of AngelScript just for the sake of compiling.</p>
+</li>
+<li>
+<p><strong>ThirdParty/ik/src/platform/linux/backtrace_linux.cpp</strong> can’t find <code>#include &lt;execinfo.h&gt;</code> . Removing the include compiles fine.</p>
+</li>
+</ol>
+<p>Help much appreciated on bringing this up and running.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>Nevermind, I got it running. Here’s my gradle script for anyone else trying to figure it out.</p>
+<pre><code class="lang-auto">apply plugin: 'com.android.application'
+android {
+    compileSdkVersion 21
+    buildToolsVersion "25.0.2"
+    defaultConfig {
+        applicationId "com.github.urho3d"
+        minSdkVersion 11
+        targetSdkVersion 21
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+            stl = "stlport_static" // gnustl fails with cstddef not found
+        }
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_TOOLCHAIN=clang", "-DURHO3D_ANGELSCRIPT=FALSE", "-DURHO3D_LIB_TYPE=SHARED"
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled = false
+            proguardFiles getDefaultProguardFile('proguard-android.txt')
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path '../../../Urho3D/CMakeLists.txt' // relative path to the Urho3D CMakeLists.txt
+        }
+    }
+    sourceSets.main {
+        jniLibs.srcDirs = ['libs']
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>Same here. I confirm angelscript issue, but only with arm64-v8a abi. No problem with others abis…<br/>
+My intention is to come up with a generalized approach. Android build is very convoluted…<br/>
+This script is for building the library and the app in just one executable, right?<br/>
+One last thing. Have you tried building the full installation with examples on android? I did, and when I tap the icon to launch it, one time in four i doesn’t even start! Let alone there’s no way to opt out of an example without removing it from memory…<img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>It works!<br/>
+Building from upstream urho3d library, to downstream urho3d app, in android studio 2.3, with custom setup project, run native, pack apk, and debugger.<br/>
+Tried on Samsung Galaxy Note 4, android 4.4.4</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>Yes I’ve managed to run the examples. The project after importing requires to manually copy the output libraries to a lib subdirectory of the project.  I’ve run them on my phone OnePlus3t android 7.0,  Lg G3 6.0 and a cheap kodi box with 5.1…everything runs fine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>I’ve tried just now on my old 2011 lgp920 with android 2.3.5… 512mb memory… a couple of example with sound and particles. Everything seems fine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>Just curios, how did you migrate the project ?<br/>
+I’m importing it but it doesn’t include the CoreData/Data/Autoload folders and the libraries, so I imported them manually.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>Exactly that. I doesn’t import them, i just did a script which imports them</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hey guys what would be the gradle build script if we want to build against already build Urho3d lib for seperate project? I am getting these errors when I try to build my project:</p>
+<blockquote>
+<pre><code>CMake Error at CMake/Modules/CheckCompilerToolchain.cmake:161 (message):
+  Could not check compiler toolchain as it does not handle '-E -dM' compiler
+  flags correctly
+Call Stack (most recent call first):
+  CMake/Modules/UrhoCommon.cmake:98 (include)
+  CMakeLists.txt:18 (include)
+-- Configuring incomplete, errors occurred!</code></pre>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>Check the first post.</p>
+<ol>
+<li>
+<p>Edit CheckCompilerToolchain.cmake - there are three places where you need to comment out the message(FATAL …compiler doesn’t​ handle -E -DM</p>
+</li>
+<li>
+<p>Compile without angelscript - see above in the gradle script I provided.</p>
+</li>
+<li>
+<p>ThirdParty/ik/src/platform/linux/backtrace_linux.cpp - comment the execinfo.h include and everything inside the function below.</p>
+</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>I use urho3d as an external library, and I can build my project with cmake_android.sh successfully, it can generate an .so library.</p>
+<p>But since ‘android update project’ is no longer available, I can not use ‘ant  Debug’ now.</p>
+<p>Must I use android studio 2.3? what should I do next?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Downgrade the build-tool to 25.2 or earlier. We still use 22.1 (I think) in one of our Android CI build job which tests artifact deployment to an AVD. You are on your own right now if you have to use Gradle instead of Ant.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>Well, I’ve managed to build with Gradle, where Urho3D and other dependencies of my project are built in a separate module, then my project builds as a module depending on the first one. I can just build with a standalone toolchain, but that requires me to create a separate toolchain for every ABI, armeabi-v7a, armeabi-v8, x86…etc, then build and then copy the output shared libraries somewhere where my project can find them, but linking to a different version depending on the main project ABI…and I don’t like doing things manually when building.</p>
+<p>I can confirm Urho3D builds successfully with the $ANDROID_SDK/ndk-bundle/build/cmake/android.toolchain.cmake, you only have to patch ThirdParty/ik/src/platform/linux/backtrace_linux.cpp to remove the execinfo include.</p>
+<p>Also, I found out the reason why the libraries are not included in the APK - when Gradle runs CMake, it sets CMAKE_LIBRARY_OUTPUT_DIRECTORY to app/build/intermediates/cmake/debug/obj/armeabi-v7a (depending on the ABI) and expects to find the .so there. If you change CMAKE_LIBRARY_OUTPUT_DIRECTORY like I usually do, it won’t even warn you about it and just proceed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>Figure out the simplest way to use Android Studio 2.3.1 on macOS Sierra v10.12.4.</p>
+<p>To build Urho3D and the samples:</p>
+<ol>
+<li>
+<p>Install Android Studio 2.3.1(Install Android Simulator, CMake, LLDB, NDK from the SDK manager)</p>
+</li>
+<li>
+<p>Set NDK path<br/>
+vi ~/bash_profile<br/>
+export ANDROID_NDK=~/Library/Android/sdk/ndk-bundle</p>
+</li>
+<li>
+<p>Genrate project<br/>
+cd ~/Urho3D<br/>
+// When using device<br/>
+./cmake_android.sh ~/Urho3D-Android -DURHO3D_SAMPLES=1<br/>
+// When using simulator<br/>
+./cmake_android.sh ~/Urho3D-Android -DURHO3D_SAMPLES=1 -DANDROID_TOOLCHAIN_NAME=x86-clang<br/>
+cd ~/Urho3D-Android<br/>
+make</p>
+</li>
+<li>
+<p>Import the generated project(~/Urho3D-Android) into Android Studio</p>
+</li>
+<li>
+<p>Connect the phone or launch the simulator, build and run.</p>
+</li>
+</ol>
+<p>To build your own standalone project:</p>
+<ol>
+<li>
+<p>Copy the ‘Android’ subdirectory to your project, let ‘Android/assets/CoreData’ and ‘Android/assets/Data’ soft-link to your own data.</p>
+</li>
+<li>
+<p>Copy the ‘CMake’ subdirectory to your project.</p>
+</li>
+<li>
+<p>Modify CMakeLists.txt:<br/>
+set (ENV{URHO3D_HOME} ~/Urho3D-Android).</p>
+</li>
+<li>
+<p>Generate project.<br/>
+cd ~/YourProject<br/>
+// When using device<br/>
+./cmake_android.sh ~/YourProject-Android<br/>
+// When using simulator<br/>
+./cmake_android.sh ~/YourProject-Android -DANDROID_TOOLCHAIN_NAME=x86-clang<br/>
+cd ~/YourProject-Android<br/>
+make</p>
+</li>
+<li>
+<p>Rename your generated shared library to ‘<a href="http://libUrho3DPlayer.so" rel="nofollow noopener">libUrho3DPlayer.so</a>’ or modify ~/YourProject/Android/src/com/github/urho3d/Urho3D.java, replace all strings of ‘Urho3DPlayer’ to your project name.</p>
+</li>
+<li>
+<p>Import the generated project(YourProject-Android) into Android Studio</p>
+</li>
+<li>
+<p>Connect the phone or launch the simulator, build and run.</p>
+</li>
+</ol>
+<p>Note: While you run Android Studio:</p>
+<ol>
+<li>
+<p>You need to remove all old android related variables from ~/bash_profile.</p>
+</li>
+<li>
+<p>You need to remove the old ~/.android hidden directory, otherwise, the simulator may fail to launch.</p>
+</li>
+<li>
+<p>You need to run ‘Build-&gt;Clean Project’ and ‘Build-&gt;Rebuild Project’ to ensure a clean build.</p>
+</li>
+</ol>
+<p>Android Studio 2.3.1’s official simulators run much faster than iOS simulator, I like it very much.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/762_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hicup_82017</div>
+          <div class="post_content">
+<p>Hi artgolf,<br/>
+Your reply helped me a lot in building urho3d examples for android. However, I just want to add few points so that another newbie like me would get benefited.</p>
+<p><strong>In step3,</strong><br/>
+Download, urho3d 1.7 tar fiile from link “<a href="https://urho3d.github.io/documentation/1.4/class_urho3_d_1_1_resource_cache.html" rel="nofollow noopener">https://urho3d.github.io/documentation/1.4/class_urho3_d_1_1_resource_cache.html</a>” and extract and name it as "Urho3D "</p>
+<p><strong>After step 5 in standalone project procedure</strong>, i followed below as mentioned in documentation.</p>
+<p><strong><strong>Step b.6:</strong> For building apk file.</strong><br/>
+$ android list target<br/>
+output =  different android targets that were installed. I chose id 1 from the list.<br/>
+<strong>step b.6.1:</strong><br/>
+$ android update project -p . -t 1<br/>
+<strong>step b.6.2:</strong><br/>
+$ ant debug<br/>
+output: unsigned debug apk file in the bin directory.</p>
+<p><strong>step b.7: signing the apk file</strong></p>
+<p><strong>step b.7.1:</strong> get the keystore file,<br/>
+For this you got to refer android websites and you shall end up with a key store file.<br/>
+once you had the key store file, say “mykeystore1”</p>
+<p><strong>step b.7.2:</strong> make ant.properties file as below and<br/>
+open notebook,and add following lines,</p>
+<p>key.store.password=test123<br/>
+key.alias.password=test123<br/>
+key.store=/media/hicup/mykeystore1<br/>
+key.alias=business</p>
+<p>save this as ant.properties file.</p>
+<p><strong>step b.7.3:</strong> place this file in your “YourProject-Android” folder.<br/>
+<strong>step b.7.4:</strong> $ ant debug<br/>
+output: you shall get signed debug file.<br/>
+Now, this can be straight away installed into your mobile.</p>
+<p>Additional info:<br/>
+If you want speed up your testing, just issue<br/>
+<strong>step b.8:</strong><br/>
+$ ant installd<br/>
+output: This will automatically install the app in simulator.</p>
+<p><strong>Disclaimer:</strong> I done this on ubuntu 16.04 version with Urho3d version 1.7</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/941_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taymindis</div>
+          <div class="post_content">
+<p><span class="mention">@artgolf1000</span></p>
+<p>This is working with just 1 time effort <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/994_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">magic.lixin</div>
+          <div class="post_content">
+<p>Hi<br/>
+I got a error when I try to run the samples in Android Simulator, it tells me SDL Error, fromIndex = -1, the version of my Android Studio is 3.0, do I need to downgrade to 2.3 ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/941_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taymindis</div>
+          <div class="post_content">
+<aside class="quote" data-post="18" data-topic="2995">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/41548dab6531ccfff7f489bd1c60ca10.png" width="20"/> magic.lixin:</div>
+<blockquote>
+<p>SDL Error, fromIndex = -1,</p>
+</blockquote>
+</aside>
+<p>Can you dump the error log ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/994_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">magic.lixin</div>
+          <div class="post_content">
+<p>well, I found the root cause is that <a href="http://libUrho3dPlayer.so" rel="nofollow noopener">libUrho3dPlayer.so</a> is missing …</p>
+<p>because I didn’t enable angle scripting and also lua scripting … so there is no <a href="http://libUrho3dPlayer.so" rel="nofollow noopener">libUrho3dPlayer.so</a> which is required by Urho3d.java <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/941_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Taymindis</div>
+          <div class="post_content">
+<p>You need to change the lib name to your built lib name</p>
+<p>For android developement, jni need to load library, just follow this step,</p>
+<p>Rename your generated shared library to ‘<a href="http://libUrho3DPlayer.so" rel="nofollow noopener">libUrho3DPlayer.so</a>’ or modify ~/YourProject/Android/src/com/github/urho3d/Urho3D.java, replace all strings of ‘Urho3DPlayer’ to your project name.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/994_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">magic.lixin</div>
+          <div class="post_content">
+<p>yes, thanks for the tip, after replacing the Urho3DPlayer to “18_CharacterDemo”, it works <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>That is not how it supposed to work. Downstream application targeting Android platform is better of creating a new subclass of SDLActivity or using the SDLActivity class directly if no custom loading logic required.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/450_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ChunFengTsin</div>
+          <div class="post_content">
+<p>when I build the samples project ,<br/>
+the last step of “3.Generate project” , when I exec “make” at the Urho3D-Android , tips that:</p>
+<p>/ndk-bundle/sources/cxx-stl/llvm-libc++/include/string.h:61:15: fatal error: ‘string.h’ file not found<br/>
+<span class="hashtag">#include_next</span> &lt;string.h&gt;<br/>
+^~~~~~~~~~</p>
+<p>why it can’t find head file of ndk…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/450_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ChunFengTsin</div>
+          <div class="post_content">
+<p>I have the feeling that i’m missing an environment variable or some sort of configuration that tells the ndk where to look up for the string.h files,<br/>
+how should I config it…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I reckon you are using Android NDK r16. Change it to r15c and it should build cleanly. I will change the build system to support r16 when I have time later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>official support for NDK r16 would be highly appreciated. r16 uses only unified headers, that may need some effort.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/994_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">magic.lixin</div>
+          <div class="post_content">
+<p>you can just download older ndk version (NDK r15c), and extract it to some where, and set the environment variable ANDROID_NDK=/xxx/you-old-ndk-folder, it works for me with android studio 3.0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/450_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ChunFengTsin</div>
+          <div class="post_content">
+<p>I get it, thank you all !</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

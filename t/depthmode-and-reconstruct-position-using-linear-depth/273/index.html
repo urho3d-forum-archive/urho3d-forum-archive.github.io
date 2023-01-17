@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>DepthMode and reconstruct position using linear depth</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">DepthMode and reconstruct position using linear depth</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ucupumar</div>
+          <div class="post_content">
+<p>I’m trying to reconstruct position using linear depth by using <a data-bbcode="true" href="http://mynameismjp.wordpress.com/2009/03/10/reconstructing-position-from-depth/" rel="nofollow noopener">this</a> technique. From the article, he render linear depth by using z (in view space) divide by FarClip.</p>
+<p><code>float4 DepthPS(in float in_fDepthVS : TEXCOORD0) : COLOR0
+{
+    // Negate and divide by distance to far-clip plane
+    // (so that depth is in range [0,1])
+    // This is for right-handed coordinate system,
+    // for left-handed negating is not necessary.
+    float fDepth = -in_fDepthVS/g_fFarClip;
+    return float4(fDepth, 1.0f, 1.0f, 1.0f);
+}</code><br/>
+Urho already had function to render linear depth but using dot product of <a href="http://clipPos.zw" rel="nofollow noopener">clipPos.zw</a> and <a href="http://DepthMode.zw" rel="nofollow noopener">DepthMode.zw</a>. As seen on this Transform.glsl</p>
+<p><code>float GetDepth(vec4 clipPos)
+{
+    return dot(clipPos.zw, cDepthMode.zw);
+}</code><br/>
+My question is: What actually the use of DepthMode? Is that any difference from that article implementation?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>DepthMode is basically just a dot product selector for whether the real Z-value is in the Z or W coordinate. It changes based on whether the camera is orthographic or perspective. You get a value between 0 (nearclip plane) and 1 (farclip plane) from calling GetDepth() in the VS, so you can just pass the value directly to PS.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ucupumar</div>
+          <div class="post_content">
+<p>Thanks for the answer.<br/>
+I’m still confused about depth mode but after hours of trying, I found out I can simply reconstruct view space position using linear depth by multiplying linear depth to farPlane. The article’s technique is works on Urho linear depth data.<br/>
+Here’s the code:</p>
+<p>[code]// Screen Position<br/>
+vec2 screenPos = vScreenPos.xy / vScreenPos.w; //vScreenPos is GetScreenPos(gl_Position) on vertexshader<br/>
+vec2 nScreenPos = screenPos * 2.0 - 1.0;</p>
+<p>// Get far plane position at View Space<br/>
+vec3 farPlane = vec3(vFrustumSize.xy * nScreenPos, vFrustumSize.z); // vFrustumSize is cFrustumSize on vertexshader</p>
+<p>// Get linear depth<br/>
+vec3 linearDepth = DecodeDepth(texture2D(sDepthBuffer, screenPos).rgb);</p>
+<p>// Reconstruct view space position by using linear depth<br/>
+vec3 viewPosition = linearDepth * farPlane;<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

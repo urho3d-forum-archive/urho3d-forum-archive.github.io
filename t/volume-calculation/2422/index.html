@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Volume calculation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Volume calculation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">leonardo</div>
+          <div class="post_content">
+<p>Hello all,</p>
+<p>I have a 3d model in an .obj file that is already remeshed with octree (enclosed, no holes).<br/>
+Now i can display it in a 3D scene but now i want to calculate its volume.</p>
+<p>How can I get triangles of my model (StaticModel instance) in Urho to make some calculations?</p>
+<p>Thank you<br/>
+Leonardo</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">leonardo</div>
+          <div class="post_content">
+<p>NB: I have found <a data-bbcode="true" href="http://stackoverflow.com/questions/1406029/how-to-calculate-the-volume-of-a-3d-mesh-object-the-surface-of-which-is-made-up" rel="nofollow noopener">http://stackoverflow.com/questions/1406029/how-to-calculate-the-volume-of-a-3d-mesh-object-the-surface-of-which-is-made-up</a>, now i need a way to get triangles, i have only found VertexBuffer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="leonardo">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/e5f5a2f525f218c4364ef229d1307ba9.png" width="20"/> leonardo:</div>
+<blockquote>
+<p>NB: I have found <a data-bbcode="true" href="http://stackoverflow.com/questions/1406029/how-to-calculate-the-volume-of-a-3d-mesh-object-the-surface-of-which-is-made-up" rel="noopener nofollow ugc">http://stackoverflow.com/questions/1406029/how-to-calculate-the-volume-of-a-3d-mesh-object-the-surface-of-which-is-made-up</a>, now i need a way to get triangles, i have only found VertexBuffer.</p>
+</blockquote>
+</aside>
+<p>Look at raycast code in StaticModel. It already performs similar thing: raycasting with triangles.<br/>
+See Geometry::GetHitDistance for details.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">leonardo</div>
+          <div class="post_content">
+<p>Thank you very much</p>
+<p>I written this code with Xamarin (UrhoSharp, the C# porting of Urho3D):</p>
+<pre><code class="lang-auto">        double SignedVolumeOfTriangle(Vector3 p1, Vector3 p2, Vector3 p3)
+        {
+            return Vector3.Dot(p1, Vector3.Cross(p2, p3));
+        }
+
+        unsafe double GetVolume(Geometry geometry)
+        {
+            double volume = 0.0f;
+            var indexBuffer = geometry.IndexBuffer;
+            uint indexSize = indexBuffer.IndexSize;
+            byte* indexes = (byte*)indexBuffer.ShadowData;
+
+            Vector3[] triangleVertex = new Vector3[3];
+            for (int i = 0; i &lt; indexBuffer.IndexCount; i++)
+            {
+                byte[] bytesArray = MarshalHelper.ToBytesArray(new IntPtr(indexes), (int)indexSize);
+                UInt32 currentIndex = 0;
+                switch (indexSize)
+                {
+                    case 1:
+                        currentIndex = bytesArray[0];
+                        break;
+                    case 2:
+                        currentIndex = BitConverter.ToUInt16(bytesArray, 0);
+                        break;
+                    case 4:
+                        currentIndex = BitConverter.ToUInt32(bytesArray, 0);
+                        break;
+                    default:
+                        throw new Exception("IndexSize of IndexBuffer not valid");
+                }
+                int ix = i % 3;
+                triangleVertex[ix] = GetVertex(geometry.VertexBuffers[0], currentIndex);
+
+                if (ix == 2)
+                {
+                    Debug.WriteLine("Triangle: " + triangleVertex[0].ToString() + " " + triangleVertex[1] + " " + triangleVertex[2]);
+                    volume += SignedVolumeOfTriangle(triangleVertex[0], triangleVertex[1], triangleVertex[2]);
+                }
+
+                indexes += indexSize;
+            }
+            double res = Math.Abs(volume) / 6.0f;
+            Debug.WriteLine("Volume: " + res);
+            return res;
+        }
+
+        unsafe Vector3 GetVertex(VertexBuffer vertexBuffer, uint index)
+        {
+            uint vertexSize = vertexBuffer.VertexSize;
+            uint startByte = index * vertexSize;
+            byte[] verticesBytes = MarshalHelper.ToBytesArray(new IntPtr(vertexBuffer.ShadowData + startByte), (int)vertexSize);
+            float v1 = (float)BitConverter.ToSingle(verticesBytes, 0);
+            float v2 = (float)BitConverter.ToSingle(verticesBytes, 8);
+            float v3 = (float)BitConverter.ToSingle(verticesBytes, 16);
+            return new Vector3(v1, v2, v3);
+        }</code></pre>
+<p><code>var sm = myNode.GetComponent&lt;StaticModel&gt;(true);
+GetVolume(sm.GetLodGeometry(0, 0));</code></p>
+<p>But I get a volume of 0.666 on a Box with volume of 1.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I’m unfamiliar with C# and unsure in the magic that you perform in ur function.<br/>
+Are you sure that you propperly go through triangles and vertices and pick right data?<br/>
+There is a chance that your model is broken, but if you tried default box, it is impossible…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>it looks like it might be missing a<br/>
+Square Root of 2 in there somewhere…</p>
+<p>0.666*sqrt(2)=0.94</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">leonardo</div>
+          <div class="post_content">
+<p>This  is my debug output:</p>
+<p><code>[0:] Triangle: (-0.5, -0.4999999, 0) (-0.5, 0.5, 0) (-0.5, 0.4999999, 0)
+[0:] Triangle: (-0.5, 0.4999999, 0) (-0.5, -0.5, 0) (-0.5, -0.4999999, 0)
+[0:] Triangle: (0.5, 0.4999999, 5.960464E-08) (-0.5, 0.4999999, 5.960464E-08) (-0.5, 0.5, 5.960464E-08)
+[0:] Triangle: (-0.5, 0.5, 5.960464E-08) (0.5, 0.5, 5.960464E-08) (0.5, 0.4999999, 5.960464E-08)
+[0:] Triangle: (0.5, -0.5, 0) (0.5, 0.4999999, 0) (0.5, 0.5, 0)
+[0:] Triangle: (0.5, 0.5, 0) (0.5, -0.4999999, 0) (0.5, -0.5, 0)
+[0:] Triangle: (0.5, -0.4999999, -5.960464E-08) (-0.5, -0.4999999, -5.960464E-08) (-0.5, -0.5, -5.960464E-08)
+[0:] Triangle: (-0.5, -0.5, -5.960464E-08) (0.5, -0.5, -5.960464E-08) (0.5, -0.4999999, -5.960464E-08)
+[0:] Triangle: (-0.5, 0.5, -0.9999999) (-0.5, -0.4999999, -0.9999999) (0.5, -0.4999999, -0.9999999)
+[0:] Triangle: (0.5, -0.4999999, -0.9999999) (0.5, 0.5, -0.9999999) (-0.5, 0.5, -0.9999999)
+[0:] Triangle: (0.5, 0.4999999, 0.9999999) (0.5, -0.5, 0.9999999) (-0.5, -0.5, 0.9999999)
+[0:] Triangle: (-0.5, -0.5, 0.9999999) (-0.5, 0.4999999, 0.9999999) (0.5, 0.4999999, 0.9999999)
+[0:] Volume: 0.666666567325592</code></p>
+<p>In a box there are 12 triangles and this seem right, but Volume is wrong <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Try to paint your triangles on the paper cause they looks <em>very</em> strange…<br/>
+How can CUBE have 3 different Z coordinates? I see 1, -1 and 0. Healthy cube shouldn’t have such vertices.<br/>
+Try to debug your code by urself, don’t expect that somebody here will do it for you.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

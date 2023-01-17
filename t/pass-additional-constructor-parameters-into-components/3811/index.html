@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Pass additional constructor parameters into Components</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Pass additional constructor parameters into Components</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1395_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SeeSoftware</div>
+          <div class="post_content">
+<p>Is there a way to pass aditional parameters into custom c++ Components eg i have this component:</p>
+<pre><code>class MyComponent : public LogicComponent // or Component whatever
+{
+	URHO3D_OBJECT(MyComponent , LogicComponent)
+    
+    public:
+        MyComponent(Context* context,int foo,int bar)
+    ...
+    ...
+    ...
+}
+</code></pre>
+<p>is there a way i could create the component in a node with some additional parameters like this:</p>
+<pre><code>	node-&gt;CreateComponent&lt;MyComponent&gt;(CreateMode::REPLICATED, 0, 123, 456); //last 2 are the additional parameters
+</code></pre>
+<p>i know i could create the component with</p>
+<p><code>MyComponent* comp = new MyComponent(context_,123,456)</code></p>
+<p>and then add it to the node like this</p>
+<p><code>node-&gt;AddComponent(comp, 0, CreateMode::REPLICATED);</code></p>
+<p>but its kinda ugly and i would prefere variadic templates<br/>
+like its done in std::make_shared</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>As far as I know there is not a way presently to do that. Since I think we’re now using C++11 by default, perhaps this will (or has already) changed.</p>
+<p>I think, though, that these functions will let you do more of what you want to do:</p>
+<pre><code class="lang-auto">template&lt;class C, typename... Types&gt;
+C* FullCreateComponent(Node* n, unsigned id, CreateMode cm, Context* context, Types... args)
+{
+    C* comp = new C(context,args...);
+    n-&gt;AddComponent(comp, id, cm);
+    return comp;
+}
+
+template&lt;class C, typename... Types&gt;
+C* FullCreateComponent(Node* n, unsigned id, Context* context, Types... args)
+{
+    C* comp = new C(context,args...);
+    n-&gt;AddComponent(comp, id, REPLICATED);
+    return comp;
+}
+
+template&lt;class C, typename... Types&gt;
+C* FullCreateComponent(Node* n, Context* context, Types... args)
+{
+    C* comp = new C(context,args...);
+    n-&gt;AddComponent(comp, 0, REPLICATED);
+    return comp;
+}
+</code></pre>
+<p>Called like:</p>
+<pre><code class="lang-auto">Battler* b = FullCreateComponent&lt;Battler&gt;(node,context_,filename);
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>As <span class="mention">@SirNate0</span> said, there is no way.</p>
+<p>Once you step away from “default” constructors, the big part of Scene features gets broken (e.g. serialization and replication).<br/>
+So, every component should have properly working “default” ctor anyway.<br/>
+So, there is no much sence in supporting custom ctors.</p>
+<p>Please fix me if I’m wrong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1395_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SeeSoftware</div>
+          <div class="post_content">
+<p>The problem for me is that i need some variables to exist in the constructor and by having a seperate Initialize function leaves the object in an invalid state if i dont call Initialize. Ofc you could have the constructor use good known values and then if you want you can change those with another function but it just doesnt feel right doing it like that.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

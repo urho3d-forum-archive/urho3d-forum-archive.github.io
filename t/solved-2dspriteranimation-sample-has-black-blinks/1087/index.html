@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] 2DSpriterAnimation sample has black blinks</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] 2DSpriterAnimation sample has black blinks</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>I changed 33_Urho2DSpriterAnimation.lua a little bit to create 300 2DSpriteAnimation instead of 1. during running the attack animation, black blinks will appear at certain internals,maybe around 5 seconds. This happens in the ubuntu desktop version or android version. The changed code is as follows:</p>
+<p>[code]-- Urho2D sprite example.<br/>
+– This sample demonstrates:<br/>
+–     - Creating a 2D scene with spriter animation<br/>
+–     - Displaying the scene using the Renderer subsystem<br/>
+–     - Handling keyboard to move and zoom 2D camera</p>
+<p>require “LuaScripts/Utilities/Sample”</p>
+<p>local spriteNodes = {}<br/>
+local animationIndex = 0<br/>
+local animationNames =<br/>
+{<br/>
+“idle”,<br/>
+“run”,<br/>
+“attack”,<br/>
+“hit”,<br/>
+“dead”,<br/>
+“dead2”,<br/>
+“dead3”,<br/>
+}</p>
+<p>function Start()<br/>
+– Execute the common startup for samples<br/>
+SampleStart()</p>
+<pre><code>-- Create the scene content
+CreateScene()
+
+-- Create the UI content
+CreateInstructions()
+
+-- Setup the viewport for displaying the scene
+SetupViewport()
+
+-- Hook up to the frame update events
+SubscribeToEvents()
+</code></pre>
+<p>end</p>
+<p>function CreateScene()<br/>
+scene_ = Scene()</p>
+<pre><code>-- Create the Octree component to the scene. This is required before adding any drawable components, or else nothing will
+-- show up. The default octree volume will be from (-1000, -1000, -1000) to (1000, 1000, 1000) in world coordinates it
+-- is also legal to place objects outside the volume but their visibility can then not be checked in a hierarchically
+-- optimizing manner
+scene_:CreateComponent("Octree")
+
+-- Create a scene node for the camera, which we will move around
+-- The camera will use default settings (1000 far clip distance, 45 degrees FOV, set aspect ratio automatically)
+cameraNode = scene_:CreateChild("Camera")
+-- Set an initial position for the camera scene node above the plane
+cameraNode.position = Vector3(0.0, 0.0, -10.0)
+local camera = cameraNode:CreateComponent("Camera")
+camera.orthographic = true
+camera.orthoSize = graphics.height * PIXEL_SIZE
+camera.zoom = 0.3 * Min(graphics.width / 1280, graphics.height / 800) -- Set zoom according to user's resolution to ensure full visibility (initial zoom (1.5) is set for full visibility at 1280x800 resolution)
+
+local animationSet = cache:GetResource("AnimationSet2D", "Urho2D/imp/imp.scml")
+if animationSet == nil then
+    return
+end
+for i=1,300 do
+    local    spriteNode = scene_:CreateChild("SpriterAnimation");
+    spriteNode.position = Vector3(math.random(30)-30,math.random(30)-30,0);
+    local animatedSprite = spriteNode:CreateComponent("AnimatedSprite2D")
+    animatedSprite:SetAnimation(animationSet, animationNames[animationIndex + 1])
+    spriteNodes[i] = spriteNode
+end
+</code></pre>
+<p>end</p>
+<p>function CreateInstructions()<br/>
+– Construct new Text object, set string to display and font to use<br/>
+local instructionText = ui.root:CreateChild(“Text”)<br/>
+instructionText:SetText(“Mouse click to play next animation, \nUse WASD keys and mouse to move, Use PageUp PageDown to zoom.”)<br/>
+instructionText:SetFont(cache:GetResource(“Font”, “Fonts/Anonymous Pro.ttf”), 15)<br/>
+instructionText.textAlignment = HA_CENTER – Center rows in relation to each other</p>
+<pre><code>-- Position the text relative to the screen center
+instructionText.horizontalAlignment = HA_CENTER
+instructionText.verticalAlignment = VA_CENTER
+instructionText:SetPosition(0, ui.root.height / 4)
+</code></pre>
+<p>end</p>
+<p>function SetupViewport()<br/>
+– Set up a viewport to the Renderer subsystem so that the 3D scene can be seen. We need to define the scene and the camera<br/>
+– at minimum. Additionally we could configure the viewport screen size and the rendering path (eg. forward / deferred) to<br/>
+– use, but now we just use full screen and default render path configured in the engine command line options<br/>
+local viewport = Viewport:new(scene_, cameraNode:GetComponent(“Camera”))<br/>
+renderer:SetViewport(0, viewport)<br/>
+end</p>
+<p>function MoveCamera(timeStep)<br/>
+– Do not move if the UI has a focused element (the console)<br/>
+if ui.focusElement ~= nil then<br/>
+return<br/>
+end</p>
+<pre><code>-- Movement speed as world units per second
+local MOVE_SPEED = 4.0
+
+-- Read WASD keys and move the camera scene node to the corresponding direction if they are pressed
+if input:GetKeyDown(KEY_W) then
+    cameraNode:Translate(Vector3(0.0, 1.0, 0.0) * MOVE_SPEED * timeStep)
+end
+if input:GetKeyDown(KEY_S) then
+    cameraNode:Translate(Vector3(0.0, -1.0, 0.0) * MOVE_SPEED * timeStep)
+end
+if input:GetKeyDown(KEY_A) then
+    cameraNode:Translate(Vector3(-1.0, 0.0, 0.0) * MOVE_SPEED * timeStep)
+end
+if input:GetKeyDown(KEY_D) then
+    cameraNode:Translate(Vector3(1.0, 0.0, 0.0) * MOVE_SPEED * timeStep)
+end
+
+if input:GetKeyDown(KEY_PAGEUP) then
+    local camera = cameraNode:GetComponent("Camera")
+    camera.zoom = camera.zoom * 1.01
+end
+
+if input:GetKeyDown(KEY_PAGEDOWN) then
+    local camera = cameraNode:GetComponent("Camera")
+    camera.zoom = camera.zoom * 0.99
+end
+</code></pre>
+<p>end</p>
+<p>function SubscribeToEvents()<br/>
+– Subscribe HandleUpdate() function for processing update events<br/>
+SubscribeToEvent(“Update”, “HandleUpdate”)<br/>
+SubscribeToEvent(“MouseButtonDown”, “HandleMouseButtonDown”)<br/>
+SubscribeToEvent(“TouchBegin”, “HandleMouseButtonDown”)<br/>
+– Unsubscribe the SceneUpdate event from base class to prevent camera pitch and yaw in 2D sample<br/>
+UnsubscribeFromEvent(“SceneUpdate”)<br/>
+end</p>
+<p>function HandleUpdate(eventType, eventData)<br/>
+– Take the frame time step, which is stored as a float<br/>
+local timeStep = eventData:GetFloat(“TimeStep”)<br/>
+–for i = 1,300 do<br/>
+–spriteNodes[i].position = Vector3(spriteNodes[i].position.x + timeStep,spriteNodes[i].position.y,0);<br/>
+– print(spriteNode.position.x);<br/>
+– Move the camera, scale movement with time step<br/>
+–end<br/>
+MoveCamera(timeStep)<br/>
+end</p>
+<p>function HandleMouseButtonDown(eventType, eventData)<br/>
+animationIndex = (animationIndex + 1) % 7<br/>
+for i=1,300 do<br/>
+local animatedSprite = spriteNodes[i]:GetComponent(“AnimatedSprite2D”)<br/>
+animatedSprite:SetAnimation(animationNames[animationIndex + 1], LM_FORCE_LOOPED)<br/>
+end<br/>
+end</p>
+<p>– Create XML patch instructions for screen joystick layout specific to this sample app<br/>
+function GetScreenJoystickPatchString()<br/>
+return<br/>
+"" …<br/>
+"    &lt;remove sel="/element/element[./attribute[@name=‘Name’ and @value=‘Button0’]]/attribute[@name=‘Is Visible’]" /&gt;" …<br/>
+"    &lt;replace sel="/element/element[./attribute[@name=‘Name’ and @value=‘Button0’]]/element[./attribute[@name=‘Name’ and @value=‘Label’]]/attribute[@name=‘Text’]/<span class="mention">@value</span>"&gt;Zoom In" …<br/>
+"    &lt;add sel="/element/element[./attribute[@name=‘Name’ and @value=‘Button0’]]"&gt;" …<br/>
+"        &lt;element type=“Text”&gt;" …<br/>
+"            &lt;attribute name=“Name” value=“KeyBinding” /&gt;" …<br/>
+"            &lt;attribute name=“Text” value=“PAGEUP” /&gt;" …<br/>
+"        " …<br/>
+"    " …<br/>
+"    &lt;remove sel="/element/element[./attribute[@name=‘Name’ and @value=‘Button1’]]/attribute[@name=‘Is Visible’]" /&gt;" …<br/>
+"    &lt;replace sel="/element/element[./attribute[@name=‘Name’ and @value=‘Button1’]]/element[./attribute[@name=‘Name’ and @value=‘Label’]]/attribute[@name=‘Text’]/<span class="mention">@value</span>"&gt;Zoom Out" …<br/>
+"    &lt;add sel="/element/element[./attribute[@name=‘Name’ and @value=‘Button1’]]"&gt;" …<br/>
+"        &lt;element type=“Text”&gt;" …<br/>
+"            &lt;attribute name=“Name” value=“KeyBinding” /&gt;" …<br/>
+"            &lt;attribute name=“Text” value=“PAGEDOWN” /&gt;" …<br/>
+"        " …<br/>
+"    " …<br/>
+""<br/>
+end<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Reproduced. May be a case of incorrect animation wrapping (animation time position goes occasionally too far, outside of keyframes, and displays emptiness).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It turned out that the animation for “attack” had longer length than the last keyframe. This would cause occasional flashes or sprites disappearing in clamp mode. Now animation length is forced to the last keyframe time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>Thanks for the quick reply and the fix.  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

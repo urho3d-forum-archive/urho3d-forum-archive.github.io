@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How can I stop receive collision events?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How can I stop receive collision events?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I encountered a problem about physics events.<br/>
+I created two scenes, main menu scene and game scene which has physics simulation.<br/>
+When I switched from game scene to main menu scene, the program always crash. I think it is because the node which has rigid body component has been released but the physics world still send collision events to it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>What do you mean with switching scenes? Do you destroy the game scene?</p>
+<p>Generally the PhysicsWorld code should be quite resilient to components or nodes being removed (examples like NinjaSnowWar do physical object destruction all the time) so maybe you should post some code that will minimally reproduce the crash you’re experiencing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>No, I just create two scene class, mainMenuScene and gameScene, which all subclass from Object, in gameScene, I tested whether some physics collision occurred, if so, I will change gameScene to mainMenuScene, and the game has just a scene value scene_, which managed by a subsystem sceneManager, like this:</p>
+<p>[code]SceneMgr::SceneMgr(Context *context)<br/>
+: Object(context)<br/>
+, curScene_(NULL)<br/>
+{<br/>
+scene_ = new Scene(context);<br/>
+scene_-&gt;CreateComponent();<br/>
+scene_-&gt;CreateComponent();<br/>
+}</p>
+<p>void SceneMgr::ChangeSceneTo(SCENETYPE type)<br/>
+{<br/>
+if (curScene_ != NULL)<br/>
+{<br/>
+if (curScene_-&gt;GetType() == type)<br/>
+{<br/>
+return;<br/>
+}</p>
+<pre><code>    curScene_-&gt;Stop();
+}
+
+switch (type)
+{
+    case SCENE_MAINMENUSCENE:
+    {
+        curScene_ = new MainMenuScene(context_, scene_);
+    } break;
+        
+    case SCENE_GAMESCENE:
+    {
+        curScene_ = new GameScene(context_, scene_);
+    } break;
+        
+    default:
+        break;
+}
+
+curScene_-&gt;Start();
+</code></pre>
+<p>}<br/>
+[/code]<br/>
+in gameScene, I tested the collision start events like this</p>
+<p>[code]void GameScene::HandleCollisionEvent(Urho3D::StringHash eventType, VariantMap &amp;eventData)<br/>
+{<br/>
+crashed_ = true;<br/>
+}</p>
+<p>void GameScene::Update(float timeStep)<br/>
+{<br/>
+if (crashed_)<br/>
+{<br/>
+SceneMgr *mgr = GetSubsystem();<br/>
+mgr-&gt;ChangeSceneTo(SCENE_MAINMENU);</p>
+<pre><code>    return;
+}
+</code></pre>
+<p>…[/code]</p>
+<p>and when the collision events happen, the game crashed</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>I think I found the crash reason, I subclass the gameScene and mainMenuScene from a baseScene class which have a sharedptr value scene_, when I created these class instance, I will transfer it a scene value from subsystem sceneMgr. I changed the sharedptr to weakptr, the crash disappeared.<br/>
+I do not know why</p>
+<p>[quote=“cadaver”]What do you mean with switching scenes? Do you destroy the game scene?</p>
+<p>Generally the PhysicsWorld code should be quite resilient to components or nodes being removed (examples like NinjaSnowWar do physical object destruction all the time) so maybe you should post some code that will minimally reproduce the crash you’re experiencing.[/quote]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Is your curScene_ a raw or a shared pointer? If it’s raw then you’re leaking objects (leaving the previous one existing and responding to events) when switching.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>curScene_ is a shared ptr, and it can be normally released.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

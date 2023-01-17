@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Render UI to Texture</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Render UI to Texture</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Is it possible to render the UI to a texture? I don’t see anything in the demos.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>No. For now the UI subsystem always renders into the backbuffer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Does this happen after or before the postprocessing?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>After. If you need postprocessing for the UI, at this point I recommend just digging into the UI rendering code and modifying it for your needs.</p>
+<p>In the future, the ideal situation would be to have the UI root as just another component in the scene, so there could be multiple of them, used to texture in-world objects etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Okay, so I figured out why simply calling graphics-&gt;SetRenderTexture(…) doesn’t work. Since the UI is rendered after, the texture it rendered to was already sampled earlier.</p>
+<p>The fix would be to render the UI first to a texture, and then use materials/shaders to combine it with wherever it should go. How do I make a texture that everything can reference?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>Okay, I thought about it some more, and maybe it would be best to include the UI pass as an actual pass in the renderpaths. I attempted to do this, but I’m not sure how rendertargets work, and how the engine renders the scene to them. I noticed that before the UI renders, it resets all the rendertargets so the UI is displayed on the backbuffer. I removed this and tried rendering to one of the viewports, but nothing showed up. How exactly are views rendered?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Let’s assume that you have a Texture2D that’s been created as a rendertarget (again, refer to the RenderToTexture sample). You would name it and make it accessible by name in renderpaths as follows:</p>
+<pre><code class="lang-auto">    myTexture-&gt;SetName("UITexture");
+    GetSubsystem&lt;ResourceCache&gt;()-&gt;AddManualResource(myTexture);</code></pre>
+<p>To redirect UI rendering to it, put the following in UI::Render() right after the call to ResetRenderTargets:</p>
+<pre><code class="lang-auto">    graphics_-&gt;SetRenderTarget(0, myTexture-&gt;GetRenderSurface());
+    graphics_-&gt;SetViewport(IntRect(0, 0, myTexture-&gt;GetWidth(), myTexture-&gt;GetHeight()));</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GIMB4L</div>
+          <div class="post_content">
+<p>So I did something cool! I managed to make the UI render as part of a renderpath, in any viewport following that render path! This allowed me to render the UI to multiple  viewports AND apply shaders to it! If this is a desired feature I can make a pull request.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>That’s cool that you got it working.</p>
+<p>However right now the UI heavily assumes that it’s sized like the whole screen, and there can only exist one UI hierarchy, so I believe that feature would not be generally usable yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sduensin</div>
+          <div class="post_content">
+<p>This would be a great feature to have.  I’d love to be able to create in-world UIs.  (I realize that requires quite a bit more than just rendering to a texture, but hey, one can wish!)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/998_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">stark7</div>
+          <div class="post_content">
+<p>Hello cadaver, has this feature been revisited or discussed lately? Particularly making the UIElement a Node or Node Component and have it part of the scene itself</p>
+<p>EDIT: I just saw <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/pull/2074</a> so never mind :). Also… don’t go? I’ll tell you the ending to GoT.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Quaternion Rotation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Quaternion Rotation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mrchrissross</div>
+          <div class="post_content">
+<p>Hi Everyone,</p>
+<p>I’m having a bit of trouble with my spacecraft. I’ve spent days on this, and really need help.</p>
+<p>I’m able to use the mouse to move around the scene and I’m able to move upside down.</p>
+<p>The problem I’m having is I’m unable (for the life of me) to get the space craft to rotate around sideways <strong>with the camera</strong>. Here is my code:</p>
+<p>Update function:</p>
+<pre><code class="lang-auto">    #pragma region MouseControl
+	// Use this frame's mouse motion to adjust camera node yaw and pitch.  
+	IntVector2 mouseMove = input-&gt;GetMouseMove();
+	bool reverseYaw = false;
+	
+	if (pitch_ &lt; -90.0f || pitch_ &gt; 90.0f)
+		reverseYaw = true;
+	else 
+		reverseYaw = false;
+
+	if (pitch_ &gt; 270.0f)
+		pitch_ = -90;
+	else if (pitch_ &lt; -270.0f)
+		pitch_ = 90;
+	
+	if(!reverseYaw)
+		yaw_ += mouseSensitivity * mouseMove.x_; 
+	else if(reverseYaw)
+		yaw_ -= mouseSensitivity * mouseMove.x_;
+
+	pitch_ += mouseSensitivity * mouseMove.y_;
+#pragma endregion
+
+    #pragma region KeyInfo
+	if (!input-&gt;GetKeyDown(KEY_C)) // Look Around
+	{
+		mSpaceship.rb-&gt;SetMass(0.0f);
+		mSpaceship.rb-&gt;SetMass(1.0f);
+
+		Quaternion rotation = mSpaceship.rb-&gt;GetRotation().Slerp(Quaternion(0, yaw_ + 90, pitch_), 0.4);
+		mSpaceship.rb-&gt;SetRotation(rotation);
+	}
+
+	if (input-&gt;GetKeyDown(KEY_W) &amp;&amp; !input-&gt;GetKeyDown(KEY_C)) // Move Forward
+	{ 
+		mSpaceship.rb-&gt;SetLinearVelocity(cameraNode_-&gt;GetDirection().Normalized() * movementSpeed);
+
+		fireEffect-&gt;SetMinEmissionRate(500); fireEffect-&gt;SetMaxEmissionRate(800);
+		smokeEffect-&gt;SetMinEmissionRate(50); smokeEffect-&gt;SetMaxEmissionRate(100);
+	}
+	else 
+	{ 
+		mSpaceship.rb-&gt;SetLinearVelocity(Vector3::ZERO);
+		
+		fireEffect-&gt;SetMinEmissionRate(0); fireEffect-&gt;SetMaxEmissionRate(0);
+		smokeEffect-&gt;SetMinEmissionRate(0); smokeEffect-&gt;SetMaxEmissionRate(0);
+	}
+
+	if (input-&gt;GetKeyDown(KEY_Q)) // Deploy Mine
+	{
+		if (!mine.node-&gt;IsEnabled())
+		{
+			mine.node-&gt;SetEnabled(true);
+			mine.node-&gt;SetPosition(Vector3(0, -1, 0));
+		}
+	}
+
+	if (input-&gt;GetKeyPress(KEY_P)) // Toggle Fullscreen
+	{ 
+		if (!GetSubsystem&lt;Graphics&gt;()-&gt;GetFullscreen())
+		{ 
+			GetSubsystem&lt;Graphics&gt;()-&gt;SetMode(screenRes.x_, screenRes.y_);
+			boostButton-&gt;SetPosition((screenRes.x_ - boostButton-&gt;GetWidth()) / 2, screenRes.y_ - (screenRes.y_ / 6));
+		}
+		else
+		{
+			GetSubsystem&lt;Graphics&gt;()-&gt;SetMode(screenRes.x_ / 2, screenRes.y_ / 2);
+			boostButton-&gt;SetPosition(((screenRes.x_ / 2) - boostButton-&gt;GetWidth()) / 2, (screenRes.y_ / 2) - ((screenRes.y_ / 2) / 6));
+		}
+
+		GetSubsystem&lt;Graphics&gt;()-&gt;ToggleFullscreen();
+	}
+
+	if (input-&gt;GetKeyDown(KEY_F) &amp;&amp; !mMissile.enabled &amp;&amp; !input-&gt;GetKeyDown(KEY_C))	ShootMissile(); // Fire Missile
+	
+	if (input-&gt;GetKeyPress(KEY_O)) drawDebug = !drawDebug; // Draw Debug Lines
+
+	//if (input-&gt;GetKeyDown(KEY_S))  mSpaceship.node-&gt;Translate(Vector3::RIGHT * movementSpeed * timeStep);
+	if (input-&gt;GetKeyDown(KEY_A))
+	{
+		mSpaceship.node-&gt;Rotate(Quaternion(-100 * timeStep, 0.0f, 0.0f), TS_LOCAL);		// Space, Q, A, S, D Keys not needed
+		cameraNode_-&gt;Rotate(Quaternion(0.0f, 0.0f, 100 * timeStep), TS_LOCAL);
+	}
+	if (input-&gt;GetKeyDown(KEY_D))
+	{
+		mSpaceship.node-&gt;Rotate(Quaternion(100 * timeStep, 0.0f, 0.0f), TS_LOCAL);		// Space, Q, A, S, D Keys not needed
+		cameraNode_-&gt;Rotate(Quaternion(0.0f, 0.0f, -100 * timeStep), TS_LOCAL);
+	}
+	//if (input-&gt;GetKeyDown(KEY_SPACE))  mSpaceship.node-&gt;Translate(Vector3::UP * movementSpeed * timeStep);
+	
+#pragma endregion
+</code></pre>
+<p>HandlePostUpdate Function:</p>
+<pre><code class="lang-auto">    void Game::HandlePostUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+	// Physics update has completed. Position camera behind vehicle
+	Quaternion dire(yaw_, Vector3::UP);
+	dire = dire * Quaternion(0, Vector3::UP);
+	dire = dire * Quaternion(pitch_, Vector3::RIGHT);
+
+	Vector3 cameraStartPos = mSpaceship.node-&gt;GetPosition();
+	Vector3 cameraTargetPos = cameraStartPos - dire * Vector3(0.0f, -2.0f, 15.0f);
+
+	// Raycast camera against static objects (physics collision mask 2)
+	// and move it closer to the vehicle if something in between
+	Ray cameraRay(cameraStartPos, cameraTargetPos - cameraStartPos);
+	float cameraRayLength = (cameraTargetPos - cameraStartPos).Length();
+	
+	PhysicsRaycastResult result;
+	scene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;RaycastSingle(result, cameraRay, cameraRayLength, 2);
+	if (result.body_)
+		cameraTargetPos = cameraStartPos + cameraRay.direction_ * (result.distance_ - 0.5f);
+
+	cameraNode_-&gt;SetPosition(cameraTargetPos);
+	cameraNode_-&gt;SetRotation(dire);
+}
+</code></pre>
+<p>I think this is all you guys will need code wise.</p>
+<p>Here is a video to understand better:</p>
+<p> <video controls="" height="1235" loop="" title="            
+    
+
+    Imgur: The magic of the Internet" width="695">
+<source src="https://i.imgur.com/k5QmUjg.mp4" type="video/mp4"/>
+<source src="https://i.imgur.com/k5QmUjg.webm" type="video/webm"/>
+</video>
+</p>
+<p>Any help would be greatly appreciated, I’ve spent so long on this one!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I think you should use <code>RotateAround</code> on the camera node to get the result your looking for. Also you might want to correct the ship’s pivot orientation to reduce confusion.</p>
+<p>Starting to look pretty cool already, btw. <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mrchrissross</div>
+          <div class="post_content">
+<p>Thank you <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/> would it be possible to ask for an example of how to use RotateAround as I have never used it before? how can I correct the pivot orientation? Do I do this when the object is initialised?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>Starting to look interesting already. <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/><br/>
+There are more examples in forum than in Urho: <a href="https://discourse.urho3d.io/search?q=RotateAround">https://discourse.urho3d.io/search?q=RotateAround</a></p>
+<p>RotateAround() and other node methods<br/>
+<a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_node.html">https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_node.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><em>Another option</em> would be to parent the camera to an extra node which you would rotate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mrchrissross</div>
+          <div class="post_content">
+<p>I think i may just leave it as it is, I’ve tried quite a few ways parenting the camera to the spaceship being one of them however this takes away the Quaternion.Slerp</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>For objects that don’t use physics you can safely get a <code>Node</code>'s rotation, <code>Slerp</code> and then reassign it using <code>Set</code>(<code>World</code>)<code>Rotation</code>.</p>
+<p>Btw, for objects using physics one should refrain from setting their position or velocity directly. Instead you should apply forces and set damping parameters using methods like <code>ApplyForce</code>, <code>ApplyImpulse</code>, <code>ApplyTorque</code>, <code>ApplyTorqueImpulse</code>, <code>SetLinearDamping</code> and <code>SetAngularDamping</code>. Otherwise you are basically overriding the effects of any collisions that may occur.<br/>
+`</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

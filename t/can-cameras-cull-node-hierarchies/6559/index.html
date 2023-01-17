@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Can Cameras Cull Node Hierarchies?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Can Cameras Cull Node Hierarchies?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>I saw the “SetViewMask()” function for Drawables, as a way of filtering out content from a Camera.</p>
+<p>Note that we have multiple cameras in the scene, rendering to multiple Viewports…  and we have this concept of “Layer Visibility” and each layer can have 1000’s of renderables.</p>
+<p>So in short, we want an efficient way to manage Visibility per Camera, other than having each camera sift through 1000’s of renderables that it’s not going to render.</p>
+<p>It would be much nicer to have this “ViewMask” set at the Node level, that way the Camera Culling Logic would be extremely efficient – it would see the Node’s Mask - and then not bother sifting through the content of this Node, if the mask doesn’t match.  Now we’ve just got one comparison to make, per Layer, rather than 1000’s!..</p>
+<p>Any ideas on how to make this more efficient for Urho to manage?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Nodes aren’t stored in the octree, only the drawables themselves.</p>
+<p>You can bunch them up into <code>StaticModelGroup</code> components which will treat them as one whole but you’ll have to measure if you actually gain anything from it for how your objects are laid out.</p>
+<p>If occlusion culling is on then the <code>OccludedFrustumOctreeQuery</code> is used cull entire octants if they’re occluded. If you can, setup good occluders. Even without marking occludees you’ll gain from octant culling.</p>
+<hr/>
+<p>If you really really wanted to aggregate a mask for each Octant then you’d have to tag octants as they’re dirty and then visit every dirty octant and all of its drawables to update the mask … and then walk the tree OR’ing the masks together since you need to merge those masks upwards. That’s kind of silly.</p>
+<p>If messing with octants you’d probably win more by marking their “latest dirty frame” and using that to cache shadowmaps for reuse since shadowmaps have considerable cost in both view-setup and rendering.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6559" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>It would be much nicer to have this “ViewMask” set at the Node level, that way the Camera Culling Logic would be extremely efficient – it would see the Node’s Mask - and then not bother sifting through the content of this Node</p>
+</blockquote>
+</aside>
+<p>Urho has exactly one <code>Octree</code> per <code>Scene</code>, and <code>Node</code> hierarchy is not stored there.<br/>
+So, at the time of culling you literally don’t have any information about node hierarchy and you <em>cannot add it</em> because it contradicts current data layout.<br/>
+The only way would be to group all stuff into one <code>Drawable</code> (e.g. <code>StaticModelGroup</code> or something custom), but you will lose an ability of partial culling. You either render whole <code>Drawable</code> or nothing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Thank you JSandusky and Eugene – both of you alluded to the same answer – “StaticModelGroup”, which seems to be the right answer for me – I could at least group things in close proximity into these groups, and that would reduce overhead of the entire scene (at least the culling logic).  And would also mostly solve my issued.   Instead of having to use the ViewMask to cull 1000’s of renderables, we’d only be culling dozens, likely.    And that suffices for sure.</p>
+<p>I selected Eugene’s solution, because it more succinctly describes the solution we’re going to choose.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

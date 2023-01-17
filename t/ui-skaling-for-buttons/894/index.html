@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>UI-skaling for buttons</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">UI-skaling for buttons</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>I was trying to do some ui-scaling like buttons mostly so that they would scale according to screen resolution, this is the code I have. I think I managed to get it to work at least up to some level. Maybe it will help others or maybe even someone can improve the code a lot.</p>
+<p>The code is definitely not pretty, just a warning. I am using the sample as a base class.</p>
+<pre><code class="lang-auto">
+void MyProj::Setup()
+{
+	Sample::Setup();
+	engineParameters_["WindowResizable"] = true; // to make window resizable.
+
+}
+
+void MyProj::SubscribeToEvents()
+{
+    // Subscribe HandleUpdate() function for processing update events
+    SubscribeToEvent(E_UPDATE, HANDLER(SkeletalAnimation, HandleUpdate));
+
+    // Subscribe HandlePostRenderUpdate() function for processing the post-render update event, sent after Renderer subsystem is
+    // done with defining the draw calls for the viewports (but before actually executing them.) We will request debug geometry
+    // rendering during that event
+    SubscribeToEvent(E_POSTRENDERUPDATE, HANDLER(SkeletalAnimation, HandlePostRenderUpdate));
+
+   // For resizing UI
+    SubscribeToEvent( E_SCREENMODE,  HANDLER( MyProj, ResizeUI));
+}
+
+/// Handle ScreenMode event. Resize and such.
+void MyProj::ResizeUI( StringHash eventType, VariantMap&amp; eventData ) {
+    auto rootSize = GetSubsystem&lt;UI&gt;()-&gt;GetRoot()-&gt;GetSize();
+
+
+   // I am using class called GameUI for handling the ui.
+    if( gameUI_ )
+        gameUI_-&gt;resizeUI( rootSize.x_, rootSize.y_,
+            GetSubsystem&lt;ResourceCache&gt;()-&gt;GetResource&lt;Font&gt;(("Fonts/Anonymous Pro.ttf")));
+
+}
+
+
+void UIGame::resizeUI( const int&amp; width, const int&amp; height, Urho3D::Font* font ) {
+
+    fontSize_ = std::min( width, height ) / 20;
+
+    setElementsZero( root_ );
+    resizeElement( root_ );
+
+    root_-&gt;SetSize( width, height );
+}
+
+
+// Set all sizes to 0 from deepest first, because if child node is not 0, the parent cannot
+// be set to 0. This will not shrink components when making window smaller
+void UIGame::setElementsZero( Urho3D::UIElement* element ) {
+    for( int i = 0; i &lt; element-&gt;GetChildren().Size(); ++i ){
+        if( auto tmp = dynamic_cast&lt;Urho3D::DropDownList*&gt;( element ) ) {
+            for( int j = 0; j &lt; tmp-&gt;GetItems().Size(); ++j )
+                setElementsZero( tmp-&gt;GetItems()[j] );
+        }
+        setElementsZero( element-&gt;GetChildren()[i] );
+    }
+
+    element-&gt;SetMinSize(0,0);
+    element-&gt;SetSize(0,0);
+}
+
+// Sets elements size according to childrens size.
+void UIGame::resizeElement( Urho3D::UIElement* element ) {
+
+    auto elements = element-&gt;GetChildren();
+    if( elements.Size() == 0 )
+        return;
+
+    int width = 0;
+    int height = 0;
+
+
+    for( auto elementIter = elements.Begin(); elementIter != elements.End(); ++elementIter ) {
+        Urho3D::UIElement* ele = elementIter-&gt;Get();
+
+        resizeElement( ele );
+
+        findUIType( ele );
+
+
+
+        switch(  element-&gt;GetLayoutMode() ) {
+            case Urho3D::LM_HORIZONTAL:
+                height = std::max(  ele-&gt;GetHeight(), height );
+            break;
+
+            case Urho3D::LM_VERTICAL:
+                width = std::max(  ele-&gt;GetWidth(), width );
+            break;
+
+            default:
+                height = std::max(  ele-&gt;GetHeight(), height );
+                width = std::max(  ele-&gt;GetWidth(), width );
+            break;
+        }
+
+
+    }
+
+
+    switch(  element-&gt;GetLayoutMode() ) {
+        case Urho3D::LM_HORIZONTAL:
+            element-&gt;SetMinWidth( width );
+            element-&gt;SetWidth( width );
+        break;
+
+        case Urho3D::LM_VERTICAL:
+            element-&gt;SetMinHeight( height );
+            element-&gt;SetHeight( height );
+        break;
+
+        default:
+            element-&gt;SetMinSize( width, height );
+            element-&gt;SetSize( width, height );
+        break;
+    }
+
+}
+
+
+// Find the elements type and do stuff according to element type
+void UIGame::findUIType( Urho3D::UIElement* ele ) {
+
+    if( Urho3D::BorderImage* tmp = dynamic_cast&lt;Urho3D::BorderImage*&gt;( ele )  ) {
+        if( Urho3D::Button* tmp2 = dynamic_cast&lt;Urho3D::Button*&gt;( ele )  ) {
+            if( Urho3D::DropDownList* tmp3 = dynamic_cast&lt;Urho3D::DropDownList*&gt;( ele ) ) {
+                int width = 0;
+                int height = 0;
+                for( int i = 0; i &lt; tmp3-&gt;GetItems().Size(); ++i ) {
+                    findUIType(tmp3-&gt;GetItems()[i]);
+                    width = std::max( tmp3-&gt;GetItems()[i]-&gt;GetWidth(), width );
+                    height = std::max( tmp3-&gt;GetItems()[i]-&gt;GetHeight(), height );
+                }
+                tmp3-&gt;SetMinSize(width, height);
+                tmp3-&gt;SetSize(width, height);
+            }
+            else if( Urho3D::Menu* tmp3 = dynamic_cast&lt;Urho3D::Menu*&gt;( ele ) ) {
+            }
+            else { // Button
+            }
+        }
+        else if(Urho3D::CheckBox* tmp2 = dynamic_cast&lt;Urho3D::CheckBox*&gt;( ele )) {
+
+        }
+
+        else if(Urho3D::Cursor* tmp2 = dynamic_cast&lt;Urho3D::Cursor*&gt;( ele )) {
+
+        }
+
+        else if(Urho3D::LineEdit* tmp2 = dynamic_cast&lt;Urho3D::LineEdit*&gt;( ele )) {
+
+        }
+
+        else if(Urho3D::Slider* tmp2 = dynamic_cast&lt;Urho3D::Slider*&gt;( ele )) {
+
+        }
+
+        else if(Urho3D::Window* tmp3 = dynamic_cast&lt;Urho3D::Window*&gt;( ele )) {
+            if(Urho3D::View3D* tmp3 = dynamic_cast&lt;Urho3D::View3D*&gt;( ele )) {
+
+            }
+            else { // Window
+            }
+
+        }
+        else { // borderImage
+
+        }
+
+    }
+
+    else if(Urho3D::ScrollBar* tmp = dynamic_cast&lt;Urho3D::ScrollBar*&gt;( ele )) {
+
+    }
+
+    else if(Urho3D::ScrollView* tmp = dynamic_cast&lt;Urho3D::ScrollView*&gt;( ele )) {
+        if(Urho3D::ListView* tmp = dynamic_cast&lt;Urho3D::ListView*&gt;( ele )) {
+
+        }
+        else {
+
+        }
+
+
+    }
+
+    else if(Urho3D::Sprite* tmp = dynamic_cast&lt;Urho3D::Sprite*&gt;( ele )) {
+
+
+    }
+
+    else if(Urho3D::Text* tmp = dynamic_cast&lt;Urho3D::Text*&gt;( ele )) {
+        tmp-&gt;SetMinSize(0,0);
+// There is probably a lot smarter way to do this, but if the fontsize is same
+// this does nothing. Since we already zeroed the text element earlier, this means
+// the whole text will be 0 pixel size otherwise.
+        tmp-&gt;SetFont(tmp-&gt;GetFont(), fontSize_ - 1 );
+        tmp-&gt;SetFont(tmp-&gt;GetFont(), fontSize_ );
+
+        tmp-&gt;SetMinSize( tmp-&gt;GetSize() );
+    }
+
+    else if(Urho3D::ToolTip* tmp = dynamic_cast&lt;Urho3D::ToolTip*&gt;( ele ) ) {
+
+    }
+    else { // UIElement
+
+    }
+
+}
+</code></pre>
+<p>This code assumes that every type that has children does not contain things on their own. Also basically the only thing it does is change fonts size to an object. It doesn’t handle position changes according to resolution, since I am only using elements in corners and edges nor it handles images neither.</p>
+<p>Anyways do what you want with it. Oh and I am using c++11 autos, so c++11 must be used for the code to work.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Way to getting depth texture in forward render path?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Way to getting depth texture in forward render path?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi folks!<br/>
+I try to figure to how to get depth texture (and send it to texture unit for shader lookup) of rendered frame for post-process (such as DOF) but in Forward.xml render path.<br/>
+Any ideas?<br/>
+Previously, I tried to use ForwardHWDepth.xml for other things but I guessing that this renderpath have some kind of visual bugs or something like this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you want most compatibility, use the ForwardDepth.xml renderpath, which doesn’t use a true hardware depth buffer. Instead it will render the scene twice to also render depth to a linear buffer (similar to the default deferred &amp; prepass paths). Rendering twice will naturally cost performance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>If you want most compatibility<br/>
+I want max performance.</p>
+</blockquote>
+<p>I take a look closer into two renderpath and find that<br/>
+ForwardHWDepth use<br/>
+</p>
+<p>and ForwardDepth<br/>
+</p>
+<p>is it mean that “readabledepth”</p>
+<ul>
+<li>it’s “true” depth?</li>
+<li>is it possible read in PS shader ? (any example how to put this depth into TU ? (I guessing it use d24 format and not rgb(a)))</li>
+<li>is it render scene in single pass or similar to lineardepth twice?</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you want max performance, then the HWDepth family of renderpaths is the only way to go. They use a D24 format hardware depth buffer (the one that is actually used for Z tests). The path instructs to use it as the depth-stencil buffer in all subsequent passes, which means the scene won’t be rendered twice. If you’re on OpenGL, it disables attempting to use a D24S8 format for compatibility reasons, so it’s just bare D24 and stencil won’t be available, which disables some optimizations.</p>
+<p>When reading the D24 depth buffer in pixel shader, you need to use ReconstructDepth() function. Look at the DeferredLight &amp; PrepassLight shaders for an example. Also, when you read the depth buffer, depth write needs to be off in materials (in postprocess quad rendering it’s always off).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Thanks, Lasse.<br/>
+I use this whitepaper from AMD: Scheuermann_DepthOfField.pdf<br/>
+in part of whitepaper when need save depth in alpha channel<br/>
+<a data-bbcode="true" href="http://savepic.su/6300547.htm"><img alt="" height="" src="../../../images2/8e5c8212ce52982d60c0e36f9d71d0c8.png" width=""/></a></p>
+<p>and I guessing that I need convert(do mapping) cNearClipPS and cFarClipPS(they store world-space values?) into depth range, how I may do this ?<br/>
+In what range the fn ReconstructDepth() converts depth range [0…1] or [-1…1] or …?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The value returned by ReconstructDepth is such that nearclip distance equals 0 and farclip distance equals 1, and the values inbetween are linearly mapped. So it only undoes the hyperbolic part of the depth mapping.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="codingmonkey">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/f51b072b776cc1b7fa327e4e4e0b636d.png" width="20"/> codingmonkey:</div>
+<blockquote>
+<p>Thanks, Lasse.<br/>
+I use this whitepaper from AMD: Scheuermann_DepthOfField.pdf<br/>
+in part of whitepaper when need save depth in alpha channel<br/>
+<a data-bbcode="true" href="http://savepic.su/6300547.htm" rel="nofollow noopener"><img alt="" height="" src="../../../images2/8e5c8212ce52982d60c0e36f9d71d0c8.png" width=""/></a></p>
+<p>and I guessing that I need convert(do mapping) cNearClipPS and cFarClipPS(they store world-space values?) into depth range, how I may do this ?<br/>
+In what range the fn ReconstructDepth() converts depth range [0…1] or [-1…1] or …?</p>
+</blockquote>
+</aside>
+<p>I heard someone doing deferred in webgl by using the alpha channel.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>I heard someone doing deferred in webgl by using the alpha channel.<br/>
+I guessing this almost oldest tech (from 2004 year) and maybe someone using parts of this doc from amd.</p>
+</blockquote>
+<p>now  I have some crappy results<br/>
+<a data-bbcode="true" href="http://savepic.su/6306740.htm"><img alt="" height="" src="../../../images2/085cf129018dbf94ac36501aea94b28c.png" width=""/></a><br/>
+<a data-bbcode="true" href="http://savepic.su/6337463.htm"><img alt="" height="" src="../../../images2/705915cbf3fafd88a255f08f56215e16.png" width=""/></a></p>
+<p>in whitepaper written “use destination alpha for depth and blur information” they mean use low-res destination or full-res destination ?<br/>
+anyway for testing purpose. I use special RT only for save full-res depth into alpha )<br/>
+and I do not figure out with cameras clip planes (near/far/focal) and hardcode they in shader for while</p>
+<details>
+<summary>
+Render Path</summary>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="blurredFrameH" tag="DOF" sizedivisor="8 8" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="blurredFrameV" tag="DOF" sizedivisor="8 8" format="rgba" filter="true" /&gt;
+    
+    &lt;rendertarget name="storedAlpha" tag="DOF" sizedivisor="1 1" format="rgba" filter="true" /&gt;
+      
+    &lt;rendertarget name="depth" sizedivisor="1 1" format="readabledepth" /&gt;
+    &lt;command type="clear" depth="1.0" output="depth" /&gt;
+    &lt;command type="scenepass" pass="shadow" output="depth" /&gt;
+    &lt;command type="clear" color="fog" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" depthstencil="depth" /&gt;
+    &lt;command type="forwardlights" pass="light" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="postopaque" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="refract" depthstencil="depth"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" depthstencil="depth"  /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" depthstencil="depth" /&gt;
+    
+    &lt;command type="quad" tag="DOF" vs="CopyFramebufferDof" ps="CopyFramebufferDof" blend="replace" output="storedAlpha"&gt;
+        &lt;texture unit="0" name="viewport" /&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt; 
+        
+    &lt;!-- Blur passed  --&gt;    
+    &lt;command type="quad" tag="Blur" vs="Blur" ps="Blur" psdefines="BLUR5" output="blurredFrameH"&gt;
+        &lt;parameter name="BlurDir" value="1.0 0.0" /&gt;
+        &lt;parameter name="BlurRadius" value="4.0" /&gt;
+        &lt;parameter name="BlurSigma" value="2.0" /&gt;
+        &lt;texture unit="diffuse" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="Blur" vs="Blur" ps="Blur" psdefines="BLUR5" output="blurredFrameV"&gt;
+        &lt;parameter name="BlurDir" value="0.0 1.0" /&gt;
+        &lt;parameter name="BlurRadius" value="4.0" /&gt;
+        &lt;parameter name="BlurSigma" value="2.0" /&gt;
+        &lt;texture unit="diffuse" name="blurredFrameH" /&gt;
+    &lt;/command&gt; 
+      
+    &lt;!-- DOF process --&gt;
+    &lt;command type="quad" tag="DOF" vs="DepthOfField" ps="DepthOfField" blend="replace" output="viewport"&gt;
+        &lt;texture unit="0" name="blurredFrameV" /&gt;
+        &lt;texture unit="1" name="viewport" /&gt;
+        &lt;texture unit="2" name="storedAlpha" /&gt;
+    &lt;/command&gt;
+
+        
+    
+&lt;/renderpath&gt;</code></pre>
+</details>
+<p>update:</p>
+<ul>
+<li>add center focus</li>
+</ul>
+<div class="onebox lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="x0nuRlWoqq4" data-youtube-title="DoF-effect with screen center focus">
+<a href="https://www.youtube.com/watch?v=x0nuRlWoqq4" target="_blank">
+<img class="ytp-thumbnail-image" height="270" src="../../../images2/ed56dc89db1795e07d3d4d54702c61f9.jpg" title="DoF-effect with screen center focus" width="480"/>
+</a>
+</div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I have a strange bug, even i use the same RenderPath in Editor and my project for testing.<br/>
+if you look into this pictures they are have a different blurriness and dof<br/>
+the first image from editor view<br/>
+<a data-bbcode="true" href="http://savepic.su/6316904.htm"><img alt="" height="" src="../../../images2/31e02cb8360de687f44a6be1ea396a03.png" width=""/></a><br/>
+and second image from compiled project (from camera)<br/>
+<a data-bbcode="true" href="http://savepic.su/6330216.htm"><img alt="" height="" src="../../../images2/2a12e495bfad853781e17bfea6cfc794.png" width=""/></a></p>
+<p>why this happening? as I say before, this is the same renderpath (on gl renderer) it’s look likes not all command from renderPath are executed (in case using of test app)</p>
+<details>
+<summary>
+current render path</summary>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="blurredFrameH" tag="DOF" sizedivisor="4 4" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="blurredFrameV" tag="DOF" sizedivisor="4 4" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="stored" tag="DOF" sizedivisor="1 1" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="depth" sizedivisor="1 1" format="readabledepth" /&gt;
+    &lt;command type="clear" depth="1.0" output="depth" /&gt;
+    &lt;command type="scenepass" pass="shadow" output="depth" /&gt;
+    &lt;command type="clear" color="fog" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" depthstencil="depth" /&gt;
+    &lt;command type="forwardlights" pass="light" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="postopaque" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="refract" depthstencil="depth"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" depthstencil="depth" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" depthstencil="depth" /&gt;
+    &lt;command type="quad" tag="DOF" vs="CopyFramebufferDof" ps="CopyFramebufferDof" blend="replace" output="stored"&gt;
+        &lt;texture unit="0" name="viewport" /&gt;
+        &lt;texture unit="1" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="Blur" vs="Blur" ps="Blur" psdefines="BLUR3" output="blurredFrameH"&gt;
+        &lt;parameter name="BlurDir" value="1.0 0.0" /&gt;
+        &lt;parameter name="BlurRadius" value="4.0" /&gt;
+        &lt;parameter name="BlurSigma" value="2.0" /&gt;
+        &lt;texture unit="0" name="stored" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="Blur" vs="Blur" ps="Blur" psdefines="BLUR3" output="blurredFrameV"&gt;
+        &lt;parameter name="BlurDir" value="0.0 1.0" /&gt;
+        &lt;parameter name="BlurRadius" value="4.0" /&gt;
+        &lt;parameter name="BlurSigma" value="2.0" /&gt;
+        &lt;texture unit="0" name="blurredFrameH" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="Blur" vs="Blur" ps="Blur" psdefines="BLUR3" output="blurredFrameH"&gt;
+        &lt;parameter name="BlurDir" value="1.0 0.0" /&gt;
+        &lt;parameter name="BlurRadius" value="2.0" /&gt;
+        &lt;parameter name="BlurSigma" value="2.0" /&gt;
+        &lt;texture unit="0" name="blurredFrameV" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="Blur" vs="Blur" ps="Blur" psdefines="BLUR3" output="blurredFrameV"&gt;
+        &lt;parameter name="BlurDir" value="0.0 1.0" /&gt;
+        &lt;parameter name="BlurRadius" value="2.0" /&gt;
+        &lt;parameter name="BlurSigma" value="2.0" /&gt;
+        &lt;texture unit="0" name="blurredFrameH" /&gt;
+    &lt;/command&gt;
+    &lt;command type="quad" tag="DOF" vs="DepthOfField" ps="DepthOfField" blend="replace" output="viewport"&gt;
+        &lt;texture unit="0" name="blurredFrameV" /&gt;
+        &lt;texture unit="1" name="stored" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+</details>
+<p>repo with current version<br/>
+<a href="https://github.com/MonkeyFirst/urho3d-post-process-dof">github.com/MonkeyFirst/urho3d-post-process-dof</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Today I do some checking of what the RaycastSingle really do, then it hit something on scene, and I found strange bug - the invisible barrier.<br/>
+I don’t know that is this, but actually I suspect what I will hit the big rock on far distance and not this “invisible wall”<br/>
+Is this normal working? Or maybe I doing something wrong?</p>
+<p>As always, I make video with this bug.<br/>
+And I want to mention that Raycast also hit this wall but second hit(on path of ray) and others hits works well<br/>
+</p><div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="fT80yd_xKg0" data-youtube-title="Raycast Single invisible barrier"></div>
+<pre><code class="lang-auto">			Ray ray = camera-&gt;GetScreenRay(0.5f, 0.5f);
+
+			PODVector&lt;RayQueryResult&gt; results;
+			RayOctreeQuery query(results, ray, RAY_TRIANGLE, 1000.0f, DRAWABLE_GEOMETRY, -1);
+
+			Octree* octree = gameScene-&gt;scene-&gt;GetComponent&lt;Octree&gt;();
+			//octree-&gt;RaycastSingle(query);
+			octree-&gt;Raycast(query);
+
+			if (results.Size())
+			{
+				for (unsigned int i = 0; i &lt; results.Size(); i++)
+				{
+					RayQueryResult&amp; result = results[i];
+
+					Vector3 hitNormal = result.normal_;
+					Vector3 hitPoint = result.position_;
+
+					Node* node= gameScene-&gt;scene-&gt;InstantiateXML(cache-&gt;GetResource&lt;XMLFile&gt;("Objects/hitPrefab.xml")-&gt;GetRoot(), hitPoint, Quaternion::IDENTITY, LOCAL);
+					node-&gt;SetScale(Vector3::ONE * 0.2f);
+
+					Pair&lt;Vector3, Vector3&gt; line;
+					line.first_ = hitPoint;
+					line.second_ = hitPoint + hitNormal * 2.0f;
+					lines.Push(line);
+				}				
+			}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>needs more rays shots to see this “barriers”<br/>
+<a data-bbcode="true" href="http://savepic.su/6401835.htm"><img alt="" height="" src="../../../images2/ab1dd44d4172f244b32d06f8a67f889a.png" width=""/></a></p>
+<p>I guessing it’s some kind of boundbox from other StaticModel - “Trees”.<br/>
+But actually why Raycast hit’ing this BB if for my need only triangle-level Ray casting?</p>
+<p>Aslo I found what Raycast maybe used in separated thread (with workers) but RaycastSingle not (:<br/>
+This two issue passible to fix ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Thanks Jonathan, for pointing about IDs.<br/>
+I tried to look into it, and find what I always hitting the “Trees” - Animation Model.<br/>
+My Trees have 4-bones for wind animation, and in this case I guessing what this is the bone’s bound boxes.<br/>
+<a data-bbcode="true" href="http://savepic.su/6388538.htm"><img alt="" height="" src="../../../images2/59a2ea719835076e494e0758fad165c1.png" width=""/></a><br/>
+<a data-bbcode="true" href="http://savepic.su/6374202.htm"><img alt="" height="" src="../../../images2/7639c5560d6ec1c5c71597804fe4cb9f.png" width=""/></a></p>
+<p>Actually I do not needed hitting bones ) Only actual transformed triangles.<br/>
+Is it possible ignore those animation bones on Raycast query ?<br/>
+I guessing maybe also need to add additional flags for RayOctreeQuery(results, ray, RAY_TRIANGLE | IGNORE_BONES, 1000.0f, DRAWABLE_GEOMETRY, -1)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I’m concerned that it would return a result on a bounding box alone since you’re using RAY_TRIANGLE. It should only be doing that on RAY_AABB or RAY_OBB.</p>
+<p>I would consider classifying that as a bug.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Alternatively set every bone to BONECOLLISION_NONE. That way the bones themselves won’t collide with anything.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Here’s a quick change<br/>
+Great, there is what I got on debug draw after adding this fixes. On picture only tree’s bones.<br/>
+<a data-bbcode="true" href="http://savepic.su/6409084.htm"><img alt="" height="" src="../../../images2/79509796bf0f8e05cd140638f6a4f02d.png" width=""/></a><br/>
+<a data-bbcode="true" href="http://savepic.su/6370160.htm"><img alt="" height="" src="../../../images2/1bda616321a437ec7030235c30fb81dd.png" width=""/></a></p>
+</blockquote>
+<blockquote>
+<p>Where’d you export the model from?<br/>
+I use Blender-Urho exporter. Do you think what it may have a bone’s BB bug?</p>
+</blockquote>
+<blockquote>
+<p>Alternatively set every bone to BONECOLLISION_NONE. That way the bones themselves won’t collide with anything.<br/>
+Thanks, i’m trying this, but it still no working properly. The rays still hit bb of bones (or what is this maybe).<br/>
+there is my code, where I turn-off bones collision for all animatedModels</p>
+</blockquote>
+<pre><code class="lang-auto">	void SetupAnimatedModel() 
+	{
+
+		Skeleton sk;
+		Node* nSenua = gameScene-&gt;scene-&gt;GetChild("cs_senua", true);
+
+		csSenua = nSenua-&gt;GetComponent&lt;AnimatedModel&gt;();
+		csSenuaState = csSenua-&gt;GetAnimationState(StringHash("cutscene"));
+
+		sk = csSenua-&gt;GetSkeleton();
+		for (int i = 0; i &lt; sk.GetNumBones(); i++)
+		{
+
+			Bone* bone = sk.GetBone(i);
+			bone-&gt;collisionMask_ = BONECOLLISION_NONE;
+		}
+	
+
+		Node* nWoods = gameScene-&gt;scene-&gt;GetChild("cs_woods", true);
+		csWoods = nWoods-&gt;GetComponent&lt;AnimatedModel&gt;();
+		csWoodsState = csWoods-&gt;GetAnimationState(StringHash("TreesWindAnimation"));
+
+		sk = csWoods-&gt;GetSkeleton();
+		for (int i = 0; i &lt; sk.GetNumBones(); i++)
+		{
+
+			Bone* bone = sk.GetBone(i);
+			bone-&gt;collisionMask_ = BONECOLLISION_NONE;
+		}
+
+		Node* nCamera = gameScene-&gt;scene-&gt;GetChild("cs_camera", true);
+		csCamera = nCamera-&gt;GetComponent&lt;AnimatedModel&gt;();
+
+		sk = csCamera-&gt;GetSkeleton();
+		for (int i = 0; i &lt; sk.GetNumBones(); i++)
+		{
+
+			Bone* bone = sk.GetBone(i);
+			bone-&gt;collisionMask_ = BONECOLLISION_NONE;
+		}
+
+		csCameraState = csCamera-&gt;GetAnimationState(StringHash("CameraAnimation"));</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I add some other fixes into debug renderer skeleton<br/>
+change this<br/>
+//AddBoundingBox(bones[i].boundingBox_, parentNode-&gt;GetWorldTransform(), Color::RED, true); //COMMENT OUT TO HIDE RED BOXES<br/>
+to this<br/>
+AddBoundingBox(bones[i].boundingBox_, bones[i].node_-&gt;GetWorldTransform(), Color::RED, true); //COMMENT OUT TO HIDE RED BOXES</p>
+<p>and now it’s more realistically represent of bone’s BB placement<br/>
+<a data-bbcode="true" href="http://savepic.su/6366071.htm"><img alt="" height="" src="../../../images2/456ed067039b2aae2b6e0cb72c7c47a8.png" width=""/></a></p>
+<p>and hits are placed exact in same place as bb bones.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I add ignoring ability to ray query</p>
+<p><code>			RayOctreeQuery query(results, ray, RAY_TRIANGLE, 1000.0f, DRAWABLE_GEOMETRY, 1, RAY_IGNORE_BONES);
+			Octree* octree = gameScene-&gt;scene-&gt;GetComponent&lt;Octree&gt;();
+			octree-&gt;RaycastSingle(query);</code></p>
+<p>with few fixes:<br/>
+enum RayQueryIgnories<br/>
+{<br/>
+RAY_IGNORE_NONE = 0,<br/>
+RAY_IGNORE_BONES<br/>
+};</p>
+<p>add to class RayOctreeQuery<br/>
+RayQueryIgnories ignore_;<br/>
+field</p>
+<p>and finally fix Animation class model in ProcessRayQuery()</p>
+<pre><code class="lang-auto">    // Check ray hit distance to AABB before proceeding with bone-level tests
+    if (query.ray_.HitDistance(GetWorldBoundingBox()) &gt;= query.maxDistance_)
+        return;
+
+//CHANGE -&gt;
+	// Check before processing a bones, if set flag what allow to ignore bone's raycasting 
+	if (ignore &amp; RAY_IGNORE_BONES)
+		return;</code></pre>
+<p>Now Hitting the rock works fine, but all animated model not hitting at all (:<br/>
+I think what need to do some major changes into AnimationModel to bring raycasting by actual transformed mesh no bones.<br/>
+Is it store/save last frame (by physics tick) of Animated Model somewhere?<br/>
+Is it may in some case used for <span class="bbcode-u">triangle raycasting </span> in main thread and workers?<br/>
+I think I create an Issue for this soon.</p>
+<p>update:<br/>
+Actually I do not found any storing mechanism for transformed by bones AnimationModel. It may use only the Static Model if there no bones in it, thats all.<br/>
+I found only nodes(bones) transformation by AnimationTracks, and I guessing that this nodes in second pass just put into shader uniforms as bones and thats all. No any actual geometry it’s only math in vertex shader. And in this case I think there is have only one way to do actual raycasting use “<span class="bbcode-u">Transform Feedback</span>” mechanism of Opengl or DX to do some kind of animation pre-pass not often(by physics tick) for all animated model in scene and grab their back to StaticModel for raycasting.<br/>
+and I think it’s more complicated thing for me.</p>
+<p>and other way to solve this (actually I thinks it’s worst way to do this) - use more bones for each tree, even for branches. In this case we got many tiny bone’s BB.<br/>
+But aslo in this case needed to add opportunity to exclude some of bones from RayCasting. In my case root bone of trees model, because it not represent any of scene model.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Software skinning shouldn’t be too terribly difficult. Everything is pretty much there and you have the last skin matrices.<br/>
+I do not know much about this.<br/>
+But actually I mean GPU “Transform feedback skinning” for this. Is it possible on GL or DX in same time do animation transformation for model in VertexShader for frame Output and write transformed results into other output VertexBuffer(on Phys tick and less) to grab it then on CPU side into StaticModel ? I’m looked into this <a href="https://open.gl/feedback" rel="nofollow noopener">open.gl/feedback</a> and in this example they are do omnit output to frame then doing Transform feedback calculations.</p>
+</blockquote>
+<p>Anyway I think after all this that animating the"trees on bones" are bad idea.<br/>
+But in same time it’s very handy to do animation for trees on the bones in Blender editor.<br/>
+lastly I think there is exist another solution for this. - Use AttributeAnimation for Nodes(with rotation noise) with StaticModel(Trees) (leafs maybe animated with other material based shader)<br/>
+But I will be great if we have possibility to get ValueAnimation from selected bone of Skeleton.</p>
+<p>In mean this very handy way to getting VA from already existed animation file<br/>
+ValueAnimation va = Skeleton.GetValueAnimationFromBone(“boneForTree4”, GET_TRANSFORM_ROTATION, NORMALIZED or FULL_TIMED);<br/>
+nodeForStaticModelWithTree-&gt;SetAttributeAnimation(“Rotation”, va, WrapMode::LOOP);</p>
+<blockquote>
+<p>If you only care about the trunks of the trees and not the branches you could just somehow adjust the bounds sizes in the model file.<br/>
+I tried this</p>
+</blockquote>
+<pre><code class="lang-auto">	sk = csWoods-&gt;GetSkeleton();
+		for (int i = 0; i &lt; sk.GetNumBones(); i++)
+		{
+			Bone* bone = sk.GetBone(i);
+			bone-&gt;collisionMask_ = BONECOLLISION_NONE;
+			bone-&gt;boundingBox_.max_ *= Vector3(0.2f, 1f, 0.2f);
+			bone-&gt;boundingBox_.min_ *= Vector3(0.2f, 1f, 0.2f);
+		}</code></pre>
+<p>but this not works, the boundaries are same as before</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">boberfly</div>
+          <div class="post_content">
+<p>Just on a similar subject, today I learned that Unity3D does no GPU skinning with matrix palette out of the box, only CPU. It does however do transform feedback/stream out-style GPU skinning on GL(ES)3+/DX11 platforms if you enable it. Interesting… Might be to alleviate them from a maintenance burden for shaders and bone limitations.</p>
+<p>On the subject at hand, a possible solution could be if the bounding box gets hit, only do CPU skinning on the mesh that that bone’s bbox belongs to, and then continue the raycast into that?</p>
+<p>A library I’ve had my eye on for CPU skinning is this (for when GPU skinning doesn’t cut it):</p>
+<p><a href="https://code.google.com/p/ozz-animation/" rel="nofollow noopener">code.google.com/p/ozz-animation/</a></p>
+<p>Which probably would be better to adapt to Urho3D’s geometry format &amp; threading model (if you want threads) or just run it single-threaded.</p>
+<p>Cadaver does the D24_S8 limitation for GL exist for 3.0+ or ES 3.0+ or only GL 2.1 and ES 2.0? As in, does GL support it but Urho3D doesn’t due to keeping compatibility?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">boberfly</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>Everything except the final transform (+ morph target blend) and the additional buffer management that would be involved in rendering is already done. Yet another library doesn’t make any sense (to me). Can’t forget about DecalSet either if doing CPU skinning to actually render.</p>
+</blockquote>
+</aside>
+<p>Yeah it’s probably easier to just read the code and just implement a function or two in the Urho3D codebase already, from what I remember it was heavy on the macros to set explicit transforms based on how much skin influence there was (to keep performance up) and some SIMD.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Will have to test the D24_S8 format again on both Nvidia + AMD GPU’s and OpenGL 3. The HW depth support feature was done before GL3 support.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Is there a ScopeGuard available in Urho3D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Is there a ScopeGuard available in Urho3D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>Is there any kind of <a href="https://stackoverflow.com/questions/10270328/the-simplest-and-neatest-c11-scopeguard" rel="nofollow noopener">ScopeGuard</a> or <a href="http://www.boost.org/doc/libs/1_66_0/libs/scope_exit/doc/html/index.html" rel="nofollow noopener">ScopeExit</a> available in Urho3D?</p>
+<p>Here is a use case:<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Resource/Image.cpp#L976</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="966" style="counter-reset: li-counter 965 ;">
+<li>int width, height;</li>
+<li>unsigned components;</li>
+<li>unsigned char* pixelDataIn = GetImageData(source, width, height, components);</li>
+<li>if (!pixelDataIn)</li>
+<li>{</li>
+<li>    URHO3D_LOGERROR("Could not load image " + source.GetName() + ": " + String(stbi_failure_reason()));</li>
+<li>    return false;</li>
+<li>}</li>
+<li>if (components != 3)</li>
+<li>{</li>
+<li class="selected">    URHO3D_LOGERROR("Invalid image format, can not load image");</li>
+<li>    return false;</li>
+<li>}</li>
+<li>
+</li>
+<li>SetSize(COLOR_LUT_SIZE, COLOR_LUT_SIZE, COLOR_LUT_SIZE, components);</li>
+<li>SetMemoryUse(width_ * height_ * depth_ * components);</li>
+<li>
+</li>
+<li>unsigned char* pixelDataOut = GetData();</li>
+<li>
+</li>
+<li>for (int z = 0; z &lt; depth_; ++z)</li>
+<li>{</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>There is a leak there (coverity 126870): <code>FreeImageData(pixelDataIn);</code> should be called on this exit path. While it could be called directly, a scope guard would be preferable, as it would avoid the duplicate function call and cover all possible [even future] exit branches.</p>
+<p>Alternatively, Urho’s smart pointers could support custom deleters, but that would be more work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Alas, our SharedPtr is not a generic container. It can only contain Urho’s own refcounted object. Eugene has a PR which proposes a more generic container ala non-refcounted. But I don’t think it has ctor that takes a high-level function or lambda as deleter (yet). So at the moment, just do with what we got first, fixing it the old fashion way.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/398_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ricab</div>
+          <div class="post_content">
+<p>It’s been a while and just want to clarify that I’m currently unable to progress with any coverity issues because the service is down. It has been so since Feb 20 according to their <a href="https://twitter.com/coverityscan" rel="nofollow noopener">twitter page</a> <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Yes. It takes unusual long for them to fix the SSL server certificate issue or whatever. We are forced to temporarily remove the coverity scan badge from our README page as the result.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

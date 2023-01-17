@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Alternatives to node subclassing?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Alternatives to node subclassing?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vudugun</div>
+          <div class="post_content">
+<p>Hello,<br/>
+I know subclassing Node is not recommended, but I can’t find a good way to store/link custom objects in a node:</p>
+<ol>
+<li>
+<p>using components:</p>
+<ul>
+<li>adding component is ok</li>
+<li>accessing components is slow (linear search, GetComponent() is in fact a “FindFirstComponent”)</li>
+<li>accessing derived components is slower (linear search + dynamic_cast)</li>
+</ul>
+</li>
+<li>
+<p>using node vars: feels like javascript</p>
+</li>
+<li>
+<p>creating a custom component system: HashSet&lt;Node*, MyCustomObject*&gt;: please no</p>
+</li>
+</ol>
+<p>Is full support for Node subclassing anywhere on the roadmap or even possible?</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Maybe I don’t understand the problem, but subclassing Node doesn’t improve performance of GetComponent().</p>
+<p>If it really turns out that GetComponent() is your bottleneck (which I doubt), then an option could be to just cache them. Listen to E_COMPONENTADDED and E_COMPONENTREMOVED and maintain your own data structure of components.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Subclassing nodes is not planned to be supported.</p>
+<p>I would recommend holding cached links to your objects near to the place where you need them. If you use WeakPtr for this it should be safe against deletion happening at arbitrary time. For example a targeting script or logic component having the last assigned target node as a member variable.</p>
+<p>For a generic storage solution 2) is valid.</p>
+<p>For maximum performance, if you want to mass-process a high amount of objects and handle links between them then you could have a “subsystem-like” component that has its own data structures.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vudugun</div>
+          <div class="post_content">
+<p>Thanks for the replies!</p>
+<p><span class="mention">@TheComet</span>:<br/>
+GetComponent() is not my bottleneck yet, but calling it from a LogicComponent::Update() function shared by many nodes <em>might</em> become a problem. If I could derive from Node, the component would be a simple data member, with minimal access time.</p>
+<p><span class="mention">@Cadaver</span><br/>
+Too bad to hear subclassing nodes is not planned. I think I’ll go for the WeakPtrs option, I am already caching from inside LogicComponent::Start() functions, but I could be more aggressive than that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>You say it’s a linear search - which is true - however considering that in a typical game you won’t ever have more than maybe 10 components on a node, it’s not going to be “slow” like you say. It will be <span class="bbcode-i">slower</span> than accessing a data member but it’s still very, very fast.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vudugun</div>
+          <div class="post_content">
+<p>I wouldn’t bother for a rarely used function, but GetComponent() looks like a frequently used function in client code. After all, we are told to use components for custom logic, and its innocent-looking name is a bit misleading.</p>
+<p>Anyway, I have come up with a solution for my problem (storing per-node custom objects in a fast-accessible way). It is actually pretty simple: by ensuring my custom component is always the last one, I can quickly access it via Node::GetComponents().Back().</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

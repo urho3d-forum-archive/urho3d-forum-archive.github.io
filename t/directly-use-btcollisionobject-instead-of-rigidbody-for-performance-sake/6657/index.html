@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Directly use btCollisionObject instead of RigidBody for performance sake</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Directly use btCollisionObject instead of RigidBody for performance sake</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>I am testing a large scene with thousands of objects moving around.</p>
+<p>Each object includes model, material, crowd nav agent. The frame rate is okay.<br/>
+However, when I tried to add RigidBody to each object, the frame rate drop hugely. Even if the collision_mask is 0 and mass = 0 (static rigidbody, collide with nothing). I only need those rigidbody (collision shape) for raycast detection. So I believe it’s wasting a lot of CPU running some unnecessary physics calculation (since there is no raycast added for my test scene).</p>
+<p>I searched a little bit about bullet physics and found <a href="https://pybullet.org/Bullet/phpBB3/viewtopic.php?p=13023&amp;sid=11f3a1ba6d3eb322fed1b625a5fa7da2#p13023" rel="noopener nofollow ugc">this post</a>. It is suggested to use btCollisionObject directly instead of btRigidBody for such cases. People confirmed this could save a lot of memory.<br/>
+I believe this is the solution for my problem, but I could not find direct usage of btCollisionObject in Urho3D.<br/>
+I am thinking to add one custom component Urho wrapper for it. I was wondering if anyone has done something similar so I don’t need to do it? or any thoughts?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Are you adding physics just for raycasting? Unless I’m misunderstanding, what prevents you from using octree casts?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>Maybe because it’s not drawable? That’s a good question though.<br/>
+For example, here I have thousands of collision shape (mostly capsule), they are body parts for each objects. During the combat, lots of raycasts are used to detect those weapon hits.</p>
+<p>From your suggestion, I could think a way to make dummy drawables for those collision shapes. But I am not sure if there is any issue for that. We definitely will not render them, but will the octree include them for raycast if it’s invisible? or do we have LOD/cull mechanism that causes inaccurate result?</p>
+<p>The reason why I used rigidbody in the first place is that if the object is hit and dead, I instantly enable the rigidbody so the ragdoll can kick in very easily. But my real requirement is as discussed above: thousands of capsules and hundreds of weapon raycast segemnts each frame to detect hits. What’s the best way to deal with that in Urho3D in the performance sense?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p><strong>Collisions specifically</strong>:</p>
+<p>I’d do it in OpenCL. One kernel to bin into a grid and another to test + write the compacted hits+rayID. CPU side you’ll just sort the hits for each ray because you probably want the nearest one to the ray origin, not sorting on the GPU will keep you from trying to be clever (and shooting yourself in the foot) since sorting is hard there and you’ll likely have a fairly limited number of hits per frame in real cases.</p>
+<p>If you only have something like a thousand you can just brute force it in the kernel. Matters of large scale justify the ping-pong with the GPU.</p>
+<p>Alternatively, do those tests yourself in the job-system so all threads available can attack it. <code>btTransformUtil.h</code> in Bullet contains most of the important math bullet does regarding forces so if there’s something you need to replicate you can refer to it (I do recommend using the quaternion_derivative instead of the default, the default is really due to more robotics use of bullet and has a rigor you probably don’t need).</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Transparency issues</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Transparency issues</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I am getting weird behaviour with transparency in Urho3d. If I use NoTextureAlpha or DiffAlpha techniques and set the MatDiffColor’s alpha to 1, I can see through jack’s model. With DiffAlpha with no texture assigned, it picked some textures from other assets in the scene and started switching to textured and non-textured when I was moving the camera around the object. I am using Urho3D 1.5 under OSX.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Traditional alpha materials leave depth write off, which leads to issues when alpha materials with multiple overlapping parts like Jack’s hands / body are drawn. You could enable depth write, with the risk of some other artifacts. In general: transparent rendering with GPUs is hard to do right, since it’s a hack, and we can’t reasonably sort per triangle.</p>
+<p>Material’s texture definitions are held in a map. At render time the map is iterated and textures from the material are set to texture units. A missing texture means the texture from whatever previous draw call is used (there is no “null texture” used as default.) If you don’t want that to happen, don’t use texture-requiring techniques like DiffAlpha with no texture assigned.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks cadaver. Where do I have to set depth write off? With NoTextureAlpha and alpha 1.0 shouldn’t we just completely ignore any transparency? I might be completely wrong but can’t we just lerp from no-transparency to full transparency? I am trying to linearly fade a character.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Depth write is controlled by the technique, so you’d just remove depthwrite=“false” from your copy of the DiffAlpha technique.</p>
+<p>Unfortunately opaques and transparencys need to go to different render passes, and since we have the data-driven Renderpath system in Urho (which can have arbitrary pass setups) the engine cannot automatically guess into which pass the draw should go just depending on the alpha value. This means that you need a different material / different technique for fully opaque case and for the fading case, or alternatively you need custom logic to change the material’s technique on the fly.</p>
+<p>Some other engines no doubt have material systems that just automatically “do the right thing” but as a consequence they’re bound to be less flexible.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Removing the depthwrite works really well. Are there any drawbacks?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Transparencies are rendered back to front, so there may be issues when your character is intersecting other transparent geometry like smoke clouds, and the sorting (which is per object) doesn’t go exactly right.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks cadaver. It it working excellent in my case.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

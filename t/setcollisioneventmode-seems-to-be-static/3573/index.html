@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>SetCollisionEventMode seems to be static?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">SetCollisionEventMode seems to be static?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nergal</div>
+          <div class="post_content">
+<p>My case is that I want different type of instances of a class to either handle collision events or not. So based on a certain property I set the collision event mode such as this:</p>
+<pre><code>    if(type == constants::CHUNK_TYPE_WORLD) {
+        body-&gt;SetCollisionEventMode(COLLISION_NEVER);
+     } else {
+        body-&gt;SetCollisionEventMode(COLLISION_ALWAYS);
+    }
+</code></pre>
+<p>So if the type if a world it should not care about collision events, else it should listen for such.</p>
+<p>But the problem that I experience is that whenever I set COLLISION_NEVER mask, it seems to apply  for all bodies, not just the one I apply it for.</p>
+<p>Are the collision masks applied to the body class and not just the instance?</p>
+<p>Edit: It seems like collision events comes in bursts and not at every hit when I do the above if statement. But if I remove the COLLISION_NEVER mask it seems to be applied directly…strange?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I did not understand anything, sorry.<br/>
+But collision masks and layers are applied per body.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nergal</div>
+          <div class="post_content">
+<p>Sorry for my vague explanation.</p>
+<p>I think I found my issue. If a body have COLLISION_ALWAYS and collides with a body that has COLLISION_NEVER the collision seems to never occur. Not even for the first body that has COLLISION_ALWAYS set.</p>
+<p>Is this the expected behaviour?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="3573" data-username="nergal">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b33124cd86dd0c0907af2a1f36fb6fcb.png" width="20"/> nergal:</div>
+<blockquote>
+<p>Is this the expected behaviour?</p>
+</blockquote>
+</aside>
+<p>Yes.<br/>
+Collision layer describes layers that the body belongs to,<br/>
+Collision mask describes layers that the body collide.<br/>
+If your body belongs to nowhere, it won’t collide at all.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Here is one thread about collision masks/layers, if that might help. I also added an example there.</p>
+<p><a class="onebox" href="https://discourse.urho3d.io/t/how-do-you-choose-collision-masks-layers-solved/957" target="_blank">https://discourse.urho3d.io/t/how-do-you-choose-collision-masks-layers-solved/957</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>This part of the PhysicsWorld uses the CollisionEventMode:<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Physics/PhysicsWorld.cpp#L866-L873</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="866" style="counter-reset: li-counter 865 ;">
+<li>
+</li>
+<li>RigidBody* bodyA = static_cast&lt;RigidBody*&gt;(objectA-&gt;getUserPointer());
+</li>
+<li>RigidBody* bodyB = static_cast&lt;RigidBody*&gt;(objectB-&gt;getUserPointer());
+</li>
+<li>// If it's not a rigidbody, maybe a ghost object
+</li>
+<li>if (!bodyA || !bodyB)
+</li>
+<li>    continue;
+</li>
+<li>
+</li>
+<li>// Skip collision event signaling if both objects are static, or if collision event mode does not match
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>That’s the great thing about Urho being open source. Searching the code often clarifies. <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>So indeed if any of the colliding bodies has the COLLISION_NEVER event mode no event should be signalled:</p>
+<pre><code class="lang-auto">if (bodyA-&gt;GetCollisionEventMode() == COLLISION_NEVER || bodyB-&gt;GetCollisionEventMode() == COLLISION_NEVER)
+    continue;
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">nergal</div>
+          <div class="post_content">
+<p>Thanks for all your input!</p>
+<p>The only reason I set COLLISION_NEVER for some objects is to increase performance so that it’s not receiving any callbacks. Perhaps I’m performing too early optimisation? <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

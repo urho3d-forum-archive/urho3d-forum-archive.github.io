@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Question regarding adding root bones to Mixamo animations</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Question regarding adding root bones to Mixamo animations</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve recently been fighting an issue with respect to rootmotion (something I’d like to incorporate) : Mixamo animations don’t have a root bone, they apply translation directly to the skeleton root bone (ie the hips).</p>
+<p>I’ve come up with a 14-point workflow (for Blender) for adding root bones to affected animations (ie those that contain root motion). It involves creating a new root bone for the hips, between the feet, which coincides with where we expect the model origin to be:) I appreciate that it would be astute to use the same root bone name on every affected animation. The workflow involves creating a new bone at (typically 0,0,0), adding translation keyframe channels to the new bone, copying the translation of the “previous” root bone (generally “Hips”) to the new bone, deleting the translation keyframes from previous root bone (except for the first key), and parenting the hips to the new root bone, while preserving offset. It’s exhausting!</p>
+<p>My question is in two parts - since I am changing the skeleton hierarchy, will I also need to re-export the Model? And secondly, will I need to perform these changes to all animations - even though some don’t need it - or will exported animations target the most appropriate root bone, even if some bones fail to be mentioned?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Have you looked at rku’s work:</p><aside class="quote quote-modified" data-post="1" data-topic="4464">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/0f3152b3c75678395bd69892a813e417.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/root-motion-patch/4464">Root motion patch</a> <a class="badge-wrapper bullet" href="/c/showcase/code-exchange/13"><span class="badge-category-parent-bg" style="background-color: #F1592A;"></span><span class="badge-category-bg" style="background-color: #231F20;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Share your helpful Urho3D code snippets, samples and tutorials here.">Code Exchange</span></a>
+</div>
+<blockquote>
+    I implemented root motion support in animations. Im not entirely sure of it’s correctness so be aware. Also i am not entirely happy with the API. Probably there is a better way to do it. This is why i am not submitting PR. 
+[root-motion] 
+Enable root motion: 
+animCtrl-&gt;PlayExclusive("walk.ani", 0, true, 0.3f);  // play animation
+animCtrl-&gt;SetRootMotionMode("walk.ani", ANIM_ROOT_MOTION_XZ);  // enable root motion
+
+Apply root motion: 
+SubscribeToEvent(E_POSTRENDERUPDATE, [](StringHash, VariantMap&amp;)…
+  </blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Why don’t you use hip bone as root bone?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I tried using hip as root bone, the problem with that is that the offset from the character root node to the hips is not constant (even a simple walk contains desirable translation keys on the hips) - and when (desired) root motions translate the hips, that translation is not transferred to the character root node. If I want to avoid adding a root bone that coincides with the character root node, I have to wait until after animation occurs, and then teleport the character root and physics capsule to synch them to the animated hips. Seems a lot simpler to fix the bad assets than try to deal with it in code.</p>
+<p>And yeah, I saw the proposed root motion patch - but like the other guys, I need the final deltas, not the deltas per animationstate but the blended deltas. I tried measuring and applying hip deltas but the values are often tiny, and numerical precision errors quickly mount up.</p>
+<p>Just adding (to animations, and to our rig) a root bone at the origin (0,0,0) and retargeting hip translation to the new root bone should make all my troubles go away, since I now have two nodes whose world positions should be equality-constrained - the character root node (direcly under the physics capsule) and the skeleton root bone can then easily be constrained to the same world position.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve experimented with using DrawableUpdateFinished (?) to measure delta-transforms on the Hips and apply (some of) those deltas to my character’s root node and physics hull, but the results are “unpleasant”. This was a bit of a fail for me.<br/>
+The problem really is that my character has a RootBone, but my animations don’t get applied to it. For animations, the root bone is “Hips”, the Skeleton has a “RootBone” that never receives animation, and the real boss node, owner of my character controller, is not the node that applies default rotation and scale! I need to transfer animation from one track to another. AnimationController offers no way to do it. Doing it in code should have been trivial, but isn’t working. Sigh.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

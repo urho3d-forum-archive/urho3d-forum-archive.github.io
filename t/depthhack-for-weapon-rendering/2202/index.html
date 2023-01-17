@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>DepthHack for weapon rendering</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">DepthHack for weapon rendering</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Looking through the source code <a href="https://github.com/id-Software/DOOM-3-BFG/tree/master/neo">github.com/id-Software/DOOM-3-B … master/neo</a> I noticed that they use a strange method for rendering weapons that it does not permeate through the wall. I do not fully understand how it works, but it modifies the projection matrix. DepthHack also used for particles.</p>
+<pre><code class="lang-auto">renderEntity_s
+{
+    ...
+    float					modelDepthHack;			// squash depth range so particle effects don't clip into walls 
+    bool					weaponDepthHack;		// squash depth range so view weapons don't poke into walls
+													// this automatically implies noShadow 
+}
+</code></pre>
+<pre><code class="lang-auto">ID_INLINE void idRenderMatrix::ApplyDepthHack( idRenderMatrix &amp; src ) {
+	// scale projected z by 25%
+	src.m[2*4+0] *= 0.25f;
+	src.m[2*4+1] *= 0.25f;
+	src.m[2*4+2] *= 0.25f;
+	src.m[2*4+3] *= 0.25f;
+}
+
+
+ID_INLINE void idRenderMatrix::ApplyModelDepthHack( idRenderMatrix &amp; src, float value ) {
+	// offset projected z
+	src.m[2*4+3] -= value;
+}
+</code></pre>
+<pre><code class="lang-auto">static void RB_EnterWeaponDepthHack() {
+	float	matrix[16];
+
+	memcpy( matrix, backEnd.viewDef-&gt;projectionMatrix, sizeof( matrix ) );
+
+	const float modelDepthHack = 0.25f;
+	matrix[2] *= modelDepthHack;
+	matrix[6] *= modelDepthHack;
+	matrix[10] *= modelDepthHack;
+	matrix[14] *= modelDepthHack;
+
+	qglMatrixMode( GL_PROJECTION );
+	qglLoadMatrixf( matrix );
+	qglMatrixMode( GL_MODELVIEW );
+} 
+
+static void RB_EnterModelDepthHack( float depth ) {
+	float matrix[16];
+
+	memcpy( matrix, backEnd.viewDef-&gt;projectionMatrix, sizeof( matrix ) );
+
+	matrix[14] -= depth;
+
+	qglMatrixMode( GL_PROJECTION );
+	qglLoadMatrixf( matrix );
+	qglMatrixMode( GL_MODELVIEW );
+} 
+
+static void RB_LeaveDepthHack() {
+	qglMatrixMode( GL_PROJECTION );
+	qglLoadMatrixf( backEnd.viewDef-&gt;projectionMatrix );
+	qglMatrixMode( GL_MODELVIEW );
+} 
+
+</code></pre>
+<pre><code class="lang-auto">static void RB_RenderDrawSurfListWithFunction( drawSurf_t **drawSurfs, int numDrawSurfs, void (*triFunc_)( const drawSurf_t *) ) {
+	backEnd.currentSpace = NULL;
+
+	for ( int i = 0 ; i &lt; numDrawSurfs ; i++ ) {
+		const drawSurf_t * drawSurf = drawSurfs[i];
+		if ( drawSurf == NULL ) {
+			continue;
+		}
+		assert( drawSurf-&gt;space != NULL );
+		if ( drawSurf-&gt;space != NULL ) {	// is it ever NULL?  Do we need to check?
+			// Set these values ahead of time so we don't have to reconstruct the matrices on the consoles
+			if ( drawSurf-&gt;space-&gt;weaponDepthHack ) {
+				RB_SetWeaponDepthHack();
+			}
+
+			if ( drawSurf-&gt;space-&gt;modelDepthHack != 0.0f ) {
+				RB_SetModelDepthHack( drawSurf-&gt;space-&gt;modelDepthHack );
+			}
+
+			// change the matrix if needed
+			if ( drawSurf-&gt;space != backEnd.currentSpace ) {
+				RB_LoadMatrixWithBypass( drawSurf-&gt;space-&gt;modelViewMatrix );
+			}
+
+			if ( drawSurf-&gt;space-&gt;weaponDepthHack ) {
+				RB_EnterWeaponDepthHack();
+			}
+
+			if ( drawSurf-&gt;space-&gt;modelDepthHack != 0.0f ) {
+				RB_EnterModelDepthHack( drawSurf-&gt;space-&gt;modelDepthHack );
+			}
+		}
+
+		// change the scissor if needed
+		if ( r_useScissor.GetBool() &amp;&amp; !backEnd.currentScissor.Equals( drawSurf-&gt;scissorRect ) ) {
+			backEnd.currentScissor = drawSurf-&gt;scissorRect;
+			GL_Scissor( backEnd.viewDef-&gt;viewport.x1 + backEnd.currentScissor.x1, 
+				backEnd.viewDef-&gt;viewport.y1 + backEnd.currentScissor.y1,
+				backEnd.currentScissor.x2 + 1 - backEnd.currentScissor.x1,
+				backEnd.currentScissor.y2 + 1 - backEnd.currentScissor.y1 );
+		}
+
+		// render it
+		triFunc_( drawSurf );
+
+		if ( drawSurf-&gt;space != NULL &amp;&amp; ( drawSurf-&gt;space-&gt;weaponDepthHack || drawSurf-&gt;space-&gt;modelDepthHack != 0.0f ) ) {
+			RB_LeaveDepthHack();
+		}
+
+		backEnd.currentSpace = drawSurf-&gt;space;
+	}
+}
+</code></pre>
+<p>Also in Doom I do not see any problems with rendering shadows over weapon, so it seems it is good method. Any ideas about possibility to integrate of something like this to Urho3D?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Camera custom projection matrix should go in to master shortly, however this would require a per-object custom projection matrix (if we want to use shadows from the existing scene render) which can be somewhat unclean to get in. Ideas / PRs are welcome.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><a href="https://forum.unity3d.com/threads/first-person-rendering-in-unity-5-writeup.401513/">https://forum.unity3d.com/threads/first-person-rendering-in-unity-5-writeup.401513/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="WHaaFU6UfkI" data-youtube-title="Urho3D, prevent weapon from going into walls (depth hack with shadows support)"></div>
+<p>Creating custum material for weapon:</p>
+<ol>
+<li>Copy and rename LitSolid.glsl</li>
+<li>Create technique used this shader</li>
+<li>Modify VS():</li>
+</ol>
+<p>Fix shadows when weapon drawn over wall:</p>
+<pre><code class="lang-auto">        ...
+        // Squeeze model along view Z coord to fix shadows, falling on model
+        vec3 farRay = GetFarRay(gl_Position);
+        vec3 shadowWorldPos = farRay * GetDepth(gl_Position) * 0.25 + cCameraPos;
+        vec4 shadowProjWorldPos = vec4(shadowWorldPos, 1.0);
+
+        #ifdef SHADOW
+            // Shadow projection: transform from world space to shadow space
+            for (int i = 0; i &lt; NUMCASCADES; i++)
+                vShadowPos[i] = GetShadowPos(i, vNormal, shadowProjWorldPos);
+        #endif
+        ...
+</code></pre>
+<p>Draw weapon over wall:</p>
+<pre><code class="lang-auto">    ....
+    gl_Position.z *= 0.25;
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>What about shadows from/on the weapon?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<blockquote>
+<p>shadows on the weapon?</p>
+</blockquote>
+<p>first code block doing it as you can see on video</p>
+<blockquote>
+<p>shadows from the weapon?</p>
+</blockquote>
+<p>shadows from flying weapon without players model looks not cool so it not used in games, but no any noticeable probles here (only the outer part of weapon casts shadow on the wall, but it does not strike the eye)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="6" data-topic="2202">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>first code block doing it as you can see on video</p>
+</blockquote>
+</aside>
+<p>Sorry, I missed this part of video.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

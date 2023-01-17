@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>GCC options</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">GCC options</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<ol>
+<li>GCC and MinGW has options “-msse”/"-msse2". This options enable sse, but not generate sse instructions. For sse instruction generation need add option “-mfpmath=sse” with “-msse”/"-msse2".</li>
+<li>For static linking c-runtime on mingw may be need option “-static” instead of “-static-libgcc” and “-static-libstdc++”. Option “-static” link staticly c-runtime and libpthread.</li>
+</ol>
+<p>Edit: If build 64-bit code, “-mfpmath=sse” enabled by default.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Thanks. Both of these are now in use. The dependency on an external libpthread dll does not happen on older MinGW distributions, but on a recent MinGW-w64 it does, so that was a good thing to notice.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>When building shared lib with mingw, static run-time options not apply.</p>
+<p><code>
+set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static")
+</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I will set this as well. Thanks again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>if compile with cross-target gcc (i686 - x86_64) and URHO3D_LIB_TYPE=SHARED link fail</p>
+<p>patch for Urho3D-CMake-common.cmake:</p>
+<p>[code]@@ -259,13 +259,15 @@ else ()<br/>
+set (CMAKE_C_FLAGS “${CMAKE_C_FLAGS} -ffast-math”)<br/>
+set (CMAKE_CXX_FLAGS “${CMAKE_CXX_FLAGS} -ffast-math”)<br/>
+if (URHO3D_64BIT)<br/>
+set (CMAKE_C_FLAGS “${CMAKE_C_FLAGS} -m64”)<br/>
+set (CMAKE_CXX_FLAGS “${CMAKE_CXX_FLAGS} -m64”)</p>
+<ul>
+<li>
+<pre><code>           set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -m64")
+       else ()
+           set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
+           set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
+</code></pre>
+</li>
+<li>
+<pre><code>           set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -m32")
+           if (URHO3D_SSE)
+               if (NOT WIN32)
+                   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse")
+                   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse")
+               else ()
+</code></pre>
+</li>
+</ul>
+<p>[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I almost forget to apply the change. I read your last post initially in the morning before I started to work, so I could not apply it immediately. Once read, the post is not highlighted by the forum anymore when I come back later. So it would be great if you can raise it as an Issue in GitHub when you find more issues with the build scripts in the future. Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p><span class="mention">@alexrass</span>, sorry to resurrect this old post. I am not sure whether you are still tracking Urho3D project development but since the last changes that you proposed, we have made a few changes on how the URHO3D_64BIT build option is being initialized which in turn affects how the ‘-m32’ or ‘-m64’ compiler flag is being set. Most notably is the changes since this commit e06762db76ec1d60ac38d84d351f7535985d6166 made in Sept 2014. I have a strong feeling that after that commit we do not need the workaround command to set the CMAKE_SHARED_LINKER_FLAGS anymore. However, I do not have i686-to-x86_64 cross-compiling toolchain installed on any of my build host systems, so I cannot verify this. It would be great if you can help me to verify and confirm this. Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p><span class="bbcode-b">weitjong</span><br/>
+Don’t have access to my computer now, but  i’ll check it tonight.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1036_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">alexrass</div>
+          <div class="post_content">
+<p>I comment line:</p>
+<p>[quote]# Required only when cross-compling from i686 to x86_64, in other cases the flag is redundantly duplicated during linking phase for shared lib<br/>
+<span class="hashtag">#set</span> (CMAKE_SHARED_LINKER_FLAGS “${CMAKE_SHARED_LINKER_FLAGS} ${DASH_MBIT}”)[/quote]<br/>
+Builds normal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks for your time to check this. I will remove the line in a next commit.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

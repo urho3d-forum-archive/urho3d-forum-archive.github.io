@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Qt and keyboard events</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Qt and keyboard events</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codexhound</div>
+          <div class="post_content">
+<p>So I’ve been messing around with integrating qt and urho. I have it set up to render frames with a qtimer (one frame at a time) and in my update event it won’t detect keyboard events. Mouse events work but it won’t detect any key presses. Is there something extra I have to do? My app is deriving from object and qapplication and has a run function which initializes engine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><code>QWidget</code> has virtual input event functions that can be overridden. A <code>QMainWindow</code> <em>is</em> a <code>QWidget</code> while a <code>QApplication</code> is not.<br/>
+For example: You can use <code>keyPressEvent(QKeyEvent* event)</code> <strong><code>override</code></strong> to catch widget events.</p>
+<details>
+<summary>
+From qwidget.h</summary>
+<pre><code class="lang-auto">    // Event handlers
+    bool event(QEvent *event) Q_DECL_OVERRIDE;
+    virtual void mousePressEvent(QMouseEvent *event);
+    virtual void mouseReleaseEvent(QMouseEvent *event);
+    virtual void mouseDoubleClickEvent(QMouseEvent *event);
+    virtual void mouseMoveEvent(QMouseEvent *event);
+#if QT_CONFIG(wheelevent)
+    virtual void wheelEvent(QWheelEvent *event);
+#endif
+    virtual void keyPressEvent(QKeyEvent *event);
+    virtual void keyReleaseEvent(QKeyEvent *event);
+    virtual void focusInEvent(QFocusEvent *event);
+    virtual void focusOutEvent(QFocusEvent *event);
+    virtual void enterEvent(QEvent *event);
+    virtual void leaveEvent(QEvent *event);
+    virtual void paintEvent(QPaintEvent *event);
+    virtual void moveEvent(QMoveEvent *event);
+    virtual void resizeEvent(QResizeEvent *event);
+    virtual void closeEvent(QCloseEvent *event);
+#ifndef QT_NO_CONTEXTMENU
+    virtual void contextMenuEvent(QContextMenuEvent *event);
+#endif
+#if QT_CONFIG(tabletevent)
+    virtual void tabletEvent(QTabletEvent *event);
+#endif
+#ifndef QT_NO_ACTION
+    virtual void actionEvent(QActionEvent *event);
+#endif
+
+#ifndef QT_NO_DRAGANDDROP
+    virtual void dragEnterEvent(QDragEnterEvent *event);
+    virtual void dragMoveEvent(QDragMoveEvent *event);
+    virtual void dragLeaveEvent(QDragLeaveEvent *event);
+    virtual void dropEvent(QDropEvent *event);
+#endif
+
+    virtual void showEvent(QShowEvent *event);
+    virtual void hideEvent(QHideEvent *event);
+    virtual bool nativeEvent(const QByteArray &amp;eventType, void *message, long *result);
+
+    // Misc. protected functions
+    virtual void changeEvent(QEvent *);
+</code></pre>
+</details>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>You have to disable the input handling in Urho3D. If you need more than one instance of Urho3D running then there’s some tweaks you have to do to the handling of MM_FREE in <code>Input.cpp</code>.</p>
+<p>When hosting you definitely want QT to be in charge as SDL input capture and handling is complete garbage anyways. Using QT for input will get you reliable captures, while SDL stands around wearing a wife beater and hurling slurs instead of doing anything to help you out.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="3" data-topic="5478" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>If you need more than one instance of Urho3D running…</p>
+</blockquote>
+</aside>
+<p>But why would you do that?</p>
+<p>I use multiple viewports instead. They are rendered to a texture using manual updates, which is then converted to a <code>QPixmap</code>. This way everything remains within the same context.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codexhound</div>
+          <div class="post_content">
+<p>I decided to use QT only for the keyboard events because it’s apparently blocking the signals to Urho.</p>
+<p>Heres a sample starter project integrating with qt if anyone is interested. Theres a handler for the keyboard and it uses a q timer and a widget as the external render window.</p>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/298b47bcb25b5f93b2f65fdd18e4cc1a.ico" width="32"/>
+<a href="https://github.com/codexhound/Urho3D_QT/" rel="nofollow noopener" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="420" src="https://avatars0.githubusercontent.com/u/6902870?s=400&amp;amp;v=4" width="420"/>
+<h3><a href="https://github.com/codexhound/Urho3D_QT/" rel="nofollow noopener" target="_blank">codexhound/Urho3D_QT</a></h3>
+<p>Contribute to codexhound/Urho3D_QT development by creating an account on GitHub.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="5478">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c07ac81809110b781ae74724ab7f2704.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>But why would you do that?</p>
+</blockquote>
+</aside>
+<p>Isolation only really. It would be nice to support multiple <em>heads</em> someday.</p>
+<p>QPixmap or GL context sharing works.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

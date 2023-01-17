@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Urho3D 1.7.1: MSAA not working with post process effects</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Urho3D 1.7.1: MSAA not working with post process effects</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1327_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gkontadakis</div>
+          <div class="post_content">
+<p>Hi all,</p>
+<p>I am trying to get MSAA working with post-process effects (e.g. trying something simple like the GreyScale). For example I use some sample like the 42_PBRMaterials:</p>
+<blockquote>
+<p>engineParameters_[“Multisample”] = 4;</p>
+</blockquote>
+<p>If I put any value greater than 1 for “Multisample” I see everything pitch black when applying any post process effect. If it is 1, the post process effect is fine. Dunno how the rendering pipeline works. Any suggestions on what am I missing? Maybe in master branch it behaves differently? (Urho3D 1.7.1, Win10, VS2015, RTX 2080 Ti, DX11)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>For MSAA to work ALL further render targets in your renderpath need to have the multisample tag which matches with the setting on your context be it the whole window or a render surface.</p>
+<p><code>&lt;rendertarget name="normals"  sizedivisor="1 1" format="rgba" filter="false"  persistent="false" multisample="4"/&gt;</code></p>
+<p>Its very annoying, and I am not sure why it’s not done automatically.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1327_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gkontadakis</div>
+          <div class="post_content">
+<p>Thx for the support,</p>
+<p>For this specific problem though which I see everything pitch black what worked for me was this:</p><aside class="quote" data-post="1" data-topic="1787">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5404e0173b965aa6a1f6618e6cd6d947.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/solved-how-to-set-msaa/1787">[SOLVED]How to set MSAA?</a> <a class="badge-wrapper bullet" href="/c/discussions/support/10"><span class="badge-category-parent-bg" style="background-color: #25AAE2;"></span><span class="badge-category-bg" style="background-color: #92278F;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Someone can help you.">Support</span></a>
+</div>
+<blockquote>
+    In the sample multiple viewports, I find urho use postprocess Fxaa to AntiAliasing, while I want to use Msaa to get a high quality  render result such as ogre’samples, any suggestion? 
+Thanks.
+  </blockquote>
+</aside>
+<p>Without knowing what happens underneath, this alone didn’t work:</p>
+<blockquote>
+<p>engineParameters_[“Multisample”] = 4;</p>
+</blockquote>
+<p>Also adding it to all post process rendering targets didn’t work. I had to also do this:</p>
+<blockquote>
+<p>graphics-&gt;SetMode(graphics-&gt;GetWidth(), graphics-&gt;GetHeight(), graphics-&gt;GetFullscreen(), graphics-&gt;GetBorderless(), graphics-&gt;GetResizable(), graphics-&gt;GetHighDPI(), graphics-&gt;GetVSync(), graphics-&gt;GetTripleBuffer(), true, graphics-&gt;GetMonitor(), graphics-&gt;GetRefreshRate());</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Not sure if v1.7.1 is the same, but you can use the following pattern to set screen mode parameters (in master <code>SetMode()</code> is deprecated):</p>
+<pre><code class="lang-auto">// copy old params
+ScreenModeParams screen_params = GetSubsystem&lt;Graphics&gt;()-&gt;GetScreenModeParams();
+
+// update the multisample setting (for example)
+screen_params.multiSample_ = 4;
+
+// get screen size
+IntVector2 screen_size = GetSubsystem&lt;Graphics&gt;()-&gt;GetSize();
+
+// update window modes
+GetSubsystem&lt;Graphics&gt;()-&gt;SetDefaultWindowModes(screen_size.x_, screen_size.y_, screen_params);
+</code></pre>
+<p>You might want to use <code>SetWindowModes()</code> instead for better control over the behavior in the context of fullscreen vs windowed (probably need to experiment to get exactly what you want).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1327_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gkontadakis</div>
+          <div class="post_content">
+<p>Thx for the info, it is not there in v1.7.1, but good to know for future reference</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>IsInstanceOf and regular cast vs dynamic_cast</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">IsInstanceOf and regular cast vs dynamic_cast</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Which is better to use, especially performance-wise?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>InstanceOf should be faster, but I don’t think anybody ever tested it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I decided to go ahead and try it. IsInstanceOf was indeed faster, at least in this test (which did only involve one level of inheritance for a correct match, and very possibly has other flaws…). It was only a minor difference (a few percent), but I suppose its worth knowing. (IsInstanceOf: 10486; dynamic_cast: 11040)</p>
+<pre><code class="lang-cpp">#pragma once
+
+#include &lt;Urho3D/Container/Ptr.h&gt;
+#include &lt;Urho3D/IO/Log.h&gt;
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Container/Vector.h&gt;
+#include &lt;Urho3D/Math/Random.h&gt;
+#include &lt;Urho3D/Core/Profiler.h&gt;
+
+#include &lt;Urho3D/Graphics/Model.h&gt;
+#include &lt;Urho3D/Physics/RigidBody.h&gt;
+#include &lt;Urho3D/Physics/CollisionShape.h&gt;
+#include &lt;Urho3D/Graphics/Texture.h&gt;
+#include &lt;Urho3D/Graphics/Texture2D.h&gt;
+#include &lt;Urho3D/Graphics/Texture3D.h&gt;
+#include &lt;Urho3D/Graphics/TextureCube.h&gt;
+
+using namespace Urho3D;
+
+void TestCasting(Context* context)
+{
+    PODVector&lt;StringHash&gt; types = {Model::GetTypeStatic(),
+                RigidBody::GetTypeStatic(),
+                Texture2D::GetTypeStatic(),
+                Texture3D::GetTypeStatic(),
+                TextureCube::GetTypeStatic(),
+                CollisionShape::GetTypeStatic()};
+    WeakPtr&lt;Texture&gt; tex;
+    Timer timer;
+    constexpr unsigned COUNT = 10000000;
+    for (unsigned i = 0; i &lt; COUNT; ++i)
+    {
+        int r = Rand() % types.Size();
+        StringHash type = types[r];
+        SharedPtr&lt;Object&gt; obj = context-&gt;CreateObject(type);
+        if (!obj)
+        {
+            LOGWARNING(String("Couldn't create type ") + String(r));
+            continue;
+        }
+        if (obj-&gt;IsInstanceOf(Texture::GetTypeStatic()))
+            tex = (Texture*)obj.Get();
+        else
+            tex = nullptr;
+    }
+    auto t = String(timer.GetMSec(true));
+    for (unsigned i = 0; i &lt; COUNT; ++i)
+    {
+        int r = Rand() % types.Size();
+        StringHash type = types[r];
+        SharedPtr&lt;Object&gt; obj = context-&gt;CreateObject(type);
+        if (!obj)
+        {
+            LOGWARNING(String("Couldn't create type ") + String(r));
+            continue;
+        }
+        tex = dynamic_cast&lt;Texture*&gt;(obj.Get());
+    }
+    LOGINFO(String(t) + " &lt;- IsInstanceOf | dynamic_cast -&gt; " + String(timer.GetMSec(true)));
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

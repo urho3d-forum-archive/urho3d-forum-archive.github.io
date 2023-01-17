@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Help with rendering custom MyGUI VertexBuffer</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Help with rendering custom MyGUI VertexBuffer</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<p>Hi fellow Urho3D devs,</p>
+<p>I’m very new to Urho3D and so far I’m loving it. I’m attempting to get MyGUI to work with Urho3D (because I really like that GUI library, Urho3D’s UI would need more work to do what I’d like). I’m having a problem where the UI rendering doesn’t show up. I have tried to debug it to the point where I’m out of ideas would really need your help.</p>
+<p>So, to start off, I’ll give a brief idea of how MyGUI ‘platform’ code works. For those who aren’t familiar about MyGUI please search for MyGUI in your favorite search engine, or visit mygui-dot-info to visit their website (sorry, it seems like I’m not allowed to post a link in my first post).</p>
+<p>MyGUI platform code needs some implementation of engine-specific code to get MyGUI integrated with your engine. These are (not real class/interface names):<br/>
+[ul]<br/>
+[li] <span class="bbcode-b">DataStream</span>: A stream to the resource data[/li]<br/>
+[li] <span class="bbcode-b">DataStreamManager</span>: A singleton class that needs to be initialized before initializing MyGUI and gets used by MyGUI to retrieve data streams to the engine’s resources[/li]<br/>
+[li] <span class="bbcode-b">Texture</span>: A class that implements interactions with the engine’s texture (creating manual textures, loading existing textures from engine, etc)[/li]<br/>
+[li] <span class="bbcode-b">VertexBuffer</span>: A class that wraps interactions with the engine’s vertex buffer implementation.[/li]<br/>
+[li] <span class="bbcode-b">RenderTarget</span>: A class that wraps the target to which MyGUI renders itself. This for Urho3D is <span class="bbcode-b">Urho3D::Renderer</span> class.[/li]<br/>
+[li] <span class="bbcode-b">RenderManager</span>: A singleton class that MyGUI interacts with to create/delete VertexBuffers/textures to render them the default render target (or to any render target for that matter).[/li][/ul]</p>
+<p>My RenderManager looks something like this:</p>
+<p>[code]<span class="hashtag">#include</span> “MyGUI_UrhoRenderManager.h”<br/>
+<span class="hashtag">#include</span> “MyGUI_UrhoRenderer.h”<br/>
+<span class="hashtag">#include</span> “MyGUI_UrhoTexture.h”<br/>
+<span class="hashtag">#include</span> “MyGUI_UrhoVertexBuffer.h”</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/Core/CoreEvents.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/Graphics.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/GraphicsEvents.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/Renderer.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/Texture.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/Texture2D.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/View.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Graphics/Viewport.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Scene/SceneEvents.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;Urho3D/Urho2D/Drawable2D.h&gt;</p>
+<p>namespace MyGUI<br/>
+{<br/>
+namespace detail<br/>
+{<br/>
+static const TextureUsage TEXTURE_USAGE = TextureUsage::RenderTarget;<br/>
+static const PixelFormat PIXEL_FORMAT = PixelFormat::R8G8B8A8;<br/>
+}</p>
+<pre><code>UrhoRenderManager::UrhoRenderManager(Urho3D::Context* context)
+	: Urho3D::Object(context)
+	, mGraphics(*GetSubsystem&lt;Urho3D::Graphics&gt;())
+	, mRenderer(*GetSubsystem&lt;Urho3D::Renderer&gt;())
+	, mUiRenderer(new UrhoRenderer(context))
+{
+	SubscribeToEvent(Urho3D::E_RENDERUPDATE, URHO3D_HANDLER(UrhoRenderManager, handleUpdate));
+	SubscribeToEvent(Urho3D::E_ENDRENDERING, URHO3D_HANDLER(UrhoRenderManager, render));
+}
+
+IVertexBuffer * UrhoRenderManager::createVertexBuffer()
+{
+	return new UrhoVertexBuffer(context_);
+}
+
+void UrhoRenderManager::destroyVertexBuffer(IVertexBuffer* _buffer)
+{
+	delete _buffer;
+}
+
+MyGUI::ITexture* UrhoRenderManager::createTexture(const std::string&amp; _name)
+{
+	return new UrhoTexture(context_, _name);
+}
+
+void UrhoRenderManager::destroyTexture(ITexture* _texture)
+{
+	delete _texture;
+}
+
+MyGUI::ITexture* UrhoRenderManager::getTexture(const std::string&amp; _name)
+{
+	auto texture = new UrhoTexture(context_, _name);
+	texture-&gt;loadFromFile(_name);
+	return texture;
+}
+
+const MyGUI::IntSize&amp; UrhoRenderManager::getViewSize() const
+{
+	static IntSize viewSize;
+	static auto&amp; graphics = *GetSubsystem&lt;Urho3D::Graphics&gt;();
+	viewSize.width = graphics.GetWidth();
+	viewSize.height = graphics.GetHeight();
+	return viewSize;
+}
+
+VertexColourType UrhoRenderManager::getVertexFormat()
+{
+	return VertexColourType(VertexColourType::ColourABGR);
+}
+
+bool UrhoRenderManager::isFormatSupported(PixelFormat _format, TextureUsage _usage)
+{
+	bool isPixelFormatSupported = false;
+	bool isTextureUsageSupported = true;
+	switch (_format.getValue())
+	{
+	case PixelFormat::L8:
+	case PixelFormat::L8A8:
+	case PixelFormat::R8G8B8A8:
+		isPixelFormatSupported = true;
+	}
+	return isPixelFormatSupported &amp;&amp; isTextureUsageSupported;
+}
+
+void UrhoRenderManager::begin()
+{
+	using namespace Urho3D;
+
+	Vector2 invScreenSize(1.0f / (float)mGraphics.GetWidth(), 1.0f / (float)mGraphics.GetHeight());
+	Vector2 scale(2.0f * invScreenSize.x_, -2.0f * invScreenSize.y_);
+	Vector2 offset(-1.0f, 1.0f);
+
+	projection = Matrix4::IDENTITY;
+
+	projection.m00_ = scale.x_;
+	projection.m03_ = offset.x_;
+	projection.m11_ = scale.y_;
+	projection.m13_ = offset.y_;
+	projection.m22_ = 1.0f;
+	projection.m23_ = 0.0f;
+	projection.m33_ = 1.0f;
+
+	noTextureVS = mGraphics.GetShader(VS, "Basic", "VERTEXCOLOR");
+	diffTextureVS = mGraphics.GetShader(VS, "Basic", "DIFFMAP VERTEXCOLOR");
+	noTexturePS = mGraphics.GetShader(PS, "Basic", "VERTEXCOLOR");
+	diffTexturePS = mGraphics.GetShader(PS, "Basic", "DIFFMAP VERTEXCOLOR");
+	diffMaskTexturePS = mGraphics.GetShader(PS, "Basic", "DIFFMAP ALPHAMASK VERTEXCOLOR");
+	alphaTexturePS = mGraphics.GetShader(PS, "Basic", "ALPHAMAP VERTEXCOLOR");
+
+	mGraphics.ClearParameterSources();
+	mGraphics.SetColorWrite(true);
+	mGraphics.SetCullMode(Urho3D::CULL_NONE);
+	mGraphics.SetDepthTest(Urho3D::CMP_ALWAYS);
+	mGraphics.SetDepthWrite(false);
+	mGraphics.SetFillMode(Urho3D::FILL_SOLID);
+	mGraphics.SetStencilTest(false);
+	mGraphics.ResetRenderTargets();
+	mGraphics.SetBlendMode(Urho3D::BlendMode::BLEND_ALPHA);
+	mGraphics.SetScissorTest(false);
+	mGraphics.SetViewport(GetSubsystem&lt;Renderer&gt;()-&gt;GetViewport(0)-&gt;GetRect());
+	// MyGUI doesn't create / need index buffers
+	mGraphics.SetIndexBuffer(nullptr);
+}
+
+void UrhoRenderManager::end()
+{
+}
+
+void UrhoRenderManager::doRender(IVertexBuffer * _buffer, ITexture * _texture, size_t _count)
+{
+	mUiRenderer-&gt;doRender(_buffer, _texture, _count);
+}
+
+const RenderTargetInfo &amp; UrhoRenderManager::getInfo()
+{
+	static RenderTargetInfo info;
+	info.aspectCoef = float(mGraphics.GetWidth()) / float(mGraphics.GetHeight());
+	// Depth range for OpenGL is [-1.0f, 1.0f]
+	info.maximumDepth = 1.0f;
+	info.pixScaleX = Urho3D::PIXEL_SIZE;
+	info.pixScaleY = Urho3D::PIXEL_SIZE;
+	return info;
+}
+
+void UrhoRenderManager::handleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap &amp; eventData)
+{
+	using namespace Urho3D;
+	using namespace RenderUpdate;
+	auto deltaTime = eventData[P_TIMESTEP].GetFloat();
+	onFrameEvent(deltaTime);
+}
+
+void UrhoRenderManager::render(Urho3D::StringHash eventType, Urho3D::VariantMap &amp; eventData)
+{
+	begin();
+	onRenderToTarget(this, true);
+	end();
+}
+</code></pre>
+<p>}[/code]</p>
+<p>I have verified that:<br/>
+[ul]<br/>
+[li]All textures are getting loaded correctly[/li]<br/>
+[li]Vertex buffer contents seems to be correct[/li]<br/>
+[li]Rendering calls do happen before the buffers are swapped[/li][/ul]</p>
+<p>Is there anything that I’m grossly missing? Am I doing something incredibly stupid, which is making this not work? Thanks a lot for your time.</p>
+<p>P.S.: I’m currently only focusing on getting this to work with OpenGL renderer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Welcome to the forums.</p>
+<p>You’re not showing all of your code – e.g. how the vertex buffer is bound and how you actually issue the draw call. I recommend ruling out things one by one - for example first verifying that a simple hardcoded quad comes up right, then replace that with MyGUI supplied data. Or first use no textures, or the “replace” blend mode, then substitute those with the proper ones. If you were using Direct3D you could use graphics analysis tools like Pix, but for OpenGL the tools are poorer. Not sure if e.g. gDebugger could actually show the mesh you’re about to render, similar to how Pix can.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<p>Sorry for the late reply. I was on vacation and had very little time to reply.</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>Welcome to the forums.</p>
+</blockquote>
+</aside>
+<p>Thanks!</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>You’re not showing all of your code – e.g. how the vertex buffer is bound and how you actually issue the draw call.</p>
+</blockquote>
+</aside>
+<p>Oops! Here’s the relevant code:</p>
+<pre><code class="lang-auto">	void UrhoRenderer::doRender(IVertexBuffer* _buffer, ITexture* _texture, size_t _count)
+	{
+		using namespace Urho3D;
+		MyGUI::GlErrorHandler glErrors;
+		auto vs = noTextureVS;
+		auto ps = noTexturePS;
+		if (_texture != nullptr)
+		{
+			vs = diffTextureVS;
+			ps = diffTexturePS;
+			mGraphics.SetTexture(0, dynamic_cast&lt;UrhoTexture*&gt;(_texture)-&gt;getTexture());
+		}
+		mGraphics.SetShaders(vs, ps);
+		if (mGraphics.NeedParameterUpdate(SP_OBJECT, this))
+			mGraphics.SetShaderParameter(VSP_MODEL, Matrix3x4::IDENTITY);
+		if (mGraphics.NeedParameterUpdate(SP_CAMERA, this))
+			mGraphics.SetShaderParameter(VSP_VIEWPROJ, projection);
+		if (mGraphics.NeedParameterUpdate(SP_MATERIAL, this))
+			mGraphics.SetShaderParameter(PSP_MATDIFFCOLOR, Color(1.0f, 1.0f, 1.0f, 1.0f));
+		mGraphics.SetVertexBuffer(dynamic_cast&lt;UrhoVertexBuffer*&gt;(_buffer)-&gt;getBuffer());
+		if (glErrors)
+		{
+			log.Error(ToString("GL ERROR: %s", glErrors.getError().c_str()));
+		}
+		mGraphics.Draw(Urho3D::PrimitiveType::TRIANGLE_LIST, 0, (unsigned int)_count);
+		if (glErrors)
+		{
+			log.Error(ToString("GL ERROR: %s", glErrors.getError().c_str()));
+		}
+	}</code></pre>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>I recommend ruling out things one by one - for example first verifying that a simple hardcoded quad comes up right, then replace that with MyGUI supplied data. Or first use no textures, or the “replace” blend mode, then substitute those with the proper ones.</p>
+</blockquote>
+</aside>
+<p>Good suggestion. I’ll try them out and let you know the details below:</p>
+<p>[ul]<br/>
+[li] <span class="bbcode-b">Hardcoded quad</span>: TODO[/li]<br/>
+[li] <span class="bbcode-b">Use no texture</span>: TODO[/li]<br/>
+[li] <span class="bbcode-b">Use ‘replace’ blend mode</span>: TODO[/li][/ul]</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>If you were using Direct3D you could use graphics analysis tools like Pix, but for OpenGL the tools are poorer. Not sure if e.g. gDebugger could actually show the mesh you’re about to render, similar to how Pix can.</p>
+</blockquote>
+</aside>
+<p>I’ll give that a try anyway.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/103_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ViteFalcon</div>
+          <div class="post_content">
+<p>Okay, so I figured out the problem. It had to do with the projection matrix. It seems like the projection matrix that works for MyGUI is the following:</p>
+<pre><code class="lang-auto">        auto width = mGraphics.GetWidth();
+        auto height = mGraphics.GetHeight();
+        Vector2 invScreenSize(1.0f / float(width), 1.0f / float(height));
+        Vector2 scale(1.0f * invScreenSize.x_, 1.0f * invScreenSize.y_);
+        Vector2 offset(-1.0f, 1.0f);
+
+        projection.m00_ = scale.x_;
+        projection.m03_ = offset.x_;
+        projection.m11_ = scale.y_;
+        projection.m13_ = offset.y_;
+        projection.m22_ = 1.0f;
+        projection.m23_ = 0.0f;
+        projection.m33_ = 1.0f;</code></pre>
+<p>Instead of my previous implementation (which was borrowed from Urho3D::UI:</p>
+<pre><code class="lang-auto">      Vector2 invScreenSize(1.0f / (float)mGraphics.GetWidth(), 1.0f / (float)mGraphics.GetHeight());
+      Vector2 scale(2.0f * invScreenSize.x_, -2.0f * invScreenSize.y_);
+      Vector2 offset(-1.0f, 1.0f);
+
+      projection = Matrix4::IDENTITY;
+
+      projection.m00_ = scale.x_;
+      projection.m03_ = offset.x_;
+      projection.m11_ = scale.y_;
+      projection.m13_ = offset.y_;
+      projection.m22_ = 1.0f;
+      projection.m23_ = 0.0f;
+      projection.m33_ = 1.0f;</code></pre>
+<p>Thanks, Cadaver! Your tip of using gDEBugger actually panned out. I didn’t create a custom vertex buffer. Instead, I went with gDEBugger and found that the vertex coordinates in the vertex buffer populated by MyGUI was in ‘window’ space I guess. So I tweaked the projection matrix accordingly.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

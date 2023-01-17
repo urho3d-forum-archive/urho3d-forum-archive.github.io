@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Change viewport rendertarget to other format</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Change viewport rendertarget to other format</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ucupumar</div>
+          <div class="post_content">
+<p>Hello Urhoheads!  :mrgreen:<br/>
+How to change default viewport rendertarget to HDR(rgba16f) format?</p>
+<p>I tried to use this xml snippets.</p>
+<p><code>&lt;replace sel="/renderpath/rendertarget[@name='viewport']/@format"&gt;rgba16f&lt;/replace&gt;</code> It’s copied from PrepassHDR renderpath, but I changed the name from ‘light’ to ‘viewport’.<br/>
+Unfortunately, it doesn’t work.</p>
+<p>Anyone know why?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You cannot change the backbuffer format. Instead, you would need to render all scene passes to a high bitdepth intermediate buffer, and finally blit that result to the backbuffer.</p>
+<p>Something like this (I don’t guarantee that this works)</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="hires" sizedivisor="1 1" format="rgba16f" /&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" output="hires" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" output="hires" /&gt;
+    &lt;command type="forwardlights" pass="light" output="hires" /&gt;
+    &lt;command type="scenepass" pass="postopaque" output="hires"/&gt;
+    &lt;command type="scenepass" pass="refract" output="hires"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" output="hires" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" output="hires" /&gt;
+    &lt;command type="quad" vs="CopyFrameBuffer" ps="CopyFrameBuffer" output="viewport"&gt;
+        &lt;texture unit="diffuse" name="hires" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ucupumar</div>
+          <div class="post_content">
+<p>Thanks for the answer!<br/>
+But there’s two problem using your solution.</p>
+<p>The first one, MSAA won’t work. After searching on the internet, I think this was common problem of HDR rendering. I guess I can use postprocess AA.  <img alt=":unamused:" class="emoji" src="../../../images2/21382c100a852239caa7667da5bafe68.png" title=":unamused:"/></p>
+<p>The second issue is copyframebuffer won’t work in Linux. I don’t know why, but it will display just black on Linux. It’s okay when I’m on Windows.<br/>
+I tested using Ubuntu 12.04 with Geforce 460 (blob driver v331).<br/>
+Do you know about this issue?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Can you reproduce the problem on a Windows OpenGL build?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ucupumar</div>
+          <div class="post_content">
+<p>I’ve tested and this issue didn’t happen on Windows OpenGL.<br/>
+Do you know something about this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It may mean two things: the Linux driver has a bug, or Urho is using the float rendertarget somehow incorrectly, which the Windows driver lets pass, but the Linux driver properly errors out.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ucupumar</div>
+          <div class="post_content">
+<p>I’ll do another test and investigate the real problem on my linux box. I just haven’t got chance to do it, but I’ll eventually try it again maybe tonight.  <img alt=":unamused:" class="emoji" src="../../../images2/21382c100a852239caa7667da5bafe68.png" title=":unamused:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ucupumar</div>
+          <div class="post_content">
+<p>I found the problem. This is because of common case sensitive problem between OS. Post process refer to CopyFrameBuffer, but the filename is CopyFramebuffer.glsl/hlsl.<br/>
+It’s okay on Windows, but it’s a problem on Linux.</p>
+<p>I created simple pull request to fix this problem: <a data-bbcode="true"  rel="nofollow noopener">https://github.com/urho3d/Urho3D/pull/515</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

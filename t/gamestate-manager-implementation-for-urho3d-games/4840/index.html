@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>GameState Manager implementation for Urho3D games</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">GameState Manager implementation for Urho3D games</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve just finished implementing a gamestate manager, and I seek opinions, advice and comment from the gallery.<br/>
+This is the third incarnation in as many days, however I’m pretty happy with the advantages that come with the design.<br/>
+Here’s some quick notes I shoved into a ReadMe file that describe the key concepts:</p>
+<aside class="quote no-group">
+<blockquote>
+<p>The gamestate manager resides in its own Scene, and can be fully serialized to remember user preferences.<br/>
+It creates a toplevel node, with one child node (bearing one component) per gamestate.<br/>
+I have implemented three example states: intro (splashscreen), main menu, and gameplay.</p>
+<p>The gamestate components can disable and re-enable themselves on demand (see the Enter and Exit methods), and they remain resident at all times (but can unload/reload resources to reduce memory footprint).</p>
+<p>This is not a stack based implementation, which means that any gamestate can in theory transition to any other,<br/>
+and it also means that, in theory, multiple gamestates can be active simultaneously (although I did not provide an example).</p>
+<p>The GamePlay gamestate creates and manages a secondary scene, which represents the game scene.<br/>
+Since the game scene is separate to the manager scene, it can be serialized separately,<br/>
+representing a snapshot of gameplay that can be saved and reloaded independently of the game manager / menu settings.<br/>
+GamePlay has full access to the game scene at all times, and can manipulate it in any way.<br/>
+The purpose of the GamePlay gamestate is not to implement game logic, but merely to provide<br/>
+a means to manage the content of the game scene from outside of that scene.</p>
+</blockquote>
+</aside>
+<p>What I forgot to mention? GameStates are not aware they are being managed, or that a manager class exists.<br/>
+This is achieved by implementing a custom event handler in the manager:</p>
+<aside class="quote no-group">
+<blockquote>
+<pre><code>/// Event Handler: Change of GameState
+void onStateChange(StringHash eventType, VariantMap&amp; eventData );
+</code></pre>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Interesting use of <code>Node</code>s.</p>
+<p>Have you considered having the game state manager inherit (directly) from <code>Serializable</code> instead and giving it some attributes?</p>
+<p>EDIT: …and to use it without a <code>Scene</code> (or any <code>Node</code>), instead registering it as a <em>subsystem</em>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>It already inherits serializable, its component based!</p>
+<p>The file uploads here are very restrictive, I cant attach the xml I dumped from the manager and game scenes, but you can imagine them.</p>
+<p>Screw it.</p>
+<p>Here is the Manager Scene, it gets dumped by the Main Menu State for no particular raison.<br/>
+Quoting XML on this site is also a bad, and possibly a security issue, I can’t post shit here, sad face <img alt=":frowning:" class="emoji" src="../../../images2/51ea35e7c47bd75b6fa0d425ad2d734f.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>The master object, the game state manager, which could be a singleton or not, is derived from Object, not Component - it is still Serializable (though there is nothing worth serializing), and can do Eventing (which I use), it is not part of the scene, or any scene, but there is a node in a scene named after it, for sanity.</p>
+<p>The GameStateManager is NOT registered as a subsystem, just a regular Object.<br/>
+It only subscribes for ONE event - a custom event, the change gamestate event.</p>
+<p>Changing gamestate involves calling Exit on the current state, calling Enter on the new state, and updating a pointer to the current (most recently entered) state, the third step being a courtesy for the next Exit.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I guess there’s many ways to approach this problem. <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/><br/>
+Also I must say I’m not at all familiar with design patterns. Using <code>Node</code>s just seems a bit unnecessary to me in this case.</p>
+<aside class="quote no-group" data-post="3" data-topic="4840" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>I can’t post shit here</p>
+</blockquote>
+</aside>
+<p>Would a <a href="https://gist.github.com/" rel="noopener nofollow ugc">gist</a> provide what you’re looking for?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Probably, but I have not committed my stuff to github, and tend not to since it was bought out by m$<br/>
+Force of habit I guess.</p>
+<p>I’ll set up a dump someplace.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="4840" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>Probably, but I have not committed my stuff to github, and tend not to since it was bought out by m$<br/>
+Force of habit I guess.</p>
+</blockquote>
+</aside>
+<p>You’re right, I should’ve mentioned <a href="https://gitlab.com/snippets/new" rel="noopener nofollow ugc">GitLab snippets</a> instead. <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Alibaba (China) are a shareholder, still does not smell like the right place to dump.<br/>
+I tend to think I can find something suitable, even if I have to host it myself.</p>
+<p>I often think to myself that the Chinese using the name Alibaba is ironic - he was a prince of thieves.</p>
+<p>If I host it myself, and publish it here, I at least have a poor mans copyright over my work, and evidence of prior art.<br/>
+As I am familiar with the WAMP stack, it should be fairly easy to set up a LAMP stack, and find a reasonable or free domain name to point at it - for example, my earliest internet tombstone, is u.wants.it</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="8" data-topic="4840" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>Alibaba (China) are a shareholder</p>
+</blockquote>
+</aside>
+<p>I did not know that, although I only find Alibaba being mentioned as a main customer. Not shareholder.<br/>
+Ever read <a href="https://en.wikipedia.org/wiki/Ali_Baba" rel="noopener nofollow ugc">Ali Baba and the Fourty Thieves</a>, btw?</p>
+<blockquote>
+<p>In the story, Ali Baba is a poor woodcutter who discovers the secret of a thieves’ den, entered with the phrase “Open Sesame”. The thieves learn this and try to kill Ali Baba…</p>
+</blockquote>
+<p>I guess the 40 thieves would represent the Western world if Ali Baba were China.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<aside class="quote no-group">
+<blockquote>
+<p>Ali Baba is then left as the only one knowing the secret of the treasure in the cave and how to access it.</p>
+</blockquote>
+</aside>
+<p>I had the thousand and one tales of the arabian nights as a child.<br/>
+Ali Baba ended up with the treasure, and was the only one who could access it.</p>
+<p>He had learned to rule by controlling the information.</p>
+<p>I don’t want to control information, but I do want to retain my rights as author.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>He can keep his treasures, I’m more interested in spiritual gold.<br/>
+It is more liberating, everlasting, harder to steal and easier to share. <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>What I contribute to Urho3D in terms of Pull Requests, and what I publish on the side, are separate.<br/>
+I choose to contribute some things to the community, which is cool, right? But other things, like example code, I don’t expect to publish in the community, but FOR the community nonetheless. The difference is who owns that IP.<br/>
+Regardless, I need a place to do it, and there is no place like home.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/2ea9e2d8733772e8ba6d2a0eeb1504a8.png" width="32"/>
+<a href="https://www.dropbox.com/s/nh8inz28wwyn1rl/UrhoTest.zip?dl=0" rel="nofollow noopener" target="_blank">Dropbox</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="200" src="../../../images2/91f8e52e085bb7d070f9d598a6799b0d.png" width="200"/>
+<h3><a href="https://www.dropbox.com/s/nh8inz28wwyn1rl/UrhoTest.zip?dl=0" rel="nofollow noopener" target="_blank">UrhoTest.zip</a></h3>
+<p>Shared with Dropbox</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Here’s the files for the state manager as of today.<br/>
+There’s not a whole lot to see, other than the implementation working as expected.</p>
+<p>Press “space” on the “main menu state” (the one displaying FPS) to see the “game state”.<br/>
+Escape to quit.</p>
+<p>I’ve partially implemented a Loading state, and am currently figuring out character controller and background loading.</p>
+<p>Before I run headfirst into walls, I like to set up a safe space for my game. This invariably begins with some kind of state management, whether it be FSM, or like this one, ISM. I won’t spend too much effort on anything until I have a solid foundation to build on.</p>
+<p>With a suitable game state manager, we could do away with separate builds for the samples, and load them all in a single application, like bullet, like ogre. Not that I am complaining, just pointing out the obvious.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I implemented asynch scene loading, and have a character in my game scene.<br/>
+Now working on character controller, soon I’ll have the character sample running under my state manager.</p>
+<p>The key advantage of using a state manager, so far, is to separately serialize the content of the state manager, and the content of the game scene.</p>
+<p>The idea is that something is alive, above the game scene, that can unload and reload the game scene, and save its state, without needing to be told how.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>Will check this out.</p>
+<p>I also implemented my own game state manager in his project: <a class="inline-onebox" href="https://discourse.urho3d.io/t/new-project-template/4428">New project template</a><br/>
+It was a bit more complex, but maybe there’s something that I could borrow from your implementation to further improve it. I basically had <code>LevelManager</code> class, which handler what sort of screen is visible to the user and the <code>SceneManager</code> which was responsible for the background scene loading.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I deliberately went for less complexity - it started as a stack based thing, but I realized quickly that stack based stuff induces limits on the transitions, and that is not always a good thing - this implementation is ISM, infinite state machine, any state can transition to any other, and we don’t need to deal with the overhead</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I have the guts of the character sample working under my state manager.<br/>
+I’m 99 percent happy with the code structure.</p>
+<p>The point is, I have a playable demo running under my state manager, which can save snapshots of gameplay and reload them, separately to the menu system / user options.</p>
+<p>I will tidy it a bit and then post a link, I note that much of the code and assets are not mine, and don’t expect to claim anything other than that my state manager works.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I note that Urho has no method for serializing a subtree of a scene.<br/>
+I offer to provide one, assuming that others agree this could be handy.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>If you see anything you like, please feel free to take it and use it as you wish.<br/>
+I don’t want to be credited for finding ways to use the engine, but any core changes I make, I would appreciate to see some credit.<br/>
+I will update the codebase later today, which includes some some stuff for ragdoll extensions.<br/>
+I also enabled physics debug drawing, and no way to disable it.<br/>
+Life is for the living.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p><a href="https://www.dropbox.com/s/mhzyw7flc9d8ppa/UrhoTest.zip?dl=0" rel="nofollow noopener">https://www.dropbox.com/s/mhzyw7flc9d8ppa/UrhoTest.zip?dl=0</a> update</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>You mean like serializing only selected node and its children? You can do that, You can even save single components.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yes I realized this pretty late, still I feel more comfortable with a proper state manager, than trying to kludge everything together somewhere else… and it makes a lot of sense to have a Loading state, that stays resident, and GUI elements (like menu items) that are not part of the game scene, not to be in the game scene.<br/>
+Modularity has lots of advantages, including the ability to easily re-use the modules.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

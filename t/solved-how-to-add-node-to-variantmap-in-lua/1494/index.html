@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] How To Add Node* To VariantMap in Lua?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] How To Add Node* To VariantMap in Lua?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Edit: This worked:</p>
+<pre><code class="lang-auto">local v = Variant(self.targetData.node_)
+local ed = VariantMap()
+ed["Node"] = v
+SendEvent("GetNodeInfo", ed)</code></pre>
+<p>Unfinished script for snippet reference:</p>
+<p>[spoiler][code]<br/>
+Cyberetta = ScriptObject()</p>
+<p>function Cyberetta:Start()<br/>
+self.skillData =<br/>
+{<br/>
+clientExecuting_ = false,<br/>
+elapsedTime_ = 0.0,<br/>
+cooldown_ = 0.0<br/>
+}</p>
+<p>self.targetData =<br/>
+{<br/>
+node_ = nil,<br/>
+lc_ = “”,<br/>
+clientID_ = -1,<br/>
+nodeID_ = -1<br/>
+}</p>
+<p>self:SubscribeToEvent(“SkillbarButt”, “Cyberetta:HandleSkillbarButt”)<br/>
+end</p>
+<p>function Cyberetta:Stop()<br/>
+if self.skillData.clientExecuting_ then<br/>
+local ed = VariantMap()<br/>
+SendEvent(“TouchUnSubscribe”, ed)<br/>
+end<br/>
+end</p>
+<p>function Cyberetta:HandleSetNodeInfo(eventType, eventData)<br/>
+local sceneNode = eventData[“Node”]:GetPtr(“Node”)</p>
+<p>if sceneNode == self.targetData.node_ then<br/>
+self.targetData.lc_ = eventData[“Lc”]:GetString()<br/>
+self.targetData.clientID_ = eventData[“ClientID”]:GetInt()<br/>
+self.targetData.nodeID_ = eventData[“NodeID”]:GetInt()<br/>
+end</p>
+<p>self:UnsubscribeFromEvent(“SetNodeInfo”)<br/>
+end</p>
+<p>function Cyberetta:HandleSkillbarButt(eventType, eventData)<br/>
+local skill = eventData[“Skill”]:GetString()<br/>
+if skill ~= “Cyberetta” then<br/>
+return<br/>
+end</p>
+<pre><code>local blindLC = self.node:GetComponent("Blind")
+local isBlind = false
+
+if blindLC ~= nil then
+  isBlind = blindLC.isBlind_
+end
+ 
+if self.skillData.clientExecuting_ == true and isBlind == true then
+  return
+end
+
+self.skillData.clientExecuting_ = true
+self.skillData.elapsedTime_ = 0.0
+
+local ed = VariantMap()
+SendEvent("TouchSubscribe", ed)
+
+self:SubscribeToEvent("TouchEnd", "Cyberetta:HandleTouchEnd")
+</code></pre>
+<p>end</p>
+<p>function Cyberetta:HandleTouchEnd(eventType, eventData)<br/>
+if ui.focusElement ~= nil then<br/>
+return<br/>
+end</p>
+<p>self:UnsubscribeFromEvent(“TouchEnd”)</p>
+<p>local ed = VariantMap()</p>
+<p>SendEvent(“TouchUnSubscribe”, ed)</p>
+<p>local cameraNode = self.node:GetChild(“cameraNode”)<br/>
+local camera = cameraNode:GetComponent(“Camera”)</p>
+<p>local pos = { x = 0.0, y = 0.0}<br/>
+pos.x = eventData[“X”]:GetInt()<br/>
+pos.y = eventData[“Y”]:GetInt()</p>
+<p>local cameraRay = camera:GetScreenRay(pos.x / graphics.width, pos.y / graphics.height)</p>
+<p>local physicsWorld = self.node:GetScene():GetComponent(“PhysicsWorld”)</p>
+<p>local raeResult = physicsWorld:RaycastSingle(cameraRay, 10000.0, 2)</p>
+<p>if raeResult.body ~= nil then<br/>
+self:ClearTarget()</p>
+<pre><code>self.targetData.node_ = raeResult.body:GetNode()
+
+self:SubscribeToEvent("SetNodeInfo", "Cyberetta:HandleSetNodeInfo")
+
+local v = Variant(self.targetData.node_)
+local ed = VariantMap()
+ed["Node"] = v
+SendEvent("GetNodeInfo", ed)
+
+if self.targetData.clientID_ ~= -1 then
+  self:Exec(0.0, true)
+end
+</code></pre>
+<p>else<br/>
+self.skillData.clientExecuting_ = false<br/>
+end</p>
+<p>end</p>
+<p>function Cyberetta:Exec(timeRamp, sendToServer)<br/>
+if engine:IsHeadless() ~= true then<br/>
+–particles and sound<br/>
+end<br/>
+print(“execing”)<br/>
+end</p>
+<p>function Cyberetta:ClearTarget()<br/>
+self.targetData.node_ = nil<br/>
+self.targetData.lc_ = ""<br/>
+self.targetData.clientID_ = -1<br/>
+self.targetData.nodeID_ = -1<br/>
+end</p>
+<p>[/code][/spoiler]</p>
+<p>Hello, I’m getting “attempt to call method ‘SetPtr’ (a nil value)” with the following lua code:</p>
+<pre><code class="lang-auto">local ed = VariantMap()
+ed:SetPtr("Node", self.node)
+SendEvent("GetNodeInfo", ed)</code></pre>
+<p>Thanks for any help.</p>
+<p>Full, incomplete script:</p>
+<p>[spoiler][code]<br/>
+Cyberetta = ScriptObject()</p>
+<p>function Cyberetta:Start()<br/>
+self.skillData =<br/>
+{<br/>
+clientExecuting_ = false,<br/>
+elapsedTime_ = 0.0,<br/>
+cooldown_ = 0.0<br/>
+}</p>
+<p>self:SubscribeToEvent(“SetNodeInfo”, “Cyberetta:HandleSetNodeInfo”)<br/>
+local ed = VariantMap()<br/>
+ed:SetPtr(“Node”, self.node)<br/>
+SendEvent(“GetNodeInfo”, ed)</p>
+<p>self:SubscribeToEvent(“SkillbarButt”, “Cyberetta:HandleSkillbarButt”)<br/>
+end</p>
+<p>function Cyberetta:Stop()<br/>
+if self.skillData.clientExecuting_ then<br/>
+local ed = VariantMap()<br/>
+SendEvent(“TouchUnSubscribe”, ed)<br/>
+end<br/>
+end</p>
+<p>function Cyberetta:HandleSetNodeInfo(eventType, eventData)<br/>
+local sceneNode = eventData[“Node”]:GetPtr(“Node”)</p>
+<p>if sceneNode == self.node then<br/>
+–<br/>
+end</p>
+<p>self:UnsubscribeFromEvent(“SetNodeInfo”)<br/>
+print(“got SetNodeInfo”)<br/>
+end</p>
+<p>function Cyberetta:HandleSkillbarButt(eventType, eventData)<br/>
+local skill = eventData[“Skill”]:GetString()<br/>
+if skill ~= “Cyberetta” then<br/>
+return<br/>
+end</p>
+<pre><code>local blindLC = self.node:GetComponent("Blind")
+local isBlind = false
+
+if blindLC ~= nil then
+  isBlind = blindLC.isBlind_
+end
+ 
+if self.skillData.clientExecuting_ == true and isBlind == true then
+  return
+end
+
+self.skillData.clientExecuting_ = true
+self.skillData.elapsedTime_ = 0.0
+
+local ed = VariantMap()
+SendEvent("TouchSubscribe", ed)
+
+self:SubscribeToEvent("TouchEnd", "Cyberetta:HandleTouchEnd")
+</code></pre>
+<p>end</p>
+<p>function Cyberetta:HandleTouchEnd(eventType, eventData)<br/>
+if ui.focusElement ~= nil then<br/>
+return<br/>
+end</p>
+<p>self:UnsubscribeFromEvent(“TouchEnd”)</p>
+<p>local ed = VariantMap()<br/>
+SendEvent(“TouchUnSubscribe”, ed)</p>
+<p>local cameraNode = self.node:GetChild(“cameraNode”)<br/>
+local camera = cameraNode:GetComponent(“Camera”)</p>
+<p>local pos = { x = 0.0, y = 0.0}<br/>
+pos.x = eventData[“X”]:GetInt()<br/>
+pos.y = eventData[“Y”]:GetInt()</p>
+<p>local cameraRay = camera:GetScreenRay(pos.x / graphics.width, pos.y / graphics.height)</p>
+<p>local physicsWorld = self.node:GetScene():GetComponent(“PhysicsWorld”)</p>
+<p>local raeResult = physicsWorld:RaycastSingle(cameraRay, 10000.0, 2)</p>
+<p>if raeResult.body ~= nil then<br/>
+local targetNode = raeResult.body:GetNode()<br/>
+–self:Exec()<br/>
+else<br/>
+self.skillData.clientExecuting_ = false<br/>
+end</p>
+<p>end</p>
+<p>function Cyberetta:Exec(clientID, nodeID, timeRamp, sendToServer)<br/>
+if engine:IsHeadless() ~= true then<br/>
+–particles and sound<br/>
+end</p>
+<p>end</p>
+<p>[/code][/spoiler]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

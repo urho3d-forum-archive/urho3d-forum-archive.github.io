@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Urho3 Geomapping</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Urho3 Geomapping</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hi</p>
+<p>how does Urho geomapping and terrain work? Does it take a RGB like .1,.1,.1 as the height value or something Red as height then maybe Blue or Green as something more finite value.</p>
+<p>Vivienne</p>
+<p>Or can I  modify the height map function to maybe use r as height then <a href="http://blue.as" rel="nofollow noopener">blue.as</a> normal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>If I think about it if the range of array is 0 to 1 convert it to 256*256 possibities with i use two channels. color * 8192 So, Red  would be (color/256) that would produce the first value then reminder would be the Green channel. Hmmm.</p>
+<p>I tried this but its not working. If I read your message correctly.</p>
+<p>[code]/// generate perlin output<br/>
+bool Procedural::GenerateBuild(float * inputData1, unsigned * output)<br/>
+{<br/>
+/// loop through all the floats then convert to grayscale setting the color basis to .5 (forcing values 0 to 1)<br/>
+for(unsigned x = 0; x&lt;width_; x++)<br/>
+{<br/>
+for(unsigned y = 0; y&lt;height_; y++)<br/>
+{</p>
+<pre><code>        /// incremennt memory which seems to work
+        int index = x+(y*height_);
+
+        unsigned int color = inputData1[index]*8192;
+
+        /// If elevation is over .5
+        unsigned int heightscale=color/256;
+        unsigned int heightprecision=color%256;
+
+         /// test
+        unsigned colr = heightscale;
+        unsigned colg = heightprecision;
+        unsigned colb = 0;
+
+        unsigned int col = rgba32ToUInt(colr,colg,colb, 255);
+        output[index] = col;      /// set grayscale - rgba is not needed. it seems to be screwy with this type of code.
+    }
+}
+
+return true;
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>The first idea did not work so I basically wiped it out.</p>
+<p>I thought maybe I can scale the float 0 to 1 the heightmap to 0 to 255. Basically muiltplying that with the col. I thought leaves me with a reminder that can be the precision.</p>
+<p>For example, scaled at one point is value 128 but there is a reminder of .124 which I think would be the precision. I simply muiltplied that by 255. Creating the second value the Green in the channels.</p>
+<p>The result looked smooth when I used the method without the minecraft looking stuff. I am leaving the code here maybe you have a better idea.</p>
+<pre><code class="lang-auto">/// generate perlin output
+bool Procedural::GenerateBuild(float * inputData1, unsigned * output)
+{
+    /// loop through all the floats then convert to grayscale setting the color basis to .5 (forcing values 0 to 1)
+    for(unsigned x = 0; x&lt;width_; x++)
+    {
+        for(unsigned y = 0; y&lt;height_; y++)
+        {
+
+            /// incremennt memory which seems to work
+            int index = x+(y*height_);
+
+            unsigned col = inputData1[index]* 255;  /// create color value
+
+            float precision = ((float)inputData1[index]* 255)-col;
+
+            col = rgba32ToUInt(col,precision*255, 0, 255);
+
+            output[index] = col;      /// set grayscale - rgba is not needed. it seems to be screwy with this type of code.
+        }
+    }
+
+    return true;
+}</code></pre>
+<p>Sorry. It’s late my time. It’s the only thing I can think off.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>Thank you for the code. I might need something like this at some point, if I need to generate random battle maps. I was also considering of using the terrain with procedural map generation, so this will potentially save me a bit of time in the future.</p>
+<p>This is not something that actually matters, but still good thing to know/do. You should probably have the for loops x and y the opposite way to avoid possible cache misses when indexing the array.</p>
+<p>So instead of:</p>
+<pre><code class="lang-auto">    for(unsigned x = 0; x&lt;width_; x++)
+    {
+        for(unsigned y = 0; y&lt;height_; y++)
+        {
+
+            /// incremennt memory which seems to work
+            int index = x+(y*height_);
+
+            unsigned col = inputData1[index]* 255;  /// create color value</code></pre>
+<p>swapping x and y around</p>
+<pre><code class="lang-auto">    for(unsigned y = 0; y&lt;height_; y++)
+    {
+        for(unsigned x = 0; x&lt;width_; x++)
+        {
+
+            /// incremennt memory which seems to work
+            int index = x+(y*height_);
+
+            unsigned col = inputData1[index]* 255;  /// create color value</code></pre>
+<p>But since you are most likely only building this once and if the width/height isn’t a huge number there is a possibility that not that many misses even happen or even if they do, it might not matter.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sinoid:</div>
+<blockquote>
+<p>all terrain tools I know / have used will let you spit out R+G as height.</p>
+</blockquote>
+</aside>
+<p>Can you please name some? If I’ll get 16bit heightmap TIFFs, what is the best way to split em on two channels?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>No problem.</p>
+<p>The code I modified to account for y scale.</p>
+<p>The thing about the code its  part of several procedual generation class and components not in the native code. Its something I put together.</p>
+<p>It needs to be faster in general and unload the computation on a GPU. I want the base computation to less then a second.</p>
+<p>I welcome anyone who want to assist getting the code more feature rich, faster, and preppef to be added</p>
+<p>Vivienne</p>
+<p>[quote=“TikariSakari”]Thank you for the code. I might need something like this at some point, if I need to generate random battle maps. I was also considering of using the terrain with procedural map generation, so this will potentially save me a bit of time in the future.</p>
+<p>This is not something that actually matters, but still good thing to know/do. You should probably have the for loops x and y the opposite way to avoid possible cache misses when indexing the array.</p>
+<p>So instead of:</p>
+<pre><code class="lang-auto">    for(unsigned x = 0; x&lt;width_; x++)
+    {
+        for(unsigned y = 0; y&lt;height_; y++)
+        {
+
+            /// incremennt memory which seems to work
+            int index = x+(y*height_);
+
+            unsigned col = inputData1[index]* 255;  /// create color value</code></pre>
+<p>swapping x and y around</p>
+<pre><code class="lang-auto">    for(unsigned y = 0; y&lt;height_; y++)
+    {
+        for(unsigned x = 0; x&lt;width_; x++)
+        {
+
+            /// incremennt memory which seems to work
+            int index = x+(y*height_);
+
+            unsigned col = inputData1[index]* 255;  /// create color value</code></pre>
+<p>But since you are most likely only building this once and if the width/height isn’t a huge number there is a possibility that not that many misses even happen or even if they do, it might not matter.[/quote]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+ Sinoid:</div>
+<blockquote>
+<p>Now that I think about it, it’s really not that many (stupid me). Just L3DT, Terragen (plugin IIRC), and Grome. I probably botched that because when I wrote a heightmap loader/sculpter/painter for libgdx R+G was the first thing I did (I could drop that onto github if need be for you - it’s messy and java, but it works). My bad.</p>
+<p>No idea on your TIFF issue. It’d be easier if it was RAW, everyone can write a RAW loader. What formats can you output (or what are you using)?</p>
+</blockquote>
+</aside>
+<p>Thank you for reply.</p>
+<p>From this thread I’ve just found out about two channel system, and want to know how to use it, given, I have some 16bit heightmap. Let’s say, I can output any format, tiff, raw, whatever. I need a way to process them into R+G image, that Urho3d can read (PNG or such).</p>
+<p>I’ve checked free version of L3DT, and didn’t found two channel R+G output.</p>
+<p>If your java thingy may help me with that, then I sure want to check it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>[quote=“Sinoid”]<br/>
+I’ll write a TIFF converter. Will take a day or two.[/quote]</p>
+<p>Whoa! ok, cool. Can’t wait to try.</p>
+<p>I also found out, that PNG has 16bit support, but Urho3d crashes trying to load it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>I tried using 8bit monochrome pngs, but I think it treats them differently somehow, altho it did work for the heightmap. The picture did work though, but maybe it counts 2 pixels in a row for one 16bit data.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>[quote=“Sinoid”]<br/>
+I might be almost done with this packer but I could use more test files that came from different programs. Can you toss up a TIFF file of yours onto dropbox or someplace and PM me a link, tell me where the TIFF came from, and even better if you’ve got some screenshots (like from inside the tool the tiff was generated from, for height/feature-point reference)?[/quote]</p>
+<p>Just PM’d you two test images.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>For nix users just use image magick</p>
+<p>sudo apt-get install imagemagick<br/>
+convert input.tiff output.png</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Hey, Sinoid.</p>
+<p>I finally got my hands on your Tiff packer.</p>
+<p>Thank you very much for this awesome tool!</p>
+<p><a data-bbcode="true" href="http://i.imgur.com/iKjJnAs.png" rel="nofollow noopener"><img alt="" height="500" src="../../../images2/dea7f2e3a626f59146a88b6211ad6f65.png" width="296"/></a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

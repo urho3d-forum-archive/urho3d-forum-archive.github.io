@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Android JNI / Talking with Java / Setting up a WebView</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Android JNI / Talking with Java / Setting up a WebView</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Hey, I’ve been working with android a bit and put together a perhaps dirty method of getting some urho3d c++ to java talk working, and it’s rather simple:</p>
+<p>The following code will show how to call a java function we will create called ‘<span class="bbcode-i">gotoGoogle</span>’, which will be tacked onto <span class="bbcode-b">SDLActivty.java</span> located in <span class="bbcode-b">Android/src/org/libsdl/app</span>. The Java code will then call a c++ function we will create to inform out app when it’s ready.</p>
+<p>Note: There is probably a cleaner way to do this (eg, extending SDLActivity), however I’m not familiar enough with android to know how-- contribute if you do !</p>
+<p>[size=200]In SDLActivtiy.java:[/size]<br/>
+File: <span class="bbcode-b">Android/src/org/libsdl/app/SDLActivity.java</span>:</p>
+<p>Add these imports:</p>
+<p><code>import android.widget.ViewSwitcher;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import com.github.urho3d.R;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;</code><br/>
+[ul]<br/>
+[li]ViewSwitcher is what will allow us to seamlessly switch between our urho application and the WebView (you can add animations, etc.)[/li]<br/>
+[li]WebView and WebViewClient allow us to embed a browser / handle events in the browser.[/li]<br/>
+[li]the R class is a machine-generated class that lets us access resources (eg, xml resources in <span class="bbcode-b">Android/res</span>)[/li]<br/>
+[li]AnimationUtils lets us load animations from supplied resources[/li][/ul]</p>
+<p>[size=150]In SDLActivtiy class:[/size]<br/>
+Define these members in the <span class="bbcode-b">SDLActivity</span> class:</p>
+<p><code>protected static WebView webview;
+protected static ViewSwitcher layoutSwitcher;</code><br/>
+The WebView and ViewSwitcher are like UIElements in Urho3d, it holds the functionality for the widget and renders its contents.</p>
+<p>Add these initializers to <span class="bbcode-b">public static void initialize()</span> in <span class="bbcode-b">SDLActivity</span>:</p>
+<p><code>layoutSwitcher = null;
+mJoystickHandler = null;</code></p>
+<p>At the bottom of <span class="bbcode-b">protected void onCreate(Bundle savedInstanceState)</span> in <span class="bbcode-b">SDLActivity</span>, change:</p>
+<p>[code]mLayout = new AbsoluteLayout(this);<br/>
+mLayout.addView(mSurface);</p>
+<p>setContentView(mLayout);[/code]</p>
+<p>to:</p>
+<p>[code]webview = new WebView(this);</p>
+<p>mLayout = new AbsoluteLayout(this);<br/>
+mLayout.addView(mSurface);</p>
+<p>layoutSwitcher = new ViewSwitcher(this);<br/>
+layoutSwitcher.addView(mLayout);<br/>
+layoutSwitcher.addView(webview);</p>
+<p>You will need to set up<br/>
+Animation animIn, animOut;<br/>
+animIn = AnimationUtils.loadAnimation(this, R.anim.fadein);<br/>
+animOut = AnimationUtils.loadAnimation(this, R.anim.fadeout);</p>
+<p>layoutSwitcher.setInAnimation(animIn);<br/>
+layoutSwitcher.setOutAnimation(animOut);</p>
+<p>setContentView(layoutSwitcher);[/code]<br/>
+Note: Later, we will create the resources that R.anim.fadein and R.anim.fadeout reference.</p>
+<p>Now the meat of the Java, the function we will call from c++ to switch into the WebView – add these to <span class="bbcode-b">SDLActivity</span>:</p>
+<p>[code]public void gotoGoogle() {<br/>
+runOnUiThread(new Runnable() {<br/>
+// Note: You must handle UI events like switching views and working with web view in the UI thread.<br/>
+<span class="mention">@Override</span><br/>
+public void run() {<br/>
+layoutSwitcher.showNext();<br/>
+webview.getSettings().setJavaScriptEnabled(true); // there can be security concerns with javascript.<br/>
+webview.getSettings().setBuiltInZoomControls(true);</p>
+<pre><code>            webview.loadUrl("http://www.google.com");
+            webview.setWebViewClient(new WebViewClient(){
+                @Override
+                public void onPageStarted(WebView view, String url, Bitmap favicon){
+                   super.onPageStarted(view, url, favicon);
+                   // just an example of capturing the page start loading event
+                   Log.d("java urho", "Loading: " + url); // goes to the system console/logcat
+                }
+
+                @Override
+                public void onPageFinished(WebView view, String url) {
+                    super.onPageFinished(view, url);
+                        // We will close the webview as soon as the page is loaded... add your own logic !
+                        returnWebviewUrl(url);
+                        hideWebview();
+                }
+
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                    // This allows us to follow links in the web view without them being deferred to another browser. You may or may not want this.
+                    view.loadUrl(url);
+                    return true;
+                }
+            });
+        }
+     });
+}
+
+public void hideWebview() {
+    layoutSwitcher.showPrevious();
+}[/code]
+</code></pre>
+<p>And one last important declaration so that we can call a c++ function that we will define:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>[size=200]Animation Resources:[/size]<br/>
+Let’s create the animation resources, <span class="bbcode-b">Android/res/anim/fadein.xml</span> and <span class="bbcode-b">Android/res/anim/fadeout.xml</span>:<br/>
+<span class="bbcode-b">Android/res/anim/fadein.xml</span>:</p>
+<p>[code]&lt;?xml version="1.0" encoding="utf-8"?&gt;<br/>
+</p>
+<pre><code>&lt;alpha
+    android:duration="500"
+    android:fromAlpha="0.0"
+    android:toAlpha="1.0" &gt;
+&lt;/alpha&gt;
+</code></pre>
+
+[/code]
+<p><span class="bbcode-b">Android/res/anim/fadeout.xml</span></p>
+<p>[code]&lt;?xml version="1.0" encoding="utf-8"?&gt;<br/>
+</p>
+<pre><code>&lt;alpha
+    android:duration="200"
+    android:fromAlpha="1.0"
+    android:toAlpha="0.0" &gt;
+&lt;/alpha&gt;
+</code></pre>
+
+[/code]
+<p>[size=200]C++:[/size]<br/>
+Thankfully, we don’t have to worry about setting things up on the C++ away from our main source-- everything works from there.</p>
+<p>To call <span class="bbcode-b">gotoGoogle()</span> from C++, we’ll set up a function that looks like this:</p>
+<p>[code]<span class="hashtag">#if</span> defined(ANDROID)</p>
+<p><span class="hashtag">#include</span> “Log.h”</p>
+<p><span class="hashtag">#include</span> &lt;SDL.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;jni.h&gt;<br/>
+<span class="hashtag">#include</span> &lt;string.h&gt;</p>
+<p><span class="hashtag">#define</span> JAVA_CHECK_EXCEPTION(env, msg) <br/>
+while (env-&gt;ExceptionCheck()) <br/>
+{<br/>
+LOGDEBUG(String("Exception:: ") + msg));<br/>
+env-&gt;ExceptionDescribe();<br/>
+env-&gt;ExceptionClear();<br/>
+}</p>
+<p>void JavaGotoGoogle()<br/>
+{<br/>
+LOGDEBUG(“JavaGotoGoogle()”);</p>
+<pre><code>JNIEnv *env = static_cast&lt;JNIEnv*&gt;(SDL_AndroidGetJNIEnv());
+jobject activity = static_cast&lt;jobject&gt;(SDL_AndroidGetActivity());
+jclass clazz = env-&gt;GetObjectClass(activity);
+jmethodID gotoGoogle = env-&gt;GetMethodID(clazz, "gotoGoogle", "()V");// Note the signature string..
+
+LOGDEBUG(String((int) loginGoogle)); // inspect that we get a handle -- should do error checking..
+
+JAVA_CHECK_EXCEPTION(env, "Preperation"); // Macro to check for errors. Should really check after each call. Calling before the next bit to clear any errors that may happen earlier.
+
+env-&gt;CallVoidMethod(activity, gotoGoogle); // the actual call to java.
+JAVA_CHECK_EXCEPTION(env, "env-&gt;CallVoidMethod(clazz, gotoGoogle);"); //find out if the call went through- if not what were the errors.
+
+env-&gt;DeleteLocalRef(activity);
+</code></pre>
+<p>}<br/>
+[/code]</p>
+<p>To define the ‘returnWebviewUrl’ function we called in Java, we do the following:</p>
+<p><code>
+extern "C" {
+    JNIEXPORT jstring JNICALL Java_org_libsdl_app_SDLActivity_returnWebviewUrl (JNIEnv *env, jobject obj, jstring url)
+    {
+        LOGDEBUG("Java_org_libsdl_app_SDLActivity_returnWebviewUrl()");
+        const char* result = env-&gt;GetStringUTFChars(url, 0);
+        if (result != NULL)
+        {
+            String s = String(result);
+            LOGDEBUG(s);
+        }
+        env-&gt;ReleaseStringUTFChars(url, result);
+        return env-&gt;NewStringUTF("Hello from C++ over JNI!");
+    }
+}
+#endif</code></p>
+<p>Note the name of the function, it has to follow a strict naming convention for Java to find it. It should also be in the global scope.</p>
+<p>And that’s it ! Pretty simple, although you will need to put your own logic in. Also, currently there’s no way to escape the webview if it gets stuck loading-- so you will need to provide your own options (eg, capture the ‘back’ button, provide GUI elements, etc).</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

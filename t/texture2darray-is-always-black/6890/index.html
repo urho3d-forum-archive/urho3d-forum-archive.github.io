@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Texture2DArray is always black</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Texture2DArray is always black</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>So I’m having some trouble with a custom material, technique, and GLSL shader.  I’ve stripped this down to the bare minimum here and despite having done so, the sampling of the texture array is always black.</p>
+<p>Materials/Test.xml</p>
+<pre><code class="lang-auto">&lt;material&gt;
+  &lt;technique name="Techniques/Test.xml" quality="2" loddistance="0" /&gt;
+  &lt;texture unit="0" name="Textures/Test.xml" /&gt;
+&lt;/material&gt;
+</code></pre>
+<p>Techniques/Test.xml</p>
+<pre><code class="lang-auto">&lt;technique vs="Test" ps="Test"&gt;
+  &lt;pass name="base" /&gt;
+  &lt;pass name="material" depthtest="equal" depthwrite="false" blend="add" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<p>Textures/Test.xml</p>
+<pre><code class="lang-auto">&lt;texturearray&gt;
+  &lt;layer name="Textures/ground.png" /&gt;
+  &lt;layer name="Textures/grass.png" /&gt;
+&lt;/texturearray&gt;
+</code></pre>
+<p>Shaders/GLSL/Test.glsl</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Transform.glsl"
+#include "ScreenPos.glsl"
+
+#ifdef GL3
+#define texture2D texture
+#define texture2DProj textureProj
+#define texture3D texture
+#define textureCube texture
+#define texture2DLod textureLod
+#define texture2DLodOffset textureLodOffset
+#endif
+
+#ifdef COMPILEPS
+uniform sampler2DArray sDiffArrayMap;
+#endif
+
+varying vec2 vTexCoord1;
+varying vec4 vWorldPos;
+
+void VS()
+{
+  mat4 modelMatrix = iModelMatrix;
+
+  vec3 worldPos = GetWorldPos( modelMatrix );
+  gl_Position = GetClipPos( worldPos );
+
+  vTexCoord1 = GetTexCoord( iTexCoord );   
+
+  vWorldPos = vec4( worldPos, GetDepth( gl_Position ) );
+}
+
+void PS()
+{
+  // Sample the second texture in the array
+  gl_FragColor = texture( sDiffArrayMap, vec3( vTexCoord1.x, vTexCoord1.y, 1.0 ) );
+}
+
+</code></pre>
+<p>In the code, I’m obtaining the material as:</p>
+<pre><code class="lang-auto">auto *material = cache-&gt;GetResource&lt;Urho3D::Material&gt;( "Materials/Test.xml" );
+model-&gt;SetMaterial( material );
+</code></pre>
+<p>When I adjust the code to use a <code>sampler2D</code> and a single texture rather than the texture array, the model is rendered with the single texture.  I’ve checked the logs and there is no compiler error or warnings about resources being unavailable, so it must be something in the shader code?</p>
+<p>I’m not entirely sure what I might have done wrong here, does anyone have any ideas?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2728_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Naros</div>
+          <div class="post_content">
+<p>Looks like my problem was the fact that I was defining the uniform as:</p>
+<pre><code class="lang-auto">uniform sampler2DArray sDiffArrayMap;
+</code></pre>
+<p>However there must be a definition somewhere that requires me to define it as:</p>
+<pre><code class="lang-auto">uniform sampler2DArray sDiffMap;
+</code></pre>
+<p>Changing that the <code>Texture2DArray</code> sampling works as I expected.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>In the <a href="https://urho3d.io/documentation/HEAD/_shaders.html">documentation for Shaders</a> it states “In GLSL shaders it is important that the samplers are assigned to the correct texture units. If you are using sampler names that are not predefined in the engine like sDiffMap, just make sure there is a number somewhere in the sampler’s name and it will be interpreted as the texture unit.” Your shader works with sDiffMap because sDiffMap is one of the pre-defined texture units. sDiffArrayMap is not, so you need to incorporate the assigned texture slot number into the name sDiffArrayMap. eg, sDiffArrayMap0.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

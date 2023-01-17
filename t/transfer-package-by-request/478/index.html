@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Transfer package by request</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Transfer package by request</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/5_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cin</div>
+          <div class="post_content">
+<p>I want to allow user upload package file on runtime, with [UserNodeFile].xml and all resources used in xml file, to server, create node and load content to this node from xml file.<br/>
+All stes here:</p>
+<ol>
+<li>User upload package file to server</li>
+<li>Server call ResourceCache-&gt;AddPackageFile(user_package_file); and add package file to autoload.</li>
+<li>Client send command to create node and load node content form xml file from package file.</li>
+<li>Server create node and load its content from xml file.</li>
+<li>Now network must send package file to clients to allow see created model by user.</li>
+<li>Server send node ID to client to allow user manipulate it.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/5_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cin</div>
+          <div class="post_content">
+<p>Now I make experiment and I see what package file sending when client connect to server.<br/>
+My test code here.</p>
+<p><code>Node* NetServer::CreateTestObject(Vector3 pos = Vector3::ZERO)
+{
+	Node* pn = scene-&gt;CreateChild("Test");
+	pn-&gt;SetPosition(pos);
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+	SharedPtr&lt;PackageFile&gt; pkgfile(new PackageFile(context_, "Packages\\Teapot.pkg"));
+	cache-&gt;AddPackageFile(pkgfile);
+	scene-&gt;AddRequiredPackageFile(pkgfile);
+	XMLFile* xf = (cache-&gt;GetResource&lt;XMLFile&gt;("Teapot.xml"));
+	XMLElement xr = xf-&gt;GetRoot("node");
+	pn-&gt;LoadXML(xr);
+	return pn;
+}</code></p>
+<p>How i can to force clients to download added package when they already connected and have loaded scene?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Presently you can’t (without modifying the engine).</p>
+<p>Urho does not work well as an engine using network streamed resources/packages, because everything is based on the assumption of immediately available resources (ie. you instantiate a model, you expect the model/material/textures to already be there.)</p>
+<p>If resources were loaded from packages in the middle of a client being connected to a scene, either the server would have to delay sending objects depending on those packages, or the client would need the intelligence to wait before trying to instantiate them.</p>
+<p>You are welcome to improve the engine to work in this direction, but it may be a large and hard overhaul. Btw. this is exactly the situation we are dealing a lot in the realXtend Tundra project (<a href="https://github.com/realxtend/tundra.git">github.com/realxtend/tundra.git</a>), and that’s also why its network &amp; asset code are at least 2x more complex than Urho <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/5_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cin</div>
+          <div class="post_content">
+<p>cadaver,  are you (or who now work with realXtend/tundra) plan to add this feature to engine?<br/>
+Today I try to understand engine internals and may be write here about how to implement this.<br/>
+My preliminary thoughts on the matter:</p>
+<p>[ul][li]Client receive that what it must create replicated node with component.[/li]<br/>
+[li]If it fail, client get list of packages on server and check they on cache. If needed then client download (sync) missing packages from server, and try again to load resource into cache.<br/>
+OR[/li]<br/>
+[li]If it fail, client ask server “In which package this resource?” . Server send package filename and client download (sync) only this missing package from server, and try again  to load resource.[/li][/ul]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>My plan is to not work on this kind of functionality, at least for now. The Tundra codebase is practically full of assumptions “what if this asset is not yet downloaded” and the increased complexity that results from it, so in Urho I was glad to be free from that <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p>I assume that with “fail” you mean that some of the needed resources is missing. Your flow looks basically OK. You possibly may get away with instantiating the node and component instantly, but leaving for example the model empty (null) as it hasn’t been downloaded yet. Then you start the download and once it’s completed, assign the model. You’ll run into difficulties and special cases, though, for example a bone hierarchy can not be instantiated before the model exists, so if the object has bone attachments, those can not practically be instantiated before the model.</p>
+<p>Another way would be to store objects received from server, that have missing resources, into a kind of “buffer” while waiting for the resources to load. Then, after all needed resources are loaded, instantiate the object based on the buffered data. The server will of course keep sending updates (as eg. the object moves), in which case you must keep updating the buffered data. And in worst case the object might get deleted before the downloads finish, which you also need to take into account.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It looks to be on the right track at least in theory. One thing you didn’t have there yet would be to sync the updated package list to other connected clients, right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/5_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cin</div>
+          <div class="post_content">
+<p>Some update.<br/>
+indent is 4 spaces.<br/>
+Added parameter all_clients, if it true then all clients sync packages. Default it true.<br/>
+SyncPackages registered in NetworkAPI.cpp.<br/>
+Pull request created.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

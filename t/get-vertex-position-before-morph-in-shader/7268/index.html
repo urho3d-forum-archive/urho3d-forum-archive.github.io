@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Get vertex position before Morph in shader</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Get vertex position before Morph in shader</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3849_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Askhento</div>
+          <div class="post_content">
+<p>I have a mesh with shape keys, aka morph target, aka blend shape. I would like to have both base and morphed position in vertex shader. Maybe they are accessible as a vertex attribute?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Morph targets are applied on the CPU to a mirror of the vertex data, so it’s not available to the shader.</p>
+<p>You could rework the morph-target application to write data into a different type of vertex-buffer that instead of containing just the transformed vertices contains extra attributes for the original position - or with the morph data as deltas instead if you wanted to go whole hog.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3849_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Askhento</div>
+          <div class="post_content">
+<p>Do you have an example on how to set custom vertex attribute?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>You add a new semantic to <code>enum VertexElementSemantic</code> then <code>ShaderVariation::elementSemanticNames[]</code> and I’m pretty sure that’s it as long it’s only a semantic. Obviously you have to then go and actually use those in a shader.</p>
+<p>The morph target transforms are done in <code>AnimatedModel::UpdateMorphs</code> for the actual update that writes the cloned vertex-buffers (which is where you’ll inject your original position) and <code>AnimatedModel::CloneGeometries</code> is where those clones are produced, it’s these copy buffers you have to inject your additional semantics/vertexelementinfo into so that things can be mapped correctly.</p>
+<hr/>
+<p>It should also be possible to do through extra-vertex-buffers reusing the original buffers and just mapping that differently, but I’m unsure of what you’d need to do for that because you’d have to basically have the same vertex-buffer twice, but represented with a different vertex-element information (and only partial information at that) … and there’s been no case of that being a thing so far.</p>
+<p>Realistically to go the extra-buffers route, you’d still need the custom semantic, and you’d have to copy just the original positions into a new set of cloned buffers that are put into the cloned geometries. (you wouldn’t need to track them, you’d just pump them right in and the Geometry class will clean it up as dtor’s fire)</p>
+<p>Doing that you wouldn’t have to muck around in the morph update, it’d just work, so you’d only be dealing with the CloneGeometries method.</p>
+<p><strong>Edit</strong>: if I were implementing I’d go with the extra-buffers. Should be a ton easier. Also if skinning, you’ll need to add an overload for GetWorldPos (Transform.hlsl/glsl) to accept a position instead of getting it by itself (though that’s just <code>mul(iPos, iModelMatrix)</code> so not a big deal to get the bone transformed original position.</p>
+<p>You’d also need a helper to function to call CloneGeometries (ie. <code>void ForceMorphTargetsAlwaysOn() { CloneGeometries(); }</code>) to force the clone so your model is always setup as your shader expects to get that added semantic. Otherwise there’ll be a lot of plumbing involved to setup a new shader <span class="hashtag">#define</span> that says “<em>yo, I’ve got original position data too</em>”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>You can just write your base position e.g. like texcoord2 in your model on the disk, or during the load. I have some helpers to edit buffer contents, you can port them to your codebase if you wish.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3849_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Askhento</div>
+          <div class="post_content">
+<p>Where could I find helpers?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Wow, that’s so stupidly obvious I didn’t think about it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>In my fork I just modified <code>VertexBuffer</code> itself, but you can have these helpers as free functions, it shouldn’t be hard to copy-paste and adjust this code.</p>
+<p>You can try to make something from scratch, but I don’t think it would be faster. Also these helpers may just help you build your <code>Model</code>s easier in other scenarios.</p>
+<p>With this code you can easily read and write buffer data as array of Vector4-s, with <code>ShuffleUnpackedVertexData</code> you can “insert” or “remove” any vertex elements from these arrays.</p>
+<p>So the pseudocode would be:</p>
+<pre><code class="lang-auto">buf = vb-&gt;GetUnpackedData()
+// modify layout
+vertexElements = vb-&gt;GetElements()
+vertexElementsWithTexcoord2 = vertexElements + {TEXCOORD, 2};
+// make room for the new element
+Vector&lt;Vector4&gt; buf2;
+ShuffleUnpackedVertexData(buf, vertexElements, buf2, vertexElementsWithTexcoord2)
+// copy positions to newly allocated element Texcoord2
+buf2[...] = buf[...]
+// store results back
+vb-&gt;SetSize(..., vertexElementsWithTexcoord2)
+vb-&gt;SetUnpackedData(buf2)
+</code></pre>
+<aside class="onebox githubblob" data-onebox-src="https://github.com/***/***/blob/master/Source/Urho3D/Graphics/VertexBuffer.cpp#L307-L342">
+<header class="source">
+<a href="https://github.com/***/***/blob/master/Source/Urho3D/Graphics/VertexBuffer.cpp#L307-L342" rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/***/***/blob/master/Source/Urho3D/Graphics/VertexBuffer.cpp#L307-L342" rel="noopener nofollow ugc" target="_blank">***/***/blob/master/Source/Urho3D/Graphics/VertexBuffer.cpp#L307-L342</a></h4>
+<pre class="onebox">      <code class="lang-cpp">
+        <ol class="start lines" start="307" style="counter-reset: li-counter 306 ;">
+            <li>ea::vector&lt;Vector4&gt; VertexBuffer::GetUnpackedData(unsigned start, unsigned count) const</li>
+            <li>{</li>
+            <li>    if (start &gt;= vertexCount_ || count == 0 || !IsShadowed())</li>
+            <li>        return {};</li>
+            <li>
+            </li>
+<li>    // Clamp count to index buffer size.</li>
+            <li>    if (count == M_MAX_UNSIGNED || start + count &gt; vertexCount_)</li>
+            <li>        count = vertexCount_ - start;</li>
+            <li>
+            </li>
+<li>    // Unpack data</li>
+            <li>    const unsigned elementCount = elements_.size();</li>
+            <li>    const unsigned destStride = elementCount * sizeof(Vector4);</li>
+            <li>    ea::vector&lt;Vector4&gt; result(count * elementCount);</li>
+            <li>    for (unsigned i = 0; i &lt; elementCount; ++i)</li>
+            <li>        UnpackVertexData(GetShadowData(), vertexSize_, elements_[i], start, count, result.data() + i, destStride);</li>
+            <li>
+            </li>
+<li>    return result;</li>
+            <li>}</li>
+            <li>
+            </li>
+<li>void VertexBuffer::SetUnpackedData(const Vector4 data[], unsigned start, unsigned count)</li>
+        </ol>
+      </code>
+    </pre>
+
+
+  This file has been truncated. <a href="https://github.com/***/***/blob/master/Source/Urho3D/Graphics/VertexBuffer.cpp#L307-L342" rel="noopener nofollow ugc" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Crowd Navigation Performance</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Crowd Navigation Performance</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I made a new thread for this instead of posting in another one with a different topic.</p>
+<p>The issue I am having is when my ai reach there destination and huddle around their destination. The frame-rate starts to bomb depending on how many agents there are.</p>
+<p>About the ai used. They are the same model and all use the same animation. Not a whole bunch of different models and animations to rule out this as a bottle neck.</p>
+<p>Here is my code to spawn the ai. It is straight from the crowd navigation sample.</p>
+<pre><code>void CharacterDemo::SpawnZombie(const Vector3&amp; pos, Node* jackGroup)
+{
+
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+	SharedPtr&lt;Node&gt;jackNode(jackGroup-&gt;CreateChild("Jack"));
+	jackNode-&gt;SetScale(Vector3(0.025f, 0.025f, 0.025f));
+	jackNode-&gt;SetRotation(Quaternion(-90, Vector3(0, 1, 0)));
+	jackNode-&gt;SetPosition(pos);
+
+	AnimatedModel* modelObject2 = jackNode-&gt;CreateComponent&lt;AnimatedModel&gt;();
+	modelObject2-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/masterchief.mdl"));
+	modelObject2-&gt;ApplyMaterialList("Materials/zombie.txt");
+	modelObject2-&gt;SetCastShadows(false);
+	modelObject2-&gt;SetOccludee(true);
+	modelObject2-&gt;SetUpdateInvisible(false);
+
+	
+	handBoneNodeAI = jackNode-&gt;GetChild("right_hand_marker", true);
+
+	AnimatedModel* sword = handBoneNodeAI-&gt;CreateComponent&lt;AnimatedModel&gt;();
+	sword-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/plasma_sword.mdl"));
+	sword-&gt;ApplyMaterialList("Materials/plasma_sword.txt");
+
+	jackNode-&gt;CreateComponent&lt;AnimationController&gt;();
+
+ // Commented this out. This may be an issue as well. Not sure how else to apply an animation.
+
+    //	AnimationController* swordIdle = jackNode-&gt;CreateComponent&lt;AnimationController&gt;();
+    //	swordIdle-&gt;PlayExclusive("Models/combat_sword_idle.ani", 0, false, 0.5);
+
+
+    	Material* sentinel = cache-&gt;GetResource&lt;Material&gt;("Materials/zombie_armor.xml"); // Was tutorial ground material
+
+
+    	sentinel-&gt;SetTexture(TU_MULTI, multi);
+    	sentinel-&gt;SetTexture(TU_DETAIL, metalDirty);
+    	sentinel-&gt;SetTexture(TU_SHIELD, plasmaShield);
+
+    	//Color(0.122f, 0.537f, 0.122f, 1.0f)
+    	sentinel-&gt;SetShaderParameter("MatDiffColor", Color(0.25f, 0.25f, 0.25f, 1.0f));
+
+
+    	// Create a CrowdAgent component and set its height and realistic max speed/acceleration. Use default radius
+    	CrowdAgent* agent = jackNode-&gt;CreateComponent&lt;CrowdAgent&gt;();
+    	agent-&gt;SetHeight(1.0f);
+    	agent-&gt;SetMaxSpeed(7.0f);
+    	agent-&gt;SetMaxAccel(7.0f);
+    }
+</code></pre>
+<p>I have not tried weitjong idea yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I also tried <span class="mention">@weitjong</span> idea. Hopefully this is what he meant.</p>
+<pre><code>const unsigned NUM_ZOMBIES = 2;
+	for (unsigned i = 0; i &lt; NUM_ZOMBIES; ++i)
+	{
+		Node* zombie = scene_-&gt;CreateChild("Zombie");
+		zombie-&gt;SetScale(Vector3(0.025f, 0.025f, 0.025f));
+		zombie-&gt;SetRotation(Quaternion(-90, Vector3(0, 1, 0)));
+		zombie-&gt;SetPosition(Vector3(205.84f, 1.0f, -293.97f));
+
+		AnimatedModel* modelObject2 = zombie-&gt;CreateComponent&lt;AnimatedModel&gt;();
+		modelObject2-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/masterchief.mdl"));
+		modelObject2-&gt;ApplyMaterialList("Materials/zombie.txt");
+		modelObject2-&gt;SetCastShadows(false);
+		modelObject2-&gt;SetOccludee(true);
+		modelObject2-&gt;SetUpdateInvisible(false);
+
+
+		handBoneNodeAI = zombie-&gt;GetChild("right_hand_marker", true);
+
+		AnimatedModel* sword = handBoneNodeAI-&gt;CreateComponent&lt;AnimatedModel&gt;();
+		sword-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/plasma_sword.mdl"));
+		sword-&gt;ApplyMaterialList("Materials/plasma_sword.txt");
+
+		zombie-&gt;CreateComponent&lt;AnimationController&gt;();
+
+		AnimationController* swordIdle = zombie-&gt;CreateComponent&lt;AnimationController&gt;();
+		swordIdle-&gt;PlayExclusive("Models/combat_sword_idle.ani", 0, false, 0.5);
+
+
+		Material* zombie_armor = cache-&gt;GetResource&lt;Material&gt;("Materials/zombie_armor.xml"); // Was tutorial ground material
+
+
+		zombie_armor-&gt;SetTexture(TU_MULTI, multi);
+		zombie_armor-&gt;SetTexture(TU_DETAIL, metalDirty);
+		zombie_armor-&gt;SetTexture(TU_SHIELD, plasmaShield);
+
+		//Color(0.122f, 0.537f, 0.122f, 1.0f)
+		zombie_armor-&gt;SetShaderParameter("MatDiffColor", Color(0.25f, 0.5f, 0.25f, 1.0f));
+
+
+		// Create a CrowdAgent component and set its height and realistic max speed/acceleration. Use default radius
+		CrowdAgent* agent = zombie-&gt;CreateComponent&lt;CrowdAgent&gt;();
+		agent-&gt;SetHeight(1.0f);
+		agent-&gt;SetMaxSpeed(7.0f);
+		agent-&gt;SetMaxAccel(7.0f);
+
+	} 
+</code></pre>
+<p>I did see some improvement, but not a huge difference. The above code tries to split the agents instead of making them all one big group. Assuming I did it correctly.</p>
+<p>Here is a screenshot. Only 10 AI’s if they huddle at their destination the update stats climbs as high as 15 and 16. Frame-rate drops to the 40s.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screenshot_Sun_Jan_19_19_05_04_2020"><img alt="Screenshot_Sun_Jan_19_19_05_04_2020" data-base62-sha1="8OgIoAV1l2PAkgY3KFlLJUmw7OZ"  height="291" src="../../../images2/510a30821a6b55ba9bd48d0fce374815.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screenshot_Sun_Jan_19_19_05_04_2020</span><span class="informations">2560×1080 1.53 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>UPDATE: I just tested the urho3d crowd sample and spawn 10 of the default character. It has the same problem. Once the agents reach their destination and huddle there. The frame-rate plummets. I was getting 40 fps. This is all in debug mode though. I’m not sure if it goes away in release mode.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Pathfinding in general is an ‘expensive’ operation, so you should probably be using states to manage when it happens it a little better. If an agent doesn’t need to be actively seeking a path, it shouldn’t be seeking a path. When an agent is at or near its destination, disable it’s agent component so it doesn’t keep recalculating and moving or attempting to move. Last year, I did an ARPG for a game jam and was able to handle a couple hundred enemy mobs in a crowd, through mob state handling, disabling mobs that were too far away to need to act, disabling agent components of mobs that were near their approach target, etc…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@JTippetts</span> Great answer. I looked through the docs to see how to disable the agents once they get to their destination. I did not see anything on this. I had looked at this option in the past.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>For the crowd navigation demo you can press the ‘space’ key to toggle the debug geometry. If you do that you will know what I meant by agent not able to “settle down” as it cannot possibly reach its designated target position because it is overcrowded. Pay attention to the color of the debug geometry of the agent. Start with one agent and move it around and slowly increase the number to two, then three, and four. When you click to choose a target area, notice each agent got one spot assigned from the target area. But if the target area is too small then there bound to be overlapped and that’s when agent get stuck and not able to settle down.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Well, you can use the SetEnabled method at the Component level to enable/disable the crowd agent, however that has the effect of actually removing the agent from the crowd, which is fine for faraway agents, but probably not what you want to do for agents that are nearby. In the case of nearby agents, you can use CrowdAgent::ResetTarget() to reset the agent’s target, meaning it shouldn’t look for a path again until you call CrowdAgent::SetTargetPosition with a new position to path to. So if an agent is “close enough” to where it should be, call ResetTarget and it shouldn’t try to path until it needs to move again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@weitjong</span> I will take a look again. I did view it in debug mode. That may be one of the issues. I did notice they try to occupy one quad that is in the ground. I tried adjust some of the agent params, but nothing really changed.</p>
+<p><span class="mention">@JTippetts</span> I added this to the HandleCrowdAgentReposition event:</p>
+<pre><code class="lang-auto">if (arrived)
+{
+    agent-&gt;ResetTarget(); 
+    return;
+} 
+</code></pre>
+<p>This works, but I noticed the ai will start to randomly walk out to the edges of the navmesh. Looks kinda neat actually LOL. I I call agent-&gt;Remove(); It works great. Only downside is I can’t tell them to move to another location later because I removed the agent.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>If you use agent-&gt;SetEnabled(false) instead of Remove, then when you re-enable the agent component with SetEnabled(true) it gets re-added to the crowd. Otherwise, you remove the component entirely with Remove, and have to add/create another agent component to get it going again.</p>
+<p>AI randomly walking after you reset target sounds buggy. You might try calling agent-&gt;SetTargetVelocity with Vector3(0,0,0) to see if maybe it has some residual velocity that it shouldn’t have. To be extra safe, call SetTargetPosition() with the object’s current position, to ensure it doesn’t have a target position elsewhere, before you call ResetTarget(). This shouldn’t be necessary, but you just never know right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Okay so I tried some of the ideas posted. The setEnabled() does not seem to improve anything. I tried the rest target with velocity of zero. They do stay in place now. However not real performance increase. If I remove the agent my Update stats stay at their default ranges and no frame-rate bombs.</p>
+<p>If I choose to remove the agent what is the best way to add it back for them to move again?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>What hardware are you running on for this case?</p>
+<blockquote>
+<p>The setEnabled() does not seem to improve anything.</p>
+</blockquote>
+<p>It won’t, not for anything but the most extreme differences.</p>
+<blockquote>
+<p>If I choose to remove the agent what is the best way to add it back for them to move again?</p>
+</blockquote>
+<p>The agent position is on-nav-mesh, you can use that so long as it’s a real on mesh position. The multispace stuff is mostly bullshit.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="10" data-topic="5825" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<blockquote>
+<p>The setEnabled() does not seem to improve anything.</p>
+</blockquote>
+<p>It won’t, not for anything but the most extreme differences.</p>
+</blockquote>
+</aside>
+<p>Having never used the navigation stuff before, why would SetEnabled(false) result in different performance than removing the component? It seems to me they should be effectively the same except for memory usage.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>SetEnabled removes the agent from the crowd, the same as removing the component altogether. So in that respect, they’re essentially identical.</p>
+<p>Performance benefits from either are probably going to be fairly marginal. An agent with no target that is not walking amounts to a <code>continue;</code> inside the various loops in dtCrowd::update, so removing the agent altogether really only amounts to removing the small bit of overhead each agent adds to iterating the collection of agents, plus the overhead of steering calculations for moving agents that need to steer around them. However, for nearby agents, you want the agent to remain in the crowd, because that steering behavior is the whole point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@Sinoid</span> I’m not sure what you mean?</p>
+<p>I did see some benefits with the setenabled option. It was not as much as removing the agent.</p>
+<p>I don’t mind removing the agent. I just don’t know the most efficient way to re-enable it again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="12" data-topic="5825">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/3f264c270c82daf0485ab9380aad140b.png" width="20"/> JTippetts:</div>
+<blockquote>
+<p>SetEnabled removes the agent from the crowd, the same as removing the component altogether. So in that respect, they’re essentially identical.</p>
+</blockquote>
+</aside>
+<p>I don’t think that is true. I compared disabling it versus removing it, and removing the agent shows a noticeable difference. The Update stats in debug view return to normal range before the agents were used. However if I disable the agent once they reach their destination the stats seem to higher. Then if I later send the agents to a new destination once they arrive and the agent is disabled again the stats will start to climb up even more. Closer to the original problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>You might be right about that, I’m operating a lot on what <em>should</em> be the case, but since working on that ARPG project I haven’t really dug into it. CrowdAgent::OnSetEnabled() indicates that it adds/removes the agent from the crowd, so theoretically it should be about the same as removing the agent altogether, but I should know better than to operate on theoretically since I don’t actually know all the details that well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I appreciate the help.</p>
+<p>I just don’t know how to re-enable the agent after removal. Should I just recreate it again? I just feel like my methods are not very efficient.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Well, if you remove the CrowdAgent component then the only way is to re-create another agent component in its place. Remove() physically removes it from the node.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Yes I know. My thoughts are what is the most efficient way to recreate the agent again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p><span class="mention">@GodMan</span> some of what you describe could be an agent leak. Do you have any obvious artifical holes in your crowds like there’s some sort of empty void they refuse to enter?</p>
+<p>Crowds are never expected to perform well past 100 agents, that’s the generic engine trade-off for the amount of events Urho raises (which is far too many). If you need to do something like Dynasty-Warriors/KUF then you need to roll it yourself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@Sinoid</span> I am not using a large number of agents. I think maybe 15 at most.<br/>
+When you say void. Do you mean does the mesh that is used to generate the navmesh have holes? Meaning holes that were designed into the mesh?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@Sinoid</span> I thought about this. Would that assumption be wrong though? It has the same problem in the demo that ships with Urho. If you have lets say 12 - 15 agents. The frame-rate bombs just like the issue I am having. If I remove the agent once they reach their destination everything is fine.</p>
+<p>I believe the demo mesh is just a simple plane.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>I don’t think that removing or disabling agents is a good solution - let’s take for an example situation where You don’t need to move whole crowd, but only some selected agents and since You’ve removed others, they won’t be used in path calculation, so You’ll loose collision avoidance with them.<br/>
+Another thing is that adding/removing components (agents) on every move/stop will trigger lot of ‘component added’ ‘component removed’ events which will also affect performance with bigger number of agents. If don’t care much about avoidance, You can try setting navigation pushiness of agents to none - this should help with a problem with agents not being able to reach their destination, yet still - only to some point - they will avoid eachother when moving.<br/>
+Finally, 12-15 agents seems extremely low, so I must ask the obvious - are You having this problem in release build? Because there is a big difference in crowd performance between debug and release.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@lezak</span> I stated in an earlier post that I have not tested this issue in release mode. I have been testing the add and remove component and it’s been working great. What I do is set this on a delay so Urho does not add or remove the component each loop.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>You really need to do your performance testing in release mode.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I plan on testing it soon.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>I suggest doing it before you do anything else to try to fix your problem. It’s hard to overstate how important it is, because there can be a LOT of perf-stealing bullshit added to a debug build.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Okay. I will post here with results.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Okay so I compiled in release mode and tested the crowd navigation sample. Everything seems rock solid. The update stats got to only 2.0 and then goes back down. Frame-rate never budged. Guess all my issues were debug info. I spawned 15 of them no issues. Did not even drop one frame. <img alt=":smile:" class="emoji" src="../../../images2/6c96d67462c17dd73ef2e4b512b2dc07.png" title=":smile:"/> <img alt=":smile:" class="emoji" src="../../../images2/6c96d67462c17dd73ef2e4b512b2dc07.png" title=":smile:"/> <img alt=":smile:" class="emoji" src="../../../images2/6c96d67462c17dd73ef2e4b512b2dc07.png" title=":smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Yeah, debug build will do that. Debug builds are super slow, this explains why your issues felt so weird.</p>
+<p>I strongly recommend that you use <code>RelWithDebInfo</code> builds for everything except deployment.</p>
+<p>That tends to be good enough for 75% of debugging.</p>
+<p>Sometimes you’ll get garbage info from the debugger you can then wrap the functions that are problems with <code>#pragma optimize("", off)</code> and <code>#pragma optimize("", on)</code> to see them in full debug-build detail.</p>
+<p>Or just wrap the whole .cpp file staring from inside the namespace.</p>
+<p>Here’s an example of what I mean from my render-library (see how the function is wrapped in <span class="hashtag">#pragma</span>):</p>
+<pre><code class="lang-auto">#pragma optimize("", off)
+void DX11StateCache::SetBlendState(ID3D11BlendState* s)
+{
+	if (s == blendState_)
+		return;
+
+	blendState_ = s;
+	float blendFactor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	device_-&gt;GetD3DContext()-&gt;OMSetBlendState(s, blendFactor, 0xFFFFFFFF);
+}
+#pragma optimize("", on)
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

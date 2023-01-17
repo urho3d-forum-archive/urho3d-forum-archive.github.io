@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Use Skybox material as reflection source</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Use Skybox material as reflection source</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>Is it possible to use the Skybox material as the environment map for reflective materials? Ideally this would also work with the PBR pipeline. My understanding is that currently only a TextureCube resource can be used - and in the case of PBR, only the texture cube associated with the Zone is used.</p>
+<p>My goals is just interact with the Skybox material (say, something like this):</p>
+<p><img height="396" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/19febbe260deee27c58d67e55888a7c85306d55a.jpg" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>For instance, in the “ForwardDepth” render path, it looks like the viewport is being sampled for a pass called “Refract”. I don’t know what that does, but it seems close-ish to what I’m after…</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="depth" sizedivisor="1 1" format="lineardepth" /&gt;
+    &lt;command type="clear" color="1 1 1 1" depth="1.0" stencil="0" output="depth" /&gt;
+    &lt;command type="scenepass" pass="depth" output="depth" /&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+    &lt;command type="scenepass" pass="postopaque" /&gt;
+    &lt;command type="scenepass" pass="refract"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+&lt;/renderpath&gt;
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>Kind of getting the idea now…</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="pGPO16j-IFM" data-youtube-title="IOGRAM: Screen space reflections"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>So, rather than using some kind of screen space hack, I wrote a reflection probe component. This ties in beautifully with the existing PBR pipeline. Check it out:</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="01OzZ-pSkV0" data-youtube-title="IOGRAM: Reflection Probe"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Nice! Is there any slowdown it is hard to say from the video?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<blockquote>
+<p>Nice! Is there any slowdown it is hard to say from the video?</p>
+</blockquote>
+<p>I haven’t run the profile on this, but qualitatively, no noticeable performance hit. I’m using 1024 px^2 for each cube face, which might not be optimal on all platforms/hardware configs.</p>
+<p>Also, I haven’t totally figured out the question of when to update the reflection probe. If nothing is changing, then it is overkill to update every from or even on a fixed update loop. Also, you might just want to have this in the editor and bake the probe to a texture on disk…For now, I’ve just implemented an Update() function that I have tied in to my specific use case.</p>
+<p>I was thinking of doing a PR for this - would it be useful to anyone else?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><em>Very</em> nice<br/>
+For less-shiny (or smaller) objects you wouldn’t need as high a resolution since it gets blurred anyway, but this would still make the objects fit really nice into the environment.<br/>
+And I guess it would need some interpolation to work well on moving objects?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>Too much fun:</p>
+<p><img height="359" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/307fc7dd7900e7a5ae83cf62c6436bf041d5a433.jpg" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3007_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cmd</div>
+          <div class="post_content">
+<p>I’ve been pondering implementation of a reflection probe component for Urho3D (something like what you get builtin to Unity) So, I would love to see a PR for this, or at least a look at your code? I could help with testing and tweaks if you wanted to try and make a PR out of it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>Sure, here you go: <a href="https://github.com/MeshGeometry/IogramSource/blob/master/Components/ReflectionProbe.cpp" rel="nofollow noopener">https://github.com/MeshGeometry/IogramSource/blob/master/Components/ReflectionProbe.cpp</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3007_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cmd</div>
+          <div class="post_content">
+<p>Excellent. Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3007_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cmd</div>
+          <div class="post_content">
+<p>Seems to be working well for me. Thank you again.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="ReflectionProbeTest"><img alt="ReflectionProbeTest" data-base62-sha1="1ggMk4DYXP0uXTWVKMZhnGWDKwu"  height="500" src="../../../images2/8942d5510ffb5016c539a1d26a66d03d.png"  width="682"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">ReflectionProbeTest</span><span class="informations">1053×771 175 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3007_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cmd</div>
+          <div class="post_content">
+<p>Sorry for bumping this conversation again a year later, but I was wondering if anyone had any ideas about fixing a reflection scaling issue when using this probe technique.</p>
+<p>I’m using it to simulate mirrors in a scene, and while I can see that the technique can only ever be an approximation of a real reflection, I noticed that in Unity, the reflection probe has a option for “box projection” which seems to help a lot in making scale in reflections look more correct.</p>
+<p>More info here:</p><aside class="onebox allowlistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/422034f4fc4836fad9916dcd86b1e3e4.ico" width="32"/>
+<a href="https://docs.unity3d.com/Manual/AdvancedRefProbe.html" rel="noopener nofollow ugc" target="_blank">docs.unity3d.com</a>
+</header>
+<article class="onebox-body">
+<div class="aspect-image" style="--aspect-ratio:690/362;"><img class="thumbnail" height="362" src="../../../images2/ee6d54e487e4d2b8b0bb55b57e44058d.jpg" width="690"/></div>
+<h3><a href="https://docs.unity3d.com/Manual/AdvancedRefProbe.html" rel="noopener nofollow ugc" target="_blank">Unity - Manual: Advanced Reflection Probe Features</a></h3>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>So, I’m wondering about the feasibility of implementing something like this for Urho, but I’m feeling a bit out of my depth. Would this need some work at the shader level to implement?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

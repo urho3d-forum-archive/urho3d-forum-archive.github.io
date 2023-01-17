@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Add_subdirectory() revised</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Add_subdirectory() revised</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>I gave another stab at supporting <code>add_subdirectory()</code> and this time i got it working to the point where CI builds are green and SDK installation works.</p>
+<p>It is not perfect though. This is sample project:</p>
+<pre><code class="lang-auto"># We can use our own project name as one would expect
+project(Urho3DAsLibraryExample)
+
+# Add game engine to the project.
+add_subdirectory(Urho3D)
+# Still need to append module path so UrhoCommon can be found
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/Urho3D/CMake/Modules)
+# This is required, but once engine build system start properly using target_include_directories() / target_compile_options() / target_link_libraries() this should be no longer needed.
+find_package(Urho3D REQUIRED)
+
+set(SOURCE_FILES main.cpp)
+add_executable(Urho3DAsLibraryExample WIN32 ${SOURCE_FILES})
+target_include_directories(Urho3DAsLibraryExample PRIVATE ${URHO3D_INCLUDE_DIRS})
+target_link_libraries (Urho3DAsLibraryExample ${URHO3D_LIBRARIES} -lpthread)
+</code></pre>
+<p>Code: <a href="https://github.com/***/Urho3D/tree/add_subdirectory" rel="nofollow noopener">https://github.com/***/Urho3D/tree/add_subdirectory</a><br/>
+CI build: <a href="https://travis-ci.org/***/Urho3D/builds/275409253" rel="nofollow noopener">https://travis-ci.org/***/Urho3D/builds/275409253</a></p>
+<p><span class="mention">@weitjong</span> does this have a chance to be accepted now?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks for your work. I have a quick glance on the commit and see the majority of the changes are just the variable replacement. So, my answer is the same like last time. If it was just this replacements, we would have done it long time ago.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Of course majority of changes are just variable replacements, because in context of parent project <code>CMAKE_SOURCE_DIRECTORY</code> is no longer valid, however it is not just variable replacements. I took time to make sure everything works in all cases of engine build, which was not the case after just replacing variables. Building some tools as native when crosscompiling works. SDK installation and detection works. Embedding engine as subproject works. It is true that build system is not in a shape we would all prefer, but is this not a good stepping stone towards that direction? Last time we were discussing this matter problem was clear: SDK builds were broken. Since now nothing is broken could you please clarify actual reason why this cant be merged?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Of course I also see you made other changes but my view is the same. More work is needed. You may not take my words for it and submit the PR and let other core devs to review it. I will take no part with this review again as I already did.</p>
+<p>Do not get me wrong. We really would like to support that use case officially. However, I would rather to say our build system does not support it than to have a half-baked support for it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote" data-post="1" data-topic="3563">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c74e1d6abd7187cdd2f8199c8cfb922b.png" width="20"/> rku:</div>
+<blockquote>
+<p>target_link_libraries (Urho3DAsLibraryExample ${URHO3D_LIBRARIES} -lpthread)</p>
+</blockquote>
+</aside>
+<p>Ideally this line should just be</p>
+<p><code>target_link_libraries (your-target Urho3D)</code></p>
+<p>And CMake would automatically transitively add all the dependencies needed by Urho to your target regardless of the platform. On Linux it may be <code>pthread</code>, but on macOS it may be a list of Apple frameworks, and so on. If you can achieve that then I will say it is ready.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Indeed, I will try to get other things cleared up, primary target being getting rid of <code>define_dependency_lib()</code> as you said in your previous discussion. Solving this would make <code>find_package()</code> obsolete in this situation as well.</p>
+<p>I could use some guidance too. Seems like AppVeyor is once again stuck on following:</p>
+<blockquote>
+<p>setup_test (NAME ExternalLibAS OPTIONS Scripts/12_PhysicsStressTest.as -w)</p>
+</blockquote>
+<p>Could you tell me how exactly this sample is supposed to exit? Because i can see nothing in script that would quit sample after certain period of time. Also how do i setup testcase that AppVeyor is trying to run? I can see <code>CMakeLists.txt</code> content in <code>Rakefile</code>, but what source files are used for the test? I cant really tell that from ruby script.</p>
+<p>Edit:<br/>
+Also what should be the strategy to detect system link libraries in SDK builds that are not based on CMake?<br/>
+Doing that through <code>add_subdirectory()</code> is easy because CMake takes care of it.<br/>
+Doing that through pkg-config is easy because we can write libs to <code>LDFLAGS</code> in <code>Urho3D.pc</code>.<br/>
+No idea what to do with this in case of using CMake without pkg-config.</p>
+<p>Edit:<br/>
+Maybe <code>FindUrho3D.cmake</code> could import libs/defines/includes from generated pkg-config script?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote" data-post="6" data-topic="3563">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c74e1d6abd7187cdd2f8199c8cfb922b.png" width="20"/> rku:</div>
+<blockquote>
+<p>Could you tell me how exactly this sample is supposed to exit?</p>
+</blockquote>
+</aside>
+<p>In our CI build we simply turn on the URHO3D_TESTING build option. The engine is rigged internally when that build option is turned on whereby it auto-exits when a predefined time out period has been reached after the first frame is rendered.</p>
+<p>We should not depends on pkg-config. The Urho3D.pc is a by-product only.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote" data-post="7" data-topic="3563">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>We should not depends on pkg-config. The Urho3D.pc is a by-product only.</p>
+</blockquote>
+</aside>
+<p>What then? I asked on CMake irc channel and there is no sane way of defining dependency libs automatically in <code>FindUrho3D.cmake</code> script other than defining these libs in there, which means having them defined in two places. Should build system write relevant information to a text file and store it in SDK for <code>FindUrho3D.cmake</code> to read it? It would be same thing as using pkg-config, except more code would have to be written and maintenance burden would increase. Using pkg-config appears to be working though, you can peek at <a href="https://travis-ci.org/***/Urho3D/builds/275876255" rel="nofollow noopener">CI builds</a> going green. I do agree it is not an ideal solution, but i can not think of better one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>As you already pointed out not all platform has pkg-config tool support, so that alone is pretty much ruling it out as the base for the configuration. All I can tell you is that, I won’t go that route. It is difficult for me to elaborate what my solution will/would be, plus I may not have all the answers until I am actually there to tackle it. Having said that, my way of solving the problem may or may not actually work. So rather than telling you what then, it may be more beneficial to have you trying to tackle the problem from your own (fresh) idea. In short, take my comment with a pinch of salt. I will be happy to be proven wrong. The truth is, I am also searching for my successor for the build system maintainer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Hey <span class="mention">@weitjong</span> i think you may be interested in seeing this. I probably got a little bit carried away here… but instead of fixing old build system i just rewrote build scripts. Figured it would be easier just to write lean and mean build than taming behemoth that current build system is. It sure does not have macos/ios/android/angelscript/lua/tests/other bells and whistles, but i got CI builds for linux/mingw/msvc going and at least android should not be too much of a problem. Your work on current build system was a great inspiration as well as how-to guide. As it is now it totally is not PR-able, but maybe you can see something useful in there.</p>
+<p><aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/25ecd8dd3459b5cab7d3b9e1dfc2e6c0.ico" width="32"/>
+<a href="https://github.com/***/Urho3D/tree/build-system" rel="nofollow noopener" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="400" src="https://avatars0.githubusercontent.com/u/19151258?s=400&amp;v=4" width="400"/>
+<h3><a href="https://github.com/***/Urho3D/tree/build-system" rel="nofollow noopener" target="_blank">***/Urho3D</a></h3>
+<p>[Unofficial] Urho3D fork focused on code first.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+<a class="onebox" href="https://travis-ci.org/***/Urho3D" rel="nofollow noopener" target="_blank">https://travis-ci.org/***/Urho3D</a><br/>
+<a class="onebox" href="https://ci.appveyor.com/project/***/urho3d" rel="nofollow noopener" target="_blank">https://ci.appveyor.com/project/***/urho3d</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Well done. I don’t have time to study all the build scripts but at a glance I can tell they are definitely different. I spotted a few concerns though. Mostly due to hard-coded path that looks to me to be too *nix specific. If you have followed our GitHub issue tracker then you may already know that I too have planned to rewrite (modernize) our existing build scripts and jump the minimum version to 3.8.2 (to take the advantage of the CMake C++11 compiler feature support). Having said that, I found I have no time nor energy/health/stamina to keep going or simply because I chose to pursuing other thing that interests me more in my free time. So, I will encourage you to continue what you have started. Who knows you can make your build system works for all the Urho3D supported platforms sooner or better than me. When I have time to pick up this again, I will definitely come back to check out your work again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>I took another stab at this problem and i am like 99% there. Last remaining issue is appveyor getting stuck with script tests when testing SDK builds. These tests do not time out properly. This only happens on windows. On linux very same builds time out properly.</p>
+<p><s><span class="mention">@weitjong</span> any idea where i could look for a problem? Seems like i checked it all - verified that windows CI builds build with <code>URHO3D_TESTING</code> and that timeout variable is set when doing scaffolding test build… I am stuck.</s></p>
+<p>Actually i just figured out why it fails. Will be done with this soon <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>Definitely looking forward to this - nice work!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>Me too! Thanks a lot.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Just in case anyone wants to stalk the progress: now that CI builds are green i submitted a <a  rel="nofollow noopener">PR</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

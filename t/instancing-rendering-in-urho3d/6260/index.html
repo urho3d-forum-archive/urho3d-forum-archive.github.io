@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Instancing rendering in Urho3D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Instancing rendering in Urho3D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>I’ve been trying to implement <a href="https://github.com/fstrugar/CDLOD/blob/master/cdlod_paper_latest.pdf" rel="nofollow noopener">CDLOD Terrain Algorithm</a> in Urho3D engine.</p>
+<p>I finished the QuadTree and LOD node selection part, and it works as expected.<br/>
+I created a single grid mesh of fixed dimensions and set it into vertex buffer.<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="waIiyrD5dJlFfaBihxMPgU5RKMY"  height="500" src="../../../images2/5ac93cab8429e2a612aed482df875d0c.png"  width="673"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2028×1506 307 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>The next step is to “duplicate” this grid mesh vertices in vertex shader, scale and translate it to fill all the square areas.<br/>
+<strong>Now I have some difficulties in understanding how to do that in Urho3D.</strong></p>
+<p>I guess I should use <a href="https://learnopengl.com/Advanced-OpenGL/Instancing" rel="nofollow noopener">Instancing</a> for such task. For example, I can add <code>scale</code> and <code>translation</code> variables in <code>vertex shader</code>.</p>
+<pre><code class="lang-auto">uniform vec3 translation;
+uniform float scale;
+...
+// then in main()
+WorldPosition = scale*position + translation;
+float height = getHeight(WorldPosition.xz);
+...
+</code></pre>
+<p>Then set those two variables differently for each of the square terrain area (as each separate instance).</p>
+<p>But I am not sure how to implement it in Urho3D framework. For example, I noticed there is <code>Graphics::DrawInstanced()</code> method using the instancing technique I mentioned, and that function is called by <code>BatchGroup::Draw()</code>. I also noticed there is <code>instancingData_</code> for <code>Batch</code> class. But I don’t see examples using similar things.</p>
+<p><em>BTW: I checked Samples and found <code>20_HugeObjectCount</code> is using <code>StaticModelGroup</code> and clone lots of static model for similar things. But I guess that’s probably not what I want.</em></p>
+<p>Any help or sample code I could follow?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>Hi urho, this steps allow me to use instance rendering and pass data to each instance.<br/>
+First setup the renderer</p>
+<blockquote>
+<pre><code>Renderer* renderer = GetSubsystem&lt;Renderer&gt;();
+renderer-&gt;SetNumExtraInstancingBufferElements(1);
+renderer-&gt;SetMinInstances(1);
+</code></pre>
+</blockquote>
+<p>Inherit from Drawable (here you create the vertex/index buffers) and set</p>
+<blockquote>
+<pre><code>batches_[0].geometryType_ = GEOM_INSTANCED;
+</code></pre>
+</blockquote>
+<p>Override UpdateBatches and set instance data</p>
+<blockquote>
+<pre><code>unsigned offset = 0;
+unsigned char* instanceData = static_cast&lt;unsigned char*&gt;(batches_[0].instancingData_);
+for(unsigned i = 0; i &lt; numWorldTransforms_; i++)
+{
+    // transform
+    Matrix3x4 transform(Matrix3x4::IDENTITY);
+    transform.SetTranslation(*worldTransform * vertexOffset_[i]);
+    worldTransforms_[i] = transform;
+
+    // color is passed as instanced
+    memcpy(instanceData + offset, color.ToVector4().Data(), sizeof(Vector4));
+    offset += sizeof(Vector4);
+}
+</code></pre>
+</blockquote>
+<p>Add your atribute to (here is iTexCoord7) CoreData/Shaders/GLSL/Transform.glsl</p>
+<blockquote>
+<pre><code>#ifdef INSTANCED
+attribute vec4 iTexCoord4;
+attribute vec4 iTexCoord5;
+attribute vec4 iTexCoord6;
+attribute vec4 iTexCoord7;
+#endif
+</code></pre>
+</blockquote>
+<p>Finally had to make some modification to Batch.h, without this the same value<br/>
+is passed to all instances</p>
+<blockquote>
+<pre><code>void AddTransforms(const Batch&amp; batch)
+{
+    InstanceData newInstance;
+    newInstance.distance_ = batch.distance_;
+
+    unsigned char* buffer = static_cast&lt;unsigned char*&gt;(batch.instancingData_);
+    if(!buffer)
+    {
+        newInstance.instancingData_ = batch.instancingData_;
+    }
+
+    for (unsigned i = 0; i &lt; batch.numWorldTransforms_; ++i)
+    {
+        newInstance.worldTransform_ = &amp;batch.worldTransform_[i];
+        if(buffer)
+        {
+            newInstance.instancingData_ = buffer + sizeof(Vector4) * i;
+        }
+
+        instances_.Push(newInstance);
+    }
+}</code></pre>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">coldev</div>
+          <div class="post_content">
+<p>no mans sky URHO <img alt=":star_struck:" class="emoji" src="../../../images2/3db20d81aaa73bdfad511ff22f443618.png" title=":star_struck:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Thanks extobias!</p>
+<p>Generally, your solution makes sense to me. It looks similar to <a href="https://urho3d.github.io/documentation/HEAD/_rendering.html" rel="nofollow noopener">Defining extra instancing data</a> section in the Urho3D documentation.</p>
+<p>Although I haven’t figured out all the details for this implementation, which I could ask you later. <em>(I am having some difficulties so I may need to look at all code for a fully running example.)</em></p>
+<p>On the other hand, <strong>I feel there should be a simpler solution for my particular question. Because I don’t need extra instance data, all I need is a different world_transform for each piece of terrain square.</strong><br/>
+For example, I believe all I need is just to set the correct <code>batch[0].worldTransform_[i]</code> for <code>terrain[i]</code>, and set <code>batch.numWorldTransform_ = total number of terrains</code>. This should be very similar to how <code>StaticModelGroup</code> is used in <code>20_HugeObjectCount</code> example.</p>
+<p>I tried the following method:<br/>
+First set the vertex buffer for a single geometry as before</p>
+<pre><code class="lang-auto">  batches_[0].geometry_ = geometry_;
+  batches_[0].geometryType_ = GEOM_INSTANCED;
+
+  ...  // calculate vertex buffer and index buffer...
+
+  geometry_-&gt;SetIndexBuffer(indexBuffer_);
+  geometry_-&gt;SetVertexBuffer(0, vertexBuffer_);
+  geometry_-&gt;SetDrawRange(TRIANGLE_LIST, 0, indices.Size(), 0, total_vertices);
+
+  vertexBuffer_-&gt;Unlock();
+  vertexBuffer_-&gt;ClearDataLost();
+</code></pre>
+<p>Then set basic material for <code>batches_[0]</code>. I assume I only need just one <code>batch</code> with many <code>worldTransforms_</code>.</p>
+<pre><code class="lang-auto">  auto *cache = GetSubsystem&lt;ResourceCache&gt;();
+  batches_[0].material_ = (cache-&gt;GetResource&lt;Material&gt;("Materials/CdlodTerrain.xml"));
+  batches_[0].material_-&gt;SetCullMode(CullMode::CULL_NONE);
+  
+  // Testing, just manually add several world_transforms_.
+  world_transforms_  = {
+      Matrix3x4(Vector3(0, 0, 0), Quaternion::IDENTITY, 1.f),
+      Matrix3x4(Vector3(0, 0, 50 * kLengthPerPixel), Quaternion::IDENTITY, 1.f),
+      Matrix3x4(Vector3(50 * kLengthPerPixel, 0, 0), Quaternion::IDENTITY, 1.f),
+      Matrix3x4(Vector3(50 * kLengthPerPixel, 0, 50 * kLengthPerPixel), Quaternion::IDENTITY, 2.f),
+  };
+  batches_[0].numWorldTransforms_ = world_transforms_.Size();
+  batches_[0].worldTransform_ = &amp;world_transforms_[0];
+</code></pre>
+<p>Finally override the <code>UpdateBatches()</code> function to empty to avoid override <code>batches_[0].worldTransform_</code>.</p>
+<p>But this is not working for me. I can still only see one piece of mesh grids.</p>
+<p>I was following the example in <code>StaticModelGroup</code> and <code>20_HugeObjectCount</code>. The key point there I noticed, is to have a vector of different <code>worldTransform_</code>. But I could not figure how those <code>worldTransform_</code> data is passed to shader to render multiple object with same material but only different positions.</p>
+<p><em>Nit: I only started to learn all the 3D rendering pipeline very recently so it’s still hard for me to understand the low level Urho3D code without enough examples and documentation.</em></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>For this scenario, if the grid is being generated every frame, instancing may not be the best (performance) option, since you have to send to the graphics device a large number of matrices every frame.<br/>
+I think a better way (both in terms of performance but also simplicity) would be to generate the vertices you need for each square area based on the height field and grid spacing (avoiding if possible any matrix operations at all) all in one dynamic/custom mesh on the CPU and then upload the vertex data to the CPU.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>The mesh grid is only generated once and uploaded to GPU, with a planar structure.<br/>
+It’s identical for all terrain pieces, only with different scale (2^n) and translation.<br/>
+The height data is obtained during vertex shader stage and applied with vertex displacement.<br/>
+That’s the key for CDLOD to render huge terrain in real time.</p>
+<p>All the code above I mentioned, is only run for once, not per frame.<br/>
+Only the scale and translation data is calculated per frame, which is minimal (only Matrix3x4).</p>
+<p>A simplified pseudo code is:</p>
+<pre><code class="lang-auto">void Initialize() {
+  // calculate vertex buffer, index buffer
+  // assign to geometry and upload to GPU
+}
+
+void UpdatePerFrame() {
+  SelectLodForEachTerrainNodeFromQuadTree();
+  // Then pass the "scale" and "translation" variables for each terrain node to GPU.
+  // GPU uses instancing to render each terrain with given initial vertex structure and "scale" &amp; "translation".
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>BTW, I am getting things working by simply using a custom version <code>StaticModelGroup</code> for a quick demo test. I am going to dig deeper following this path.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="lVv31yp6YlafUwk4KPH1AueYE13"  height="500" src="../../../images2/8735c197843e6015190350ecdf270dd2.png"  width="673"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2038×1512 1.35 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>I roughly got it work.<br/>
+I am using exactly the same method I mentioned <a href="https://discourse.urho3d.io/t/instancing-rendering-in-urho3d/6260/4">above</a>.<br/>
+I have no idea why it did not work in the first place.</p>
+<p>There are total 7 LOD levels, box colored by: red -&gt; green -&gt; blue -&gt; yellow -&gt; magenta -&gt; cyan -&gt; red.<br/>
+Roughly ~70 FPS on my 2014 MacBook (the fps in the screenshot is lower due to switch to other application for the screenshot).</p>
+<p>I applied a simple vertex color according to the height.</p>
+<p>The next step is to do the morphing between different LOD neighbors.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="zDr0hljpzcaUHD5DjvhSHiKFGnU"  height="500" src="../../../images2/45f7a22f7ca82fee4c34f1b31c082760.png"  width="680"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2058×1512 2.2 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="fyL3uEKa0FEChrf9SbkXaQiDh9i"  height="500" src="../../../images2/770852d6f3804caf8d7f4b374ac1a64e.png"  width="677"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2042×1508 2.87 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="rJGVpjBAKDOdn8TJmFgIjg8cnTx"  height="500" src="../../../images2/f7115ac41982078d3808ba0d99d8c5cc.png"  width="679"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2048×1508 2.4 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="hA3IhviOM0HxoZXxf11pKyR5fuk"  height="500" src="../../../images2/63c7877803a6727f27dfe994c0366b4a.png"  width="677"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2052×1514 2.66 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>Sorry, I should have read the article and understood better what you are trying to do before jumping in with (the possibly wrong) advice <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/>.</p>
+<p>However, I did do some investigation into how instancing works (in general, not Urho specific) and I was broken hearted <img alt=":broken_heart:" class="emoji" src="../../../images2/2136a3c7c1e2051efcf347a6f9c19e0b.png" title=":broken_heart:"/> to discover that instancing is not the silver bullet solution to all my rendering problems as I naively thought, and in fact, it only improves performance in only some (rather rare) circumstance and in the wrong circumstance it can actually make rendering slower.</p>
+<p>I’m interested in your terrain rendering algorithm (though I don’t have much time for it now, but plan to look at it later), how do you calculate the vertex normals, also in the shader? (Or do you not need normals for your specific game right now?)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>No worry <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>Just wondering, what kind of rendering problem are you trying to solve that could not be improved by instancing?<br/>
+For my terrain problem, it’s working great as those papers demonstrated. From my limited understanding, if there are lots of meshes that use the same vertex structure, vertex order, index buffer, etc, but only have small difference. Then it could be improved by instancing. Though I don’t know how much improvement it has compared to batching all geometry in a single draw call. I believe you’ve done enough research or someone with more knowledge could understand all these questions.</p>
+<p>As for my vertex normals, that would be the next question for me after morphing is done. I’d happy to try to do it in the shader first. Partly because I’d like to see things on-the-fly without degrading performance, since it would be more flexible for later changes; Also I’d like to educate myself with such an example. I am not an expert on 3D rendering but found it’s super interesting so I started to learn it through my project recently.<br/>
+But I am not super worried about the normal map itself, since I can always pre-compute it and store it in the GPU as the texture. It’s just a tradeoff between memory and real time latency.<br/>
+However, I do vision lots of similar questions waiting ahead. For example,</p>
+<ul>
+<li>What if I want to procedurally generate more detailed terrain for a small area? e.g. from the strategy map to combat map.</li>
+<li>What if I want procedurally generated vegetation? according to a rough (low resolution Google vegetation map). Also what about those trees, flowers, etc.</li>
+</ul>
+<p>I read some posts and game dev slides about those fancy open world implementation. It’s not practical for a personal project like mine. But I would like to explore the power of procedurally generation for most everything.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

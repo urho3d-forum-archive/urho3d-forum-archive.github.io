@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Save custom geometry to obj format</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Save custom geometry to obj format</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Is there currently any way of saving custom geometry to file? For example to obj format? So far I can think only of using Assimp.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Try WriteDrawablesToOBJ() function in Drawable.h.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I am getting empty object if I call it from the Drawable itself. What would be the correct way? This is my code called from inside a custom drawable.</p>
+<pre><code>PODVector&lt;Drawable*&gt; drawables;
+drawables.Push(this);
+String path = "/test.obj";
+SharedPtr&lt;File&gt; file = SharedPtr&lt;File&gt;(new File(context_, path, FILE_WRITE));
+WriteDrawablesToOBJ(drawables,file,false,false);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Recommend debugging inside the function. It does IsEnabledEffective() check right in the start, which could result to no output if the drawable / its node is not enabled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>It is enabled I am drawing RibbonTrail and I have the above code assigned to a hotkey, trying to capture the resulted geometry for debugging. I made my own copy of RibbonTrail and I am calling the code from inside passing this pointer as a drawable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The drawable write will only work on geometries whose buffers have CPU-side shadow data enabled, like ordinary models. RibbonTrail does constant dynamic regeneration, so for it it would be just a performance &amp; memory hog.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I understand it would be slow but I want to capture just a static state at one frame. How can I modify and copy the data in order to save it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You could maybe go through the Drawable’s Geometries, and the Vertex / IndexBuffers it uses, and call SetShadowed(true) on all of them. The next update would then copy the vertex/index data also to main memory for capture. I don’t promise this will work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>It works partially, but the data is a bit scrambled every corner of the triangle is collapsed to a single point. When I import the obj I am getting a line where multiple points lie on top of each other.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Part of the work in getting e.g. ribbontrails and billboards to render correctly is in the vertex shader. Therefore just a dump of the vertex data, interpreting positions as just positions and multiplying them with the object’s model matrix, isn’t necessarily going to work 100%.</p>
+<p>It would be the same with skeletal animation - Urho doesn’t contain CPU skinning code at all and relies on the vertex shader, so you couldn’t dump an AnimatedModel in its actual pose.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks cadaver. Can you point me to the GLSL code doing this? I can’t find any relevant code, It is just using the Unlit shader.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The actual vertex transform happens sort of “behind the scenes”, as the iModelMatrix is actually a macro and does magic depending on geometry type. Every shader including Unlit typically does mat4 modelMatrix = iModelMatrix; What actually happens, check Transform.glsl, from about line 147 onward.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I see is it using the TANGENT in the shader for the transformation? Is there any benefit of doing this in the shader?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>As I understand it, Billboard (for instance) packs a rotation matrix in the vertex buffer, which is possible because a bunch of added space has been added via setting the TEXCOORD flags.</p>
+<pre><code class="lang-auto">            float rotationMatrix[2][2];
+            SinCos(billboard.rotation_, rotationMatrix[0][1], rotationMatrix[0][0]);
+            rotationMatrix[1][0] = -rotationMatrix[0][1];
+            rotationMatrix[1][1] = rotationMatrix[0][0];
+
+            dest[0] = billboard.position_.x_;
+            dest[1] = billboard.position_.y_;
+            dest[2] = billboard.position_.z_;
+            ((unsigned&amp;)dest[3]) = color;
+            dest[4] = billboard.uv_.min_.x_;
+            dest[5] = billboard.uv_.min_.y_;
+            dest[6] = -size.x_ * rotationMatrix[0][0] + size.y_ * rotationMatrix[0][1];
+            dest[7] = -size.x_ * rotationMatrix[1][0] + size.y_ * rotationMatrix[1][1];
+</code></pre>
+<p>Then, GraphicsDefs.h exposes some enums (FC_DIRECTION,etc) that are then handled in Transform.glsl.</p>
+<p>IMO, it is pretty clever to use the vertex structures in this way, but it makes for a pretty opaque code base. I wonder if there is a better/clearer way.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I think for Billboard it makes sense but for RibbonTrail I am confused as there is no instancing involved.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

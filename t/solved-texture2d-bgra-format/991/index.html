@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Texture2D BGRA format?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Texture2D BGRA format?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I tried to search the source for supported format but unsigned leads to nowhere and the only BGRA stuff I find is in third party libs.<br/>
+What values can “unsigned format” have?<br/>
+Does it support BGRA?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The format is directly the API-specific format, on OpenGL it’s GL_ values, on D3D11 it’s from the DXGI format enum etc. This should be refactored at some point to share an internal pixelformat enum with both the Image &amp; Texture classes.</p>
+<p>If you use formats outside of what the static functions Graphics::GetXXXFormat() return, you run the risk of helper functions like Texture::GetRowDataSize() not working correctly, unless you also patch them to support the new formats.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>You could write a shader that swaps the channels. That would probably be the ideal way. Alternatively, you could swap them directly, though it would be slower doing it on CPU rather than GPU.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>I am running into this issue now.</p>
+<p>Because we render to more than one Surface/Control, we are using the Urho3D recommendation for “Render To Texture” and then using “GetData()” on the Texture2D to grab the image data, and then we are pushing this image data to a Skia Canvas View.</p>
+<p>We have a conundrum on UWP - because the UrhoSurface has channel order BGRA, while the Skia Bitmap has channel order RGBA.    And so our Red and Blue channels are swapped.</p>
+<p>Since we render BOTH WAYS (depending on if it’s the main surface, or another surface) - we would then need to have TWO of each shader &amp; technique, so that one would be used for rendering to the UrhoSurface (BGRA) while the other shader/technique would be used for exporting to Skia Canvas (RBGA format).</p>
+<p>What I’d really rather do, if possible, is configure color channel order for the Urho Surface, so that it matches that of SkiaSharp.</p>
+<p>Is there a way to toggle the Channel Order for an UrhoSurface?</p>
+<p>(I already tried to swap the channel order for Skia bitmaps, but without any success.   When I set it to BGRA, it just locks up for some reason.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="991" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>UrhoSurface</p>
+</blockquote>
+</aside>
+<p>What’s an UrhoSurface? <span class="spoiler">…can you eat that? <img alt=":diving_mask:" class="emoji" src="../../../images2/58e1a441cf4c3f4d687a8518aa43d222.png" title=":diving_mask:"/> </span></p>
+<p>SkiaSharp just sounds like <a href="http://www.mikseri.net/artists/urho/evil-shark/362081/">Evil Shark</a> to me. I’d get out of those waters if I were you.</p>
+<p><img alt=":scroll:" class="emoji only-emoji" src="../../../images2/f082c136ad6e2a9e3fedd347f888e3b5.png" title=":scroll:"/></p>
+<details>
+<summary>
+</summary>
+<blockquote>
+<p>Emerge from the other side<br/>
+With King still alive<br/>
+This legendary object<br/>
+Preserved for all time</p>
+</blockquote>
+</details>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Ah, I see, UrhoSurface is a construct added by UrhoSharp.   It’s the wrapper that starts the Urho.Application and hooks it up to a GUI control surface.  For WPF, it’s a System.Windows.Forms.Panel.  We pass the Handle of this control to Urho, and it renders to that control surface.   I was wondering if there is some channel configuration that we can assign to the Urho3D engine that tells it to swap color channels on final render.</p>
+<p>If not, I suppose another work around is post-processing of the entire Texture2D, which swaps the color with a shader.  That would be lightning fast, and I would assume is the best way to go.</p>
+<p>From the UrhoSamples, I would assume this is best achieved by adding in a final step to the RenderPath of the Viewport that renders to this Texture.   (like Bloom or FXAA shaders are used)</p>
+<p>Does this sound like the right solution for swapping color channels for a Viewport that Renders to Texture?</p>
+<p>And SkiaSharp wraps Skia - and is now the standard Graphics Library to use with .NET/Xamarin, which supports all major platforms, using the same code.  With Xamarin, we “write once” then “run anywhere” without extra any extra code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>I think I answered my own question – it looks to me like PostProcess effect method is the best way to handle this, and just attach it to the RenderPath of the Viewport that is rendering to Texture.   It will be very similar to the existing GreyScale.xml post processing effect.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>It’s like you’re speaking a foreign language, I love it.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

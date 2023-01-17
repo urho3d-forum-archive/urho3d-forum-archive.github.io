@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Event order E_UPDATE/E_PHYSICSPRESTEP</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Event order E_UPDATE/E_PHYSICSPRESTEP</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>Hi there,<br/>
+Each event E_UPDATE is triggered before the update of the scene, right ?, which causes the update of the physical component by firing E_PHYSICSPRE / POSTSTEP.</p>
+<p>However it seems that physical events are triggered before. In the example of the vehicle, I put fprintf to see the order and I got the following</p>
+<p>raycastvehicledemo.beginframe<br/>
+vehicle.fixedupdate<br/>
+raycastvehicledemo.physicsprestep<br/>
+raycastvehicledemo.update<br/>
+raycastvehicledemo.endframe</p>
+<p>I also put in the example initialization<br/>
+PhysicsWorld * pw = scene _-&gt; CreateComponent  ();<br/>
+pw-&gt; SetFps (30.0f);<br/>
+pw-&gt; SetInterpolation (false);<br/>
+engine _-&gt; SetMaxFps (30.0f)</p>
+<p>I’m probably missing something, some clue?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Physics is updated via the <code>E_SCENESUBSYSTEMUPDATE</code> message that is sent by the scene from it’s <code>E_UPDATE</code> handler. When physics needs to tick it’ll send <code>E_PHYSICSPRESTEP</code> which does double-duty as the <code>fixed update</code> message.</p>
+<p>So depending on your event subscription sequence what you’re seeing there makes sense. That’s handled through Bullet’s internal-tick callback. It sounds like cludge but it does mean that whenever you have a fixed-update fire that you’ll also have an actual physics-sim frame and not an interpolation - which is pretty important to any logic you have, it’s a win and a subtle nicety.</p>
+<p>The sequence of events can be seen in <code>Scene::Update</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>So this comment in the sample<br/>
+// Subscribe to Update event for setting the vehicle controls before physics simulation<br/>
+means “before next physics simulation”, which could be in the next frame?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Can you tell me which sample so I don’t go off explaining the wrong thing?</p>
+<blockquote>
+<p>means “before next physics simulation”, which could be in the next frame?</p>
+</blockquote>
+<p>Assuming that’s a script/logic-component/etc then sort of but no, that will be right before physics and fixed-update for the frame currently in flight, not the next-frame - really depends on how you mean <em>next</em>.</p>
+<p>Although in Scripts and LogicComponent it’s referred to as <code>update</code> it’s actually the <code>E_SCENEUPDATE</code> event they use for that, which is also sent by the Scene from <code>Scene::Update</code>.</p>
+<p><code>Update</code> should always be sent before <code>fixed-update</code> which should always be sent before physics does anything.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="4589" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p><code>Update</code> should always be sent before <code>fixed-update</code> which should always be sent before physics does anything.</p>
+</blockquote>
+</aside>
+<p>That’s what I thought when I asked. The example is 46_RaycastVehicle<br/>
+This is how I subscribe to events</p>
+<p>raycastvehicledemo.beginframe        E_BEGINFRAME<br/>
+vehicle.fixedupdate                            LogicComponent FixedUpdate (E_PHYSICSPRESTEP)<br/>
+raycastvehicledemo.physicsprestep  E_PHYSICSPRESTEP<br/>
+raycastvehicledemo.update               E_UPDATE<br/>
+raycastvehicledemo.endframe           E_ENDFRAME</p>
+<p>I thought the flow should have been</p>
+<p>raycastvehicledemo.beginframe         E_BEGINFRAME<br/>
+raycastvehicledemo.update                E_UPDATE<br/>
+vehicle.fixedupdate                             LogicComponent FixedUpdate (E_PHYSICSPRESTEP)<br/>
+raycastvehicledemo.physicsprestep   E_PHYSICSPRESTEP<br/>
+raycastvehicledemo.endframe            E_ENDFRAME</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Yeah, that’s my bad.</p>
+<p><code>E_UPDATE</code> is a grab-bag event and will almost always come after physics-update (it depends on subscription/scene-creation sequence), that sample probably shouldn’t be subscribing to it.</p>
+<p><code>E_SCENEUPDATE</code> is the one that is guaranteed to occur before physics. <code>E_UPDATE</code> could happen in any order.</p>
+<p>Edit: there’s probably a ton of code that is subscribing to that but really shouldn’t be, even in the core-engine. IIRC the scene-events didn’t exist at one point in the past.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>Thanks for helping me</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Sound Manager Testing Help</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Sound Manager Testing Help</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I’m trying to make a sound manager. So far it plays music but the frequency seems off which is not playing at the right rate… I’m not sure what is wrong.</p>
+<p>Vivienne</p>
+<pre><code class="lang-auto">#include "CubeOpenBoxClientStd.h"
+
+#include "AlphaEngine/Database/AlphaDatabase.h"
+
+#include "AlphaEngine/GameLogic/BaseGameLogic.h"
+#include "AlphaEngine/EventManager/Event/Server/ServerEvent.h"
+#include "AlphaEngine/EventManager/Event/Client/ClientEvent.h"
+#include "AlphaEngine/EventManager/Event/Request/RequestEvent.h"
+
+#include "AlphaEngine/GameLogic/PlayerManager/HeroManager/HeroManager.h"
+#include "SoundManager.h"
+
+bool SoundManager::m_bIsInstantiated = false;
+
+SoundManager::SoundManager(Context* context) : Object(context)
+    ,m_bInitialized(false)
+    ,m_bCurrentSound(0)
+    ,m_pScene(NULL)
+{
+    // Fail if want to construct more than one SoundManager
+    assert(!m_bIsInstantiated);
+
+    // Flag generated
+    m_bIsInstantiated = true;
+
+    // Set defaults - not need but to be safe;
+    m_bInitialized=false;
+    m_bCurrentSound=0;
+    m_pScene=NULL;
+
+    // Get the game logic
+    m_pGameLogic = g_pApp-&gt;GetGameLogic();
+    m_pAudio = g_pApp-&gt;GetSubsystem&lt;Audio&gt;();
+
+    return;
+}
+
+SoundManager::~SoundManager()
+{
+    // Prototype
+    // Stop all sounds
+    m_pAudio-&gt;Stop();
+
+    return;
+}
+
+// Initialize
+bool SoundManager::Initialize(void)
+{
+    // Initialize Delegates
+    InitializeAllDelegates();
+
+    // Initialize Sound SOurce
+    m_pSoundSource = new SoundSource(context_);
+
+    // Set source type
+    m_pSoundSource-&gt;SetSoundType(SOUND_MUSIC);
+
+    // Add sound source
+    m_pAudio-&gt;AddSoundSource(m_pSoundSource);
+
+    // Stop all sounds
+    m_pAudio-&gt;Stop();
+
+    // Set Initialize state to true
+    m_bInitialized = true;
+
+    // Master Gain
+    m_pAudio-&gt;SetMasterGain(SOUND_MUSIC, 1.0f);
+    m_pAudio-&gt;SetMasterGain(SOUND_EFFECT,1.0f);
+
+    return true;
+}
+
+// Initialize all delegates
+void SoundManager::InitializeAllDelegates(void)
+{
+    return;
+}
+
+// Handle VUpdate
+void SoundManager::VOnUpdate(float timeStep)
+{
+
+    if(!m_bInitialized&amp;&amp;!m_bIsInstantiated)
+    {
+        //   ALPHAENGINE_LOGINFO("Not Initialized");
+        return;
+    }
+
+    if(m_bUpdating||!m_pScene)
+    {
+        return;
+    }
+
+    // Is Playing
+    if(m_bIsPlaying)
+    {
+        if(!m_pSoundSource-&gt;IsPlaying())
+        {
+            // if sounds exist
+            if(m_Sounds.Size()&gt;0)
+            {
+                // increase current sound
+                m_bCurrentSound++;
+
+                // if sound is above loaded sounds
+                if(m_bCurrentSound&gt;=m_Sounds.Size())
+                {
+                    // play first sound
+                    m_bCurrentSound=0;
+                }
+
+                // Play Sound
+                m_pSoundSource-&gt;Play(m_Sounds.At(m_bCurrentSound).SoundPtr,m_Sounds.At(m_bCurrentSound).SoundFrequency);
+            }
+        }
+    }
+}
+
+
+bool SoundManager::LoadSoundType(String type, bool reset = true)
+{
+    FileSystem * fileSystem = g_pApp-&gt;GetFileSystem();
+
+    // load from path
+    XMLFile* file = g_pApp-&gt;GetConstantResCache()-&gt;GetResource&lt;XMLFile&gt;("Sounds/Sounds.xml");
+
+    if (!file)
+    {
+        URHO3D_LOGERROR("Failed to load hero data from xml file");
+        return false;
+    }
+
+    //Get Root
+    XMLElement root = file-&gt;GetRoot();
+
+    // stop all Sound
+    m_bIsPlaying = false;
+    m_bUpdating = true;
+
+    // Verify first child
+    if (root)
+    {
+        // Get a sound node
+        XMLElement NextNode = root.GetChild("Sound");
+
+        // Test each one
+        do
+        {
+            // Test if a type exist and path
+            XMLElement TypeNode = NextNode.GetChild("Type");
+            XMLElement PathNode = NextNode.GetChild("Path");
+            XMLElement FrequencyNode = NextNode.GetChild("Frequency");
+
+            // if type is not null and path
+            if(TypeNode.NotNull()&amp;&amp;PathNode.NotNull())
+            {
+                // Get the type node
+                String typestring=TypeNode.GetAttribute("value");
+                String soundpath = PathNode.GetAttribute("value");
+
+                // if type string contains type
+                if(typestring.Contains(type, false)&amp;&amp;!soundpath.Empty())
+                {
+                    // create a file path
+                    String fullpath = g_pApp-&gt;GetGameDataDirectory()+"/"+soundpath;
+
+                    // continue
+                    if(fileSystem -&gt; FileExists(fullpath))
+                    {
+                        // get frequency
+                        float frequency = 44100.0f;
+
+                        // if freequency not there use 44.1 as the default
+                        if(FrequencyNode.NotNull())
+                        {
+                            frequency = FrequencyNode.GetFloat("value");
+                        }
+
+                        // load resource
+                        Sound * newSound = g_pApp-&gt;GetConstantResCache()-&gt;GetResource&lt;Sound&gt;(soundpath);
+
+                        // Set sound looped
+                        newSound-&gt;SetLooped(false);
+
+                        // push new sound
+                        if(newSound)
+                        {
+                            // Add sound a default frequency
+                            m_Sounds.Push({newSound, newSound-&gt;GetFrequency()});
+                        }
+                    }
+                    else
+                    {
+                        ALPHAENGINE_LOGINFO(fullpath);
+                    }
+                }
+            }
+        }
+        while(NextNode =  NextNode.GetNext("Sound"));
+    }
+
+    // Reset Updating
+    m_bUpdating = false;
+
+
+    return true;
+}
+
+bool SoundManager::SetScene(Scene * setscene)
+{
+    // Set Scene
+    m_pScene = setscene;
+
+    // Add Music Node
+    m_pMusicNode = m_pScene -&gt; CreateChild("Music");
+    m_pMusicNode-&gt;AddComponent(m_pSoundSource,0, LOCAL);
+
+}
+
+
+bool SoundManager::Play(void)
+{
+    if(!m_bInitialized||!m_pScene||m_bIsPlaying||m_bUpdating)
+    {
+        // Error message
+        ALPHAENGINE_LOGINFO("Error Occurred");
+
+        return false;
+    }
+
+    if(m_Sounds.Size()&gt;0)
+    {
+        // play
+        m_pAudio-&gt;Play();
+
+        // Reset sounds to 0
+        m_bCurrentSound = 0;
+
+        // Sound
+        m_pSoundSource-&gt;Play(m_Sounds.At(0).SoundPtr, m_Sounds.At(0).SoundFrequency);
+    }
+
+    m_bIsPlaying=true;
+
+    return true;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>I also tried this.</p>
+<p>[code]<span class="hashtag">#include</span> “CubeOpenBoxClientStd.h”</p>
+<p><span class="hashtag">#include</span> “AlphaEngine/Database/AlphaDatabase.h”</p>
+<p><span class="hashtag">#include</span> “AlphaEngine/GameLogic/BaseGameLogic.h”<br/>
+<span class="hashtag">#include</span> “AlphaEngine/EventManager/Event/Server/ServerEvent.h”<br/>
+<span class="hashtag">#include</span> “AlphaEngine/EventManager/Event/Client/ClientEvent.h”<br/>
+<span class="hashtag">#include</span> “AlphaEngine/EventManager/Event/Request/RequestEvent.h”</p>
+<p><span class="hashtag">#include</span> “AlphaEngine/GameLogic/PlayerManager/HeroManager/HeroManager.h”<br/>
+<span class="hashtag">#include</span> “SoundManager.h”</p>
+<p>bool SoundManager::m_bIsInstantiated = false;</p>
+<p>SoundManager::SoundManager(Context* context) : Object(context)<br/>
+,m_bInitialized(false)<br/>
+,m_bCurrentSound(0)<br/>
+,m_pScene(NULL)<br/>
+{<br/>
+// Fail if want to construct more than one SoundManager<br/>
+assert(!m_bIsInstantiated);</p>
+<pre><code>// Flag generated
+m_bIsInstantiated = true;
+
+// Set defaults - not need but to be safe;
+m_bInitialized=false;
+m_bCurrentSound=0;
+m_pScene=NULL;
+
+// Get the game logic
+m_pGameLogic = g_pApp-&gt;GetGameLogic();
+m_pAudio = g_pApp-&gt;GetSubsystem&lt;Audio&gt;();
+
+return;
+</code></pre>
+<p>}</p>
+<p>SoundManager::~SoundManager()<br/>
+{<br/>
+// Prototype<br/>
+// Stop all sounds<br/>
+m_pAudio-&gt;Stop();</p>
+<pre><code>return;
+</code></pre>
+<p>}</p>
+<p>// Initialize<br/>
+bool SoundManager::Initialize(void)<br/>
+{<br/>
+// Initialize Delegates<br/>
+InitializeAllDelegates();</p>
+<pre><code>// Initialize Sound SOurce
+m_pSoundSource = new SoundSource(context_);
+
+// Set source type
+m_pSoundSource-&gt;SetSoundType(SOUND_MUSIC);
+
+// Add sound source
+m_pAudio-&gt;AddSoundSource(m_pSoundSource);
+
+// Stop all sounds
+m_pAudio-&gt;Stop();
+
+// Set Initialize state to true
+m_bInitialized = true;
+
+// Master Gain
+m_pAudio-&gt;SetMasterGain(SOUND_MUSIC, 1.0f);
+m_pAudio-&gt;SetMasterGain(SOUND_EFFECT,1.0f);
+
+return true;
+</code></pre>
+<p>}</p>
+<p>// Initialize all delegates<br/>
+void SoundManager::InitializeAllDelegates(void)<br/>
+{<br/>
+return;<br/>
+}</p>
+<p>// Handle VUpdate<br/>
+void SoundManager::VOnUpdate(float timeStep)<br/>
+{</p>
+<pre><code>if(!m_bInitialized&amp;&amp;!m_bIsInstantiated)
+{
+    //   ALPHAENGINE_LOGINFO("Not Initialized");
+    return;
+}
+
+if(m_bUpdating||!m_pScene)
+{
+    return;
+}
+
+// Is Playing
+if(m_bIsPlaying)
+{
+    if(!m_pSoundSource-&gt;IsPlaying())
+    {
+        // if sounds exist
+        if(m_Sounds.Size()&gt;0)
+        {
+            // increase current sound
+            m_bCurrentSound++;
+
+            // if sound is above loaded sounds
+            if(m_bCurrentSound&gt;=m_Sounds.Size())
+            {
+                // play first sound
+                m_bCurrentSound=0;
+            }
+
+            // Play Sound
+            m_pSoundSource-&gt;Play(m_Sounds.At(m_bCurrentSound).SoundPtr,m_Sounds.At(m_bCurrentSound).SoundFrequency);
+        }
+    }
+}
+</code></pre>
+<p>}</p>
+<p>bool SoundManager::LoadSoundType(String type, bool reset = true)<br/>
+{<br/>
+FileSystem * fileSystem = g_pApp-&gt;GetFileSystem();</p>
+<pre><code>// load from path
+XMLFile* file = g_pApp-&gt;GetConstantResCache()-&gt;GetResource&lt;XMLFile&gt;("Sounds/Sounds.xml");
+
+if (!file)
+{
+    URHO3D_LOGERROR("Failed to load hero data from xml file");
+    return false;
+}
+
+//Get Root
+XMLElement root = file-&gt;GetRoot();
+
+// stop all Sound
+m_bIsPlaying = false;
+m_bUpdating = true;
+
+// Verify first child
+if (root)
+{
+    // Get a sound node
+    XMLElement NextNode = root.GetChild("Sound");
+
+    // Test each one
+    do
+    {
+        // Test if a type exist and path
+        XMLElement TypeNode = NextNode.GetChild("Type");
+        XMLElement PathNode = NextNode.GetChild("Path");
+        XMLElement FrequencyNode = NextNode.GetChild("Frequency");
+
+        // if type is not null and path
+        if(TypeNode.NotNull()&amp;&amp;PathNode.NotNull())
+        {
+            // Get the type node
+            String typestring=TypeNode.GetAttribute("value");
+            String soundpath = PathNode.GetAttribute("value");
+
+            // if type string contains type
+            if(typestring.Contains(type, false)&amp;&amp;!soundpath.Empty())
+            {
+                // create a file path
+                String fullpath = g_pApp-&gt;GetGameDataDirectory()+"/"+soundpath;
+
+                // continue
+                if(fileSystem -&gt; FileExists(fullpath))
+                {
+                    // get frequency
+                    unsigned int frequency = 44100;
+
+                    // if freequency not there use 44.1 as the default
+                    if(FrequencyNode.NotNull())
+                    {
+                        frequency = FrequencyNode.GetFloat("value");
+                    }
+
+                    // load resource
+                    Sound * newSound = g_pApp-&gt;GetConstantResCache()-&gt;GetResource&lt;Sound&gt;(soundpath);
+
+                    // Set sound looped
+                    newSound-&gt;SetLooped(false);
+
+                    // push new sound
+                    if(newSound)
+                    {
+                        // Add sound a default frequency
+                        m_Sounds.Push({newSound, newSound-&gt;GetFrequency()});
+                    }
+                }
+                else
+                {
+                    ALPHAENGINE_LOGINFO(fullpath);
+                }
+            }
+        }
+    }
+    while(NextNode =  NextNode.GetNext("Sound"));
+}
+
+// Reset Updating
+m_bUpdating = false;
+
+
+return true;
+</code></pre>
+<p>}</p>
+<p>bool SoundManager::SetScene(Scene * setscene)<br/>
+{<br/>
+// Set Scene<br/>
+m_pScene = setscene;</p>
+<pre><code>// Add Music Node
+m_pMusicNode = m_pScene -&gt; CreateChild("Music");
+m_pMusicNode-&gt;AddComponent(m_pSoundSource,0, LOCAL);
+</code></pre>
+<p>}</p>
+<p>bool SoundManager::Play(void)<br/>
+{<br/>
+if(!m_bInitialized||!m_pScene||m_bIsPlaying||m_bUpdating)<br/>
+{<br/>
+// Error message<br/>
+ALPHAENGINE_LOGINFO(“Error Occurred”);</p>
+<pre><code>    return false;
+}
+
+if(m_Sounds.Size()&gt;0)
+{
+    // play
+    m_pAudio-&gt;Play();
+
+    // Reset sounds to 0
+    m_bCurrentSound = 0;
+
+    // Sound
+    m_pSoundSource-&gt;Play(m_Sounds.At(0).SoundPtr, m_Sounds.At(0).SoundFrequency);
+}
+
+m_bIsPlaying=true;
+
+return true;
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

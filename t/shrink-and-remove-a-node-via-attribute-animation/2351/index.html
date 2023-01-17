@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Shrink and remove a node via attribute animation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Shrink and remove a node via attribute animation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vudugun</div>
+          <div class="post_content">
+<p>Hello,<br/>
+is this the proper way to shrink a node and remove it using attribute animation?</p>
+<p>[code]void MyComponent::ShrinkAndRemove()<br/>
+{<br/>
+ValueAnimation* anim{ new ValueAnimation{ context_ } };<br/>
+anim-&gt;SetKeyFrame(0.0f, Vector3{ 1.0f, 1.0f, 1.0f });<br/>
+anim-&gt;SetKeyFrame(0.5f, Vector3{ 0.2f, 0.2f, 0.2f });<br/>
+anim-&gt;SetEventFrame(0.51f, E_SHRUNK);</p>
+<pre><code>GetNode()-&gt;SetAttributeAnimation("Scale", anim, WM_ONCE);
+
+SubscribeToEvent(GetNode(), E_SHRUNK, URHO3D_HANDLER(MyComponent, HandleShrunk));
+</code></pre>
+<p>}</p>
+<p>void MyComponent::HandleShrunk(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+GetNode()-&gt;Remove();<br/>
+}[/code]<br/>
+I am asking because I need two patches to get it working.</p>
+<p>[size=150]Problem 1[/size]</p>
+<p>The event does not fire when time &gt; 0.5. I traced the problem down to ValueAnimation::SetEventFrame(), where the begin/end times are <span class="bbcode-b">not</span> updated, unlike what happens in SetKeyFrame:</p>
+<p>[code]bool ValueAnimation::SetKeyFrame(float time, const Variant&amp; value)<br/>
+{<br/>
+…<br/>
+beginTime_ = Min(time, beginTime_);<br/>
+endTime_ = Max(time, endTime_);<br/>
+splineTangentsDirty_ = true;</p>
+<pre><code>return true;
+</code></pre>
+<p>}</p>
+<p>void ValueAnimation::SetEventFrame(float time, const StringHash&amp; eventType, const VariantMap&amp; eventData)<br/>
+{<br/>
+VAnimEventFrame eventFrame;<br/>
+eventFrame.time_ = time;<br/>
+eventFrame.eventType_ = eventType;<br/>
+eventFrame.eventData_ = eventData;</p>
+<pre><code>if (eventFrames_.Empty() || time &gt;= eventFrames_.Back().time_)
+    eventFrames_.Push(eventFrame);
+else
+{
+    for (unsigned i = 0; i &lt; eventFrames_.Size(); ++i)
+    {
+        if (time &lt; eventFrames_[i].time_)
+        {
+            eventFrames_.Insert(i, eventFrame);
+            break;
+        }
+    }
+}
+
+// ****** NOTHING HERE?? ******
+</code></pre>
+<p>}[/code]<br/>
+Copying the three lines from SetKetFrame() solved the problem.</p>
+<p>[size=150]Problem 2[/size]</p>
+<p>I am getting a crash inside Animatable::UpdateAttributeAnimations() just after my event handler is called (in the same loop):</p>
+<p>[code]void Animatable::UpdateAttributeAnimations(float timeStep)<br/>
+{<br/>
+if (!animationEnabled_)<br/>
+return;</p>
+<pre><code>SharedPtr&lt;Animatable&gt; self(this); // ****** PATCH
+
+Vector&lt;String&gt; finishedNames;
+for (HashMap&lt;String, SharedPtr&lt;AttributeAnimationInfo&gt; &gt;::ConstIterator i = attributeAnimationInfos_.Begin();
+     i != attributeAnimationInfos_.End(); ++i)
+{
+    if (i-&gt;second_-&gt;Update(timeStep))
+        finishedNames.Push(i-&gt;second_-&gt;GetAttributeInfo().name_); // ****** CRASH HERE
+}
+
+for (unsigned i = 0; i &lt; finishedNames.Size(); ++i)
+    SetAttributeAnimation(finishedNames[i], 0);
+</code></pre>
+<p>}[/code]</p>
+<p>The debugger shows the Animatable “this” pointer is invalid at that point because Node::Remove() deletes the node as well (no references left). So, I added the ugly line above to keep it alive.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Thanks, look like definite bugs! The common pattern we use in UI code is to always check for sender existence after returning from the event, no doubt it’s necessary here as well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Fixes are in the master branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vudugun</div>
+          <div class="post_content">
+<p>Thanks for the reply and the quick fixes!</p>
+<p>In the meantime, I managed to crash in Material::HandleAttributeAnimationUpdate() as well, for the same reason as above (remove node at the end of material animation)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Should be fixed as well. In addition in my testing I found that material animation event could be erroneously transmitted on the first frame, which got fixed too.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

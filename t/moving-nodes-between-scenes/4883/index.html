@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Moving nodes between scenes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Moving nodes between scenes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Is it legal?</p>
+<p>I found this thread from 2015, where <span class="mention">@cadaver</span> says that it is not, is it still true?</p>
+<aside class="quote no-group" data-post="2" data-topic="943">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/><a href="https://discourse.urho3d.io/t/setscene-not-showing-node-solved/943/2">SetScene() Not Showing Node [Solved]</a>
+</div>
+<blockquote>
+<p>Moving nodes from scene to another is not supported. The reason is that they would need to let go and re-acquire of global components like Octree &amp; PhysicsWorld.</p>
+<p>If you want to load prefabs, use Scene::InstantiateXML() function to load a node hierarchy you want directly into the correct scene.</p>
+</blockquote>
+</aside>
+<p>I was able to do it with this angelscript code:</p>
+<pre><code>		Scene@ tempscene = Scene();
+		tempscene.CreateComponent("Octree");
+		
+		PlayerNode.parent = tempscene;
+		scene_.LoadXML(cache.GetFile(currentmap.name));
+		
+		PlayerNode.parent = scene_;
+		tempscene.Remove();
+</code></pre>
+<p>PlayerNode have a bunch of nodes and components attached to it, everything seems to be working except for the camera (and my handwritten component). Camera can be fixed by setting it again to a viewport in the next update (scene switch is done in pre-render).</p>
+<p>So, am I fine, or is it a hacky mess and I should’t rely on it? What is the good practice of moving a bunch of stuff from one scene to another? In future, I want to be able to move any number of entities from one scene to another. Not just the player.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><code>scene-&gt;AddChild(node_)</code> seems to works fine for me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>This removes camera component. <img alt=":confused:" class="emoji" src="../../../images2/248c3403bd293447e7e0858e608b88e8.png" title=":confused:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>It <em>removes</em> the component? Or does the <em>viewport</em> stop working?<br/>
+The latter would make more sense to me. In <a href="https://gitlab.com/luckeyproductions/Edddy/blob/master/view3d.cpp#L143" rel="nofollow noopener">Edddy</a> I simply create a <em>new</em> <code>Viewport</code> after changing the camera node’s parent scene.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="4883">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/68f57c75052369a2f2c82f38516f823f.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>It <em>removes</em> the component? Or does the <em>viewport</em> stop working?</p>
+</blockquote>
+</aside>
+<p>I’m not sure. But:</p>
+<ol>
+<li>viewport works if I switch it to another camera.</li>
+<li>getting camera component returns null.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4883">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/68f57c75052369a2f2c82f38516f823f.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>if (node_-&gt;GetScene()) node_-&gt;SetParent(nullptr);</p>
+</blockquote>
+</aside>
+<p>This is unnecessary and it does nothing (there is a null check in SetParent). Node::ResetScene() should be used to clear node’s scene, but this is only side node, because when node is being reparented there’s also check if scene changed and if so, all logic behind cleaning up old scene and assigning new one is fired.<br/>
+In my project I move nodes between scenes very often and everything works fine, I’ve implemented my code long time ago but I don’t recall having any issues there.<br/>
+One thing that I remember being problematic is creating node outside of any scene, adding components to it and placing it in a scene after that. This leads to ids conflicts (ids are cleaned when node is removed from a scene) and Urho delas with them by removing old component with same id which can be a problem.</p>
+<aside class="quote no-group" data-post="5" data-topic="4883">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39770b981d4a61c699f58bd27efbb8f3.png" width="20"/> Bananaft:</div>
+<blockquote>
+<p>getting camera component returns null.</p>
+</blockquote>
+</aside>
+<p>Getiing camera from where? Scene, owner node, viewport?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>owner’s parent node.</p>
+<p>I also tried loading scene next to an active one, attaching player to it, and then replacing one with another.</p>
+<pre><code>		Scene@ tempscene = Scene();
+		tempscene.CreateComponent("Octree");
+		tempscene.LoadXML(cache.GetFile(currentmap.name));
+		PlayerNode.parent = tempscene;
+		
+		scene_ = tempscene;
+</code></pre>
+<p>This breaks stuff in different way.</p>
+<p>So far, the method I posted at the start of this thread gives me fewest glitches.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Ah, thanks for clearing that up. I assumed I put it there because it fixed something. <img alt=":palm_tree:" class="emoji" src="../../../images2/2a97796efb6e0d7978d66ccb9ced6ae5.png" title=":palm_tree:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>switching scene of a node with rigid body component sets its linear and angular damping to 0.</p>
+<p>I also noticed more bugs the nature of which I just can’t understand. I’m now considering avoiding node scene switching and somehow hacking my way around. <img alt=":frowning:" class="emoji" src="../../../images2/51ea35e7c47bd75b6fa0d425ad2d734f.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Happy to help with these issues, my current project creates a scene in code, saves it, and then loads it (throwing out the old scene), so if anything needs fixing up, I’m probably going to notice real soon, as saving snapshots of a scene is how I intend to save gamestate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Yeah, that’s the solution I end up using. I save all nodes I want to teleport, then load them into next scene. I had to fix a bunch of things, turn lots of object parameters to not serializable. I don’t have a save system yet, but I guess it will help me in future.</p>
+<p>Also, my prefab system helps me to ensure certain game objects will always stay the same even if they were changed by game logic.</p>
+<aside class="quote quote-modified" data-post="1" data-topic="4681">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/39770b981d4a61c699f58bd27efbb8f3.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/poor-mans-prefab-system/4681">Poor man's prefab system</a> <a class="badge-wrapper bullet" href="/c/showcase/code-exchange/13"><span class="badge-category-parent-bg" style="background-color: #F1592A;"></span><span class="badge-category-bg" style="background-color: #231F20;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Share your helpful Urho3D code snippets, samples and tutorials here.">Code Exchange</span></a>
+</div>
+<blockquote>
+    I made myself a prefab system. It came out pretty minimalistic. And I’m very happy with it. Even nested prefabs are working (literally better than Unity). Sharing it, so maybe someone will find it useful or give me feedback (because I’m not very confident with C++). And maybe we will make it into PR. Licensed under CC0. 
+Here is the video demonstration: 
+ 
+So, basically, each node has a reference to a XMLfile, if it is empty, then nothing happens, it’s a normal node, if it is pointing to a file,…
+  </blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I noticed some specific issues with factory method not setting default values as we defined them - it seems there is a kind of placement new, with no guarantees about initial values unless you be professional and initialize everything yourself, even though you told the engine the default values, and even if the engine is the one making them - I am talking about deserialization, and what got serialized in the first place, and what was not initialized properly<br/>
+The engine will not serialize things whose current value agrees with the default we provided - it only serializes them if the value has changed from the default we provided, and that ignores the current value - basically, defining the default value for something is just limiting what is serialized, and is not used during construction. Serializable things are not always serialized, and no engine code sets default values on your object properties. It all feels a bit unsafe, even for a seasoned coder.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Are you using <code>URHO3D_ATTRIBUTE</code>?</p>
+<details>
+<summary>
+Excerpt from Serializable.h</summary>
+<pre><code class="lang-auto">// The following macros need to be used within a class member function such as ClassName::RegisterObject().
+// A variable called "context" needs to exist in the current scope and point to a valid Context object.
+
+/// Copy attributes from a base class.
+#define URHO3D_COPY_BASE_ATTRIBUTES(sourceClassName) context-&gt;CopyBaseAttributes&lt;sourceClassName, ClassName&gt;()
+/// Update the default value of an already registered attribute.
+#define URHO3D_UPDATE_ATTRIBUTE_DEFAULT_VALUE(name, defaultValue) context-&gt;UpdateAttributeDefaultValue&lt;ClassName&gt;(name, defaultValue)
+/// Remove attribute by name.
+#define URHO3D_REMOVE_ATTRIBUTE(name) context-&gt;RemoveAttribute&lt;ClassName&gt;(name)
+
+/// Define an object member attribute.
+#define URHO3D_ATTRIBUTE(name, typeName, variable, defaultValue, mode) context-&gt;RegisterAttribute&lt;ClassName&gt;(Urho3D::AttributeInfo( \
+    Urho3D::GetVariantType&lt;typeName &gt;(), name, URHO3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR(typeName, variable), nullptr, defaultValue, mode))
+/// Define an object member attribute. Post-set member function callback is called when attribute set.
+#define URHO3D_ATTRIBUTE_EX(name, typeName, variable, postSetCallback, defaultValue, mode) context-&gt;RegisterAttribute&lt;ClassName&gt;(Urho3D::AttributeInfo( \
+    Urho3D::GetVariantType&lt;typeName &gt;(), name, URHO3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR_EX(typeName, variable, postSetCallback), nullptr, defaultValue, mode))
+/// Define an attribute that uses get and set functions.
+#define URHO3D_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context-&gt;RegisterAttribute&lt;ClassName&gt;(Urho3D::AttributeInfo( \
+    Urho3D::GetVariantType&lt;typeName &gt;(), name, URHO3D_MAKE_GET_SET_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName), nullptr, defaultValue, mode))
+
+/// Define an object member attribute. Zero-based enum values are mapped to names through an array of C string pointers.
+#define URHO3D_ENUM_ATTRIBUTE(name, variable, enumNames, defaultValue, mode) context-&gt;RegisterAttribute&lt;ClassName&gt;(Urho3D::AttributeInfo( \
+    Urho3D::VAR_INT, name, URHO3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR(variable), enumNames, static_cast&lt;int&gt;(defaultValue), mode))
+/// Define an object member attribute. Zero-based enum values are mapped to names through an array of C string pointers. Post-set member function callback is called when attribute set.
+#define URHO3D_ENUM_ATTRIBUTE_EX(name, variable, postSetCallback, enumNames, defaultValue, mode) context-&gt;RegisterAttribute&lt;ClassName&gt;(Urho3D::AttributeInfo( \
+    Urho3D::VAR_INT, name, URHO3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR_EX(variable, postSetCallback), enumNames, static_cast&lt;int&gt;(defaultValue), mode))
+/// Define an attribute that uses get and set functions. Zero-based enum values are mapped to names through an array of C string pointers.
+#define URHO3D_ENUM_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, enumNames, defaultValue, mode) context-&gt;RegisterAttribute&lt;ClassName&gt;(Urho3D::AttributeInfo( \
+    Urho3D::VAR_INT, name, URHO3D_MAKE_GET_SET_ENUM_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName), enumNames, static_cast&lt;int&gt;(defaultValue), mode))
+
+/// Define an attribute with custom setter and getter.
+#define URHO3D_CUSTOM_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context-&gt;RegisterAttribute&lt;ClassName&gt;(Urho3D::AttributeInfo( \
+    Urho3D::GetVariantType&lt;typeName &gt;(), name, Urho3D::MakeVariantAttributeAccessor&lt;ClassName&gt;(getFunction, setFunction), nullptr, defaultValue, mode))
+/// Define an enum attribute with custom setter and getter. Zero-based enum values are mapped to names through an array of C string pointers.
+#define URHO3D_CUSTOM_ENUM_ATTRIBUTE(name, getFunction, setFunction, enumNames, defaultValue, mode) context-&gt;RegisterAttribute&lt;ClassName&gt;(Urho3D::AttributeInfo( \
+    Urho3D::VAR_INT, name, Urho3D::MakeVariantAttributeAccessor&lt;ClassName&gt;(getFunction, setFunction), enumNames, static_cast&lt;int&gt;(defaultValue), mode))
+</code></pre>
+</details>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>yeah that is what I am using</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>and I am saying its unreliable and that the values we define are not implemented on new objects</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>sure we can save our files, but when we load them back, the values we defined as default, wont be applied - only values which changed from the default are serialized, and deserialized correctly - values that were not serialized (because they happen to equal the default value we described, ie have not changed), are not initialized to default values correctly<br/>
+I also noticed that when I reload my scene from xml, the nodes are all marked as replicated, even though I have not touched networking yet.</p>
+<p>OK so say I go out of my way to define the serialized members, and their default values, why the hell are my default values not applied to new objects, other than that the value is not changed, so we didn’t bother to record it, because we know it, and still didnt apply it on a new object? the factory should be able to return a new object with all the default values we defined!</p>
+<p>I’m lazy, I should not need to manually initialize every member of everything if its serialized already, grumble grumble</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The attributes of node/component are editable in the editor. The attribute default is used by editor’s attribute inspector to reset an attribute. It is also used by the engine when the engine serializes a scene or a prefab or what have you, by only saving non-default attribute values in order to minimize the I/O. Thus when the engine deserializes the objects, it expects the constructor has initialized the member variables to the same “default values” that it declares to the engine/editor. There is nothing magic about it. The engine does not auto-magically read those declaration and synthesizes the initialization code for you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’m asking - why not? We’re not merely making declarations for the compiler, we’re actually registering AttributeInfo structs in our Context, and typically doing so prior to any instantiation via a static method - we’re in a pretty good position to “magically” use that information in our factory function.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Since it is off-topic in this thread, I will keep it short. I believe if you want a custom component class to always serialize the attributes regardless of their values, you can override this method <code>SaveDefaultAttributes()</code> to always return <code>true</code>, then you don’t have any issues if you are lazy to implement a ctor properly. I am fine with your idea to improve how attribute default value could be initialized, as long as it works consistently with all the existing components whether they are created via factory class or directly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Thanks, sorry to throw a hammer, but it seems like something we could do, as a kindness, and at low cost. We don’t create new objects often, so setting their default values the way we described them, hardly sounds like it will break anything. I hope.User would still be free to declare members (public or not) that are not serialized (and so not safely initialized) and deal with those outside their serialization declarations. Sounds like a win.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Dynamic geometry crash</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Dynamic geometry crash</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>I created dynamic geometry like following, but if I add a ui element like button or label, the program will crash at</p>
+<ul>
+<li>(void)swapBuffers<br/>
+{<br/>
+…<br/>
+/* viewRenderbuffer should always be bound here. Code that binds something
+<ul>
+<li>else is responsible for rebinding viewRenderbuffer, to reduce duplicate</li>
+<li>state changes. */<br/>
+[context presentRenderbuffer:GL_RENDERBUFFER];<br/>
+}</li>
+</ul>
+</li>
+</ul>
+<p>and the OpenGL debug say,</p>
+<pre><code class="lang-auto">"This draw call accessed a vertex outside the range of an array buffer in use."
+36 glDrawArrays(GL_TRIANGLE_STRIP, 0, 200)</code></pre>
+<p>if I missed or misused something?</p>
+<pre><code class="lang-auto">struct VertexData
+{
+    Vector3 pos_;
+    Vector2 uv_;
+};
+
+const int MAX_POINTS = 100;
+float offset = 0;
+int index = 0;
+Vector&lt;Vector2&gt; xyPoints;
+Vector&lt;VertexData&gt; verticesData;
+
+for (int i=0; i&lt;MAX_POINTS; i++)
+{
+        Vector2 v;
+        v.x_ = index++;
+        v.y_ = offset + Random(-1.0f, 1.0f);
+        xyPoints.Push(v);
+}
+
+for (int i=0; i&lt;MAX_POINTS; i++)
+{
+        Vector2 p = xyPoints.At(i);
+        VertexData data;
+        data.pos_.x_ = p.x_;
+        data.pos_.y_ = -3.0f;
+        data.pos_.z_ = 0;
+        data.uv_.x_ = p.x_;
+        data.uv_.y_ = 1;
+        verticesData.Push(data);
+        
+        data.pos_.x_ = p.x_;
+        data.pos_.y_ = p.y_;
+        data.pos_.z_ = 0;
+        data.uv_.x_ = p.x_;
+        data.uv_.y_ = 0;
+        verticesData.Push(data);
+}
+
+unsigned char* data = reinterpret_cast&lt;unsigned char*&gt;(verticesData.Buffer());
+
+SharedPtr&lt;Model&gt; fromScratchModel(new Model(context_));
+SharedPtr&lt;VertexBuffer&gt; vb(new VertexBuffer(context_));
+SharedPtr&lt;Geometry&gt; geom(new Geometry(context_));
+    
+PODVector&lt;VertexElement&gt; elements;
+elements.Push(VertexElement(TYPE_VECTOR3, SEM_POSITION));
+elements.Push(VertexElement(TYPE_VECTOR2, SEM_TEXCOORD));
+
+vb-&gt;SetShadowed(false);
+vb-&gt;SetSize(verticesData.Size(), elements, true);
+vb-&gt;SetData(data);
+    
+geom-&gt;SetVertexBuffer(0, vb);
+geom-&gt;SetDrawRange(TRIANGLE_STRIP, 0, 0, 0, verticesData.Size());
+    
+fromScratchModel-&gt;SetNumGeometries(1);
+fromScratchModel-&gt;SetGeometry(0, 0, geom);
+fromScratchModel-&gt;SetBoundingBox(BoundingBox(Vector3(0, -5, -1), Vector3(110, 5, 1)));
+    
+Node *node = scene_-&gt;CreateChild();
+ResourceCache *cache = GetSubsystem&lt;ResourceCache&gt;();
+StaticModel* object = node-&gt;CreateComponent&lt;StaticModel&gt;();
+object-&gt;SetModel(fromScratchModel);
+object-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Stone.xml"));
+
+UIElement *root = GetSubsystem&lt;UI&gt;()-&gt;GetRoot();
+Button *button = root-&gt;CreateChild&lt;Button&gt;();
+button-&gt;SetMinSize(IntVector2(100, 50));
+button-&gt;SetMaxSize(IntVector2(100, 50));
+button-&gt;SetSize(IntVector2(100, 50));</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

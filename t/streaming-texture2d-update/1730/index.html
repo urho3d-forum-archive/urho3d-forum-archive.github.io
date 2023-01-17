@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Streaming texture2D update</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Streaming texture2D update</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>Hi</p>
+<p>First, I’m new to Urho3D, and I want to say that is a really great engine, so nice work guys. I finally chose this engine after months of testing most of actual 3d engines to get the best that fit my needs for building my project.</p>
+<p>In a part of my tool, I’m using a procedural texture generator and I need to upload texture data in streaming to get result in realtime. I’m actually using the Texture2D::SetData to update my texture, I don’t know if there is another way to update texture data in Urho, but like this, it is a bit slow for streaming. Is there a better way ?</p>
+<p>After looking code in this function (opengl part), I think it may be usefull to have an additional lock/unlock mechanism (like in VertexBuffer) to map pixel buffer. If yout want, I can work on this feature for opengl part (I don’t know directx framework).</p>
+<p>Any advice or better idea ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Is there a better way ?<br/>
+use in-shader computation for procedural textures (I mean do not use textures for this in some cases)<br/>
+also you may use low-res textures from CPU filled side as parameterization for GPU-generated texture (something like - guidelines, or map for generation in shader)</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>What do you mean by streaming?<br/>
+There’s no need to update more than once every frame.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<blockquote>
+<p>use in-shader computation<br/>
+Yes it is planned, but I already have a library that use cpu texture generation and I’d like to use it too.<br/>
+This library has been already used in others frameworks and it is enough fast. However I encountered some slow-down in Urho when using Texture2D::SetData (I used it max once per frame).<br/>
+glTexSubImage2D seems to block, I going to debug it today to see where is the problem.</p>
+</blockquote>
+<blockquote>
+<p>What do you mean by streaming?<br/>
+I think about something like that : <a href="http://www.songho.ca/opengl/gl_pbo.html#unpack" rel="nofollow noopener">songho.ca/opengl/gl_pbo.html#unpack</a></p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>glTexSubImage2D shouldn’t be causing those kinds of slowdowns. Maybe there’s something messed up with the pixel format? If the format doesn’t match, the driver has to block while it converts (AFAIK) which can cause some slow-downs. I’ve had great success in the past with sub-ms updates in a standalone OGL app, so this is worth investigating.</p>
+<p>Several posts on <a href="http://gamedev.net" rel="nofollow noopener">gamedev.net</a> reference the following “golden rule”:</p>
+<p>internalformal: GL_RGBA<br/>
+format: GL_BGRA<br/>
+type: GL_UNSIGNED_INT_8_8_8_8_REV</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dakilla</div>
+          <div class="post_content">
+<p>I solved my problem. This was a fu… bug with Qt 5.5.1.<br/>
+My editor use Qt and I migrate from 5.4 to 5.5.1 since few days, same as I started to port my tool to Urho…<br/>
+It seems that the new 5.5.1 version is bugged somewhere with the connect slot/signal on linux (it’s ok on windows)… The slot that update my texture started to slow down at some point in the event queue. I restored 5.4 version and all is fine now.</p>
+<p>So during my debug I tested some stuff, I didn’t benchmark but I didn’t see any major speed gain by using :</p>
+<ul>
+<li>internalformal: GL_RGBA | format: GL_BGRA | type: GL_UNSIGNED_INT_8_8_8_8_REV</li>
+<li>glTexImage2D instead of glTexSubImage2D</li>
+<li>GL_PIXEL_UNPACK_BUFFER and glMapBuffer</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Qt’s slot/signal system is a hack.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

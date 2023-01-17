@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Using Texture as Depth Map? (Pre-Rendered Backgrounds)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Using Texture as Depth Map? (Pre-Rendered Backgrounds)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">napoleon</div>
+          <div class="post_content">
+<p>Hi all,</p>
+<p>So I’d like to use pre-rendered backgrounds like in the first Resident Evil games.<br/>
+For this I render my backgrounds in Blender and then render the depth values to a grayscale image (with the values {0, 1} stretching from the near to far clip).</p>
+<p>Is there a way to “render” the values from the grayscale texture directly into the depth buffer?</p>
+<p>Thanks in advance!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>As far as I know, you can not write into depth buffer that is used by GPU for pixel sorting. You can however read your own depth in pixel shader, and discard pixels that are further away.</p>
+<p>Another solution would be to use mesh occludes - invisible meshes, that are only rendered into depth buffer. Like some old games did it:<br/>
+<img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/c43be8dce3f7b7384e25c5f396e838ae51adeb59.png"/><br/>
+<img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/540918c3bdf146dbf91c88b035997d9caedc6877.png"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">napoleon</div>
+          <div class="post_content">
+<p>Thank you very much! I was experimenting with a much more complicated solution, but I guess using occludes will be more suitable (and actually work).<br/>
+For testing this method I rendered my occlude mesh with a modified version of the “Unlit” shader, where I simply deleted the “oColor” definitions, so only “oDepth” will be written into, but nothing happens, the stuff behind the occlude is still visible. Is that the correct way to do it? (I don’t know much about hlsl shaders.)<br/>
+Here is a part of the “PS” section of my hlsl shader: (The rest is identical to the standard “Unlit” shader)</p>
+<pre><code>#if defined(PREPASS)
+    // Fill light pre-pass G-Buffer
+    oColor = float4(0.5, 0.5, 0.5, 1.0);
+    oDepth = iWorldPos.w;
+#elif defined(DEFERRED)
+    // Fill deferred G-buffer
+    //oColor = float4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+    //oAlbedo = float4(0.0, 0.0, 0.0, 0.0);
+   //oNormal = float4(0.5, 0.5, 0.5, 1.0);
+    oDepth = iWorldPos.w;
+#else
+    //oColor = float4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+#endif
+</code></pre>
+<p>EDIT: To elaborate: I now have two scenes and two viewports to first render the background and then the rest on top of it (<a href="https://discourse.urho3d.io/t/how-to-layer-scenes/740/4">like this</a>). So I guess I need to have a shader where nothing except for the depth values is drawn, correct? If no color output occured, shouldn’t you be able to see the background viewport instead?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Stuff like this must be determined by technique, not shader: <a href="https://urho3d.github.io/documentation/1.4/_materials.html" rel="nofollow noopener">https://urho3d.github.io/documentation/1.4/_materials.html</a><br/>
+here are some solutions you can try:</p>
+<ol>
+<li>
+<p>Enabling depthwrite and depthtest, setting blend mode to add and outputting black color in shader.</p>
+</li>
+<li>
+<p>Assuming you are using ForwardDepth render path, you can make a technique that renders your occluder during depth scenepass, and does nothing during base scenepass.</p>
+</li>
+<li>
+<p>Another way is to write a shader for your occluder, that reads your background image in screen coordinates(rather than UVs) and outputs as oColor. That way painting background image on top of any geometry that further away.</p>
+</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">napoleon</div>
+          <div class="post_content">
+<p>Oh man, thank you so much! I used the first solution and it finally works!<br/>
+I gained much insight into the network of shaders, scenepasses and techniques, thank you!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Ugh, actually, on second thought i realized, there could be a pitfall with this method.  You have to somehow be sure, that occluder is drawn before stuff that needs to be occluded. Otherwise it wont work. Engine is choosing order to draw stuff in opaque pass with fancy algorithm, to draw stuff faster, there is no guarantee it will keep this particular order forever.</p>
+<p>I guess, you should draw only occluders in base pass, and occludable objects in postopaque pass.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Verlet Cloth Simulation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Verlet Cloth Simulation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>In my project, I need a soft stage curtain, so I ported <a href="https://github.com/nnkgw/verlet_cloth" rel="nofollow noopener">github.com/nnkgw/verlet_cloth</a> to Urho3D today.</p>
+<p>I have optimized the performance for mobile device, on my iPad Mini Retina , CPU occupation statistics:</p>
+<p>When disabled verlet cloth simulation:<br/>
+Debug mode: 16%<br/>
+Release mode: 16%</p>
+<p>When enabled verlet cloth simulation:<br/>
+Debug mode: 19%<br/>
+Release mode: 17%</p>
+<p>I use a ball to push the curtain to simulate wind, the curtain looks amazing.</p>
+<p>Note that width = 11, height = 11, iteration = 2 are good for mobile device, the default values are good for desktop applications.</p>
+<p>C++</p>
+<p><code>Node* planeNode = scene_-&gt;CreateChild("VerletCloth");
+planeNode-&gt;SetPosition(Vector3(0.0f, 2.6f, 20.0f));
+planeNode-&gt;SetScale(Vector3(20.0f, 10.0f, 20.0f));
+StaticModel* planeObject = planeNode-&gt;CreateComponent&lt;StaticModel&gt;();
+planeObject-&gt;SetModel(new VerletCloth(context_, 11, 11, 2, false));
+planeObject-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Curtain.xml"));
+</code></p>
+<p>Material</p>
+<p><code>&lt;?xml version="1.0"?&gt;
+&lt;material&gt;
+    &lt;technique name="Techniques/DiffUnlit.xml" quality="0" loddistance="0" /&gt;
+    &lt;texture unit="diffuse" name="Textures/Background.jpg" /&gt;
+&lt;/material&gt;
+</code></p>
+<p>VerletCloth.h</p>
+<p>[code]<span class="hashtag">#pragma</span> once</p>
+<p><span class="hashtag">#include</span> &lt;Urho3D/Urho3DAll.h&gt;</p>
+<p>/*<br/>
+Port of <a href="https://github.com/nnkgw/verlet_cloth" rel="nofollow noopener">https://github.com/nnkgw/verlet_cloth</a><br/>
+to Urho3D<br/>
+*/</p>
+<p>class CParticle{<br/>
+private:<br/>
+bool      m_IsMovable;<br/>
+Vector3 m_Position;<br/>
+Vector3 m_OldPosition;<br/>
+Vector3 m_Acceleration;</p>
+<p>public:<br/>
+CParticle(bool is_movable, Vector3&amp; position, Vector3&amp; acceleration) :<br/>
+m_IsMovable(is_movable),<br/>
+m_Position(position),<br/>
+m_OldPosition(position),<br/>
+m_Acceleration(acceleration){}<br/>
+CParticle(){};<br/>
+~CParticle(){}</p>
+<pre><code>inline void       Update(float t){
+    if (m_IsMovable){
+        Vector3 tmp = m_Position;
+        m_Position += (m_Position - m_OldPosition) + m_Acceleration * t * t;
+        m_OldPosition = tmp;
+    }
+}
+inline Vector3&amp; GetPosition()  { return m_Position; }
+inline void       AddPosition(const Vector3 pos){
+    if (m_IsMovable){
+        m_Position += pos;
+    }
+}
+</code></pre>
+<p>};</p>
+<p>class CConstraint{<br/>
+private:<br/>
+float      m_Distance;<br/>
+CParticle* m_Particle1;<br/>
+CParticle* m_Particle2;</p>
+<p>public:<br/>
+CConstraint(CParticle* p1, CParticle* p2) :<br/>
+m_Distance(0.0f),<br/>
+m_Particle1(p1),<br/>
+m_Particle2(p2){<br/>
+Vector3 p1_to_p2 = m_Particle2-&gt;GetPosition() - m_Particle1-&gt;GetPosition();<br/>
+m_Distance = p1_to_p2.Length();<br/>
+}</p>
+<pre><code>inline void Satisfy(){
+    Vector3 p1_to_p2          = m_Particle2-&gt;GetPosition() - m_Particle1-&gt;GetPosition();
+    float     diff              = p1_to_p2.Length() - m_Distance;
+    Vector3 correction_vector = p1_to_p2.Normalized() * diff * 0.5f;
+    m_Particle1-&gt;AddPosition( correction_vector);
+    m_Particle2-&gt;AddPosition(-correction_vector);
+}
+</code></pre>
+<p>};</p>
+<p>class CBall{<br/>
+private:<br/>
+float     m_Frequency;<br/>
+Vector3 m_Position;<br/>
+float     m_Radius;<br/>
+float m_Offset;</p>
+<p>public:<br/>
+CBall(float radius) :<br/>
+m_Frequency(0.0f),<br/>
+m_Position(0.0f,0.0f,0.0f),<br/>
+m_Radius(radius),<br/>
+m_Offset(RandStandardNormal() * M_PI * 2.0f){}</p>
+<pre><code>inline void Update(float dt){
+    m_Position.z_ = 1.0f + cos(m_Frequency+m_Offset);
+    m_Frequency += dt * 0.2f;
+    if (m_Frequency &gt; M_PI * 2.0f){ m_Frequency -= M_PI * 2.0f; }
+}
+
+Vector3&amp; GetPosition(){ return m_Position; }
+inline float      GetRadius()  { return m_Radius;   }
+</code></pre>
+<p>};</p>
+<p>class CCloth{<br/>
+private:<br/>
+int                      m_Width;<br/>
+int                      m_Height;<br/>
+PODVector   m_Particles;<br/>
+PODVector m_Constraints;</p>
+<pre><code>CParticle* GetParticle(int w, int h) {return &amp;m_Particles[ h * m_Width + w ];}
+void       MakeConstraint(CParticle* p1, CParticle* p2) { m_Constraints.Push(CConstraint(p1, p2));}
+</code></pre>
+<p>public:<br/>
+CCloth(float width, float height, int num_width, int num_height):<br/>
+m_Width(num_width),<br/>
+m_Height(num_height) {<br/>
+m_Particles.Resize(m_Width * m_Height);<br/>
+for(int w = 0; w &lt; m_Width; w++){<br/>
+for(int h = 0; h &lt; m_Height; h++){<br/>
+Vector3 pos( width  * ((float)w/(float)(m_Width - 1) ) - width  * 0.5f,<br/>
+-height * ((float)h/(float)(m_Height - 1)) + height * 0.5f,<br/>
+0.0f );<br/>
+bool is_movable = (h == 0) ? false : true;<br/>
+Vector3 gravity( 0.0f, -0.98f, 0.0f );<br/>
+m_Particles[ h * m_Width + w ] = CParticle(is_movable, pos, gravity);<br/>
+}<br/>
+}<br/>
+for(int w = 0; w &lt; m_Width; w++){<br/>
+for(int h = 0; h &lt; m_Height; h++){           // structual constraint<br/>
+if (w &lt; m_Width  - 1){ MakeConstraint(GetParticle(w, h), GetParticle(w+1, h  )); }<br/>
+if (h &lt; m_Height - 1){ MakeConstraint(GetParticle(w, h), GetParticle(w,   h+1)); }<br/>
+if (w &lt; m_Width  - 1 &amp;&amp; h &lt; m_Height - 1){ // shear constraint<br/>
+MakeConstraint(GetParticle(w,   h), GetParticle(w+1, h+1));<br/>
+MakeConstraint(GetParticle(w+1, h), GetParticle(w,   h+1));<br/>
+}<br/>
+}<br/>
+}<br/>
+for(int w = 0; w &lt; m_Width; w++){<br/>
+for(int h = 0; h &lt; m_Height; h++){           // bend constraint<br/>
+if (w &lt; m_Width  - 2){ MakeConstraint(GetParticle(w, h), GetParticle(w+2, h  )); }<br/>
+if (h &lt; m_Height - 2){ MakeConstraint(GetParticle(w, h), GetParticle(w,   h+2)); }<br/>
+if (w &lt; m_Width  - 2 &amp;&amp; h &lt; m_Height - 2){<br/>
+MakeConstraint(GetParticle(w,   h), GetParticle(w+2, h+2));<br/>
+MakeConstraint(GetParticle(w+2, h), GetParticle(w,   h+2));<br/>
+}<br/>
+}<br/>
+}<br/>
+}<br/>
+~CCloth(){}</p>
+<pre><code>inline Vector3&amp; GetPosition(int w, int h)  { return m_Particles[ h * m_Width + w ].GetPosition(); }
+
+void Update(float dt, CBall* ball, int iteration){
+    PODVector&lt;CParticle&gt;::Iterator particle;
+    for(particle = m_Particles.Begin(); particle != m_Particles.End(); particle++){
+        (*particle).Update(dt);
+    }
+    for(int i = 0; i &lt; iteration; i++){
+        for(particle = m_Particles.Begin(); particle != m_Particles.End(); particle++){
+            Vector3 vec    = (*particle).GetPosition() - ball-&gt;GetPosition();
+            float     length = vec.Length();
+            float     radius = ball-&gt;GetRadius() * 1.4f; // fake radius
+            if (length &lt; radius) {
+                (*particle).AddPosition(vec.Normalized() * (radius - length));
+            }
+        }
+        PODVector&lt;CConstraint&gt;::Iterator constraint;
+        for(constraint = m_Constraints.Begin(); constraint != m_Constraints.End(); constraint++){
+            (*constraint).Satisfy();
+        }
+    }
+}
+</code></pre>
+<p>};</p>
+<p>/// Custom logic component for rotating a scene node.<br/>
+class VerletCloth : public Model<br/>
+{<br/>
+URHO3D_OBJECT(VerletCloth, Model);</p>
+<p>public:<br/>
+/// Construct.<br/>
+VerletCloth(Context* context, int width = 21, int height = 21, int iteration = 5, bool updateNormal = false) :<br/>
+Model(context),<br/>
+width_(width),<br/>
+height_(height),<br/>
+iteration_(iteration),<br/>
+updateNormal_(updateNormal),<br/>
+cloth_(nullptr),<br/>
+ball_(nullptr),<br/>
+buffer_(nullptr)<br/>
+{<br/>
+cloth_ = new CCloth(1.0f, 1.0f, width_, height_);<br/>
+ball_ = new CBall(0.05f);</p>
+<pre><code>    CreateScratchModel();
+    
+    buffer_ = GetGeometry(0, 0)-&gt;GetVertexBuffer(0);
+
+    // Subscribe HandleUpdate() function for processing update events
+    SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(VerletCloth, HandleUpdate));
+}
+
+virtual ~VerletCloth()
+{
+    if (cloth_) {
+        delete cloth_;
+        cloth_ = nullptr;
+    }
+    if (ball_) {
+        delete ball_;
+        ball_ = nullptr;
+    }
+    buffer_ = nullptr;
+}
+
+void HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace Update;
+    
+    // Take the frame time step, which is stored as a float
+    float timeStep = 0.0333333333f;//eventData[P_TIMESTEP].GetFloat();
+    
+    cloth_-&gt;Update(timeStep, ball_, iteration_);
+    ball_-&gt;Update(timeStep);
+    
+    float* vertexData = (float*)buffer_-&gt;Lock(0, buffer_-&gt;GetVertexCount());
+    if (vertexData)
+    {
+        // Update vertices
+        for (int w=0; w&lt;width_; w++) {
+            for (int h=0; h&lt;height_; h++) {
+                Vector3&amp; src = cloth_-&gt;GetPosition(w, h);
+                Vector3&amp; dest = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w) * 8);
+                dest = src;
+            }
+        }
+        // Update normals
+        if (updateNormal_) {
+            for (int w=0; w&lt;width_; w++) {
+                for (int h=0; h&lt;height_; h++) {
+                    Vector3 n1, n2, n3, n4, n5, n6;
+                    // Detect surrounding triangles
+                    if (w-1&gt;0 &amp;&amp; h-1&gt;0) {
+                        Vector3&amp; v1 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w - 1) * 8);
+                        Vector3&amp; v2 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + ((h - 1) * width_ + w - 1) * 8);
+                        Vector3&amp; v3 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w) * 8);
+                        n1 = (v2 - v1).CrossProduct(v3 - v2).Normalized();
+                    }
+                    if (w-1&gt;0 &amp;&amp; h-1&gt;0) {
+                        Vector3&amp; v1 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + ((h - 1) * width_ + w - 1) * 8);
+                        Vector3&amp; v2 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + ((h - 1) * width_ + w) * 8);
+                        Vector3&amp; v3 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w) * 8);
+                        n2 = (v2 - v1).CrossProduct(v3 - v2).Normalized();
+                    }
+                    if (w+1&lt;width_ &amp;&amp; h-1&gt;0) {
+                        Vector3&amp; v1 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + ((h - 1) * width_ + w) * 8);
+                        Vector3&amp; v2 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w + 1) * 8);
+                        Vector3&amp; v3 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w) * 8);
+                        n3 = (v2 - v1).CrossProduct(v3 - v2).Normalized();
+                    }
+                    if (w+1&lt;width_ &amp;&amp; h+1&lt;height_) {
+                        Vector3&amp; v1 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w + 1) * 8);
+                        Vector3&amp; v2 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + ((h + 1) * width_ + w + 1) * 8);
+                        Vector3&amp; v3 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w) * 8);
+                        n4 = (v2 - v1).CrossProduct(v3 - v2).Normalized();
+                    }
+                    if (w+1&lt;width_ &amp;&amp; h+1&lt;height_) {
+                        Vector3&amp; v1 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + ((h + 1) * width_ + w + 1) * 8);
+                        Vector3&amp; v2 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + ((h + 1) * width_ + w) * 8);
+                        Vector3&amp; v3 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w) * 8);
+                        n5 = (v2 - v1).CrossProduct(v3 - v2).Normalized();
+                    }
+                    if (w-1&gt;0 &amp;&amp; h+1&lt;height_) {
+                        Vector3&amp; v1 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + ((h + 1) * width_ + w) * 8);
+                        Vector3&amp; v2 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w - 1) * 8);
+                        Vector3&amp; v3 = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w) * 8);
+                        n6 = (v2 - v1).CrossProduct(v3 - v2).Normalized();
+                    }
+                    Vector3&amp; n = *reinterpret_cast&lt;Vector3*&gt;(vertexData + (h * width_ + w) * 8 + 3);
+                    // Average surrounding normals
+                    n = (n1 + n2 + n3 + n4 + n5 + n6).Normalized();
+                }
+            }
+        }
+        
+        buffer_-&gt;Unlock();
+    }
+}
+</code></pre>
+<p>private:<br/>
+void CreateScratchModel()<br/>
+{<br/>
+const unsigned numVertices = width_ * height_;<br/>
+const unsigned numIndices = (width_-1) * (height_-1) * 6;</p>
+<pre><code>    float* vertexData = new float[numVertices * 8];
+    memset(vertexData, 0, numVertices * 8 * sizeof(float));
+    // Fill vertex buffer
+    for (int w=0; w&lt;width_; w++) {
+        for (int h=0; h&lt;height_; h++) {
+            // Vertex
+            vertexData[(h * width_ + w) * 8    ] = (float)w / (float)(width_ - 1) - 0.5f;
+            vertexData[(h * width_ + w) * 8 + 1] = -(float)h / (float)(height_ - 1) + 0.5f;
+            vertexData[(h * width_ + w) * 8 + 2] = 0.0f;
+            // Normal
+            vertexData[(h * width_ + w) * 8 + 3] = 0.0f;
+            vertexData[(h * width_ + w) * 8 + 4] = 0.0f;
+            vertexData[(h * width_ + w) * 8 + 5] = -1.0f;
+            // UV
+            vertexData[(h * width_ + w) * 8 + 6] = (float)w / (float)(width_ - 1);
+            vertexData[(h * width_ + w) * 8 + 7] = (float)h / (float)(height_ - 1);
+        }
+    }
+
+    unsigned short* indexData = new unsigned short[numIndices];
+    memset(indexData, 0, numIndices * sizeof(unsigned short));
+    // Fill index buffer
+    for (int w=0; w&lt;width_-1; w++) {
+        for (int h=0; h&lt;height_-1; h++) {
+            // Triangle one, clockwise order.
+            indexData[(h * (width_ - 1) + w) * 6    ] = h * width_ + w;
+            indexData[(h * (width_ - 1) + w) * 6 + 1] = h * width_ + w + 1;
+            indexData[(h * (width_ - 1) + w) * 6 + 2] = (h + 1) * width_ + w + 1;
+            // Triangle two, clockwise order.
+            indexData[(h * (width_ - 1) + w) * 6 + 3] = h * width_ + w;
+            indexData[(h * (width_ - 1) + w) * 6 + 4] = (h + 1) * width_ + w + 1;
+            indexData[(h * (width_ - 1) + w) * 6 + 5] = (h + 1) * width_ + w;
+        }
+    }
+    
+    SharedPtr&lt;VertexBuffer&gt; vb(new VertexBuffer(context_));
+    SharedPtr&lt;IndexBuffer&gt; ib(new IndexBuffer(context_));
+    SharedPtr&lt;Geometry&gt; geom(new Geometry(context_));
+    
+    // Shadowed buffer needed for raycasts to work, and so that data can be automatically restored on device loss
+    vb-&gt;SetShadowed(true);
+    // We could use the "legacy" element bitmask to define elements for more compact code, but let's demonstrate
+    // defining the vertex elements explicitly to allow any element types and order
+    PODVector&lt;VertexElement&gt; elements;
+    elements.Push(VertexElement(TYPE_VECTOR3, SEM_POSITION));
+    elements.Push(VertexElement(TYPE_VECTOR3, SEM_NORMAL));
+    elements.Push(VertexElement(TYPE_VECTOR2, SEM_TEXCOORD));
+    vb-&gt;SetSize(numVertices, elements);
+    vb-&gt;SetData(vertexData);
+    
+    ib-&gt;SetShadowed(true);
+    ib-&gt;SetSize(numIndices, false);
+    ib-&gt;SetData(indexData);
+    
+    geom-&gt;SetVertexBuffer(0, vb);
+    geom-&gt;SetIndexBuffer(ib);
+    geom-&gt;SetDrawRange(TRIANGLE_LIST, 0, numIndices);
+    
+    SetNumGeometries(1);
+    SetGeometry(0, 0, geom);
+    SetBoundingBox(BoundingBox(Vector3(-0.5f, -0.5f, 0.0f), Vector3(0.5f, 0.5f, 0.0f)));
+    
+    delete [] vertexData;
+    delete [] indexData;
+}
+
+int width_;
+int height_;
+int iteration_;
+bool updateNormal_;
+CCloth* cloth_;
+CBall* ball_;
+VertexBuffer* buffer_;
+</code></pre>
+<p>};<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>Nice one!<br/>
+Could I pester you for a short video showing the verlet effect running in engine?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>I have just uploaded a short video: <a data-bbcode="true" href="https://youtu.be/zIpupeSpXl4" rel="nofollow noopener">https://youtu.be/zIpupeSpXl4</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>I’m always fascinated in anything Verlet Physics, so great job! …and just in time for the coming holiday season!   <img alt=":bulb:" class="emoji" src="../../../images2/ef35fb0b54a650b4d085e8465e20a1c3.png" title=":bulb:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

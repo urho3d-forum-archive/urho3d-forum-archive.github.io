@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Scene Replication Fog of War</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Scene Replication Fog of War</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Deveiss</div>
+          <div class="post_content">
+<p>Is it possible to implement a sort of “fog of war” with Urho’s stock scene replication? Where their client is only sent data about nodes which that they’re supposed to have knowledge of? In some strategy games, you can only see real-time information of the map in areas that you’re units have “vision” in. It would be easy in the client to say “alright, do I have units that can see this part of the map? No? Then disregard any data we get about enemy movements in this area.” However, sending the entire game state to all clients opens the door to severe cheating. So…</p>
+<p>Assume one server and two clients, where the server receives commands from both clients, who can order their units to move, attack, or idle. The server then takes those orders and executes them. All of the movement of nodes and simulation of damage is done on the server. Is there a way to relay the outcomes back to only those nodes that have “vision” on those units? There currently isn’t any simulation done on the client, the client just sends events and receives the current game state to display.</p>
+<p>On the IRC it was suggested that I look into the MarkNetworkUpdate function, however this seems to be applied to replicated nodes automatically by the engine, and appears to not be able to discriminate between connections. Ideally, I’d be able to set an owner for each node, and then when the time comes to update each client, check to see what nodes they have ownership of, and only send updates for other units within their own unit’s circle of vision.</p>
+<p>Bonus question: Are shader parameters replicated? Because modifying the diffusion color on the server appears to have no effect on the client.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Realistically I believe you have to modify the engine. Check the function Connection::ProcessExistingNode() where it does a simple interest management priority accumulation check using the NetworkPriority component, and just returns if the component says the node shouldn’t be replicated yet. You could for example insert some kind of interceptor callback, or make NetworkPriority subclassable. If you do it cleanly and it doesn’t hurt performance when not used, a pull request is welcome.</p>
+<p>Shader parameters aren’t replicated. Look either into custom messaging or storing parameters into node user vars, which do replicate, and apply from the node var to the material.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Deveiss</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>You could for example insert some kind of interceptor callback, or make NetworkPriority subclassable. If you do it cleanly and it doesn’t hurt performance when not used, a pull request is welcome.</p>
+</blockquote>
+</aside>
+<p>Could be a fun experiment. I’ll play around with it, see what I can do.</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>Shader parameters aren’t replicated. Look either into custom messaging or storing parameters into node user vars, which do replicate, and apply from the node var to the material.</p>
+</blockquote>
+</aside>
+<p>Thank you. Before getting confirmation that this was how I’d have to do it, I added a networked Color attribute to my PlayerUnit component, and I’m working on a way to notify the clients when a new unit joins the scene or changes color, so they know to clone the material and apply the color change.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

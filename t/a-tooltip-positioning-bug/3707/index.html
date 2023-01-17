@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>A ToolTip Positioning Bug?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">A ToolTip Positioning Bug?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">miz</div>
+          <div class="post_content">
+<p>When setting alignment of tooltips (for instance to HA_CENTER, VA_CENTER) they show in strange positions… (not relative to parent)</p>
+<p>For some reason in the ToolTip update function there is this:<br/>
+<code>SetPosition(screenPosition)</code><br/>
+I suspect this is what is causing this…very strange…</p>
+<p>also it is making the root the parent</p>
+<p>Is there any reason for this?<br/>
+I suspect it would work properly if it didn’t have this at all</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">miz</div>
+          <div class="post_content">
+<p>Or it could force top left alignment before setting the position as screen position with root parent then reseting this when not visible?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">miz</div>
+          <div class="post_content">
+<p>I propose this solution (works):</p>
+<p>add these to ToolTip.h:</p>
+<p><code>/// Original horizontal Alignment.</code><br/>
+<code>HorizontalAlignment originalHorizontalAlignment_;</code><br/>
+<code>/// Original vertical Alignment.</code><br/>
+<code>VerticalAlignment originalVerticalAlignment_;</code></p>
+<p>and Change Update funciton in ToolTip.cpp to:</p>
+<pre><code>void ToolTip::Update(float timeStep)
+{
+    // Track the element we are parented to for hovering. When we display, we move ourself to the root element
+    // to ensure displaying on top
+    UIElement* root = GetRoot();
+    if (!root)
+        return;
+    if (parent_ != root)
+        target_ = parent_;
+
+    // If target is removed while we are displaying, we have no choice but to destroy ourself
+    if (target_.Expired())
+    {
+        Remove();
+        return;
+    }
+	
+	
+
+    if (target_-&gt;IsHovering() &amp;&amp; target_-&gt;IsVisibleEffective())
+    {
+        float effectiveDelay = delay_ &gt; 0.0f ? delay_ : GetSubsystem&lt;UI&gt;()-&gt;GetDefaultToolTipDelay();
+
+        if (!parentHovered_)
+        {
+            parentHovered_ = true;
+            displayAt_.Reset();
+        }
+        else if (displayAt_.GetMSec(false) &gt;= (unsigned)(effectiveDelay * 1000.0f) &amp;&amp; parent_ == target_)
+        {
+			originalHorizontalAlignment_ = GetHorizontalAlignment();
+			originalVerticalAlignment_ = GetVerticalAlignment();
+
+            originalPosition_ = GetPosition();
+            IntVector2 screenPosition = GetScreenPosition();
+            SetParent(root);
+			SetAlignment(HA_LEFT, VA_TOP);
+            SetPosition(screenPosition);
+            SetVisible(true);
+            // BringToFront() is unreliable in this case as it takes into account only input-enabled elements.
+            // Rather just force priority to max
+            SetPriority(M_MAX_INT);
+        }
+    }
+    else
+    {
+        if (IsVisible() &amp;&amp; parent_ == root)
+        {
+            SetParent(target_);
+            SetPosition(originalPosition_);
+			SetAlignment(originalHorizontalAlignment_, originalVerticalAlignment_);
+            SetVisible(false);
+        }
+        parentHovered_ = false;
+        displayAt_.Reset();
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

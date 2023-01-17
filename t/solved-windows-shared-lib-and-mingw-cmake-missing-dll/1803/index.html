@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED]Windows shared lib and mingw cmake missing dll</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED]Windows shared lib and mingw cmake missing dll</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>I’m having some new issues compiling “my” project against urho as a shared library. To be clear URHO compiles just fine.<br/>
+When I go to compile my project (as I have done in the past) i get a pop up error that says mingw is unable to locate Urho3D.dll.<br/>
+The dll is in the urho build directory /bin<br/>
+i also copy the dll to my projects bin directory (that has fixed the problem in the past)<br/>
+URHO3D_HOME is set to the urho build director.</p>
+<p>I was consulting Carnalis about this (i know he uses the same compile method) and he is NOT have the same problem as I (other than getting 2 pop up errors that do not keep him from compiling). So being as our setups are largely similar. I am confused as to what I could be possibly missing in my process.</p>
+<p>Any help would be greatly appreciated.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>I started seeing something like this one or two months ago.<br/>
+In my project’s cmake stage, two test compiles fail with dialog boxes:</p>
+<p>(dialog)“cmTC_8f747.exe - System Error” “The program can’t start because Urho3D_d.dll is missing from your computer.”<br/>
+– Found Urho3D: urho/build/lib/libUrho3D_d.dll.a<br/>
+(dialog)“cmTC_e9d9c.exe - System Error” “The program can’t start because Urho3D_d.dll is missing from your computer.”<br/>
+– Found Urho3D: urho/build/lib/libUrho3D_d.dll.a</p>
+<p>My project still builds successfully, and Urho3D*.dll is automatically copied there (if there is a way to prevent this, it could be useful).</p>
+<p>And this may be unrelated, but cmake seems to be creating invalid links. These target folders are in my ROOT, not bin/, and I’m running cmake from the build tree, passing …/ to cmake as the source tree.<br/>
+$project/build/bin/CoreData =&gt; $project/bin/CoreData<br/>
+$project/build/bin/Data =&gt; $project/bin/Data</p>
+<p>I am changing the output directory:<br/>
+set_output_directories(${CMAKE_BINARY_DIR}/… RUNTIME PDB)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Since you did not paste the actual error message, it is not apparent to me at which stage the error occured. Is it during CMake configuration/generation stage? Or the build tree already got generated and error during actual build phase. I can only assume it is the former, since only CMake does popup error message thingy. If so, then your issue sounds like your project has outdated CMake modules from Urho3D project. Probably you have not setup mklink nor symlink when you created the initial structure of your project the first time, so your project only contains soft copies of the CMake modules at that time. And if so then do yourself a favor by learning how to use mklink or symlink properly and setup your project to use it and fix the problem once and for all. You can, of course,  just try to refresh your stale/outdated CMake modules (and toolchains) by simply making another hard copy operation. However, you have to remember to keep doing that frequently for the remaining of your project’s life. Then again, I could be totally wrong about it because all these is just based on my assumption of what has happened. Urho3D is under very active development including its build system,  I can at least guarantee you that soft copies get stale very quickly.</p>
+<p>Edit: I was referring to OP.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>Is it during CMake configuration/generation stage? Or the build tree already got generated and error during actual build phase</p>
+</blockquote>
+</aside>
+<p>Urho3D built from source without a problem. Using cmake_mingw.bat %BUILDPATH% %BUILDFLAGS%</p>
+<p>The problem occurs when trying to build my project, using urho as a shared library.<br/>
+Before building my project, I am sym linking in the relevant cmake folders, and toolchains from the build folder to my project ( I only do that when updating urho just to be safe, and sure I have the right folders when building my project)</p>
+<aside class="quote">
+<blockquote>
+<p>Since you did not paste the actual error message</p>
+</blockquote>
+</aside>
+<p>fair enough<br/>
+After running the following command from my project directory:</p>
+<pre><code class="lang-auto">cmake -G "MinGW Makefiles" .</code></pre>
+<p>The error:</p>
+<pre><code class="lang-auto">CMake Error at CMake/Modules/FindUrho3D.cmake:347 (message):
+  Could NOT find compatible Urho3D library in Urho3D SDK installation or
+  build tree.  Use URHO3D_HOME environment variable or build option to
+  specify the location of the non-default SDK installation or build tree.
+  Ensure the specified location contains the Urho3D library of the requested
+  library type.  Change Dir: D:/MYPROJECT/CMakeFiles/CMakeTmp</code></pre>
+<p>I am not versed enough referencing that line in FindUrho3D.cmake to know how exactly to trouble shoot it. Even though it seems like a very straight forward path to trace.</p>
+<p>Also, all command prompt input is done in elevated mode.<br/>
+<span class="bbcode-b"><br/>
+SOLVED:<br/>
+The problem was just solved, by my adding the %URHOBUILD%/bin directory directly to my path… so there was no confusion in cmake finding the dll.</span></p>
+<p>At this point, I guess if anyone is willing to just make clarify what I did wrong, or what step I am missing prior to my “brute force” fix I would be greatful… Otherwise, all is well in my world, and thank you for your help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>It has been years since I migrated from MS Windows to Linux as my main host system, so my understanding of how it works may be rusty now. But this is what I have assumed when the FindUrho3D.cmake module was updated one or two months ago. The Urho3D.dll is copied automatically as part of the try_compile/run test to where the test binary resided. The idea is the when the test binary is being executed then Windows will at least “smart enough” to look for it in the system-wide DLL location AND the directory where the binary is located. If this assumption is wrong then all bets are off.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>As I watch the cmake test builds in build/CMakeFiles/CMakeTmp…<br/>
+as indicated by the error dialogs, I do not see the .dll appear there.</p>
+<p>MS Win does search the PATH for shared libraries, but I did not choose to ‘make install’ Urho, if that is relevant…</p>
+<p>and again: I still get successful builds.</p>
+<p>I don’t envy the doing of your cmake work, which has been invaluable.  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>One more thing. The assumption is made under the precondition that Urho3D and downstream project are built using “normal” Windows account, not Administrator or any other account with escalated privileges. I will not be surprise that under such privilege accounts, Windows will not just use any DLL it can find along its way and constraint itself to use just those setup in the PATH environment variable. To do the former will be just stupid and luckily at the very least MS developes are not that stupid.</p>
+<p>Whether you install the Urho3D SDK or not, is not relevant in this case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>The error also occurs without elevated privileges… Same user account of course. UAC, being shoddy, is mostly a popup before certain operations and the sudden right to symlink… and as far as I know: the rules for locating and executing binaries, the PATH, and most filesystem privileges should be the same in either case. Let me know if I can help further…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>As far as I concern, there is nothing wrong with our implementation or otherwise the CI builds on AppVeyor would have failed in each run. The CI build is designed to perform two scaffolding tests, i.e. it performs tests with two downstream projects, one using Urho SDK and one using Urho build tree. The CI build covers both STATIC and SHARED cases. I could not think of anything else it could have gone wrong and causes your issue. Sorry.</p>
+<p>BTW, the DLL must have been copied unless your module is outdated. See this. <a >github.com/urho3d/Urho3D/blob/m … #L241-L247</a>. Either that, or your CMake version is broken. I recall Ivank encountered some issues with the FindUrho3D module and logged a GitHub issue, but in the end the culprit was his CMake. So, probably you should not rule that out too for your case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>I get the same behavior with CMake 3.4.1 and CMake 3.5.0 RC-3. And the module is not outdated; it’s symlinked to the master.<br/>
+That this happens on at least two systems gives more opportunity to find it solved.</p>
+<p>At least in our cases, it does not seem to be a real problem and builds can continue. Thanks for looking into it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>NP. One last shot. <a href="https://support.microsoft.com/en-us/kb/2264107">support.microsoft.com/en-us/kb/2264107</a>. Personally in my Windows 10, I don’t have any issues with scaffolding test too. I am using normal Windows account that has been granted MKLINK privilege (nothing more nothing less). And I have not done anything to the CWDIllegalInDllSearch registry entry because I do not have any issues with it in the first place. I only know about this key and its existence a few minutes ago after a quick google search. But I think you guys should know better,  never take Windows advice from a Linux user <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/> .</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

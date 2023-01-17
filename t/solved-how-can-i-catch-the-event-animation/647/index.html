@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] How can i catch the event animation?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] How can i catch the event animation?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi,  folks!</p>
+<p>I’ve got a enemy bot and it runs along the ground.<br/>
+I want to make the effect of the dust particles when it comes feet on the ground.</p>
+<p>How can I catch the event animation “run” on the frame:</p>
+<ol>
+<li>The left leg on the ground (frame = 5)</li>
+<li>The right foot on the ground (frame = 15)<br/>
+Running is one whole animation, length of 20 frames</li>
+</ol>
+<p>In frames 5 and 15 i’m going Instantiate dustfx prefab in world position of foot-helpers;</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>This is demonstrated in NinjaSnowWar. I’l elaborate more on this when I’ll get home.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Actually I did something strange and without events.<br/>
+I translated the frames into the time.<br/>
+And check the current time of anim state walk.</p>
+<p>if enemy bot in anim_walk_state it call this proc</p>
+<pre><code class="lang-auto">void ScriptR2Bot::CheckForEmmitFootSteps(float timeStep) 
+{
+	static bool emmitFootL = false;
+	static bool emmitFootR = false;
+	float walkTime = animWalk_-&gt;GetTime();
+
+	float timeL = 15.0f / 24.0f;
+	float timeR = 5.0f / 24.0f;
+	
+	if (walkTime &gt; timeL &amp;&amp; walkTime &lt; timeL+0.1f) 
+	{
+			emmitFootL = true;
+			emmitFootR = false;
+	}
+
+	if (walkTime &gt; timeR &amp;&amp; walkTime &lt; timeR+0.1f) 
+	{
+			emmitFootL = false;
+			emmitFootR = true;
+	}
+
+	if (timeFromLastFootStep &gt; 0.3f) // delay
+	if (emmitFootL == true | emmitFootR == true) 
+	{
+		Node* camera = gameWorld_-&gt;camera.node_;
+		Vector3 pos;
+
+		if (emmitFootL)
+			pos = footL_-&gt;GetWorldPosition();
+		else
+			pos = footR_-&gt;GetWorldPosition();
+		
+		Vector3 camPos = gameWorld_-&gt;camera.node_-&gt;GetWorldPosition();
+		Quaternion quat;
+		quat.FromRotationTo(pos, camPos);
+		SharedPtr&lt;Node&gt; smokeFX_ = SharedPtr&lt;Node&gt;(GetNode()-&gt;GetScene()-&gt;InstantiateXML(gameWorld_-&gt;prefabs.prefabSmokeFx_-&gt;GetRoot(), pos, quat, LOCAL));
+		ScriptSmokeFx* script = smokeFX_-&gt;CreateComponent&lt;ScriptSmokeFx&gt;();
+		//smokeFX_-&gt;SetWorldScale(Vector3::ONE * 0.05f);
+		script-&gt;SetOrientationToNode(camera);
+
+		timeFromLastFootStep = 0.0f;
+
+	}
+
+	timeFromLastFootStep +=timeStep;	
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>If you are looking for “animation trigger” example, look at <a href="http://FootSteps.as">FootSteps.as</a> and Ninja_Walk.xml.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>thanks<br/>
+i’m loking these examples.<br/>
+and for fire state i’m trying to make trigger animation like in ninja example - with events.</p>
+<p>i’m create file for R2_FIRE.ani name is R2_FIRE.xml<br/>
+with this text</p>
+<p><code>&lt;animation&gt;
+    &lt;trigger time="0.6" type="String" value="RUKA.L.001" /&gt;
+&lt;/animation&gt;</code></p>
+<p>remark : 0.6 = 15(in this frame must be event) / 25 (all frames in anim fire)</p>
+<p>[code]void Start()<br/>
+{<br/>
+…<br/>
+SubscribeToEvent(node_, E_ANIMATIONTRIGGER, HANDLER(ScriptR2Bot, HandleAnimationTrigger));<br/>
+…<br/>
+}</p>
+<p>void ScriptR2Bot::HandleAnimationTrigger(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+using namespace AnimationTrigger;<br/>
+//EVENT(E_ANIMATIONTRIGGER, AnimationTrigger)<br/>
+//{<br/>
+//	PARAM(P_NODE, Node);                    // Node pointer<br/>
+//	PARAM(P_NAME, Name);                    // String<br/>
+//	PARAM(P_TIME, Time);                    // Float<br/>
+//	PARAM(P_DATA, Data);                    // User-defined data type<br/>
+//}</p>
+<pre><code>AnimationState* as = animModel_-&gt;GetAnimationState(StringHash(eventData[P_NAME].GetString()));
+if (as) 
+{
+	String name = eventData[P_DATA].GetString();
+	Node* bone = node_-&gt;GetChild(StringHash(name), true);
+}	
+</code></pre>
+<p>}<br/>
+[/code]</p>
+<p>but in first time this not work, I’ve been thinking why? And then I thought of why.<br/>
+At the node to which I Subscribe the event there is no component AnimationMesh</p>
+<p>I corrected this place :<br/>
+SubscribeToEvent(<span class="bbcode-b">GetNode(), </span>E_ANIMATIONTRIGGER, HANDLER(ScriptR2Bot, HandleAnimationTrigger));<br/>
+to<br/>
+SubscribeToEvent(<span class="bbcode-b">node_, </span>E_ANIMATIONTRIGGER, HANDLER(ScriptR2Bot, HandleAnimationTrigger));</p>
+<p>and now everything seems working well</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

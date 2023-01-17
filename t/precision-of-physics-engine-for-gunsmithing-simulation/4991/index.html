@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Precision of physics engine - for gunsmithing simulation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Precision of physics engine - for gunsmithing simulation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mvendra</div>
+          <div class="post_content">
+<p>Hello there,</p>
+<p>Would it be possible to use Urho’s physics engine to fully simulate the internal mechanisms of firearms?<br/>
+I mean something like this: <a href="https://www.youtube.com/watch?v=_eQLFVpOYm4" rel="nofollow noopener">https://www.youtube.com/watch?v=_eQLFVpOYm4</a></p>
+<p>Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/698_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TrevorCash</div>
+          <div class="post_content">
+<p>If you turn up the iteration count in bullet you might be able to reproduce the collision effects of the hammer etc.  For things that obviously slide you would want to use sliding constraints and not rely on collision.</p>
+<p>If you want a more accurate physics engine you can check out my PR on this page:<a class="inline-onebox" href="https://discourse.urho3d.io/t/newton-dynamics-integration/1596/35">Newton Dynamics Integration</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Bullet has an option for using doubles (real8) instead of floats (real4) - but that setting is disabled by default. I’m pretty sure you’ll be able to rebuild urho with bullet using double precision by enabling the Bullet double precision option in cmake (I use cmake-gui on linux) - I’m not so sure that urho’s physics classes will respect your choice, as I don’t think they use btScalar datatype, or equivalent typedef.<br/>
+Simply put, this would involve changing anything that is physics related and float type to use btScalar instead - this would cause Urho to use whatever datatype Bullet is using…</p>
+<p>It would be fairly trivial to change the datatypes used by Urho 3D physics classes to respect a configured typedef, however it would be less trivial to do the same to Urho’s math classes (not impossible, but more work) - if you’re willing to use Bullet math classes in place of Urho classes like Vector3 and Matrix, at least until we’re satisfied that double precision is working, I’d be willing to attempt such changes for the benefit of the community, with a view to extending those changes to our math classes (I don’t need to rewrite them, just change a bunch of datatypes to use a predefined type instead of floats)</p>
+<p>There are bound to be side-effects in classes like IKSolver, but I’m up for a challenge <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>According to <span class="mention">@cadaver</span>, two years ago:</p>
+<aside class="quote" data-post="2" data-topic="2682">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/physics-double-precision/2682/2">Physics double precision</a> <a class="badge-wrapper bullet" href="/c/discussions/support/10"><span class="badge-category-parent-bg" style="background-color: #25AAE2;"></span><span class="badge-category-bg" style="background-color: #92278F;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Someone can help you.">Support</span></a>
+</div>
+<blockquote>
+    If Bullet API changes to doubles, I’m fairly sure it won’t work. The Urho scene model still operates on floats, and the physics integration code even does some nasty reinterpret-casts to write to Bullet’s vectors, assuming its and Urho’s Vector3 memory layout matches. You’re welcome to work on that and contribute a PR.
+  </blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yeah, it’s likely to be non-trivial to completely remap Urho to use real8, but I believe we can confine this stuff to the physics classes, and cast back to floats for rendering purposes… the underlying bullet objects would be double precision, but lose precision for rendering - I did not consider angelscript integration, it’s definitely not trivial, but maybe can be done in stages.<br/>
+I’d be willing to have a crack at it on that basis. Hey, I don’t plan to rewrite our shaders etc, that is overkill <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/><br/>
+I’ll spend some time tomorrow evaluating the requirements, especially the reinterprets, because we can likely eliminate them in favour of a rubber type.<br/>
+Man I can see all those compiler warnings about losing precision already <img alt=":smiley:" class="emoji" src="../../../images2/709f26ac94a0e531f2b4ec1f4b839a88.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bvanevery</div>
+          <div class="post_content">
+<p>That video you linked to, is not a <em>simulation</em>.  It is a <em>visualization</em>.  Just a series of animations meant to illustrate something.  You could certainly <em>visualize</em> a gun firing with Bullet and Urho3D.</p>
+<p>Without a lot of knowledge on my part, I’m going to take a wild assed guess that no, you are completely barking up the wrong tree as far as using Bullet for an accurate physical <em>simulation</em> of a gun.  To my knowledge, Bullet was designed for <em>game</em> physics.  There are inherent tradeoffs when you want things to run fast enough in real time on a computer.</p>
+<p>I think if you designed and built a gun based on Bullet simulation, you would literally kill yourself firing the thing.  It would explode in your face.  Hey, maybe those early M16s in Vietnam were designed with the equivalent of the era?  <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/>  Or was it the M14, I forget, or the M4A4, could be getting my M’s mixed up.  But one of those early guns would jam and blow up in soldiers’ faces.</p>
+<p>You could make a <em>virtual toy</em> that uses Bullet and works like a real gun.  As long as you understand that this is a <em>virtual toy</em> and has no bearing on real physical materials working in the real world.  You aren’t going to 3D print a gun by working with Bullet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mvendra</div>
+          <div class="post_content">
+<p>Hey thanks for the reply.</p>
+<p>Yes, indeed, that video is basically an animation - not a simulation. I basically wanted to do what the video does, but without pre-animating - with actual physics simulation instead.</p>
+<p>As for the accuracy, yes, I wanted to make a “toy” simulation - this was for an indie game, not an actual CAD program, using lots of simplifications, smokes and mirrors and constraints etc. Do you think Bullet could handle something like that?</p>
+<p>PS. As for the service rifle you mentioned - the very earliest units of the M16 were known to jam often<br/>
+because they were issued with improper ammunition. There was even a US congressional hearing about the whole thing. I don’t recall reading about actual explosions on soldier’s faces but it’s possible it happened (that’d be very extreme!).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Bullet is pretty good at intersection tests, if it’s for a game, and its a small bullet moving very fast, you have basically two options: simulate the bullet with a raycast (think of a laser beam), accepting that we’re no longer accounting for wind, or ballistics. The other option is to perform a convex cast, such as a spherecast (think of a sphere, extruded along a laser beam), to simulate a bullet with a shape. What we don’t try to do, is simulate bullets as dynamic or kinematic rigidbodies, because Bullet starts to do weird things when the size of an object is smaller than a tennis ball, or bigger than a bus, or moving very fast - the numbers get too big, or too small, for the default single-precision floating point numbers. There is an option called CCD we can enable (continuous collision detection) which can help reduce “tunneling” for fast-moving and/or small rigidbodies, but it comes at some cost in terms of processing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="8" data-topic="4991" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>Bullet starts to do weird things when the size of an object is smaller than a tennis ball, or bigger than a bus</p>
+</blockquote>
+</aside>
+<p>I think this can be better understood as Bullet having a maximum <em>relative scale range</em> of <code>bus:tennisball</code>. You can scale things up and modify some parameters to shoot a man-sized bullet from a bus-sized gun without <em>Bullet</em> doing “weird things”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Bullet works in world space, so scaling tricks are not going to fly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><span class="mention">@Leith</span> Why not? You could just “pretend” objects are of a different size, it’s all virtual anyway.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bvanevery</div>
+          <div class="post_content">
+<p>Yes, Bullet can make a hand-wavy, “toy” simulation of all the parts of a gun working.  I mean heck the software is called Bullet, it would be pretty pathetic if it couldn’t!  <img alt=":smile:" class="emoji" src="../../../images2/960a5411e25e729a2c4fcf44c77aee68.png" title=":smile:"/>  How fast it will be, how many weird simulation killing errors it will generate, and how much special knowledge you’ll need to apply to get things to work acceptably, I have no idea.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Bullet’s solver works in terms of worldspace coordinates, so just adding scale to some node in a hierarchy is not going to help - that’s all I meant. Sure you can scale the solution up and down, but you must also accept that the scene hierarchy is the wrong place to do that - the derived transforms are handed to Bullet, and that is a problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>So one would scale the <code>CollisionShape</code>s and modify some <code>PhysicsWorld</code> properties instead, right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Scaling the collision shapes is the right answer - but we have to do it after the scene updates the node hierarchy, or alternatively, leave all our rigidbodies connected to root node, because the parent node of a rigidbody will try to apply its derived transform to the collisionshape, which we dont always want. I found a workaround with “descaling nodes” but then I’m working with armatures, and a gun simulation could be done in a single space. I just wanted to enforce that inherited scale due to scene nodes affects the local scale on collisionshapes, and can be a source of problems if the bodies are to be independently scaled for the purpose of avoiding numerical precision issues (mainly dot products) on  single floats.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>In regards to scaling the simulation, it’s also possible to just define (interpret) world scale units as something like centimeters or inches rather than meters (decimeters would probably be the best common(ish) unit to scale on for a gun/bullet simulation, if I had to guess). If course, that could fail if you also need to simulate the now building-sized players as well as the bus-sized gun, but if it’s just the guns being simulated just make all of your assets with that assumption instead.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

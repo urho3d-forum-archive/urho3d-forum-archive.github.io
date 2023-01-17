@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>SDL_Init() doesn&rsquo;t get called in headless mode?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">SDL_Init() doesn&rsquo;t get called in headless mode?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I noticed that SDL_Init() is called only in the constructor of Graphics, however, in headless mode, Grahpics is never created. The Input, UI, FileSystem, and Audio subsystems and a few other objects will still call SDL functions, though.</p>
+<p>Why does headless mode work?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>SDL_Init() is basically used here to tell “we are going to be a windowful application” and it inits the major SDL subsystems like video &amp; audio. You can still use minor SDL “helper” functionality without.</p>
+<p>Audio is actually a bit of luck because the Engine init doesn’t call Audio::SetMode() in headless mode. However you could call it yourself, which could result in something nasty happening.</p>
+<p>The point you raise is good, all the code related to this is worth reviewing. Though right now I can’t think of a better place to call SDL init, because ideally the individual subsystems should be usable e.g. without Engine class at all, and window opening / graphics rendering is tied strongest to SDL being fully initialized.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I didn’t realise you could use Graphics without Engine. Now it makes sense to me why SDL was initialised like that.</p>
+<p>Might I suggest moving <code>SDL_Init()</code> into the <code>Context</code> class? Depending on whether SDL should be initialised in headless mode or not, <code>SDL_Init()</code> could be called in the constructor or explicitly. For instance, here’s what the explicit method might look like:</p>
+<pre><code>Graphics::Graphics(Context* context) : 
+    Object(context),
+    // more stuff
+{
+    context_-&gt;RequireSDL(SDL_INIT_VIDEO); 
+}
+
+Graphics::~Graphics()
+{
+    context_-&gt;ReleaseSDL();
+}
+</code></pre>
+<p><code>Context</code> would take care of initialising the various SDL systems by using <code>SDL_WasInit()</code> and additionally keep a global “reference count” of how many times SDL was initialised, so it knows when to call SDL_Quit().</p>
+<p>The audio subsystem would similarly call <code>context_-&gt;RequireSDL()</code> but pass in SDL_INIT_AUDIO.</p>
+<p>Of course, the lazy solution could be to call <code>SDL_Init(SDL_INIT_EVERYTHING)</code> in the constructor of <code>Context</code> and be done with it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Yes, that’s a good idea.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’ll submit a PR in that case, since I’m already poking around in these areas.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

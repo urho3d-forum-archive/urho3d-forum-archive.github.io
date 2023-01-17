@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Asserts on scene-&gt;Clear()</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Asserts on scene-&gt;Clear()</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>This is really weird.<br/>
+It only happens in my game when the player dies while the monster attack animation plays, and the scene clears after attack animation ends and a the idle animation starts.<br/>
+The scene clear is used for a level restart, removing everything and re-creating the scene.</p>
+<p>The assertions seems to originate from components deleting things on destruction.<br/>
+Each time it’s one of the following:</p>
+<p><code>delete compoundShape_;</code> in ~RigidBody()</p>
+<p><span class="spoiler"><code>btFreeDefault(void * ptr) Line 29	C++
+btAlignedFreeDefault(void * ptr) Line 86	C++
+btAlignedFreeInternal(void * ptr) Line 177	C++
+btAlignedAllocator&lt;btCompoundShapeChild,16&gt;::deallocate(btCompoundShapeChild * ptr) Line 90	C++
+btAlignedObjectArray&lt;btCompoundShapeChild&gt;::deallocate() Line 117	C++
+btAlignedObjectArray&lt;btCompoundShapeChild&gt;::clear() Line 190	C++
+btAlignedObjectArray&lt;btCompoundShapeChild&gt;::~btAlignedObjectArray&lt;btCompoundShapeChild&gt;() Line 134	C++
+btCompoundShape::~btCompoundShape() Line 47	C++
+[External Code]	
+Urho3D::RigidBody::~RigidBody() Line 97	C++
+</code></span></p>
+<p>Some HashMap in ~PhysicsWorld()</p>
+<p><code>operator delete[](void * ptr) Line 82	C++
+Urho3D::AllocatorUninitialize(Urho3D::AllocatorBlock * allocator) Line 82	C++
+Urho3D::HashMap&lt;Urho3D::StringHash,Urho3D::Variant&gt;::~HashMap&lt;Urho3D::StringHash,Urho3D::Variant&gt;() Line 246	C++
+Urho3D::PhysicsWorld::~PhysicsWorld() Line 179	C++</code></p>
+<p>When AnimationController is destroyed, and <code>Vector&lt;AnimationControl&gt; animations_;</code> is destroyed.</p>
+<p>If I don’t play the idle animation, the first kind of assertions stop happening (destruction ones), but I still get this assertion in asCContext::CleanReturnObject():</p>
+<pre><code class="lang-auto"></code></pre>
+<p>Which originates from  ScriptFile::Execute().<br/>
+I’m not sure but I think this one doesn’t originate from scene-&gt;Clear().<br/>
+It also may happen when the idle animation is enabled but quite rarely.</p>
+<p>I use a ScriptInstance on the scene node and have a script entry point “Main” class that derives from ScriptObject.<br/>
+When the scene clears, the scriptInstance is removed, and when the level is reloaded a new scriptInstance is created. Maybe it causes problems with the script engine state?</p>
+<p>I do derive a class from Script to register game level script API, could it cause this problem?</p>
+<p>I’m using HEAD version (a2d8f8670e46565b74f1765c369f969c83cdf7c6)<br/>
+VS2015<br/>
+Windows 7 64bit</p>
+<p>It seems like something went horribly wrong but I have no idea what.<br/>
+And it only happens in that weird case of player dying while the monster AI is attacking and the scene is cleared after the attack animation is over.<br/>
+If another animation starts after the attack is over it also changes the kind of error.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I tried to change the idle animation to the walk animation and the problem disappeared.<br/>
+When I tried other animations it still happens, only the walk animation works.</p>
+<p>Is it possible that the .ani is corrupted? I exported it from Blender using the Urho addon.</p>
+<p>It still doesn’t make sense that the asserts only happen when a specific animation is played after the attack animation.<br/>
+Maybe there’s a bug with the animation controller?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>Is it possible that the .ani is corrupted? I exported it from Blender using the Urho addon.</p>
+</blockquote>
+</aside>
+<p>You should probably test your ani files first individually and verify if you have successfully exported them using Blender. The Editor is a good tool for that. Check also if you are using the correct animation layers.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>[quote=“rasteron”]<br/>
+You should probably test your ani files first individually and verify if you have successfully exported them using Blender. The Editor is a good tool for that. Check also if you are using the correct animation layers.[/quote]</p>
+<p>It works, if an animation wouldn’t work on its own will be very obvious and trivial.<br/>
+All the animations are on layer 0.<br/>
+Like I said the weird part is that it only happens when the attack animation is played and then the other animation is played, and the scene clears.</p>
+<p>EDIT:<br/>
+I just tested it with just a model (no monster AI), and it still happens.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I just tested a potentially dangerous operation, clearing the scene from a script object’s method in the AnimatingScene sample (which plays animations), but it didn’t cause trouble.</p>
+<p>My suspicion is on memory / heap corruption, but it’s hard to say where that is happening, it could be your code.</p>
+<p>See if you can get a short reproduction case with for example only using scripting and the Urho built-in assets, if you manage that then please submit it as an issue.</p>
+<p>We should definitely update AngelScript to newer at some point, it has improved a lot in the meanwhile.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Managed to replicate it in a project based on modified “04_StaticScene.as” using “Urho3DPlayer_d.exe”.</p>
+<p>I’m using the same free model, which is this one: <a href="http://opengameart.org/content/lizardman-0" rel="nofollow noopener">opengameart.org/content/lizardman-0</a><br/>
+It takes two animations, and jack only have walk animation.</p>
+<p>I’ll pack it up, including the lizardman model and its blender file, and open an issue in a moment.</p>
+<p>EDIT:<br/>
+Issue opened: <a  rel="nofollow noopener">github.com/urho3d/Urho3D/issues/885</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

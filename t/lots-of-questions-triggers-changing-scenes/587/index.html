@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Lots of questions: triggers, changing scenes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Lots of questions: triggers, changing scenes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>I was planning to spend my vacations next week coding and I have been thinking how to implement at least changing from one scene to another, but I noticed that I havent seen any engine feature that would allow me to trigger an event when clicking an object or reaching some point in the map. So, I guess Im going to need an extra file describing trigger areas or some other mechanism like that. I would like to hear what experiences have other developers about this topic.<br/>
+The second question is related to scene change. Seems that if I unload an scene all the nodes are destroyed, do I have to recreate all nodes again in the new scene for all the active creatures in that scene?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OvermindDL1</div>
+          <div class="post_content">
+<p>I would just post a message to the object clicked on, and if anything happens to be listening to that event on that object then that could be the trigger?  Or use a component to act as the trigger, it listens for the message and does whatever is appropriate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>about of triggers:</p>
+<p>setup in editor:<br/>
+<a data-bbcode="true" href="http://savepic.org/6489698.htm"><img alt="" height="" src="../../../images2/4694730064019bb3a491cb8afad0a020.png" width=""/></a></p>
+<p>handle events in code:</p>
+<pre><code class="lang-auto">void GameMain::SubscribeToEvents()
+{
+//other subscribes
+	SubscribeToEvent(E_NODECOLLISION, HANDLER(GameMain, HandleNodeCollision));
+}</code></pre>
+<pre><code class="lang-auto">void GameMain::HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)
+{
+	// Check collision contacts and see if character is standing on ground (look for a contact that has near vertical normal)
+	using namespace NodeCollision;
+
+	Node* contact_node = (Node*)eventData[P_OTHERNODE].GetPtr();
+	VectorBuffer contacts = eventData[P_CONTACTS].GetBuffer();
+	Vector3 pos = contacts.ReadVector3(); // ????? ????????????
+
+
+	Variant myAttr = contact_node-&gt;GetVar("SceneTrigger");
+	
+	if ( myAttr.GetString() == "WorldA.xml") 
+	{
+		StaticModel* model  = contact_node-&gt;GetComponent&lt;StaticModel&gt;();
+		static bool isHasOwnCopy = false;
+		SharedPtr&lt;Material&gt; mat;
+
+		if (isHasOwnCopy) 
+		{
+			mat = model-&gt;GetMaterial(0);
+		}
+		else 
+		{
+			mat = model-&gt;GetMaterial(0)-&gt;Clone("RedMaterial");
+			model-&gt;SetMaterial(0, mat);
+			isHasOwnCopy = true;		
+		}
+		mat-&gt;SetShaderParameter("MatDiffColor", Vector4(1.0f,0.0f,0.0f,0.25f));	
+	}
+}</code></pre>
+<blockquote>
+<p>Seems that if I unload an scene all the nodes are destroyed, do I have to recreate all nodes again in the new scene for all the active creatures in that scene?<br/>
+i don’t do this, but i think you may call Node.Clone() active (what you wish objects) and add it to some PODVector, then you delete old scene and add new you just add objects to new scene from this PODVector of Nodes saved from previous scene. Or other way save these objects to prefabs/tempfiles and load they in new scene with std metods (InstantiateXML).</p>
+</blockquote>
+<blockquote>
+<p>an event when clicking an object</p>
+</blockquote>
+<p>you may create you own events and listerning it global or for special node.</p>
+<pre><code class="lang-auto">void GameMain::SubscribeToEvents()
+{
+
+	//UI
+	SubscribeToEvent(E_UIMOUSECLICK, HANDLER(GameMain, HandleControlClicked));
+
+	// MY EVENTS
+	SubscribeToEvent("YouMostResetThis", HANDLER(GameMain, HandleYouMostResetThis));
+
+}
+
+void GameMain::HandleYouMostResetThis(StringHash eventType, VariantMap&amp; eventData)
+{
+	// we get this event every time then user press the button.
+	botSplinePath_-&gt;Reset();	
+}
+
+
+void GameMain::HandleControlClicked(StringHash eventType, VariantMap&amp; eventData)
+{
+	// Get control that was clicked
+	UIElement* clicked = static_cast&lt;UIElement*&gt;(eventData[UIMouseClick::P_ELEMENT].GetPtr());
+
+	String name = "...?";
+	if (clicked)
+	{
+		// Get the name of the control that was clicked
+		name = clicked-&gt;GetName();
+		//botSplinePath_-&gt;Reset();
+		SendEvent("YouMostResetThis");
+	}	
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

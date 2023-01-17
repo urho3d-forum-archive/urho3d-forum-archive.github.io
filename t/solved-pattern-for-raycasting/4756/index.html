@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Pattern for raycasting</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Pattern for raycasting</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Is there a good pattern for raycast, so a node only gets raycasted once per some time period, say for 3 or 5 seconds?</p>
+<p>In particular a pattern using only Urho library calls?</p>
+<p>What I’ve been doing is using a background task to throw away repeated raycasts to the same node, but the code is tightly bound to the underlying operating system, and have been calling Octree.RaycastSingle in the Update method.</p>
+<p>So just wondering if there is an Urho way to do it without going to the underlying OS for coding up raycasts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Subscribe to <code>E_UPDATE</code> and do work there. Make a <code>Timer</code> object and check elapsed milliseconds on each call. When more than 5s have passed - do raycast and reset timer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Yes, that will limit the raycasting to once every 5 seconds.</p>
+<p>But I’d like to be able to raycast different objects, sometimes several objects per second. But don’t want any object to be raycasted twice within the five seconds. When I code up the detection on each new object/node, the code is not so clean.</p>
+<p>Currently just holding onto a list of raycasted objects and verifying the list.</p>
+<p>But what I was hoping for is some flag on the nodes (like a dirty flag) that the Update routine can quickly check to know the object is already raycasted.</p>
+<p>Being rather new to Urho and not really a game developer, some of the gaming concepts embedded into Urho’s objects are still unfamiliar. So thought I’d throw out this question to find if there is some specific mechanism built into the engine that can be used, much like a dirty flag, say an IsRaycasted flag on the Node, a threadsafe IsRaycasted.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="4756" data-username="I3DB">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/08ac2a702e042b87fc3e2def689b323c.png" width="20"/> I3DB:</div>
+<blockquote>
+<p>But I’d like to be able to raycast different objects, sometimes several objects per second. But don’t want any object to be raycasted twice within the five seconds</p>
+</blockquote>
+</aside>
+<p>Why not just set viewMask or collisionMask ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Found this sample code:<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/HoloLens/05_Physics/Progam.cs#L53" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/HoloLens/05_Physics/Progam.cs#L53" rel="nofollow noopener" target="_blank">xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/HoloLens/05_Physics/Progam.cs#L53</a></h4>
+<pre class="onebox"><code class="lang-cs"><ol class="start lines" start="43" style="counter-reset: li-counter 42 ;">
+<li>
+</li>
+<li>			// Create a bucket</li>
+<li>			bucketNode = Scene.CreateChild();</li>
+<li>			bucketNode.SetScale(0.1f);</li>
+<li>
+</li>
+<li>			// Create instructions</li>
+<li>			textNode = bucketNode.CreateChild();</li>
+<li>			var text3D = textNode.CreateComponent&lt;Text3D&gt;();</li>
+<li>			text3D.HorizontalAlignment = HorizontalAlignment.Center;</li>
+<li>			text3D.VerticalAlignment = VerticalAlignment.Top;</li>
+<li class="selected">			text3D.ViewMask = 0x80000000; //hide from raycasts</li>
+<li>			text3D.Text = "Place on a horizontal\n  surface and click";</li>
+<li>			text3D.SetFont(CoreAssets.Fonts.AnonymousPro, 26);</li>
+<li>			text3D.SetColor(Color.White);</li>
+<li>			textNode.Translate(new Vector3(0, 3f, -0.5f));</li>
+<li>
+</li>
+<li>			// Model and Physics for the bucket</li>
+<li>			var bucketModel = bucketNode.CreateComponent&lt;StaticModel&gt;();</li>
+<li>			bucketMaterial = Material.FromColor(validPositionColor);</li>
+<li>			bucketModel.Model = ResourceCache.GetModel("Models/bucket.mdl");</li>
+<li>			bucketModel.SetMaterial(bucketMaterial);</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>So it does look like it will work, but haven’t tried dynamically changing it on an existing node. W</p>
+<p>So the approach is …</p>
+<p>When the node is raycasted originallyt, dynamically change it’s ViewMask, then when the object is again eligible for raycasts, revert it’s viewmask.</p>
+<p>Will experiment and see how it goes. The only issue with this approach is when/how to set the ViewMask back to a value allowing Raycasting to it. And wondering if there is some already built in mechanism that does both, the hiding/masking and the unhiding/unmasking once the Raycast is handled. But likely that is best done in the Raycast event handler on that object.</p>
+<p>Here are a couple other samples showing uses, one in Samply game and one in Featured Samples …</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/SamplyGame/Core/Aircrafts/Aircraft.cs#L52" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/SamplyGame/Core/Aircrafts/Aircraft.cs#L52" rel="nofollow noopener" target="_blank">xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/SamplyGame/Core/Aircrafts/Aircraft.cs#L52</a></h4>
+<pre class="onebox"><code class="lang-cs"><ol class="start lines" start="42" style="counter-reset: li-counter 41 ;">
+<li>		public Task Play()</li>
+<li>		{</li>
+<li>			liveTask = new TaskCompletionSource&lt;bool&gt;();</li>
+<li>			Health = MaxHealth;</li>
+<li>			var node = Node;</li>
+<li>
+</li>
+<li>			// Define physics for handling collisions</li>
+<li>			var body = node.CreateComponent&lt;RigidBody&gt;();</li>
+<li>			body.Mass = 1;</li>
+<li>			body.Kinematic = true;</li>
+<li class="selected">			body.CollisionMask = (uint)CollisionLayer;</li>
+<li>			CollisionShape shape = node.CreateComponent&lt;CollisionShape&gt;();</li>
+<li>			shape.SetBox(CollisionShapeSize, Vector3.Zero, Quaternion.Identity);</li>
+<li>
+</li>
+<li>			Init();</li>
+<li>			node.SubscribeToNodeCollisionStart(OnCollided);</li>
+<li>			return liveTask.Task;</li>
+<li>		}</li>
+<li>
+</li>
+<li>		/// &lt;summary&gt;</li>
+<li>		/// Explode the aircraft with animation</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/FeatureSamples/Core/23_Water/Water.cs#L172-L173" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/FeatureSamples/Core/23_Water/Water.cs#L172-L173" rel="nofollow noopener" target="_blank">xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/FeatureSamples/Core/23_Water/Water.cs#L172-L173</a></h4>
+<pre class="onebox"><code class="lang-cs"><ol class="start lines" start="172" style="counter-reset: li-counter 171 ;">
+<li>			// Set a different viewmask on the water plane to be able to hide it from the reflection camera</li>
+<li>			water.ViewMask = 0x80000000;</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Changing the mask constantly per frame isn’t the best idea.AFAIK the function is quite expensive.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Setting ViewMask works well in the case where a node only has a single component. If multiple components, then it must be set on all components of that node in order to not again raycast the node.</p>
+<p>This helps reduce the code complexity.</p>
+<p>Currently setting the ViewMask once raycasted, and then resetting to original after the processing of the raycast event for that node is finished. So it’s not very frequently set per raycasted node.</p>
+<p>It also seems like it would work well when a node’s components are only infrequently available to be raycasted, so they’d be dynamically set as needed.</p>
+<p>Also, once raycasted, the pattern currently in use only starts raycasting again in 1.5 seconds in my code.</p>
+<p>So there aren’t that many ViewMask changes overall, not per Update frame anyway.</p>
+<p>But if there are other ideas for less expense actions … please do tell.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Here’s the pattern in use now:</p>
+<p>The raycasting code:</p>
+<pre><code class="lang-auto">bool NoRaycasts = false;
+        protected override void OnUpdate(float timeStep)
+        {
+            if(!NoRaycasts) Raycast();
+        }
+        bool IsRaycasting = true;
+        DateTime lastRaycast = DateTime.Now;
+        void Raycast()
+        {
+            if (IsRaycasting)
+            {
+                var result = Scene.GetComponent&lt;Octree&gt;().RaycastSingle(RightCamera.GetScreenRay(0.5f, 0.5f), RayQueryLevel.Triangle, 100, DrawableFlags.Geometry, 0x70000000);
+                if (result.HasValue)
+                {
+                    IsRaycasting = false;
+                    lastRaycast = DateTime.Now;
+                    nodeQ.Add(result.Value);
+                }
+            }
+            else if (DateTime.Now - lastRaycast &gt; TimeSpan.FromSeconds(.1)) {  IsRaycasting = true; }
+        }
+</code></pre>
+<p>The raycast processing code …</p>
+<pre><code class="lang-auto">Task.Run(() =&gt; {
+                while (!nodeQ.IsCompleted)
+                {
+                    var result = nodeQ.Take(); 
+                    var OriginalMask = result.Drawable.ViewMask;
+                    result.Drawable.ViewMask = 0x80000000;
+                    var currentScale = result.Node.Scale.X;
+                    InvokeOnMainAsync(() =&gt; result.Node.RunActions(new ScaleTo(0.1f, currentScale * 2 / 3f), new Blink(1f, 6), new ScaleTo(0.1f, currentScale), new CallFunc(()=&gt; result.Drawable.ViewMask = OriginalMask)));
+                }
+            });
+</code></pre>
+<p>It’s still tightly bound to the OS, as using DateTime, BlockingCollection, Task classes.</p>
+<p>Allows multiple items to be in raycasted state at once, only blocks raycasts for .1 seconds at a time, and leaves the object to reset in the raycast processing code. It’s not quite done, as every now and then an object disappears, and not sure why yet. Might be something else unrelated to this.</p>
+<p>The disappearing object is because the Task to process the nodeQ delay starts and the queue would get multiple occurrences of the same object. So simply started raycasting only after the task started, and everything works perfectly now.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

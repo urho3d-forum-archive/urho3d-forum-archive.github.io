@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Mesh not rendering right and no idea why [SOLVED]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Mesh not rendering right and no idea why [SOLVED]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3734_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kest</div>
+          <div class="post_content">
+<p>Hello, I’m trying to get this custom mesh importer to work. It sorta’ works but does not display things right, an example being:</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="example.PNG"><img alt="example.PNG" data-base62-sha1="cEAmbB0dsktmSNzLAciw038gbVl"  height="350" src="../../../images2/482d8b0ee927047d538203fcdb19e5f4.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">example.PNG</span><span class="informations">1437×729 48.3 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Code is here, if anyone can point out my errors I’d greatly appreciate it! I’m still trying to learn the good the engine can provide!</p>
+<pre data-code-wrap="c++"><code class="lang-nohighlight">void RMesh::LoadRMesh(const String&amp; filepath)
+{
+    FileSystem* fsys = new FileSystem(context_);
+    File source(context_, fsys-&gt;GetProgramDir() + filepath, FILE_READ);
+    const String file = source.GetName();
+
+    String header = ReadBlitzString(source);
+    URHO3D_LOGINFO(header);
+
+    if (header != "RoomMesh") //Check if the file is a valid RMesh file.
+    {
+        URHO3D_LOGERROR(file + " is not a valid RMesh!");
+        return;
+    }
+
+    SharedPtr&lt;Model&gt; model(new Model(context_));
+    unsigned int vertexDecl = MASK_POSITION;
+
+    int meshcount = source.ReadInt();
+    model-&gt;SetNumGeometries(meshcount);
+
+    for (int i = 0; i &lt; meshcount; i++)
+    {
+        SharedPtr&lt;Geometry&gt; geom(new Geometry(context_));
+
+        //List the datatypes in the vertex vector.
+        //unsigned int vertexDecl = MASK_POSITION;
+
+        URHO3D_LOGINFO("RMESH LOOP: " + (String)(i + 1));
+
+        for (int j = 0; j &lt; 2; j++)
+        {
+            byte texflag = source.ReadUByte();
+            if (texflag != 0)
+            {
+                String texString = ReadBlitzString(source);
+                if (!texString.Empty())
+                {
+                    URHO3D_LOGINFO("Texture found: " + texString);
+                }
+            }
+        }
+
+        Vector&lt;float&gt; vertData_;
+
+        int vertcount = source.ReadInt();
+        for (int j = 0; j &lt; vertcount; j++)
+        {
+            //URHO3D_LOGINFO("Reading vertex loop: " + (String)(j + 1));
+            float x = source.ReadFloat();
+            float y = source.ReadFloat();
+            float z = source.ReadFloat();
+
+            Vector3 pos = Vector3(x, y, z);
+            vertData_.Push(pos.x_);
+            vertData_.Push(pos.y_);
+            vertData_.Push(pos.z_);
+
+            for (int k = 0; k &lt; 2; k++)
+            {
+                float u = source.ReadFloat();
+                float v = source.ReadFloat();
+                Vector2 uv = Vector2(u, v);
+
+                //vertData_.Push(uv.x_);
+                //vertData_.Push(uv.y_);
+            }
+
+            byte r = source.ReadUByte();
+            byte g = source.ReadUByte();
+            byte b = source.ReadUByte();
+            Vector3 color = Vector3(r, g, b);
+
+            //vertData_.Push(color.x_);
+            //vertData_.Push(color.y_);
+            //vertData_.Push(color.z_);
+        }
+
+        Vector&lt;uint&gt; indData_;
+
+        int tricount = source.ReadInt();
+        for (int j = 0; j &lt; tricount; j++)
+        {
+            //URHO3D_LOGINFO("Reading index loop: " + (String)(j + 1));
+            int tri1 = source.ReadInt();
+            int tri2 = source.ReadInt();
+            int tri3 = source.ReadInt();
+
+            Vector3 poly = Vector3(tri1, tri2, tri3);
+
+            indData_.Push(tri1);
+            indData_.Push(tri2);
+            indData_.Push(tri3);
+        }
+
+        SharedPtr&lt;VertexBuffer&gt; vertexBuf(new VertexBuffer(context_));
+        vertexBuf-&gt;SetShadowed(true);
+        vertexBuf-&gt;SetSize(vertcount, vertexDecl);
+        vertexBuf-&gt;SetData(&amp;vertData_[0]);
+
+        URHO3D_LOGINFOF("Vertex buffer done in loop %d.", i);
+
+        SharedPtr&lt;IndexBuffer&gt; indexBuf(new IndexBuffer(context_));
+        indexBuf-&gt;SetShadowed(true);
+        indexBuf-&gt;SetSize(tricount, false);
+        indexBuf-&gt;SetData(&amp;indData_[0]);
+
+        URHO3D_LOGINFOF("Index buffer done in loop %d.", i);
+
+        geom-&gt;SetVertexBuffer(0, vertexBuf);
+        geom-&gt;SetIndexBuffer(indexBuf);
+        geom-&gt;SetDrawRange(TRIANGLE_LIST, 0, tricount);
+
+
+        URHO3D_LOGINFOF("Geometry done in loop %d, setting model geometry.", i);
+
+        model-&gt;SetGeometry(i, 0, geom);
+        model-&gt;SetNumGeometryLodLevels(i, 1);
+    }
+
+    URHO3D_LOGINFO("Seems successful, committing...");
+
+    StaticModel* mesh = node_-&gt;CreateComponent&lt;StaticModel&gt;();
+
+    mesh-&gt;SetModel(model);
+
+    URHO3D_LOGINFO("Done with " + file);
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>To me it looks like it’s probably a problem with the index buffer. Are you sure the indices can be read directly (e.g. Object files indices start at 1 instead of 0)? And does the size of your uint match the large (32 bit) vs not large (16 bit) setting of your index buffer?</p>
+<p>Additionally, I’m pretty sure <code>indexBuf-&gt;SetSize(tricount, false);</code> should use the number of indices so 3x the number of triangles.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>If it’s legacy data it could be triangle-stripified from back when that was a win. That tower bit unless the vertex data is completely wrong stinks of triangle strips (you see weird patterns like that come out).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3734_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kest</div>
+          <div class="post_content">
+<p>Thanks to all who replied!</p>
+<p>The problem was that it read data as an Int instead of what it’s actually referred to as an ushort.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

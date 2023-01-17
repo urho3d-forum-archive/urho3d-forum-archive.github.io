@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Artefacts in RibbonTrail</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Artefacts in RibbonTrail</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I am getting some artefacts in RibbonTrail. It looks like polygon kinks are causing this. The trail is drawn only using x and y. The trail type is set to TT_FACE_CAMERA and my camera is orthographic. The material is RibbonTrail. Any ideas on how to fix this issue?</p>
+<p><img height="322" src="../../../images2/a1bfc221e66f8816891117e7b2b34651.png" width="365"/></p>
+<p><img height="347" src="../../../images2/51f03f3d1cf31e78da9aa84da91e6f93.png" width="457"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>I had noticed the same distortion and increased the number of columns (default 1). Maybe this can help?<br/>
+/// Set number of column for every tails. Can be useful for fixing distortion at high angle.<br/>
+void SetTailColumn(unsigned tailColumn);</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I think it does help, but also increase the number of triangles a lot. I am getting it on straight lines as well it is quite apparent in 2D, with higher width. Would it help to change TRIANGLE_LIST to TRIANGLE_STRIP or nudging the triangles not to overlap?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I am kind of stuck with this issue. It is getting worse if I increase the width and the segments. Is there anything I can do it in the shader or anything else that would help reduce these artefacts? I think it is similar to this topic: <a href="https://www.reddit.com/r/gamedev/comments/387pwc/rendering_3d_trails/" rel="nofollow noopener">https://www.reddit.com/r/gamedev/comments/387pwc/rendering_3d_trails/</a><br/>
+<img height="491" src="../../../images2/f66866e8ad5937d2159e3ed3bb9d7d83.png" width="403"/><br/>
+<img height="416" src="../../../images2/287faaee2e77c814d7f5eff5cda4b5ee.png" width="335"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/49_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">godan</div>
+          <div class="post_content">
+<p>So, from a geometrical point of view, the fact is that offsets are nasty… You simply can’t offset using only vertex translations, and a) get a good offset and b) not get intersections.</p>
+<p>In my project, <a href="https://github.com/MeshGeometry/IogramSource/blob/master/Components/Graphics_CurveRenderer.cpp" rel="nofollow noopener">I basically did the same thing</a> as in the link you posted. The idea is:</p>
+<ul>
+<li>Get the vertices of the path. This is the center line.</li>
+<li>Create a billboard for each edge whose Y direction is parallel to the path edge, whose position is the midpoint of the edge, and has some width. Enable FC_DIRECTION to constraint he billboard to only rotate around the Y axis.</li>
+<li>In a shader, trim back the rendered pixels to avoid the intersections. This is not perfect, since you usually use one value for all edges, which is not good.</li>
+<li>In my implementation. I added another set of billboards at each vertex of the path. These render a circle whose diameter is the same as the width of the edge billboards. Enable FC_ROTATE_XYZ to have this always face the camera. This hides errors in the edges and creates rounded corners.</li>
+</ul>
+<p>It’s not perfect, but it is substantially better than the ribbon trail…</p>
+<p>Here is an example of how this technique looks: <a href="https://meshgeometry.github.io/Demos/CurveEdit/IogramPlayer.html" rel="nofollow noopener">https://meshgeometry.github.io/Demos/CurveEdit/IogramPlayer.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I’m still using CodeMonkey’s <a href="https://github.com/MonkeyFirst/urho3d-component-tail-generator">TailGenerator</a> in heXon. Cross-breeding these two components might be what more people are looking for.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks godan. I tried the demo but the joints are quite visible. Also I am not sure if this technique would work with textures properly and might look segmented. Do you have more demos with ribbons?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks Modanung. I already tried TailGenerator but it exhibits the same problems as the one in Urho3D is based on this one if I am not mistaken.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Not sure if this would be appropriate as I think you’re working with 2D not 3D - <a href="https://discourse.urho3d.io/t/vehicle-skid-strips/2018">Vehicle Skid Strips</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks Lumak. I think the vehicle skid strips have the same problem. Do you know if there is a way to fake transparency by sorting the polygon strips or a way to handle transparency per trail?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>No, don’t know how to fake transparency.  But in regards to vehicle strip, I think overlaps would occur if distance from segment to segment is relatively short and curved rapidly.  However, the strips are connected from end to end and if the short curving segment causes overlap then it is actually really easy fix. Think about how a plane eqn works; in the strip case, it’d be as easy as checking the dot product of new points with the last segment line.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Part of my work in robotics programming involved computing ‘motion paths’, I’m considering taking a closer look at this issue, as I think the current results are unacceptable - the wireframe in particular displays some fundamental issues in the way the tri-strip is being tesselated, including slivers generated by vertices which are very close to others, and rightly should have been ‘welded’ with some distance threshold, although the overdraw caused by z-fighting overlapping triangles can probably be eliminated by drawing the trail geometry in two passes - the first with depth-writing enabled, as a depth-only pass, and the second as the full pass, with depth-testing enabled.</p>
+<p>PS - ugh, they’re not even tri-strips, they are quads in our current implementation. I think that a possible solution to the issue of overlaps is to generate two Catmull-Rom splines, and then generate a tri-strip based on sampling the two curves. But using two render passes as mentioned above would likely be more performant.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3871_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glebedev</div>
+          <div class="post_content">
+<p>As a workaround you can use checker board “discard” in pixel shader in screen space. It will be consistent on overlapping geometry. The only question is - will the image be acceptable for your case.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>I once implemented sword rail using triangle strips which means there is no overlaped between quads.<br/>
+Edit: it is the overlapped part of the quads cause the issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yeah, I sort of said that too, well I implied it <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/489a6aca1acdb089d71c6bb5fe9c9aa8.png" title=":stuck_out_tongue:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>What about changing the alpha blend mode?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

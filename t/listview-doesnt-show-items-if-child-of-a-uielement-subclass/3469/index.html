@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ListView doesn&rsquo;t show items if child of a UIElement subclass</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ListView doesn&rsquo;t show items if child of a UIElement subclass</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>This has been super frustrating for me and I hope someone can help.</p>
+<p>Here is a minimal working example:</p>
+<pre><code>void MyApplication::Start()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    UI* ui = GetSubsystem&lt;UI&gt;();
+    ui-&gt;GetRoot()-&gt;SetDefaultStyle(cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml"));
+
+    UIElement* container = new UIElement(context_);
+    container-&gt;SetStyleAuto();
+    container-&gt;SetLayoutMode(LM_VERTICAL);
+    container-&gt;SetLayoutSpacing(5);
+    ui-&gt;GetRoot()-&gt;AddChild(container);
+
+    ListView* view = new ListView(context_);
+    view-&gt;SetStyleAuto();
+    container-&gt;AddChild(view);
+
+    LineEdit* edit = new LineEdit(context_);
+    edit-&gt;SetFixedHeight(20);
+    edit-&gt;SetStyleAuto();
+    edit-&gt;SetFocusMode(FM_FOCUSABLE);
+    container-&gt;AddChild(edit);
+
+    Text* text = new Text(context_);
+    text-&gt;SetText("This is a test");
+    text-&gt;SetStyleAuto();
+    view-&gt;AddItem(text);
+    view-&gt;UpdateLayout();
+
+    container-&gt;SetSize(200, 200);
+}
+</code></pre>
+<p>Looks like this (as expected):</p>
+<p><img alt="1" height="209" src="../../../images2/492c5f6904fffef0d00e9a4012405c00.png" width="225"/></p>
+<p>Now, watch what happens when I refactor that stuff out into a subclass of UIElement:</p>
+<pre><code>class DoesntWork : public UIElement
+{
+public:
+    DoesntWork(Context* context) : UIElement(context) {
+        SetLayoutMode(LM_VERTICAL);
+        SetLayoutSpacing(5);
+
+        ListView* view = new ListView(context_);
+        view-&gt;SetStyleAuto();
+        AddChild(view);
+
+        LineEdit* edit = new LineEdit(context_);
+        edit-&gt;SetFixedHeight(20);
+        edit-&gt;SetStyleAuto();
+        edit-&gt;SetFocusMode(FM_FOCUSABLE);
+        AddChild(edit);
+
+        Text* text = new Text(context_);
+        text-&gt;SetText("This is a test");
+        text-&gt;SetStyleAuto();
+        view-&gt;AddItem(text);
+        view-&gt;UpdateLayout();
+    }
+};
+
+void MyApplication::Start()
+{
+    ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    UI* ui = GetSubsystem&lt;UI&gt;();
+    ui-&gt;GetRoot()-&gt;SetDefaultStyle(cache-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml"));
+
+    UIElement* container = new DoesntWork(context_);
+    container-&gt;SetStyleAuto();
+    ui-&gt;GetRoot()-&gt;AddChild(container);
+   container-&gt;SetSize(200, 200);
+}
+</code></pre>
+<p>It’s practically the same code, yet:</p>
+<p><img alt="2" height="208" src="../../../images2/66f5a301c9f1b7e3986105039e0d2a17.png" width="212"/></p>
+<p>Where is the text?</p>
+<p>No matter what I try, I cannot for the life of me get the items in the list view to appear. They’re just gone.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I remember I had a problem when trying to derive from UIElement.<br/>
+When working on a recent UI PR, I noticed I had to use <code>URHO3D_COPY_BASE_ATTRIBUTES(UIElement);</code> in the RegisterObject() function for the class that derives from UIElement for it to work properly (built in UI classes that derive from UIElement do it too, ex. Text and BorderImage).<br/>
+You could try that and see if it helps, kinda makes sense since style uses properties (didn’t test your code myself).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>I’ve tried Your code and it worked after manually setting style of Text - that means replacing:<br/>
+<code>text-&gt;SetStyleAuto();</code><br/>
+with<br/>
+<code>text-&gt;SetStyle("Text", GetSubsystem&lt;ResourceCache&gt;()-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml"));</code></p>
+<p>One more thing, You should mark all created elements as internal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p><a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_u_i_element.html#a08c4fe55c45b8ef00abc7297ebdca382" rel="nofollow noopener">UIElement::SetStyleAuto()</a> uses whatever you set with <a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_u_i_element.html#a387ce2e545031cc9e4d4cfa82772f38b" rel="nofollow noopener">UIElement::SetDefaultStyle()</a>.<br/>
+You can set a default style for the <a href="https://urho3d.github.io/documentation/HEAD/class_urho3_d_1_1_u_i_element.html#a696f2c9d35d4b2e262b2c666bceda61f" rel="nofollow noopener">UI’s root element</a> to have a global default.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Interesting.</p>
+<p>For me I was not able to make some more complex widgets like ListView or DropDownList work as intended<br/>
+there are too many moving targets and simply bad design.<br/>
+Each time I had to struggle and had to find out exact conditions for a widget to run - not a good way to spend my precious time.<br/>
+So I found the solution - I can represent each list widget as UIElement of UIElements of simple widgets<br/>
+like Text or Button. It is very simple and requirements are always the same, everything is stable and predictable. First - for all widgets, for each one, run SetStyle/SetStyleAuto. Widgets react differently<br/>
+to no style setting and you will have hard time distinguishing what is going on.<br/>
+For each UIElement set SetLayout() (e.g. SetLayout(LM_VERTICAL, 10, 10, 10, 10)).<br/>
+Set your min/max height/width depending on parent layout for each widget.<br/>
+Don’t forget to set layout on your top-level widget too.</p>
+<p>So for me I found the following basic rules when using Urho3D GUI most effectively:</p>
+<ol>
+<li>Never consider Urho3D UI system as end-user widget system - that is a set of building blocks to<br/>
+implement your widget system with, not more.</li>
+<li>Don’t use complex widgets - nobody can tell you what are they made of and how they work,<br/>
+so you will be on your own here. Developers don’t know, too.</li>
+<li>The system is very flexible so you can implement your stable widgets very quickly,<br/>
+but is also very verbose, so it is better to implement your own function blocks to reduce clutter<br/>
+in your code</li>
+<li>Never use XML UI layouts for something more complex than menu.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ScrollView created in constructor not work?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ScrollView created in constructor not work?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Hello, I encounter a problem when creating a ScrollView in the constructor of a window subclass.<br/>
+My code works fine if I create the ScrollView elsewhere than in the constructor.</p>
+<pre><code>NodeWindow::NodeWindow(Context* context) : Window(context), node_(nullptr)
+{
+    SetStyleAuto();
+
+    ScrollView* scroll = CreateChild&lt;ScrollView&gt;();
+    scroll-&gt;SetFixedSize(300, 100);
+    scroll-&gt;SetStyleAuto();
+
+    UIElement* sections = new UIElement(context_);
+    sections-&gt;SetFixedWidth(300);
+    sections-&gt;SetLayoutMode(LayoutMode::LM_VERTICAL);
+    sections-&gt;SetStyleAuto();
+
+    for (unsigned int i = 0; i &lt; 10; i++)
+    {
+        ButtonText* btn = sections-&gt;CreateChild&lt;ButtonText&gt;("g");
+        btn-&gt;SetLabel("Button");
+    }
+
+    scroll-&gt;SetContentElement(sections);
+}
+</code></pre>
+<p>With this version, the scrollview is empty.<br/>
+When i move this code to a method called after construction, everything work fine.</p>
+<pre><code>nodeWindow_ = uiRoot_-&gt;CreateChild&lt;NodeWindow&gt;("NodeWindow");
+nodeWindow_-&gt;Init();
+</code></pre>
+<p>This work, but it’s not a valid solution, so i need help <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/> thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote quote-modified" data-post="12" data-topic="4501">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/8c3888d68a9e52e853f0724aae6cefb6.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/hotkey-control-based-on-lineedit/4501/12">Hotkey control based on LineEdit</a> <a class="badge-wrapper bullet" href="/c/showcase/code-exchange/13"><span class="badge-category-parent-bg" style="background-color: #F1592A;"></span><span class="badge-category-bg" style="background-color: #231F20;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Share your helpful Urho3D code snippets, samples and tutorials here.">Code Exchange</span></a>
+</div>
+<blockquote>
+    The styling of all UI-element derived classes are nothing else but a mechanism to apply a set of predefined attributes to the UIElement object. You first define the set of attributes in a “style sheet” or whatever you want to call it, in an XML file. You then reference them by using UIElement::SetStyle("predefined-style-name"). The UIElement::SetStyleAuto() variant uses the type of the UI-element itself as the name of the style to be applied, i.e. Button::SetStyleAuto() is equivalent to Button::…
+  </blockquote>
+</aside>
+<p>This should give you a clue why it did not work in your constructor. Your parent window was still “detached” at the time you tried to apply the style, so the UI subsystem did not know which style sheet to use. Thus, you ended up with “naked” UI elements.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>That’s very useful information!</p>
+<p>I have not run into this problem myself, since I tend to initialize outside of my constructors, but I am sure I would eventually have run into this one <img alt=":wink:" class="emoji" src="../../../images2/54580715256ddb71bd695c5ac97f8802.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Okay, after your explanation i try to review the code:</p>
+<pre><code>NodeWindow::NodeWindow(Context* context) : Window(context), node_(nullptr)
+{
+    titleBar_ = CreateChild&lt;UIElement&gt;("NW_TitleBar");
+    titleText_ = titleBar_-&gt;CreateChild&lt;Text&gt;("NW_TitleText");
+    closeButton_ = titleBar_-&gt;CreateChild&lt;Button&gt;("NW_CloseButton");
+    scroll_ = CreateChild&lt;ScrollView&gt;();
+    scroll_-&gt;SetFixedSize(300, 100);
+
+    sections_ = new UIElement(context_);
+    sections_-&gt;SetFixedWidth(300);
+    sections_-&gt;SetLayoutMode(LayoutMode::LM_VERTICAL);
+
+    for (unsigned int i = 0; i &lt; 10; i++)
+    {
+        ButtonText* btn = sections_-&gt;CreateChild&lt;ButtonText&gt;("g");
+        btn-&gt;SetLabel("Button");
+    }
+
+    scroll_-&gt;SetContentElement(sections_);
+}
+
+void NodeWindow::Init()
+{
+    SetStyle("NodeWindow");
+    titleBar_-&gt;SetStyle("WindowTitleBar");
+    titleText_-&gt;SetStyle("NodeWindowTitleText");
+    sections_-&gt;SetStyleAuto();
+    closeButton_-&gt;SetStyle("CloseButton");
+    scroll_-&gt;SetStyleAuto();
+}
+
+uiRoot_-&gt;SetDefaultStyle(GetSubsystem&lt;ResourceCache&gt;()-&gt;GetResource&lt;XMLFile&gt;("UI/DefaultStyle.xml"));
+nodeWindow_ = uiRoot_-&gt;CreateChild&lt;NodeWindow&gt;("NodeWindow");
+nodeWindow_-&gt;Init();
+</code></pre>
+<p>TitleBar work fine, but ScrollView still empty :transpiration:<br/>
+However, NodeWindow know the correct XML file style when i call Init();</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>You still missing the point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Ok, can you tell me more please? I think it can also be useful for other people. I specify that my problem only concerns the scrollbar, the other elements are loaded correctly (their styles too),</p>
+<p>Note: My custom UIElement is also registered.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I was quite busy in office yesterday, so I am sorry that my short message was not useful.</p>
+<p>Remember that all the descendant of <code>UIElement</code> inherits the <code>SetDefaultStyle()</code> method. So, you can call this method as early as possible in your parent window’s constructor (just like you do for UI root) before adding its children. That should fix most of the issue with styling.</p>
+<p>There is actually also nothing wrong with your revised code too. You can skip the styling during the object construction, and only applying the style later after adding the parent to the UI hierarchy. Why it did not work for <code>ScrollView</code> can be considered as a bug, IMHO. This UI-element class contains a few internal sub UI-elements, but it does not override the <code>SetStyle()</code> method to take care of those sub UI-elements. In other words, I suspect the code <code>scroll_-&gt;SetStyleAuto();</code> might not do what it supposes to do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Come to think about it. The problem is analogous to someone else uses your <code>NodeWindow</code> class and just calls <code>NodeWindow::SetStyleAuto()</code> and expects that call would do what your <code>Init()</code> method does.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Thank you for your complete answer <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/><br/>
+I found solution that seems to me to be flexible and practical for the declaration of styles.</p>
+<pre><code>NodeWindow::NodeWindow(Context* context) : Window(context)
+{
+    titleBar_ = CreateChild&lt;UIElement&gt;("NW_TitleBar");
+    titleText_ = titleBar_-&gt;CreateChild&lt;Text&gt;("NW_TitleText");
+    closeButton_ = titleBar_-&gt;CreateChild&lt;Button&gt;("NW_CloseButton");
+
+    scroll_ = CreateChild&lt;ScrollView&gt;();
+    scroll_-&gt;SetScrollBarsVisible(false, true);
+}
+
+void NodeWindow::SetStyle(const String&amp; styleName)
+{
+    Window::SetStyle(styleName);
+    titleBar_-&gt;SetStyle(styleName + "TitleBar");
+    titleText_-&gt;SetStyle(styleName + "Title");
+    closeButton_-&gt;SetStyle("CloseButton");
+    scroll_-&gt;SetStyle(styleName + "Scroll");
+
+    styleName_ = styleName;
+}
+
+void NodeWindow::SetStyleAuto()
+{
+    SetStyle(GetTypeName());
+}
+
+UIElement* NodeWindow::CreateComponentSection(Component* component)
+{
+    UIElement* section = new UIElement(context_);
+    section-&gt;SetStyle(styleName_ + "Section"); // can be useful to set style to dynamic loaded ui element.
+}
+</code></pre>
+<p>Sample of my DefaultStyle.xml</p>
+<pre><code>&lt;element type="NodeWindow" style="Window"&gt;
+    &lt;attribute name="Min Size" value="400 300" /&gt;
+    &lt;attribute name="Is Movable" value="true" /&gt;
+    &lt;attribute name="Layout Mode" value="Vertical" /&gt;
+    &lt;attribute name="Layout Spacing" value="6" /&gt;
+    &lt;attribute name="Layout Border" value="6 6 6 6" /&gt;
+&lt;/element&gt;
+&lt;element type="NodeWindowTitleBar"&gt;
+    &lt;attribute name="Min Size" value="400 20" /&gt;
+    &lt;attribute name="Max Size" value="400 20" /&gt;
+    &lt;attribute name="Layout Mode" value="Horizontal" /&gt;
+&lt;/element&gt;
+&lt;element type="NodeWindowTitle" style="Text"&gt;
+    &lt;attribute name="Text" value="Node Window" /&gt;
+&lt;/element&gt;
+&lt;element type="NodeWindowScroll" style="ScrollView"&gt;
+    &lt;attribute name="Max Size" value="400 300" /&gt;
+&lt;/element&gt;
+</code></pre>
+<p>The thing a bit unfortunate with this method is that the dynamic elements will not be affected by possible later changes of styles.</p>
+<p>If this solution seems to be in agreement with the engine then it would be nice:</p>
+<ul>
+<li>Set SetStyle as virtual function</li>
+<li>Add GetStyleName () to UIElement to avoid styleName_ member.</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I am afraid your approach at best can only be considered as a workaround, when you insist to create the UI-element by code and also by doing styling at later time instead of at the time the UI-element is being added as child. If you look carefully how the “ScrollView” default style is being defined in the Editor’s style sheet file then you should realize that its definition has nested XML elements, i.e. each sub UI-element has its own nested element section. The problem is, I believe, the current implementation of UIElement::SetStyle() (when being called at later time) does not do the right thing to use those nested definition. It only uses those correctly when the child insertion/addition and styling are done together at the same time.</p>
+<p>This is not a big problem, at least to me, because given chance to choose then I would prefer to use the Editor to design the UI layout than to design the UI by code. Add the UI-elements, apply the style, adjust the attributes further more all in the editor,  and when it looks great then save the layout as another XML file which I can then load in the code with a single line of code. Most the windows, if not all, in the Editor itself are loaded using XML layout files in this manner.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Editor on Linux is quite unstable, and prone to crashing, with no errors reported.<br/>
+In particular, this happens when I have loaded a scene from xml file I saved in my application, which contains components unknown to the editor - my scene loads, I can see it, and moving the mouse around shows the bounding boxes and so on, but if I left click on something in the scene, the editor crashes.<br/>
+For this reason, I find the editor completely useless, have avoided and will avoid using it, damn it would be faster for me to recreate enough of it in a language I can debug.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The editor crashing issue is off-topic here, but it is already being tracked in our issue tracker.</p>
+<aside class="onebox githubissue">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com/urho3d/Urho3D</a>
+</header>
+<article class="onebox-body">
+<a href="https://github.com/arpio" rel="nofollow noopener">
+<img class="thumbnail onebox-avatar" height="420" src="../../../images2/2c20f6e9695de96e49b151a853490b3f.png" width="420"/>
+</a>
+<h4><a  rel="nofollow noopener" target="_blank">Issue: Editor: Segmentation Fault on Linux</a></h4>
+<div class="date" style="margin-top:10px;">
+<div class="user" style="margin-top:10px;">
+	opened by <a href="https://github.com/arpio" rel="nofollow noopener" target="_blank">arpio</a>
+	on <a  rel="nofollow noopener" target="_blank">2018-10-21</a>
+</div>
+<div class="user">
+</div>
+</div>
+<pre class="content" style="white-space: pre-wrap;">Keeps crashing as soon I select a component. Also with an empty scene if I try to create any components.
+Would be...</pre>
+<div class="labels">
+<span style="display:inline-block;margin-top:2px;background-color: #B8B8B8;padding: 2px;border-radius: 4px;color: #fff;margin-left: 3px;">bug</span>
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

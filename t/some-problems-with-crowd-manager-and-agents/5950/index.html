@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Some problems with crowd manager and agents</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Some problems with crowd manager and agents</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>After testing the crowd manager and agents a bit deeper i found some limitations and possible bugs/paradox effects that i really can’t track down what would happen if i do certain things. Maybe we should create another tutorial/discussion topic and discuss these issues because sooner or later other people will face the same problems.</p>
+<ol>
+<li>
+<p>SetEnabled doesn’t seem to work with crowd agents. Your only chance to stop the crowd agents from updating and moving is removing the component from the node. That could be a real pain once you plan adding more complex logic to your enemies instead of moving along a path to a certain destination</p>
+</li>
+<li>
+<p>Due to this behavior, another question arises. Consider the following example (Angelscript code)</p>
+</li>
+</ol>
+<pre><code class="lang-auto">CrowdAgent@ ca = node.GetComponent("CrowdAgent");
+ca.Remove();</code></pre>
+<p>This will indeed remove the agent from the crowd but ca still holds a reference to it. So once ca goes out of scope the CrowdAgent object will be deleted. But what happens if in the meantime the crowdManager is removed or recreated ? Will the agents be notified of this change or still use their invalid crowdManager_ weakPtr (which was deleted previously) ?</p>
+<ol start="3">
+<li>
+<p>We need more helper functions to have more control over the agents. For simple demo purposes where agents follow a simple path until they reach their destionation the current state is ok but adding logic to enemies requires lot more control and access (length of the current path , path points). How can i  activate my agent only if the distance between the player and the agent reaches a certain value without knowing the path distance ?</p>
+</li>
+<li>
+<p>Crowd can only have one target. So if you have two players and you want both of them to be attacked by a crowd of enemies at the same time you can’t do that.</p>
+</li>
+<li>
+<p>I think the ground distance should be irrelevant in crowd navigation. Right now the agents won’t move if the ground isn’t close enough to their feet (still can’t understand how it works but maybe i’m doing something wrong ?) The y position of the agents should be controlled by gravity and the path should be calculated on a ZX plane</p>
+</li>
+</ol>
+<p>So these are the limitations i found in the navigation system. If someone had found some workarounds for these problems feel free to post it here<br/>
+Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="5950" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<p>SetEnabled doesn’t seem to work with crowd agents. Your only chance to stop the crowd agents from updating and moving is removing the component from the node. That could be a real pain once you plan adding more complex logic to your enemies instead of moving along a path to a certain destination</p>
+</blockquote>
+</aside>
+<p>I’m unable to reproduce this. I’v checked it by adding ability to disable agents in sample and agent stops when disabled. There are also other ways to stop agent: SetTargetVelocity to 0 or set target position to current position.</p>
+<aside class="quote no-group" data-post="1" data-topic="5950" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<ul>
+<li>Crowd can only have one target. So if you have two players and you want both of them to be attacked by a crowd of enemies at the same time you can’t do that.</li>
+</ul>
+</blockquote>
+</aside>
+<p>CrowdManager::SetCrowdTarget has second paramter - Node*. If it’s passed it will set target only for agents that are atteched to child nodes. So it’s possible to have two groups of enemies attacking different targets, just put those enemies under different nodes.</p>
+<aside class="quote no-group" data-post="1" data-topic="5950" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<p>We need more helper functions to have more control over the agents. For simple demo purposes where agents follow a simple path until they reach their destionation the current state is ok but adding logic to enemies requires lot more control and access (length of the current path , path points). How can i activate my agent only if the distance between the player and the agent reaches a certain value without knowing the path distance ?</p>
+</blockquote>
+</aside>
+<p>I have not checked crowd source code, but when using crowd managment path will adapt itself to the surroundings (obstacles, other agents on move) so propably You will not get one path that is valid from setting target to the moment when agent reaches it. You can check CrowdManager::DrawDebugGeometry to see how to receive points to target.<br/>
+As for activating agent, it would be probably better to use triggers and not navigation system.</p>
+<aside class="quote no-group" data-post="1" data-topic="5950" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<p>I think the ground distance should be irrelevant in crowd navigation. Right now the agents won’t move if the ground isn’t close enough to their feet (still can’t understand how it works but maybe i’m doing something wrong ?) The y position of the agents should be controlled by gravity and the path should be calculated on a ZX plane</p>
+</blockquote>
+</aside>
+<p>Urho uses third party library for navigation (recast/detour), so it works like it’s designed in this library, also what You think that “should be” is kind of project specific - for example if Y position should be controlled by gravity, what to do when project is not using physics? If the path should be calculated only on flat plane how to handle building with multiple floors? That being said, there are some ways to implement custom behavior - there’s a <a href="https://urho3d.github.io/documentation/1.5/class_urho3_d_1_1_crowd_agent.html#a5975f317bdc1d689a945408e3e049083" rel="nofollow noopener">CrowdAgent::SetUpdateNodePosition</a>. You can disable it and implement custom node reposition logic that uses physics. Another way would be to use custom class instead of CrowdAgent - NavigationMesh and CrowdManager provide several methods to find paths (and do other stuff) without using crowd agents.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So basically you posted some of the issues I had. Many users said that we must be doing something wrong. I also noticed that agents can on track one position only. Which works fine for me. I never tried to track two different positions. Nice find.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="5950" data-username="lezak">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6ef2f82e83bb3859852dc241e102e0b3.png" width="20"/> lezak:</div>
+<blockquote>
+<p>I’m unable to reproduce this. I’v checked it by adding ability to disable agents in sample and agent stops when disabled. There are also other ways to stop agent: SetTargetVelocity to 0 or set target position to current position.</p>
+</blockquote>
+</aside>
+<p>Yes it stops but once i start to move and reset my target pos , the agent is re-added to the crowd again (debugging crowd agents shows this behavior. Try moving your target while the agent is disabled i use 1.7 btw)</p>
+<aside class="quote no-group" data-post="2" data-topic="5950" data-username="lezak">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6ef2f82e83bb3859852dc241e102e0b3.png" width="20"/> lezak:</div>
+<blockquote>
+<p>You will not get one path that is valid from setting target to the moment when agent reaches it</p>
+</blockquote>
+</aside>
+<p>That’s not what i was suggesting. My suggestion was to get the current generated path (path this frame) so i can check i’ts length. If the enemy is far away stop movement and e.g play idle animation. If the path length is below some value , activate the agent and start moving towards target.</p>
+<aside class="quote no-group" data-post="2" data-topic="5950" data-username="lezak">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6ef2f82e83bb3859852dc241e102e0b3.png" width="20"/> lezak:</div>
+<blockquote>
+<p>for example if Y position should be controlled by gravity, what to do when project is not using physics?</p>
+</blockquote>
+</aside>
+<p>I didn’t explained this well. By gravity i didn’t really mean physics gravity, but to have y as an idependent value (e.g follow slopes by raycast). As i mentioned if the agent is slightly above or under the navigation mesh “floor” then the agent isn’t moving (probably the path is invalid).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="5950" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<p>As i mentioned if the agent is slightly above or under the navigation mesh “floor” then the agent isn’t moving (probably the path is invalid).</p>
+</blockquote>
+</aside>
+<p>You might want to use navMesh’s FindNearestPoint(…) to get a valid point on the navmesh.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="5950" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<p>That’s not what i was suggesting. My suggestion was to get the current generated path (path this frame) so i can check i’ts length. If the enemy is far away stop movement and e.g play idle animation. If the path length is below some value , activate the agent and start moving towards target.</p>
+</blockquote>
+</aside>
+<p>You may have some scenario that requires this, but this seems like a really expensive test to find the distance to a target. A simple Vector3 Length check seems much more suitable than calculating the path to the target, or perhaps a raycast. If it’s an indoors issue where the path may take lots of turns I would suggest zones - enemies in this and the neighbor zones can attack or are on guard, others are idle. Maybe as a final case confirm that the actual path that would be taken is short enough, to handle the cases of barriers and such.</p>
+<p>That said, I do agree that some sort of CalculatePathLength or GetCurrentPathLength method would be appropriate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>I think Lezak have answered most of the questions.<br/>
+There is also a FindPath in the NavMesh.  The first argument provide the list of points to destination from current position.  I think just call that using one of the agent node in the crowd should give you what you need. You then just convert that to distance. Or just use simple radius or ray cast distance.</p>
+<p>Lezak also mentioned about split crowd for multi targets.  Re-child to different parent node.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

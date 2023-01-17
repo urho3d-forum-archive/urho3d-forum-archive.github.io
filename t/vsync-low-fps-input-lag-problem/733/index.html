@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Vsync/Low FPS Input Lag Problem</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Vsync/Low FPS Input Lag Problem</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I’m experiencing severe input lag with vsync on.<br/>
+Few things I noticed about it:</p>
+<ul>
+<li>Holding down more button causes the lag to increase.</li>
+<li>There’s more lag in full screen than in window mode.</li>
+<li>In windowed mode it can cause the mouse to travel far enough to leave the window. (suggesting something prevents it from re-centering)</li>
+</ul>
+<p>You can experience it in the ninja snow war game or character demo. try looking around fast with your mouse, then try to hold down WASD (all of them) and look around fast again. You’ll notice it’s slightly more laggy.<br/>
+In my game I experience extreme case of this lag which makes the game unplayable since it requires very responsive controls.</p>
+<p>I noticed that when I enabled vsync and use SetMaxFps(60); the lag is greatly reduced and capped at a lower point (i.e. I don’t get extremely long freezes). It may suggest that there’s some sort of desync between input polling and updates.<br/>
+Another thing that may cause it is lost mouse messages. I barely know anything about it but if the vsync busy polling doesn’t check for mouse messages, that could mean mouse messages are missed?</p>
+<p>Another thing I noticed is that when I reduce the frame rate to something low such as 20-30, hold down any button and move the mouse, the mouse speed slows down and resets in intervals of few seconds.<br/>
+I tested it and the values I get from input-&gt;GetMouseMoveX() and input-&gt;GetMouseMoveY() are the ones that scale down.<br/>
+In windowed mode the mouse can leave the window when the mouse speed is slow enough.</p>
+<p>Note that I don’t experience anything similar with other games, only when I use Urho3D.</p>
+<p>What can cause this problem and how can it be fixed?</p>
+<p><span class="bbcode-b"><span class="bbcode-u">EDIT</span></span><br/>
+Right now SDL2’s event queue is the main suspect.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I found the sources of the lag.</p>
+<p>The first one is SDL_PeepEvents. Switching to SDL_PollEvent greatly reduced the lag.<br/>
+The only main difference is that SDL_PeepEvents is thread safe, but that shouldn’t be a problem since the input Update() isn’t threaded.</p>
+<p>The second cause is the following line in D3D9Graphics.cpp:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>For some reason when using vsync option via Urho3D that lag occurs, but when I set it through my graphics card settings (Nvidia GTX670) I get vsync without the input lag.</p>
+<p>Using max FPS 60(my monitor refresh rate) or 59(slightly less lag) with vsync does reduce the lag to almost unnoticeable level, but vsync still introduces some lag that doesn’t happen with the hardware configured vsync.</p>
+<p>I tried forcing OpenGL and I it doesn’t have the lag problem.<br/>
+I noticed that OpenGL uses SDL_GL_SetSwapInterval() to enable/disable vsync, that may suggest that it changes something with SDL that prevents the lag.<br/>
+OpenGL build still lags if SDL_PeepEvents is used, so SDL_PollEvent is a must.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>We already pump events once to fill SDL’s internal event queue from OS, then process all of them. PollEvents() would call PumpEvents() on its own, and could theoretically loop forever if new OS-level events are being added all the time, so I’m reluctant to change this.</p>
+<p>On D3D9 you should try calling Graphics::SetFlushGPU(true). This will force the CPU to not get ahead of GPU and therefore reduce the apparent input lag, but will cost some performance due to the syncing/stalling that will be happening each frame.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>The lag happens in both OpenGL and DirectX when using SDL_PeepEvents.<br/>
+I did profiling with the Urho profiler when using vsync and with SDL_PollEvent I get between 0.3-1.5 ms max when moving the mouse and/or pressing buttons, while with SDL_PeepEvents I get 16-18 ms max. In my experience the lag was much worse and could cause halt which were as long as several 100’s of miliseconds and inconsistent mouse speed.<br/>
+I also tested it with an empty project using the external lib guide and I got the same result.</p>
+<p>Maybe there’s a way to configure SDL so the lag won’t happen with SDL_PeepEvents (maybe using threading), but until it’s found SDL_PollEvent will work better.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The internal SDL code is almost the same, maybe the difference is that SDL_PollEvent() will call SDL_PumpEvents() again for each received event.</p>
+<p>However, I observed subjectively smoother mouse input under Windows with vsync on when using SDL_PollEvent(), so I’ll commit the change you suggested. It can always be reverted if it leads into trouble. Can’t comment on the subject of lag difference though.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

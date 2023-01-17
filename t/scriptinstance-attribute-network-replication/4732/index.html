@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ScriptInstance Attribute Network Replication</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ScriptInstance Attribute Network Replication</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1400_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dprandle</div>
+          <div class="post_content">
+<p>Hello - I’m trying to understand if script object attributes are replicated to clients. I would think by default they are - as AM_DEFAULT includes AM_FILE and AM_NET. However, the wiki says the following:</p>
+<p>“Network replication of the script object variables must be handled manually by implementing WriteNetworkUpdate() and ReadNetworkUpdate() methods, that also write and read a binary buffer. These methods should write/read all replicated of variables of the object. Additionally, the <a href="https://urho3d.github.io/documentation/1.7/class_urho3_d_1_1_script_instance.html" rel="nofollow noopener">ScriptInstance</a> must be marked for network replication by calling MarkNetworkUpdate() whenever the replicated data changes. Because this replication mechanism can not sync per variable, but always sends the whole binary buffer if even one bit of the data changes, also consider using the automatically replicated node user variables.”</p>
+<p>From my understanding the member variables of an angelscript class that inherits from ScriptObject will have all of its members that can be converted to a Variant and that don’t start with an underscore automatically registered as attributes.</p>
+<p>So… are these attributes replicated to clients when the ScriptObject and owning node are created in REPLICATED mode?</p>
+<p>Also… out of curiosity, what happens if a node is created in LOCAL mode and components for it are created in REPLICATED mode?</p>
+<p>Thanks for your time</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="4732">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c32e314e605e15c8c9bbe3eaa35565dc.png" width="20"/> dprandle:</div>
+<blockquote>
+<p>From my understanding the member variables of an angelscript class that inherits from ScriptObject will have all of its members that can be converted to a Variant and that don’t start with an underscore automatically registered as attributes.</p>
+</blockquote>
+</aside>
+<p>They are, but the automatic attributes are created with AM_FILE mode.</p>
+<blockquote>
+<p>So… are these attributes replicated to clients when the ScriptObject and owning node are created in REPLICATED mode?</p>
+</blockquote>
+<p>They are not replicated automatically.</p>
+<aside class="quote no-group" data-post="1" data-topic="4732">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c32e314e605e15c8c9bbe3eaa35565dc.png" width="20"/> dprandle:</div>
+<blockquote>
+<p>Also… out of curiosity, what happens if a node is created in LOCAL mode and components for it are created in REPLICATED mode?</p>
+</blockquote>
+</aside>
+<p>A component can not be created in replicated mode on a local node, the <code>CreateMode</code> will be ignored if you try to do so.</p>
+<p>If you somehow trick it into doing so then network updates will be mangled between server and client because components will add their nodes as network state dependencies (by ID) and they will not be able to correctly mapped to nodes on the other end as local IDs are in a different range than network IDs and may or may not match between clients.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1400_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dprandle</div>
+          <div class="post_content">
+<p>Thanks for the quick reply!</p>
+<aside class="quote no-group" data-post="2" data-topic="4732" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>They are, but the automatic attributes are created with AM_FILE mode.</p>
+</blockquote>
+</aside>
+<p>I see - do you know why it is they are created with AM_FILE only? Also, I’m wondering if there is sort of a no brainer way to get these attributes to replicate (or some way that people usually do this without requiring the user to add it in their script)?</p>
+<p>The project I am currently working on allows users to build maps - the editor is a sort of dumbed down version of the urho editor and its done in Qt to provide the user with GUI elements they are very familiar with on their OS. The user can create scripts - however since they are typically VERY simple scripts and the users won’t really be coders - I am trying to get any vars the user makes to automatically replicate over the network. I have a couple of ideas on how to do this - but</p>
+<p>If there is a sort of shortcut way - or maybe someone has done this already - I would love to hear.</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>It’s all handled in <code>ScriptInstance::GetScriptAttributes()</code>, you could rely on a naming convention and attach the appropriate mode to the attribute-info. It should <em>just work</em>^TM as long as you have AM_NET on the attribute and you’re calling MarkNetworkUpdate.</p>
+<p>Realistically, you’d <strong>always</strong> have to use virtual accessors (<code>int myProperty { get; set; }</code>) in the script-classes and call <code>MarkNetworkUpdate()</code> from in the setter since C++ side doesn’t see member changes. Though that would help to hide obnoxious naming conventions like <code>sync_MyField</code> - in which case you might want to say ok to private+protected members if they pass your naming convention so they can be hidden behind the virtual properties AngelScript side.</p>
+<p>Under the hood virtual properties aren’t exposed like regular properties, they’re actually java-bean like functions internally so they’re not part of the binding to attributes - that comes with consequences if you should choose to use AttributeInfo to populate a GUI or something and expect networked fields to cause dirty marking.</p>
+<hr/>
+<p><strong>Side-note</strong>: local filewatcher changes aren’t synchronized over the network (that’d be <em>evil</em>) so editing a script with resource hotloading enabled on your end while using client-server will send synchronization to hell.</p>
+<p><strong>Illustration of the above:</strong></p>
+<pre><code class="lang-auto">class Rotator
+{
+    private int sync_degrees;
+    
+    int Degrees {
+        get const { return sync_degrees; }
+        set { 
+            if (sync_degrees != value) { 
+                MarkNetworkUpdate(); 
+                sync_degress = value; 
+            } 
+        }
+    }
+}
+</code></pre>
+<p><strong>Edit</strong>: other options are far more involved, using something like stb_c_lexer to scan for marker comments or such (<code>///@networked</code>) when script source code is loaded and storing that metadata somewhere to lookup during attribute filling.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1400_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dprandle</div>
+          <div class="post_content">
+<p>Thanks again! Super helpful</p>
+<aside class="quote no-group" data-post="4" data-topic="4732" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>you could rely on a naming convention and attach the appropriate mode to the attribute-info. It should <em>just work</em> ^TM as long as you have AM_NET on the attribute and you’re calling MarkNetworkUpdate</p>
+</blockquote>
+</aside>
+<p>This is exactly what I was looking for!</p>
+<aside class="quote no-group" data-post="4" data-topic="4732" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Realistically, you’d <strong>always</strong> have to use virtual accessors ( <code>int myProperty { get; set; }</code> ) in the script-classes and call <code>MarkNetworkUpdate()</code> from in the setter since C++ side doesn’t see member changes.</p>
+</blockquote>
+</aside>
+<aside class="quote no-group" data-post="4" data-topic="4732" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>that comes with consequences if you should choose to use AttributeInfo to populate a GUI or something and expect networked fields to cause dirty marking.</p>
+</blockquote>
+</aside>
+<p>So - currently in my GUI builder I show all attributes that are not marked AM_NOEDIT and for each attribute there is a widget that sets the attribute to the new value anytime the widget is edited… I couldn’t really figure out a general way to detect changes to individual attributes so every frame I basically go through each attribute that has a widget, disable the signal from the widget that sets the attribute, and set the widget value from the attributes value (I’m thinking now I will try to only do this when the network node flag is dirtied instead of every frame).</p>
+<p>I am wondering - theoretically - since script attributes are convertible to Variants - what if on the c++ side I checked all attributes with “sync” prefix before the script update runs and again after the update runs - and auto mark the network update flag for the node if any of those values have changed? Your thoughts?</p>
+<p>I could require the virtual properties for networked attributes - and just brute force update the widgets associated with the attributes within ScriptInstance the way I am doing it now for everything else - but of course just requiring the “sync” prefix and doing the work for vars with that prefix on the c++ side is ideal.</p>
+<p>The brute force thing works because the property editor only allows the user to view/edit attributes of a single node and associated components at a time - so theres never really that many attributes/widgets at a time.</p>
+<p>EDIT - The map editor and game itself are two different applications - and once a script (and other resources) from the map editor are loaded in to a package, and that package is used in the game, they cannot be edited in the game. So - there should be no case during game play where a script is edited… The scripting portion is to allow the user to sort of mod the game - and I am currently creating most major gameplay parts of the game with scripting as well</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="4732">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c32e314e605e15c8c9bbe3eaa35565dc.png" width="20"/> dprandle:</div>
+<blockquote>
+<p>I am wondering - theoretically - since script attributes are convertible to Variants - what if on the c++ side I checked all attributes with “sync” prefix before the script update runs and again after the update runs - and auto mark the network update flag for the node if any of those values have changed? Your thoughts?</p>
+</blockquote>
+</aside>
+<p>I would do it only once, after the script runs - but cache those sync_ members’ values after the script loads (when it applies the serialized attributes the very first time during initialization) to check for differences from the last update (swapping the new values for the cached ones so the cache is always up to date of course).</p>
+<p>The two problems are going to be script handling of events (ie. a post-update changes sync state) and what to do about script-classes inside of your ScriptInstances that <em>should</em> be serialized according to naming - there’s a bunch more on working with asIScriptObject and such in <a href="https://gist.github.com/JSandusky/51f12192f40b90b4a09ee9138820e74c" rel="nofollow noopener">asPEEK debugging server</a> that might be useful working reference on how arbitrary script classes are inspected (though it’s all string printing). Though I think the attribute get/set stuff in Urho3D does cover everything except identifying regular AS classes.</p>
+<hr/>
+<p>Because of those problems you might be better off adding an event that the Network system sends at the very start of <code>Network::PostUpdate</code> (like an <code>E_NETWORK_PREUPDATE</code> or something). You would have to have the script system loosely track ScriptInstances that have sync attributes so they can report dirtiness (same caching process as above).</p>
+<p>Don’t be fooled by the <code>PostUpdate</code> name, the <code>Network</code> subsystem does that when in response to the <code>RenderUpdate</code> event which occurs after the real <code>PostUpdate</code> event.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

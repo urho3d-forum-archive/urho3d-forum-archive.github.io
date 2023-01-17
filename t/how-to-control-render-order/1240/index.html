@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to control render order?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to control render order?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>How can you control render order?<br/>
+A use case for example is an FPS game. You don’t want the player’s gun to clip with world objects that get too close. So you need to render the gun on top of everything.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You control render order with passes. The RenderPath defines the passes that will get rendered, which are assigned in the material’s Technique file.</p>
+<p>I’m assuming the gun needs to be lit and you’re using forward rendering. You could for example add a pass called “basefps” in the Forward.xml renderpath, right after the “base” pass (normal opaque objects)</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+    &lt;command type="scenepass" pass="base" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="scenepass" pass="basefps" vertexlights="true" metadata="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+    &lt;command type="scenepass" pass="postopaque" /&gt;
+    &lt;command type="scenepass" pass="refract"&gt;
+        &lt;texture unit="environment" name="viewport" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>For the technique, you could copy e.g. Diff.xml to DiffFps.xml and add a “basefps” pass definition with depth test set to “always” (I have intentionally omitted the deferred rendering passes for clarity. Obviously, if you’re using deferred rendering, you would need to split the G-buffer pass into a “fps” G-buffer pass instead)</p>
+<pre><code class="lang-auto">&lt;technique vs="LitSolid" ps="LitSolid" psdefines="DIFFMAP"&gt;
+    &lt;pass name="basefps" depthtest="always" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+    &lt;pass name="depth" vs="Depth" ps="Depth" /&gt;
+    &lt;pass name="shadow" vs="Shadow" ps="Shadow" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>This is a bit complex, so I’ll look into adding for example a simple 8-bit render priority identifier to materials, which would affect the state sorting normally used by rendering within each pass. After that, the additional pass would not be required.</p>
+<p>However, note that render order tweaking isn’t troublefree, because shadow rendering will not respect the depth test override, so your gun might appear shadowed when inside a wall. Therefore another approach is to create a second camera &amp; viewport for your firstperson objects, and tweak the view masks in the cameras &amp; objects to make the gun not render in the normal “world” viewport, but only in the “firstperson” viewport. The firstperson viewport will need to have a renderpath definition where the color clear has been disabled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Also see nice fps game <a href="https://bitbucket.org/cin/outbreak/downloads/Outbreak.7z">bitbucket.org/cin/outbreak/down … utbreak.7z</a><br/>
+[video]<a href="http://www.youtube.com/watch?v=pl2qJHTt5sY%5B/video%5D">http://www.youtube.com/watch?v=pl2qJHTt5sY[/video]</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In master branch, a 8-bit render order specifier has been added to materials (Material::SetRenderOrder()). This allows to override both state &amp; distance sorting within a pass: default order value is 128 and smaller values render first, larger values render later.</p>
+<p>Meaning that you could do the FPS gun by setting the gun material’s renderOrder to e.g. 129. You still need to touch the technique for disabling depth test.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<blockquote>
+<p>your gun might appear shadowed when inside a wall</p>
+</blockquote>
+<p>It is very noticeable <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/></p>
+<blockquote>
+<p>Therefore another approach is to create a second camera &amp; viewport for your firstperson objects, and tweak the view masks in the cameras &amp; objects to make the gun not render in the normal “world” viewport, but only in the “firstperson” viewport.</p>
+</blockquote>
+<p>Then shadows will not fall on the weapon at all. The hero enters the room, but a weapon will be lit as outdoors by the sun. Are there any other solution?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote no-group">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>In master branch, a 8-bit render order specifier has been added to materials (Material::SetRenderOrder()). This allows to override both state &amp; distance sorting within a pass: default order value is 128 and smaller values render first, larger values render later.</p>
+<p>Meaning that you could do the FPS gun by setting the gun material’s renderOrder to e.g. 129. You still need to touch the technique for disabling depth test.</p>
+</blockquote>
+</aside>
+<p>Material render order doesn’t seem to work. I’ve tried using it in the character demo, in CharacterDemo::CreateCharacter():</p>
+<pre><code class="lang-auto">object-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Jack.mdl"));
+
+auto mat = cache-&gt;GetResource&lt;Material&gt;("Materials/Jack.xml")-&gt;Clone();
+mat-&gt;SetRenderOrder(200);	// higher render order
+auto tec = mat-&gt;GetTechnique(0)-&gt;Clone();
+tec-&gt;GetPass(0)-&gt;SetDepthTestMode(CMP_ALWAYS);	// Always pass depth test
+mat-&gt;SetTechnique(0, tec);
+
+object-&gt;SetMaterial(mat);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Is there no z-offset like in many other systems?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Using an extra pass with depth test always doesn’t work well in cases that triangles are overlapping.<br/>
+It needs to use some sort of local depth testing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Aha! I found something!<br/>
+I tested a custom shader and when modifying the vertex shader there can be a z-offset.<br/>
+In a HLSL (DirectX) shader:</p>
+<pre><code class="lang-auto">...
+void VS(...)
+{
+...
+    oPos = GetClipPos(worldPos);
+    // when inserting this:
+    oPos.z*=0.999;
+...</code></pre>
+<p>This material of the ground is slightly in front of other materials: <a href="http://i.imgur.com/6Y9R7Tk.jpg" rel="nofollow noopener">i.imgur.com/6Y9R7Tk.jpg</a><br/>
+The player, torch and the rocks appear cut off because the ground behind them is partly rendered in front. The shadows and lighting seem to be still correct.<br/>
+Try modifying the shader of your weapon material(s) like this and it could work as you want. Instead of multiplying you could also try subtracting.</p>
+<p>In a GLSL (OpenGL) shader the code could be similar but I can’t test that without rebuilding Urho:</p>
+<pre><code class="lang-auto">...
+    // also in the vertex shader VS()
+    gl_Position = GetClipPos(worldPos);  // the line is identical but the variable has a different name. Could be the default name used in the Urho shader
+    gl_Position.z*=0.999;
+...</code></pre>
+<p>Does that work as expected?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>It sounds like a brittle solution.<br/>
+What if a player in an FPS game stands next to a wall, and the weapon is longer than the distance from the wall? You won’t have any z margin to offset.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>? I don’t know what you mean by that.<br/>
+I tested it again:<br/>
+Without any offset: <a href="http://i.imgur.com/FJouvSX.jpg" rel="nofollow noopener">i.imgur.com/FJouvSX.jpg</a><br/>
+The blocks with the dots with oPos.z*=0.01;: <a href="http://i.imgur.com/eXYWiHR.jpg" rel="nofollow noopener">i.imgur.com/eXYWiHR.jpg</a><br/>
+They are quite far away behind the player and torch. They are rendered in front as intended. Also the shadows are still all correct, they throw and receive shadows as without any offset.<br/>
+The Z distance is still calculated and compared but it seems I correctly manipulated it to change it artificially. I’m not sure if I did everything correct but it looks fine for me (have only checked DirectX9 though).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>player in an FPS game stands next to a wall, and the weapon is longer than the distance from the wall?</p>
+</blockquote>
+<p>Earlier I have read some relative topic about gun &amp; shadows on gamedev (<a href="http://www.gamedev.ru/code/forum/?id=211365" rel="nofollow noopener">gamedev.ru/code/forum/?id=211365</a>)<br/>
+there some code example for “depth hack” that uses in doom3 I guess</p>
+<pre><code class="lang-auto">void Camera::EnterDepthHack( float depth ) {
+    // store initial matrix
+    if( !mInDepthHack ) {
+        mDepthHackMatrix = mProjection;
+    }
+    mInDepthHack = true;
+    // modify matrix
+    mProjection._43 -= depth;
+}
+
+void Camera::LeaveDepthHack() {
+    // restore matrix
+    mInDepthHack = false;
+    mProjection = mDepthHackMatrix;
+}</code></pre>
+<p>using:</p>
+<pre><code class="lang-auto">if( needOverlay ) {
+  camera-&gt;EnterDepthHack( depth );
+}
+node-&gt;Draw( camera );
+if( needOverlay ) {
+  camera-&gt;LeaveDepthHack();
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Not sure how that would work in Urho. It seems to be also offsetting the depth, then rendering the things that should be in front and then restoring the “normal depth mode” and rendering the rest. I guess that would require an additional rendering pass/step or something?<br/>
+My solution works simply on a shader level. Everything using that shader has the offset. The offset could also be changed on a material level by making the offset a shader parameter: <a href="http://urho3d.wikia.com/wiki/Custom_shader_parameters" rel="nofollow noopener">urho3d.wikia.com/wiki/Custom_shader_parameters</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I’m using the extra viewport &amp; camera solution, which works.<br/>
+Is there a way to have world shadows with it? At least the directional light’s shadow?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Works perfectly with my solution. It could also have a better performance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/000e83ce255afd88a5c3fef7c5cdf302.png" width="20"/> gawag:</div>
+<blockquote>
+<p>Works perfectly with my solution. It could also have a better performance.</p>
+</blockquote>
+</aside>
+<p>But it isn’t suitable for FPS game.</p>
+<p>It would be more elegant to use render order, but it doesn’t seem to work right now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<aside class="quote no-group">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2c165096ad375255e0c52a6a81137cd8.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>But it isn’t suitable for FPS game.</p>
+</blockquote>
+</aside>
+<p>Ha, I was going to write “Why wouldn’t it?” and post picture of proof that it works. Uhm…<br/>
+3rd person view without offset: <a href="http://i.imgur.com/MQx606M.jpg" rel="nofollow noopener">i.imgur.com/MQx606M.jpg</a> The torch (marked with blue) is attached to the player and properly casts shadows.<br/>
+1st person view without offset: <a href="http://i.imgur.com/IaMwzkW.jpg" rel="nofollow noopener">i.imgur.com/IaMwzkW.jpg</a> Torch logically disappears in the rock.<br/>
+3rd person view with offset of *=0.01: <a href="http://i.imgur.com/Ei7uqCR.jpg" rel="nofollow noopener">i.imgur.com/Ei7uqCR.jpg</a> Torch still properly casting and receiving shadows and layered in front of the player.<br/>
+1st person view with offset: <a href="http://i.imgur.com/Vo4svN3.jpg" rel="nofollow noopener">i.imgur.com/Vo4svN3.jpg</a><br/>
+Ah snap! Torch is properly in front but shadowed from the rock it is in. I guess that’s not good enough. It works though, kinda.</p>
+<p>One could disable shadow receiving for the model but then it’s not receiving <span class="bbcode-b">any</span> shadows. One would need some kind of shadow receive offset. Only receive shadows of models under certain conditions. It would to be shadowed when on the shadowed side of the model it is in and not shadowed when on the lit side. Not sure if that could be done.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Ah so it doesn’t go behind the camera? Nice.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>If you are using OpenGL, may be you could use glDepthRange() to specify different depth range  between world objects and your weapon such that your weapon always has the preferred z.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I rather have the possibility of shadows on the weapon when clipping, than not being able to use shadows at all. I noticed Battlefield 3 has this behavior too.<br/>
+Z-offset seems like the way to achieve this behavior. I want to know and specify how much offset is needed (perhaps the total bounding box of all the viewport models).<br/>
+I wonder if codingmonkey’s method can work with urho, and what it takes to implement it?</p>
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>If you are using OpenGL, may be you could use glDepthRange() to specify different depth range  between world objects and your weapon such that your weapon always has the preferred z.</p>
+</blockquote>
+</aside>
+<p>How does it compare to depth offset? It would make z-fighting more likely?<br/>
+Is it possible to add it without modifying Urho?</p>
+<p>EDIT:<br/>
+gawag’s solution actually works quite well. Multiplying the Z value by a positive fraction “squishes” the model to fit. Calling it “depth offset” made me think it was translation backwards instead of scaling.<br/>
+This solution is very efficient but there’s a limit. Basically it’s depth scaling the weapon to fit inside the character controller’s rigid body’s range. That means that theoretically if you have a very long model and/or a very short character rigid body, at some point you won’t have enough precision to scale the depth to fit in without z-fighting.<br/>
+Also if something can go past the character’s rigid body it will intersect with the weapon.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3817_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hunkalloc</div>
+          <div class="post_content">
+<p>Is this still an issue? Or is there a way of handling render order?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Improve Performance for animated models</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Improve Performance for animated models</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I have an AI that is made of two separate meshes, and two textures. This model is by no means today’s level of details in modern games. If I spawn one or two of them and they use a navmesh to walk around the frame-rate is pretty solid at 60fps.  If I spawn lets say eight of them and they navigate to a location the frame rate drops to 40-44.</p>
+<p>I used an animated model, because I read that the GPU handles there animations.</p>
+<p>Any suggestions welcomed. I’m not looking for 50 of them on the screen at one time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Skinned mesh animation on the GPU is pretty fast (even when animation transforms are blended on the cpu) - but pathfinding on navmeshes is quite slow (typically involving A-Star or similar expanding search algorithm). Most pathfinding algorithms are happy to terminate early after N search steps (without completing the search) but I am not certain that our implementation supports this.<br/>
+I’d have to see how (often) you’re performing your pathfinding, and the resolution of your navmesh, but I bet if you enable profiling that all your frame time is getting sucked up by pathfinding.<br/>
+Typically, once a path has been found, the AI should be fairly confident that the found path will remain valid, and only check periodically to confirm that nothing has changed to invalidate the path. In terms of periodicity, I typically use delay values between a half-second and one second, and settle on a value that works in the context and requirements of that particular game. Oh - and make sure your AI are not all being created on the same frame, so that the computational load is spread over frames, and does not create spikes when all 50 AI try to perform pathfinding update in the same frame…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>The profiler is usually valuable in locating specific bottleneck(s).</p>
+<p>I am not aware of issues like that with animation itself.<br/>
+Rendering FPS ‘depends’ on things…</p>
+<p>Navigation mesh tile size can have a big effect (certainly while building).<br/>
+<a href="https://urho3d.github.io/documentation/HEAD/_navigation.html" rel="nofollow noopener">https://urho3d.github.io/documentation/HEAD/_navigation.html</a><br/>
+<a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/blob/master/Source/Samples/15_Navigation/Navigation.cpp</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I like to make my ai tap its foot for a while, while pathfinding runs - I expect pathfinding can terminate early at some costing, so other AI can have some processing time, in the same frame, and not lag the game. This can mean that some AI take longer to “think” than others, but it’s better than losing game play quality. All expanding-search algorithms can in theory support early search termination and resume, but not all implementations are equal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>“Not finished yet” is a real thing in behavior trees, and one reason i am attracted to this design concept</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I think my frame-rate drop was related to post processing. In the debug info on the screen render quad had the highest value. I had bloom and bloomhdr both on. I disabled bloomhdr and left just bloom, and now the frame-rate is much better.</p>
+<p>I wan’t to use hdrbloom instead of bloom, but I can’t seem to make it look very good.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I don’t think they were meant to be used simultaneously. What are your threshold and mix values?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I’m not using them simultaneously anymore. Here is the line for the values.<br/>
+<code>effectRenderPath-&gt;SetShaderParameter("BloomHDRMix", Vector2(1.0f, 8.0f));</code></p>
+<p>I was trying to get things that turn bright in the scene to stand out.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I removed hdr and just kept bloom. The effect looks nicer, and I don’t get crazy frame-rate drops anymore.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Did you set the Bloom(HDR)Threshold paramater?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>You mean the default value in the XML. I believe it is set to 0.8 by default. Yeah I messed around with it. I really removed it due to frame rate issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="11" data-topic="5299" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<p>I really removed it due to frame rate issues.</p>
+</blockquote>
+</aside>
+<p>Didn’t you say that seemed to be due to simultaneous use of HDR and non-HDR bloom?</p>
+<aside class="quote no-group" data-post="6" data-topic="5299" data-username="GodMan">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ec6d74ff2472bced6f12da93c20c296f.png" width="20"/> GodMan:</div>
+<blockquote>
+<p>I had bloom and bloomhdr both on. I disabled bloomhdr and left just bloom, and now the frame-rate is much better.</p>
+<p>I wan’t to use hdrbloom instead of bloom, but I can’t seem to make it look very good.</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Yes I thought it was because of having both enabled. I removed HDR first and left bloom, and everything seem to run okay. After posting I tried HDR by itself. Then the frame-rate drops returned.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Is there any way to improve the HDR Post Processing effect? I like it’s effects on bright areas especially if you want certain things to glow and stand out.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Shader Post-Effects like Bloom always have a fixed-size “kernel”, which is basically how many neighbour pixels will get sampled during things like blur passes.</p>
+<p>You could try playing with the kernel size, both for the regular and hdr shaders.<br/>
+This will have a very direct impact on both quality and performance - effectively giving you a means to trade one for the other.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p><span class="mention">@Leith</span> If I lower the kernel blur size from 5 to 3. In the stats of my application renderQuad  went from 1450 range down to 950 range. I don’t seem to get the massive frame rate drops now. So that is a start.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Hey guys how can I set my AI animations to be a fixedupdate instead of the default every frame? I trying to improve things were I can to help out performance.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

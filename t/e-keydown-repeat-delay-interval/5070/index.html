@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>E_KEYDOWN repeat delay/interval</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">E_KEYDOWN repeat delay/interval</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Hello! Is there a way to set a repeat delay/interval when holding a key down?</p>
+<p>When I handle input-&gt;GetKeyDown in E_KEYDOWN handler, I get a key press reported immediately. There’s a short time period ~250ms before I get a second key down event reported, and afterwards interval gets shorter and is ~100ms.</p>
+<p>Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Sorry this does not directly answer your question about rate of repeated keypress…</p>
+<p>Input-&gt;GetKeyDown() is an instantaneous test of the state of a particular key … You can call it any time, eg from inside the Update() method - you don’t need to register for E_KEYDOWN event in order to check the state of keys.</p>
+<p>If you do choose to use E_KEYDOWN event, be aware that the event data can tell you exactly which key is being pressed:</p>
+<pre><code class="lang-auto">void GameMainMenuState::HandleKeyDown(StringHash eventType, VariantMap&amp; eventData)
+ using namespace KeyDown;
+            int key = eventData[P_KEY].GetInt();
+            if (key == KEY_SPACE)
+            ...</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p><span class="mention">@Leith</span> Thank you. Actually, in <em>InputEvents.h</em> I’ve found</p>
+<pre><code>/// Key pressed.
+URHO3D_EVENT(E_KEYDOWN, KeyDown)
+{
+    URHO3D_PARAM(P_KEY, Key);                      // int
+    URHO3D_PARAM(P_SCANCODE, Scancode);            // int
+    URHO3D_PARAM(P_BUTTONS, Buttons);              // int
+    URHO3D_PARAM(P_QUALIFIERS, Qualifiers);        // int
+    URHO3D_PARAM(P_REPEAT, Repeat);                // bool
+}
+</code></pre>
+<p>This P_REPEAT could be probably useful for my purposes. However, it does not set a key repeat delay.</p>
+<p>Another question. Is it possible to poll, by means of Input, whether ANY key is down and just for a SPECIFIC key?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Internally, Urho3D caches the entire keyboard state, and sends events for keys that are pressed as a bonus - you can query the state of any key, pretty much any time, at low cost. The keydown event was meant to act as a catch-all, so you didn’t need to poll for keys. But polling cost is low. You’re effectively querying the internal cached state.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Closer to answering your question, I believe Urho is using SDL for input, and I know SDL has a way to set the delay on initial and repeated keydown events - but I feel it needs to be called early, and I am not certain Urho supports this…</p>
+<aside class="quote no-group">
+<blockquote>
+<p>calling SystemParametersInfo (SPI_SETKEYBOARDDELAY, 0, 0, 0) at the start of the program and SystemParametersInfo (SPI_SETKEYBOARDDELAY, 1, 0, 0) at the end, to return to standard key repeat delay.</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>I’ve solved the problem by using HashSet instance defined as <strong>HashSet&lt;int&gt; keysDown</strong>:</p>
+<pre><code>void Game::HandleKeyDown(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace KeyDown;
+
+    int key = eventData[P_KEY].GetInt();
+
+    if (key == KEY_ESCAPE)
+        {
+            engine_-&gt;Exit();
+        }
+
+    keysDown.Insert(key);
+}
+
+void Game::HandleKeyUp(StringHash eventType, VariantMap&amp; eventData)
+{
+    using namespace KeyUp;
+
+    int key = eventData[P_KEY].GetInt();
+
+    keysDown.Erase(key);
+    if (keysDown.Empty()) {
+    // do something
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>That’s certainly a valid approach. Internally, Urho’s Input class contains a member called KeyDown_, which is indeed a HashSet, but unfortunately it’s private, and you’re expected to call GetKeyDown() in order to access that array. You’re duplicating an existing array, but the standard practice seems to be to query the state of a specific subset of possible keys, and to cache the results in your program, so your solution is slightly more costly, but a lot more flexible, than the typical implementation.<br/>
+HashSet is a sparse unordered container, which means that queries/lookups require a search of the keyspace - I don’t remember the numerical range of SDL keycodes, but it seems to me, it might be more efficient to use a flat array of booleans? Anyway, glad you found a solution that works for you <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

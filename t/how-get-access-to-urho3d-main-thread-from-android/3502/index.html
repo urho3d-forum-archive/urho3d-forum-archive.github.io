@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How get access to Urho3d main thread from Android?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How get access to Urho3d main thread from Android?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AlexS32</div>
+          <div class="post_content">
+<p>Hello.</p>
+<p>Is any way to call  a method in Urho3D main thread from Android?<br/>
+I try to change plane objects texture, but I can’t do it in non main thread.<br/>
+As result I’ve got log message:<br/>
+com.github.urho3d E/libEGL: call to OpenGL ES API with no current context (logged once per thread)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>Better if you add some code…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AlexS32</div>
+          <div class="post_content">
+<p>ok<br/>
+My project is experemental. Basic project is RenderToTexture from Urho3d samples.</p>
+<p>Java code:</p>
+<pre><code>native void setTexture();
+
+@Override
+ public void onClick(View view) {
+     setTexture();
+ }
+</code></pre>
+<p>C++ code:</p>
+<pre><code>class EngineGateway {
+
+protected:
+Urho3D::Application* application;
+
+public:
+Urho3D::Application *getApplication() const;
+void setApplication(Urho3D::Application *application);
+};
+
+/////////////////////////////////////
+
+EngineGateway *engineGateway;
+
+/////////////////////////////////////
+    extern "C"{
+
+  JNIEXPORT void JNICALL
+  Java_com_mydomen_test2_BasicFragment_setTexture(JNIEnv *env, jobject instance) {
+
+    RenderToTexture *app = dynamic_cast&lt;RenderToTexture*&gt;(engineGateway-&gt;getApplication());
+    app-&gt;setTexture();
+ }
+
+}
+
+/////////////////////////////////////
+
+ void RenderToTexture::CreateScene() {
+
+...
+
+  StaticModel *boxObject = screenNode-&gt;CreateComponent&lt;StaticModel&gt;();
+    boxObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Plane.mdl"));
+
+    SharedPtr&lt;Material&gt; renderMaterial(new Material(context_));
+    renderMaterial-&gt;SetTechnique(0, cache-&gt;GetResource&lt;Technique&gt;("Techniques/Diff.xml"));
+    renderTexture = SharedPtr&lt;Texture2D&gt;(new Texture2D(context_));
+
+    renderTexture-&gt;SetNumLevels(1);
+    renderTexture-&gt;SetSize(1024, 768, Graphics::GetRGBFormat(), TEXTURE_DYNAMIC);
+
+    int textureWidth = renderTexture-&gt;GetWidth();
+    int textureHeight = renderTexture-&gt;GetHeight();
+
+    SharedPtr&lt;Image&gt; texImg = SharedPtr&lt;Image&gt;(new Image(context_));
+    texImg-&gt;SetSize(textureWidth, textureHeight, 3);
+    for (int i = 0; i &lt; width; ++i) {
+        for (int j = 0; j &lt; height; ++j) {
+            texImg-&gt;SetPixel(i, j, Color(0, 0, 1));
+        }
+    }
+    renderTexture-&gt;SetData(texImg);
+
+    renderMaterial-&gt;SetTexture(TU_DIFFUSE, renderTexture);  
+    boxObject-&gt;SetMaterial(renderMaterial);   // It works, so it is colled in engine main thread
+   ...
+}
+
+void RenderToTexture::setImage() {
+
+const int width = renderTexture-&gt;GetWidth();
+const int height = renderTexture-&gt;GetHeight();
+
+Image* texImg = new Image(context_);
+texImg-&gt;SetSize(width, height, 3);
+for (int i = 0; i &lt; width; ++i) {
+    for (int j = 0; j &lt; height; ++j) {
+        texImg-&gt;SetPixel(i, j, Color(1, 1, 1));
+    }
+}
+renderTexture-&gt;SetData(texImg);		// It dosn't work, so it is colled in Android MainUI thread
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>It doesn’t look like the 10_RenderToTexture sample… did you tried that?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AlexS32</div>
+          <div class="post_content">
+<p>This sample has a good model - a screen is above the floor. I’ve made some changes in  the 10_RenderToTexture sample.  For example I use color fill as a texture.<br/>
+I  try to change a texture on this screen.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

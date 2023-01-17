@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Resource path URLs</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Resource path URLs</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I’ve been playing around with Godot a bit to get a feel for how other people tackle some issues, and I found one feature that I think we need for Urho3D: Path URLs.</p>
+<p>It would look something like:</p>
+<p>“res://models/box.mdl” - Looks in the resource folders or packages for “models/box.mdl”<br/>
+“usr://settings.cfg” - Looks in the user writable directory<br/>
+"app://settings.template.cfg" - Looks in the application root directory</p>
+<p>Additionally, the ResourceRouter class could be changed appropriately. A ResourceRouter could be tied to a specific URL type and “res”, “usr”/“user”, and “app” would all be default ResourceRouters provided out-of-the-box.</p>
+<p>Understandably this is a bit of work. So before I go about implementing this, I wanted to get other’s opinions on this idea.</p>
+<p>The purpose of this is to allow greater flexibility. Plug-n-play ResourceRouters would allow people to share their own schemes. Additionally it allows us the benefit of storing file locations in scripts and data. Currently a file path in the editor can only point to a resource, it’s not easy to point to a game save location or a path for logs without building the path in C++ or in a script.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you want to go all-out with this, you would tie it directly to Files, meaning you could open a File directly with a “usr://” path. However, this would be a large rework, and I’m not sure if it’s justified. On the other hand, the ResourceCache’s current file-related purpose is to offer access to read-only files for reading resource data, so if the URL rework would make it also hand out writable files for e.g. configs and savegames, we’d somewhat dilute that purpose.</p>
+<p>When you imperatively build the paths using GetUserDocumentsDir() etc. you are 100% sure what’s going on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>What about adding a ResourceRouter to FileSystem? Then File could do a route based on a FileSystem-wide ResourceRouter. That would also allow people to use the same ResourceRouter class for both FileSystem and ResourceCache if they’d want.</p>
+<p>I don’t think that having writable resources in ResourceCache would be appropriate. So this is the next best idea IMO. I did a quick’n’dirty addition of a ResourceRouter to FileSystem, then made File route through it. It seems to work OK, if not a little confusing due to the naming. My main concern is how ResourceCache interacts with File, setting two ResourceRouters could have some odd issues if someone doesn’t realize that it would be processed twice. However I’m certain this isn’t going to be a problem for <em>most</em> people.</p>
+<p>Still, I like the idea of having uniform file paths. I would like to have some sane way of being able to define a path and know where it’s going to go. It’s just part of some of my gripes with trying to flesh out data-driven development with the engine. I don’t want to expect a user to build a path in C++ or scripting every time they want to access a file. Instead they should be able to just take a path, and be able to know where that file is going to be. So allowing them to prefix the path with where they want the file (User, App, Res, etc…) would allow convenient access without the need for scripting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>That would work for the usr:// and app:// paths. However for the res:// paths I don’t want FileSystem to start calling into ResourceCache.</p>
+<p>Instead (if you want to make that work) you could shift the responsibility of handling resource directories and packages to FileSystem, then ResourceCache’s task would just be caching resources like the class name says, and it would be asking the files from FileSystem.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

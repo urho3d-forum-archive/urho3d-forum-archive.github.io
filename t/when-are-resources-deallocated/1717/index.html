@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>When are resources deallocated?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">When are resources deallocated?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I can’t quite wrap my head around the way memory is managed.</p>
+<p>When is sceneFile deleted in this case? Should I be doing something to free that resource after I use it?</p>
+<p><code>XMLFile* sceneFile = cache-&gt;GetResource&lt;XMLFile&gt;("Scenes/Ramps.xml");
+// use sceneFile for something here</code></p>
+<p>Should I be doing this?</p>
+<pre><code class="lang-auto"></code></pre>
+<p>…or this?</p>
+<pre><code class="lang-auto"></code></pre>
+<p>and why?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Resources are deallocated when their ref count reaches 0.</p>
+<p>[quote]When is sceneFile deleted in this case? Should I be doing something to free that resource after I use it?</p>
+<p><code>XMLFile* sceneFile = cache-&gt;GetResource&lt;XMLFile&gt;("Scenes/Ramps.xml");
+// use sceneFile for something here</code>[/quote]</p>
+<p>Yes you should ! You have to call either</p>
+<pre><code class="lang-auto"></code></pre>
+<p>To delete ALL unused resources<br/>
+or call :</p>
+<pre><code class="lang-auto"></code></pre>
+<p>or</p>
+<pre><code class="lang-auto"></code></pre>
+<p>This is because once you load a resource the resourceCache will automatically increase the refCount by 1.If you use this resource anywhere in the scene , the ref count increses.<br/>
+the “ReleaseAllResources” function simply releases all unused resources.(all resources where refCount == 1 will be deleted)</p>
+<p>Urho has also a smart pointer system.This ensures automatic destruction of a resource / Node / Component , if they go out of their scope.<br/>
+If you call :</p>
+<pre><code class="lang-auto"></code></pre>
+<p>In this case the resource cahce won’t increase the ref count on the resource (returns the sceneFile with reCount == 0) and constructs a smart pointer from it<br/>
+(which increases the refCount of sceneFile)</p>
+<p>In short : in this case the sceneFile will be deleted automatically once it goes out of it’s scope :</p>
+<pre><code class="lang-auto">{
+      SharedPtr&lt;XMLFile&gt; sceneFile = cache-&gt;GetTempResource&lt;XMLFile&gt;("Scenes/Ramps.xml");
+}
+// sceneFile deleted... you don't need to worry about the memory anymore.
+
+{
+    XMLFile* sceneFile = cache-&gt;GetResource&lt;XMLFile&gt;("Scenes/Ramps.xml");
+}
+// sceneFile pointer destructed hovewer resourceCache still keeps a refCount to it.To delete it call :
+cache-&gt;GetResource&lt;XMLFile&gt;("Scenes/Ramps.xml")-&gt;ReleaseRef();
+
+// or perform a globa cleanup:
+cache-&gt;ReleaseAllResources();
+</code></pre>
+<p>[quote]Should I be doing this?</p>
+<pre><code class="lang-auto"></code></pre>
+<p>…or this?</p>
+<pre><code class="lang-auto"></code></pre>
+<p>and why?[/quote]</p>
+<p>The first example CreateChild() simply returns a pointer to the object with refCount == 1 (only scene holds it’s reference) so while your scene “is alive” your cameraNode is going to be a live.<br/>
+The second example CreateChild() returns a pointer , but constructs a shared pointer from it (which increases the cameraNode’s ref coint to 2… 1 ref by scene 2nd ref by the SharedPtr.<br/>
+Once your sharedPtr goes out of scope , it wiil automatically decrease the cameraNode’s refCount to 1 (scene still keeps a reference to it)<br/>
+Once you delete your scene the cameraNode will be deleted too.</p>
+<p>To delete your camera node , you have to call cameraNode-&gt;Remove();</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Thanks, that was very informative.</p>
+<p>I tested the things you said and it all makes sense to me now.</p>
+<p>[code]	Node* n1 = scene-&gt;CreateChild(“n1”);<br/>
+SharedPtr n2(scene-&gt;CreateChild(“n2”));</p>
+<pre><code>std::cout &lt;&lt; n1-&gt;Refs() &lt;&lt; std::endl;
+std::cout &lt;&lt; n2-&gt;Refs() &lt;&lt; std::endl;
+std::cout &lt;&lt; n2.Refs() &lt;&lt; std::endl;  // this delegates to n2-&gt;Refs()[/code]
+</code></pre>
+<p>The output is:</p>
+<p><code>1
+2
+2</code></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

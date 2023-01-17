@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Write to two render targets</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Write to two render targets</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3670_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Haukinger</div>
+          <div class="post_content">
+<p>Hi there,</p>
+<p>I’m on windows and my fragment shader does some raymarching. It writes to the frame buffer just fine, but I have no idea how I can write to another render target and how to read that from the application. I would like to get a buffer that for each pixel contains the world coordinates of the end point of the ray that produced the color of the pixel. I hoped that something along the line of fragData[1] = vec4(rayX, rayY, rayZ, 0.0) would do the job, but I either get index out of bounds or and empty bitmap or no rendered image at all.</p>
+<p>Can you point me to documentation or an example?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>I think you could take a look at Deferred render path which output 4 targets(viewport, albedo, normal and depth) and use them in following render command.<br/>
+</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/bin/CoreData/RenderPaths/Deferred.xml#L9</a></h4>
+<pre class="onebox"><code class="lang-xml"><ol class="start lines" start="1" style="counter-reset: li-counter 0 ;">
+<li>&lt;renderpath&gt;
+</li>
+<li>    &lt;rendertarget name="albedo" sizedivisor="1 1" format="rgba" /&gt;
+</li>
+<li>    &lt;rendertarget name="normal" sizedivisor="1 1" format="rgba" /&gt;
+</li>
+<li>    &lt;rendertarget name="depth" sizedivisor="1 1" format="lineardepth" /&gt;
+</li>
+<li>    &lt;command type="clear" color="1 1 1 1" output="depth" /&gt;
+</li>
+<li>    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+</li>
+<li>    &lt;command type="scenepass" pass="deferred" marktostencil="true" vertexlights="true" metadata="gbuffer"&gt;
+</li>
+<li>        &lt;output index="0" name="viewport" /&gt;
+</li>
+<li class="selected">        &lt;output index="1" name="albedo" /&gt;
+</li>
+<li>        &lt;output index="2" name="normal" /&gt;
+</li>
+<li>        &lt;output index="3" name="depth" /&gt;
+</li>
+<li>    &lt;/command&gt;
+</li>
+<li>    &lt;command type="lightvolumes" vs="DeferredLight" ps="DeferredLight"&gt;
+</li>
+<li>        &lt;texture unit="albedo" name="albedo" /&gt;
+</li>
+<li>        &lt;texture unit="normal" name="normal" /&gt;
+</li>
+<li>        &lt;texture unit="depth" name="depth" /&gt;
+</li>
+<li>    &lt;/command&gt;
+</li>
+<li>    &lt;command type="scenepass" pass="postopaque" /&gt;
+</li>
+<li>    &lt;command type="scenepass" pass="refract"&gt;
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>and its shader part(define DEFERRED)<br/>
+</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/bin/CoreData/Shaders/HLSL/LitSolid.hlsl#L285</a></h4>
+<pre class="onebox"><code class="lang-hlsl"><ol class="start lines" start="275" style="counter-reset: li-counter 274 ;">
+<li>    #ifdef LIGHTMAP
+</li>
+<li>        finalColor += Sample2D(EmissiveMap, iTexCoord2).rgb * diffColor.rgb;
+</li>
+<li>    #endif
+</li>
+<li>    #ifdef EMISSIVEMAP
+</li>
+<li>        finalColor += cMatEmissiveColor * Sample2D(EmissiveMap, iTexCoord.xy).rgb;
+</li>
+<li>    #else
+</li>
+<li>        finalColor += cMatEmissiveColor;
+</li>
+<li>    #endif
+</li>
+<li>
+</li>
+<li>    oColor = float4(GetFog(finalColor, fogFactor), 1.0);
+</li>
+<li class="selected">    oAlbedo = fogFactor * float4(diffColor.rgb, specIntensity);
+</li>
+<li>    oNormal = float4(normal * 0.5 + 0.5, specPower);
+</li>
+<li>    oDepth = iWorldPos.w;
+</li>
+<li>#else
+</li>
+<li>    // Ambient &amp; per-vertex lighting
+</li>
+<li>    float3 finalColor = iVertexLight * diffColor.rgb;
+</li>
+<li>    #ifdef AO
+</li>
+<li>        // If using AO, the vertex light ambient is black, calculate occluded ambient here
+</li>
+<li>        finalColor += Sample2D(EmissiveMap, iTexCoord2).rgb * cAmbientColor.rgb * diffColor.rgb;
+</li>
+<li>    #endif
+</li>
+<li>
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3670_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Haukinger</div>
+          <div class="post_content">
+<p>Thanks a lot, I made progress. My render path is this now</p>
+<pre><code>&lt;renderpath&gt;
+  &lt;rendertarget name="albedo" rtsizedivisor="1 1" format="rgba" /&gt;
+  &lt;command type="clear" color="0 0 0 0" output="viewport" /&gt;
+  &lt;command type="clear" color="0 0 0 0" output="albedo" /&gt;
+  &lt;command type="scenepass" pass="deferred" metadata="gbuffer"&gt;
+    &lt;output index="0" name="viewport" /&gt;
+    &lt;output index="1" name="albedo" /&gt;
+  &lt;/command&gt;
+&lt;/renderpath&gt;
+</code></pre>
+<p>and the technique is</p>
+<pre><code>&lt;technique vs="MyShader" ps="MyShader" vsdefines="NOUV" psdefines="DEFERRED" &gt;
+    &lt;pass name="deferred" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<p>and the shader writes to fragData[1] without visible errors, but also without visible results.</p>
+<p>I’ve created a texture and assigned it to rendertarget 1, but whenever I do GetData on that texture, it’s all zero. If I make the shader write the additional data to gl_FragColor (that is, fragData[0], isn’t it?), the data looks good.</p>
+<p>I’ve set the texture’s usage to rendertarget, anything else I might be missing?</p>
+<p>EDIT: I’ve added the texture to the resource cache, and suddenly it contains data <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

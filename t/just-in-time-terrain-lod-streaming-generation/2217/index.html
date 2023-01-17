@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>&ldquo;just in time&rdquo; terrain LOD streaming/generation?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">&ldquo;just in time&rdquo; terrain LOD streaming/generation?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">krstefan42</div>
+          <div class="post_content">
+<p>Hi. I want to create a procedural terrain with a 10km draw distance and detail down to a few centimeters. I can’t feasibly generate a heightmap for the entire terrain (it would consume too much memory anyway). So I thought I could generate patches of the terrain at the appropriate LOD level on an as-needed basis. It seems like the terrain API allows for connecting multiple sub-terrains with the neighbor terrain functionality. Could this be used to do what I want? If not, I’d be willing to roll my own solution, but would appreciate some pointers on how to do so (i’d rather do it by extending the engine than some bolted-on solution, but I wouldn’t know where to begin).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You can instantiate new terrains into the scene (with suitable size) and join them as neighbors to ensure the LOD transitions at edges don’t bug, but every terrain “piece” you create this way has to be in the same resolution, practically the highest resolution, for the neighbor transition to work properly. If you need to instantiate far away terrain pieces with a lower heightmap resolution (because highest resolution would be too much memory) then you need a custom system or to modify the existing engine code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">horvatha4</div>
+          <div class="post_content">
+<p><span class="mention">@krstefan42</span> Welcome to the “Club”!   <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>Here are a few topic for you:<br/>
+<a data-bbcode="true" href="http://discourse.urho3d.io/t/question-super-large-worlds/1870/1">http://discourse.urho3d.io/t/question-super-large-worlds/1870/1</a><br/>
+<a data-bbcode="true" href="http://discourse.urho3d.io/t/managing-large-scenes/1346/1">http://discourse.urho3d.io/t/managing-large-scenes/1346/1</a><br/>
+<a data-bbcode="true" href="http://discourse.urho3d.io/t/infinite-world/1993/1">http://discourse.urho3d.io/t/infinite-world/1993/1</a></p>
+<p>Arpi</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dal</div>
+          <div class="post_content">
+<p>I’d like to do this as well… has anyone got anything working yet? Can it be done with Urho’s built in workqueue in a cross-platform way?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You cannot safely manipulate the scene from outside the main thread, or perform the actual GPU upload of new terrain patches outside main thread, but you can background load heightmap images in advance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="Dal">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/0938694c00d9602af0923872c7cfc359.png" width="20"/> Dal:</div>
+<blockquote>
+<p>I’d like to do this as well… has anyone got anything working yet? Can it be done with Urho’s built in workqueue in a cross-platform way?</p>
+</blockquote>
+</aside>
+<p>Using the Workqueue class won’t work but the Thread class will allow you to do this. Terrain loading can be split into multiple stages. Horvatha4 and I were discussing this on this thread <a data-bbcode="true" href="http://discourse.urho3d.io/t/infinite-world/1993/1">http://discourse.urho3d.io/t/infinite-world/1993/1</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dal</div>
+          <div class="post_content">
+<p><span class="mention">@Lumak</span> that thread looks interesting.</p>
+<p>Does the Thread class still work cross-platform? I guess the most expensive part would be calculating noise or reading heightmap image data for each vertex, so we should be able to do that part in another thread?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>As far as I know, the Thread class is cross-platform, although, terrain loading will probably not work very well w/o multiple CPU cores or multiple HW threads.</p>
+<p>Any loading that happens on the GPU must be done in the main thread, and the most expensive part of the terrain loading is CreatePatchGeometry(), which should be split into two parts: the construction in the background and vertex/index assignment (GPU access) in the main thread.</p>
+<p>Edit: just to note that my PC is not the greatest, it’s nearly 10 yrs. old so you’ll probably get a better performance with whatever you got  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

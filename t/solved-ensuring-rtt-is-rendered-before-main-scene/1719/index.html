@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Solved] Ensuring RTT is rendered before main scene</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Solved] Ensuring RTT is rendered before main scene</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I create a scene with a camera and no viewport, and use it to do RTT and save the result to a texture to be used in a main scene, but there’s a 1 frame delay before that texture becomes visible in the main scene.<br/>
+Is it possible to make sure the RTT texture is ready before rendering the main scene?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>So, actually how did you got 1 frame delay if I guessing what all offscreen RT’s are rendered before main view RT ?)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I manually update the texture render surface with SetUpdateMode(SURFACE_MANUALUPDATE) and QueueUpdate() in PostUpdate().<br/>
+If I don’t use manual updating it works fine, only using QueueUpdate() is enough to cause it.</p>
+<p>I looked into how Urho ensures the viewport order.<br/>
+In Renderer::Update() this code suppose to ensure that the viewport with the lowest index is rendered first, since it says rendering order is also reverse (from size to 0, so last element is rendered first).</p>
+<pre><code class="lang-auto">    // Queue update of the main viewports. Use reverse order, as rendering order is also reverse
+    // to render auxiliary views before dependant main views
+    for (unsigned i = viewports_.Size() - 1; i &lt; viewports_.Size(); --i)
+        QueueViewport(0, viewports_[i]);</code></pre>
+<p>viewports_ is private and Renderer::SetViewport() is the only function that adds elements to it. That means that only viewports that are added with Renderer::SetViewport() are ordered.</p>
+<p>Renderer::QueueViewport() adds the viewport with its render target to queuedViewports_ .</p>
+<p>RenderSurface::QueueUpdate() calls Renderer::QueueRenderSurface() which directly uses Renderer::QueueViewport(). That means RenderSurface::QueueUpdate() isn’t added to viewports_ and therefore skips the viewport ordering.<br/>
+That means it would be at the beginning of queuedViewports_, that means it renders after all of the elements in viewports_ because of the reveresed order.</p>
+<p>Assuming this is a bug, a possible solution would be to collect all the render surface viewports in Renderer::QueueRenderSurface(), and push them to queuedViewports_ in Renderer::Update() only after the main views are added, so they’re rendered first.</p>
+<p>Reported as a bug: <a  rel="nofollow noopener">github.com/urho3d/Urho3D/issues/1171</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

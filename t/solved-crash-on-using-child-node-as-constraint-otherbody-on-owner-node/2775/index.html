@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Crash on using child-node as constraint.otherBody on owner-node</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Crash on using child-node as constraint.otherBody on owner-node</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1177_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">f1af</div>
+          <div class="post_content">
+<p>I have next .as code:</p>
+<pre><code>class PlayerVehicle : ScriptObject
+{
+	String selfGRightNode;
+
+	void DelayedStart()
+	{
+		ConstraintRevolute2D@ constraint = node.CreateComponent("ConstraintRevolute2D");
+		constraint.otherBody = node.GetChild(selfGRightNode).GetComponent("RigidBody2D");
+	}
+}
+</code></pre>
+<p>And another place I have:</p>
+<pre><code>scene.RemoveAllChildren();
+</code></pre>
+<p>After that I crash. Crashdump: <a href="http://www.filedropper.com/urho3dtuefeb71357562017" rel="nofollow noopener">http://www.filedropper.com/urho3dtuefeb71357562017</a><br/>
+What is wrong?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Are you able to post crash callstack here?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1177_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">f1af</div>
+          <div class="post_content">
+<p>No, but I can give u full version of me code, for reproduce that: <a href="http://www.filedropper.com/lessmess" rel="nofollow noopener">http://www.filedropper.com/lessmess</a></p>
+<p>In this arhive have a next files, it’s full version:</p>
+<p><a class="onebox" href="http://Main.as" rel="nofollow noopener" target="_blank">Main.as</a></p>
+<pre><code>Scene@ scene_;
+
+void Start()
+{
+    log.Open("log.txt");
+    scene_ = Scene();
+
+    scene_.LoadXML(cache.GetFile("Scenes/Level01.xml"));
+    renderer.viewports[0] = Viewport(scene_, scene_.GetChild("PlayerCamera").GetComponent("Camera"));
+
+    SubscribeToEvent("innerEvent", "HandleInnerEvent");
+}
+
+void HandleInnerEvent(StringHash eventType, VariantMap&amp; eventData)
+{
+    log.Info("--- send recive ---");
+    scene_.RemoveAllChildren();
+}
+</code></pre>
+<p><a class="onebox" href="http://ProxyNode.as" rel="nofollow noopener" target="_blank">ProxyNode.as</a></p>
+<pre><code>class ProxyNode : ScriptObject
+{
+	String sourceXML;
+
+	void DelayedStart()
+	{
+	    XMLFile@ xmlfile = cache.GetResource("XMLFile", sourceXML);
+        Node@ newNode = scene.CreateChild();
+        newNode.LoadXML(xmlfile.GetRoot(), true);
+        newNode.SetTransform(node.position, node.rotation);
+	}
+}
+</code></pre>
+<p>PlayerVehicle</p>
+<pre><code>class PlayerVehicle : ScriptObject
+{
+	String selfGRightNode;
+
+	private float timeAccamulate;
+	private bool isSendDone;
+
+	void DelayedStart()
+	{
+		ConstraintRevolute2D@ constraint = node.CreateComponent("ConstraintRevolute2D");
+		constraint.otherBody = node.GetChild(selfGRightNode).GetComponent("RigidBody2D");
+	}	
+
+	void FixedUpdate(float timeStep)
+	{
+		timeAccamulate += timeStep;
+		if ( timeAccamulate &gt; 2.0f and !isSendDone )
+		{
+			isSendDone = true;
+			VariantMap vmap;
+			SendEvent("innerEvent", vmap);
+		}
+	}
+}
+</code></pre>
+<p>And *.xml you can see in arhive, if it need.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I have no crash when running your scripts on <em>my</em> Urho Player.<br/>
+Object disappears after a few seconds.<br/>
+Maybe it’s related to those Angel Script crashes on MinGW…</p>
+<p>This dump is absolutely useless (at least, for me) if there are no symbols.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1177_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">f1af</div>
+          <div class="post_content">
+<p>I get Urho Player from:<br/>
+<a class="onebox"  rel="nofollow noopener" target="_blank">https://sourceforge.net/projects/urho3d/files/Urho3D/</a><br/>
+I click on <strong>“Download Urho3D-1.6-Windows-64bit-STATIC-3D11.zip (319.1 MB)”</strong></p>
+<p>Thank you, I will try rebuild urho. It’s resolve me problem (maybe), but it’s not resolve urho-problem (problem in Urho3D-1.6-Windows-64bit, delived throuse official urho web-site)…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The 1.6 binary package for 64-bit Windows D3D11 build was test run successfully before the release tag was made.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1177_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">f1af</div>
+          <div class="post_content">
+<p><strong>2 weitjong</strong> all example works fine too.<br/>
+So, I rebuild Urho, and… crash again.<br/>
+In this code:</p>
+<pre><code>void Constraint2D::SetOtherBody(RigidBody2D* body)
+{
+        ...
+	RecreateJoint();
+	...
+}
+</code></pre>
+<p>New joint apply on body.</p>
+<ol>
+<li>BUT! If we remove BOX2D body, it’s remove his attached joint. Also it’s remove from another body, where use it;s joint.</li>
+<li>It happen whan remove “otherBody”.</li>
+<li>After that we remove “ownerBody”. And it remove joint too, but in (1) BOX2D setup this join in zero. All Fine.</li>
+<li>After that we remove constraint. And it remove joint… but… we remove this joint in (1). And CRUSH.</li>
+</ol>
+<p>Help, pleas!!<br/>
+Otherwise I mast write somthink like that:</p>
+<pre><code>node.GetChild(selfGRightNode).RemoveAllComponents();
+</code></pre>
+<p>…before call scene.RemoveAllChildren()…</p>
+<hr/>
+<p><strong>LOL! I fix it!!</strong></p>
+<p>I change me code:</p>
+<pre><code>void HandleInnerEvent(StringHash eventType, VariantMap&amp; eventData)
+{
+    log.Info("--- send recive ---");
+    scene_.RemoveAllChildren();
+}
+</code></pre>
+<p>…on this:</p>
+<pre><code>void HandleInnerEvent(StringHash eventType, VariantMap&amp; eventData)
+{
+    log.Info("--- send recive ---");
+    scene_.RemoveAllComponents();
+    scene_.RemoveAllChildren();
+}
+</code></pre>
+<p>Solved!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I think it is something wrong with Urho and need deeper investigation.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

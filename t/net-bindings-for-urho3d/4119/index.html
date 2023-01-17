@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>.net bindings for Urho3D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">.net bindings for Urho3D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>For few months i was working on a C# bindings generator for Urho3D. I am at the point where while still experimental it already looks like it could be usable. Be aware that project is made with my fork in mind, which is a little bit different from upstream Urho3D. However things generator depends upon are few and minor and i would love to get them upstreamed.</p>
+<p>A recap on the features: <a href="https://github.com/***/Urho3D/wiki/C%23-support" rel="nofollow noopener">https://github.com/***/Urho3D/wiki/C%23-support</a><br/>
+Repository with bindings generator: <a href="https://github.com/***/Urho3D" rel="nofollow noopener">https://github.com/***/Urho3D</a>, build with <code>-DURHO3D_CSHARP=ON</code>.<br/>
+Repository contains sample <code>102_CSharpProject</code> written in C#.</p>
+<p>Differences from urhosharp:</p>
+<ul>
+<li>Also works with .net framework</li>
+<li>Supports inheriting c++ classes and overriding their virtual methods</li>
+<li>Supports multiple inheritance</li>
+<li>Supports serializing and deserializing managed objects without magical patches to the source</li>
+<li>Supports access of protected class members</li>
+<li>Getters and setters are converted to C# properties</li>
+<li>
+</li>
+</ul>
+<p>Demo:</p>
+<pre><code class="lang-cs">using System;
+using System.Diagnostics;
+using System.IO;
+using Urho3D;
+
+namespace DemoApplication
+{
+    [ObjectFactory]
+    class RotateObject : LogicComponent
+    {
+        public RotateObject(Context context) : base(context)
+        {
+            UpdateEventMask = UseUpdate;
+        }
+
+        public override void Update(float timeStep)
+        {
+            var d = new Quaternion(10 * timeStep, 20 * timeStep, 30 * timeStep);
+            Node.Rotate(d);
+        }
+    }
+
+    class DemoApplication : Application
+    {
+        private Scene _scene;
+        private Viewport _viewport;
+        private Node _camera;
+        private Node _cube;
+        private Node _light;
+
+        public DemoApplication(Context context) : base(context)
+        {
+        }
+
+        public override void Setup()
+        {
+            var currentDir = Directory.GetCurrentDirectory();
+            EngineParameters[EngineDefs.EpFullScreen] = false;
+            EngineParameters[EngineDefs.EpWindowWidth] = 1920;
+            EngineParameters[EngineDefs.EpWindowHeight] = 1080;
+            EngineParameters[EngineDefs.EpWindowTitle] = "Hello C#";
+            EngineParameters[EngineDefs.EpResourcePrefixPaths] = $"{currentDir};{currentDir}/..";
+        }
+
+        public override void Start()
+        {
+            Input.SetMouseVisible(true);
+
+            // Viewport
+            _scene = new Scene(Context);
+            _scene.CreateComponent&lt;Octree&gt;();
+
+            _camera = _scene.CreateChild("Camera");
+            _viewport = new Viewport(Context, _scene, _camera.CreateComponent&lt;Camera&gt;());
+            Renderer.SetViewport(0, _viewport);
+
+            // Background
+            Renderer.DefaultZone.FogColor = new Color(0.5f, 0.5f, 0.7f);
+
+            // Scene
+            _camera.Position = new Vector3(0, 2, -2);
+            _camera.LookAt(Vector3.Zero);
+
+            // Cube
+            _cube = _scene.CreateChild("Cube");
+            var model = _cube.CreateComponent&lt;StaticModel&gt;();
+            model.Model = Cache.GetResource&lt;Model&gt;("Models/Box.mdl");
+            model.SetMaterial(0, Cache.GetResource&lt;Material&gt;("Materials/Stone.xml"));
+            _cube.CreateComponent&lt;RotateObject&gt;();
+
+            // Light
+            _light = _scene.CreateChild("Light");
+            _light.CreateComponent&lt;Light&gt;();
+            _light.Position = new Vector3(0, 2, -1);
+            _light.LookAt(Vector3.Zero);
+
+            SubscribeToEvent(CoreEvents.E_UPDATE, args =&gt;
+            {
+                var timestep = args[Update.P_TIMESTEP].Float;
+                Debug.Assert(this != null);
+            });
+        }
+    }
+
+    internal class Program
+    {
+        public static void Main(string[] args)
+        {
+            using (var context = new Context())
+            {
+                using (var application = new DemoApplication(context))
+                {
+                    application.Run();
+                }
+            }
+        }
+    }
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Are the generated bindings ephemeral (ie. Fody magic) or could you toss them into a dump repo? Curious what they look like, but not enough set it up (point @ canonical llvm install dir, vs2015, etc).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1314_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Omid</div>
+          <div class="post_content">
+<p>Looks nice. Good job . Why you are not helping UrhoSharp team to do them all there?<br/>
+UrhoSharp already is famous and it’s used in lot of projects. If you apply your changes there then it’s will be use in existing projects too.<br/>
+And you make me happy too <img alt=":grin:" class="emoji" src="../../../images2/ec34c8e58665ec32c0e7c847446db86d.png" title=":grin:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4119" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Are the generated bindings ephemeral (ie. Fody magic) or could you toss them into a dump repo?</p>
+</blockquote>
+</aside>
+<p>They could totally be in their own repo. Actually with a tiny bit effort (sorting of input headers) these bindings would become reproducible as well, so tiny changes would result in tiny diffs in the binding output.</p>
+<aside class="quote no-group" data-post="2" data-topic="4119" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Curious what they look like</p>
+</blockquote>
+</aside>
+<p>This is current full output: <a href="https://gist.github.com/***/e1239dd2500a4460d92c055e879e8ef9" rel="noopener nofollow ugc">https://gist.github.com/***/e1239dd2500a4460d92c055e879e8ef9</a></p>
+<aside class="quote no-group" data-post="2" data-topic="4119" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>point @ canonical llvm install dir, vs2015</p>
+</blockquote>
+</aside>
+<p>Yeah llvm thingy needs fixing, build system does not like spaces. Recommendation is just a workaround as i was pushing fast for windows build.<br/>
+Actually yesterday we got it working with vs2015. Had to remove single <code>constexpr</code> as it was optional anyway. Also fixed several other bugs that cropped up. <span class="mention">@Eugene</span> had luck testing it with vs2015.</p>
+<aside class="quote no-group" data-post="3" data-topic="4119" data-username="Omid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1acee992094f2051c5699336fe0c94c4.png" width="20"/> Omid:</div>
+<blockquote>
+<p>Why you are not helping UrhoSharp team to do them all there?</p>
+</blockquote>
+</aside>
+<p>I believe their methods are broken and their bindings are broken. It will never be possible to use urhosharp with upstream Urho3D while making my bindings work with upstream project would not be that hard, just need a few tiny changes, where urhosharp sprinkles magic calls around the engine in order to compensate for lack of virtual method overriding support. Also urhosharp bindings generator works only on MacOS. This is simply not acceptable.</p>
+<hr/>
+<p>Also i would like too point out that these bindings are <strong>unsafe</strong>. Unsafe in a sense that you have to mind what you are doing. For example anything that does not inherit RefCounted may be freed by engine while you holding a reference to it.</p>
+<p>For example you may not keep reference to <code>Application.EngineParameters</code> yourself, because lifetime of <code>EngineParameters</code> is managed by it’s parent class. Wrapper must return a reference, otherwise we will not be able to modify it. So if you kept reference to <code>EngineParameters</code> and freed your <code>Application</code> subclass things would go boom.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p><span class="mention">@Egorbo</span> that’s what I talked about.<br/>
+Is there any chance to reuse this work in UrhoSharp?<br/>
+IMO good binding should be able to bind arbitrary user C++ components, resources and things, and that’s why I pin my hopes on this project.<br/>
+UrhoSharp has its own feature set and community, but really lacks flexibility.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1314_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Omid</div>
+          <div class="post_content">
+<p>I have no idea about it. I didn’t deep looks to the UrhoSharp source code and you know what I know Xamarin is part of the Microsoft and I’m sure there is a big support behind that. That why I said it’s good to apply your changes in that projects<br/>
+There are 2 reasons. First we have centralized C# binding version. Second is all the users same as me be sure if you don’t like to continue your project there is someone else exists to continue.<br/>
+UrhoSharp have some binding problem I found (<a href="https://forums.xamarin.com/discussion/123514/urho-spline-class-is-not-exists-in-c" rel="nofollow noopener">https://forums.xamarin.com/discussion/123514/urho-spline-class-is-not-exists-in-c</a>) and exists more. It’s good if you merge your job with that project then everybody have full version and about that I think it’s a good idea to talk with <span class="mention">@Egorbo</span> and <span class="mention">@migueldeicaza</span></p>
+<p>By the way already UrhoSharp is bind to Android, iOS, Windows, Linux, Mac, Xamarin.Forms, and other platforms. Also you can have it in Workbooks that perfect tools who help to test and play with codes before develop something new.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Nice touch with the commented parse-source above the binding. I’ll have to mess with it and see about getting it to spit out <a href="https://github.com/odin-lang/Odin" rel="nofollow noopener">Odin</a> bindings.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Ah yeah i had to add these comments in CApi.cpp in order to aid making rules file (basically adding stuff to ignore).</p>
+<aside class="quote no-group" data-post="7" data-topic="4119" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>I’ll have to mess with it and see about getting it to spit out Odin bindings.</p>
+</blockquote>
+</aside>
+<p>Not sure how much of use this generator will be to you… Most of passes are very C#-specific, whats left is rather minimal infrastructure. However if you do find it usable then that would be terrific. Me and <span class="mention">@boberfly</span> were already having some thoughts to also add support for python by generating code for pybind11. But that is another rather big undertaking, although probably not as big as C#.</p>
+<hr/>
+<p>Another thingy i would like to pull off is get rid of Urho3D dependency for generator. This would allow us to build generator and generate bindings before Urho3D is built. Then we can build a monolithic Urho3D library that exports both C++ and PInvoke interfaces. Then Urho3DNet.dll would import Urho3D.dll directly instead of Urho3DCSharp.dll.</p>
+<hr/>
+<p>Edit: this method could totally be used to auto-generate bindings for AngelScript and Lua as well. Just need someone who cares about these langs to do it… <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>Well , simply amazing work .<br/>
+I have never been a C# guy , always using C++ or C (performance freak) , but this is amazing.</p>
+<p>I am curious about the overhead imposed by InstanceCache.cs<br/>
+“GetOrAdd()”  for new instances creation or “Remove()” for removal  (using ConcurrentDictionary).<br/>
+What will be the performance hit while creating and removing many objects , specifically on mobile devices.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Performance will suck and not even because of InstanceCache. At the moment i am working on mobile game port to android and game stutters when adding/removing too many objects even if code is written in c++.</p>
+<p>InstanceCache sucks though. But we have a nasty problem here. What should we do when native function returns a pointer to native object? Every time create a new C# object that wraps same class? That has a potential to leak a lot of memory. If we cache things then cache may be potentially modified outside of  main thread so have to account for that. I would love us to have a better solution so if you have ideas please shoot <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> Also i am unsure if even with concurrent cache things are safe, because shared pointers in urho3d arent thread-safe and it is likely we will be calling <code>RemoveRef()</code> from non-main thread. But hey it worked for Atomic so maybe this will be alright <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Egorbo</div>
+          <div class="post_content">
+<aside class="quote" data-post="4" data-topic="4119">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c74e1d6abd7187cdd2f8199c8cfb922b.png" width="20"/> rku:</div>
+<blockquote>
+<p>I believe their methods are broken and their bindings are broken. It will never be possible to use urhosharp with upstream Urho3D while making my bindings work with upstream project would not be that hard, just need a few tiny changes, where urhosharp sprinkles magic calls around the engine in order to compensate for lack of virtual method overriding support. Also urhosharp bindings generator works only on MacOS. This is simply not acceptable.</p>
+</blockquote>
+</aside>
+<p>I use a fork for Urho3D instead of directly mainstream for two reasons:</p>
+<ol>
+<li>Experiments - e.g. UWP support, HoloLens, etc</li>
+<li>Urho3D and SDL don’t support scenarios to work with Urho3D as a subview in existing apps (iOS, Android, macOS) - we just wanted to create a simple and small visualizer for (primary) non-gaming apps.<br/>
+When there are no SDL changes in the upstream - it takes 15-30 minutes to update bindings and test. SDL-guys love to refactor it every update so it always break my patches.</li>
+</ol>
+<p>Do you really need “virtual” methods when there are tons of events for everything which are automatically bound to C#? I agree - there is a mess in the Binder code, I am trying to rewrite it now to be more clean and easy to extend. And yes, the generator works only on macOS, but it’s possible to add Linux support (and Windows via WSL) - it’s just a clang with a few patches to provide bindable clang AST API to C# in order to be able to write simple generators in C# (unlike CppSharp which is quite complicated).</p>
+<blockquote>
+<p>InstanceCache sucks though. But we have a nasty problem here. What should we do when native function returns a pointer to native object? Every time create a new C# object that wraps same class? That has a potential to leak a lot of memory. If we cache things then cache may be potentially modified outside of main thread so have to account for that. I would love us to have a better solution so if you have ideas please shoot <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> Also i am unsure if even with concurrent cache things are safe, because shared pointers in urho3d arent thread-safe and it is likely we will be calling RemoveRef() from non-main thread. But hey it worked for Atomic so maybe this will be alright <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+</blockquote>
+<p>InstanceCache based on timers is really bad idea - what if your native object is deleted in Urho3D and a new one of a different type is created with the same address? And yes, RemoveRef from non-UI thread won’t work.<br/>
+the Atomic guys afair took my approach with a cache + callbacks from RefCounted + C# Finalizer which (if needed) dispatches RemoveRef to the game thread.<br/>
+Took a quick glance to the code, especially Node - what if I serialize a component written in C# to an XML scene. Then restart app and deserialize the scene - what GetComponent() will return? According to your code it will be just Component, I am just trying to say there are lot of hidden details you are going to hit soon <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote" data-post="11" data-topic="4119">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/dd5fc924d2032d28cd11f559a4c57f3c.png" width="20"/> Egorbo:</div>
+<blockquote>
+<p>Do you really need “virtual” methods when there are tons of events for everything which are automatically bound to C#?</p>
+</blockquote>
+</aside>
+<p>That depends. Inheriting <code>LogicComponent</code> requires overriding virtual methods. Or even creating <code>Application</code>. These can be worked around one way or the other, but my aim is to be as close to native API as possible. I do need virtuals <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<aside class="quote" data-post="11" data-topic="4119">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/dd5fc924d2032d28cd11f559a4c57f3c.png" width="20"/> Egorbo:</div>
+<blockquote>
+<p>And yes, the generator works only on macOS, but it’s possible to add Linux support (and Windows via WSL) - it’s just a clang with a few patches to provide bindable clang AST API to C# in order to be able to write simple generators in C# (unlike CppSharp which is quite complicated).</p>
+</blockquote>
+</aside>
+<p>Introducing WSL to build sounds like over-complicating things. I still would not touch that <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/> Just like something that would require wine in order to build things on linux. That is crazy <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/><br/>
+To be honest i would have loved writing this bindings generator in C#, except that core of generator is cppast which is c++ lib and i just wasnt aware of anything comparable which worked in C#. Also bonus points for cppast - does not require clang patches so prebuilt binaries from llvm website can be used on windows and mac. Packages from repos can be used on linux. I spent quite some time trying to get CppSharp to work and compiling clang was a real burden.</p>
+<aside class="quote" data-post="11" data-topic="4119">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/dd5fc924d2032d28cd11f559a4c57f3c.png" width="20"/> Egorbo:</div>
+<blockquote>
+<p>InstanceCache based on timers is really bad idea - what if your native object is deleted in Urho3D and a new one of a different type is created with the same address? And yes, RemoveRef from non-UI thread won’t work.</p>
+<p>the Atomic guys afair took my approach with a cache + callbacks from RefCounted + C# Finalizer which (if needed) dispatches RemoveRef to the game thread.</p>
+</blockquote>
+</aside>
+<p>Ah interesting! I knew this will be source of problems. Thanks for pointing it out, ill take a look at how Atomic does things <img alt=":+1:" class="emoji" src="../../../images2/839de69da74ad690eef135029e0320bc.png" title=":+1:"/></p>
+<aside class="quote" data-post="11" data-topic="4119">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/dd5fc924d2032d28cd11f559a4c57f3c.png" width="20"/> Egorbo:</div>
+<blockquote>
+<p>Took a quick glance to the code, especially Node - what if I serialize a component written in C# to an XML scene. Then restart app and deserialize the scene - what GetComponent() will return? According to your code it will be just Component, I am just trying to say there are lot of hidden details you are going to hit soon <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+</blockquote>
+</aside>
+<p>Actually <code>GetComponent&lt;T&gt;()</code> will return whatever type you pass to it since it is generic. Or <code>null</code> if node does not have component of that type. <code>Node.GetComponents()</code> would also return array of <code>Component</code> subclasses because when deserializing XML a factory calls back into managed world to create managed instance of serialized class. Then this class ends up in the cache and next time managed wrapper sees particular pointer it will reuse instance from the cache.</p>
+<p>This is a good point though. This problem could arise when native API returns for example <code>Component*</code> while instance is actually a native subclass of <code>Component</code>. Then wrong wrapper class instance would be created. At least for <code>Urho3D::Object</code> subclasses wrapper could inspect type <code>StringHash</code> and create instance of correct type.</p>
+<hr/>
+<p>If anything else comes to your mind please speak up. I definitely do not know all the hidden edgecases and you do have a headstart in this. Both projects definitely have things to learn from each other <img alt=":+1:" class="emoji" src="../../../images2/839de69da74ad690eef135029e0320bc.png" title=":+1:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Egorbo</div>
+          <div class="post_content">
+<aside class="quote" data-post="12" data-topic="4119">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/c74e1d6abd7187cdd2f8199c8cfb922b.png" width="20"/> rku:</div>
+<blockquote>
+<p>Introducing WSL to build sounds like over-complicating things. I still would not touch that <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/> Just like something that would require wine in order to build things on linux. That is crazy <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+</blockquote>
+</aside>
+<p>Well, WSL is a workaround, the patches can be applied to the windows version of Clang too I guess. WSL is not difficult to install - it’s basically just an app in the app store, just click the install <img alt=":smile:" class="emoji" src="../../../images2/769394bcf9310c188f38dc9af7babf2b.png" title=":smile:"/></p>
+<blockquote>
+<p>Then this class ends up in the cache and next time managed wrapper sees particular pointer it will reuse instance from the cache.</p>
+</blockquote>
+<p>Ah, ok then, I didn’t notice the factory.</p>
+<blockquote>
+<p>If anything else comes to your mind please speak up. I definitely do not know all the hidden edgecases and you do have a headstart in this. Both projects definitely have things to learn from each other <img alt=":+1:" class="emoji" src="../../../images2/839de69da74ad690eef135029e0320bc.png" title=":+1:"/></p>
+</blockquote>
+<p>Ok <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote" data-post="13" data-topic="4119">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/dd5fc924d2032d28cd11f559a4c57f3c.png" width="20"/> Egorbo:</div>
+<blockquote>
+<p>Well, WSL is a workaround, the patches can be applied to the windows version of Clang too I guess. WSL is not difficult to install - it’s basically just an app in the app store, just click the install <img alt=":smile:" class="emoji" src="../../../images2/769394bcf9310c188f38dc9af7babf2b.png" title=":smile:"/></p>
+</blockquote>
+</aside>
+<p>Why is it patched though? cppast provides pretty much complete ast without patches. I am sure everyone would be happier if you could avoid depending on patched version of clang.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Egorbo</div>
+          <div class="post_content">
+<p>it’s patched to provide an API for C# in order to work with AST from C#</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Heads-up everyone!</p>
+<p>Important milestone was reached just now. Bindings generator was finally merged to master branch on <a href="https://github.com/***/Urho3D" rel="nofollow noopener">my repo</a>, which means code is more useable than ever. Build it with <code>URHO3D_CSHARP=ON</code> and check out 102_CSharpProject sample.</p>
+<p>A word of warning: hard dependency on mono was introduced therefore your mileage will wary on windows. It is pretty easy to use entire thing on linux though. I will look into windows deployment during weekend.</p>
+<p>Also updated first post somewhat. Take a peek <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1314_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Omid</div>
+          <div class="post_content">
+<p><span class="mention">@rku</span><br/>
+What should i set for LLVM_CONFIG_BINARY and Qt5Widget_DIR?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Build instructions on <a href="https://github.com/***/Urho3D/wiki/C%23-support" rel="nofollow noopener">https://github.com/***/Urho3D/wiki/C%23-support</a></p>
+<p>Not sure about Qt thing now. You can ignore it or disable profiling to get rid of the warning</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>On Mac only Urho3DNet.dll and libUrho3DCSharp.dylib are generated .<br/>
+No Urho3D.dll and/or Urho3DCSharp.dll</p>
+<p>Let me know if I missed something.</p>
+<p>mkdir build<br/>
+cd build</p>
+<p>cmake …  -DHAVE_CLOCK_GETTIME=0 -DURHO3D_DATABASE_SQLITE=1  -DURHO3D_CSHARP=ON -DLLVM_CONFIG_BINARY=/usr/local/opt/llvm/bin/llvm-config -DURHO3D_SAMPLES=0 -DURHO3D_PHYSICS=1 -DURHO3D_IK=1 -DURHO3D_NETWORK=1 -DURHO3D_NAVIGATION=1</p>
+<p>cmake --build .</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>It is all good. You probably built engine as static library, this is why <code>libUrho3D.dylib</code> is not there. Engine code is in <code>libUrho3DCSharp.dylib</code> in this case. If you added <code>-DBUILD_SHARED_LIBS=ON</code> to cmake parameters then engine would be built as shared library. <code>libUrho3D.dylib</code> would be created and it would contain required C# glue code inside, there would be no <code>libUrho3DCSharp.dylib</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>Silly me , I read your Wiki ,<br/>
+For some reason I thought  Urho3D.dll and Urho3DCSharp.dll are Dot Net Dlls<br/>
+But they are the Windows counterparts of  libUrho3D.dylib and libUrho3DCSharp.dylib.<br/>
+Anyway I am getting exceptions on my Mac either using libUrho3D.dylib or libUrho3DCSharp.dylib  .<br/>
+I barely used Dot Net in the past (always CPP,C,Assembly) , this is a new territory for me.<br/>
+I Will have more spare time during the weekend to continue playing with it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>What kind of exceptions? It is true that i have not tested this code on Mac OS because no hardware. Just made sure everything compiles.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>Elis-MBP:bin elialoni$ csc Program.cs  -r:Urho3DNet.dll<br/>
+Microsoft ® Visual C# Compiler version 2.3.2.61928 (ec1cde8b)<br/>
+Copyright © Microsoft Corporation. All rights reserved.</p>
+<p>Elis-MBP:bin elialoni$ mono Program.exe<br/>
+mono_os_mutex_lock: pthread_mutex_lock failed with “Invalid argument” (22)<br/>
+Stacktrace:</p>
+<p>at  &lt;0xffffffff&gt;<br/>
+at (wrapper managed-to-native) Urho3D.Context.Urho3DRegisterMonoInternalCalls () [0x00002] in :0<br/>
+at Urho3D.Context…cctor () [0x00001] in :0<br/>
+at (wrapper runtime-invoke) object.runtime_invoke_void (object,intptr,intptr,intptr) [0x0001e] in :0<br/>
+at  &lt;0xffffffff&gt;<br/>
+at (wrapper managed-to-native) object.__icall_wrapper_mono_generic_class_init (intptr) [0x00000] in :0<br/>
+at DemoApplication.Program.Main (string[]) [0x00001] in :0<br/>
+at (wrapper runtime-invoke) .runtime_invoke_void_object (object,intptr,intptr,intptr) [0x0004e] in :0</p>
+<p>Native stacktrace:</p>
+<pre><code>0   mono                                0x00000001019feb01 mono_handle_native_crash + 257
+1   libsystem_platform.dylib            0x00007fff6751ff5a _sigtramp + 26
+2   libmonosgen-2.0.1.dylib             0x000000010586a008 simple_lower_case_mapping_higharea_table0 + 20520
+3   libsystem_c.dylib                   0x00007fff672bd1ae abort + 127
+4   libmonosgen-2.0.1.dylib             0x00000001057aca52 monoeg_g_log + 0
+5   libmonosgen-2.0.1.dylib             0x00000001057ac9d7 monoeg_g_logv + 83
+6   libmonosgen-2.0.1.dylib             0x00000001057acaca monoeg_g_log + 120
+7   libmonosgen-2.0.1.dylib             0x00000001056a444e mono_icall_lock + 72
+8   libmonosgen-2.0.1.dylib             0x00000001056a43c4 mono_add_internal_call + 21
+9   libUrho3DCSharp.dylib               0x000000010439a1ba Urho3DRegisterMonoInternalCalls + 26
+10  ???                                 0x0000000101ecf527 0x0 + 4327273767
+11  mono                                0x0000000101953a07 mono_jit_runtime_invoke + 1383
+12  mono                                0x0000000101b15db4 do_runtime_invoke + 84
+13  mono                                0x0000000101b11f04 mono_runtime_class_init_full + 996
+14  mono                                0x00000001019af3d5 mono_generic_class_init + 21
+15  ???                                 0x0000000101ecf2f7 0x0 + 4327273207
+16  ???                                 0x0000000101ecf239 0x0 + 4327273017
+17  mono                                0x0000000101953a07 mono_jit_runtime_invoke + 1383
+18  mono                                0x0000000101b15db4 do_runtime_invoke + 84
+19  mono                                0x0000000101b193d9 do_exec_main_checked + 137
+20  mono                                0x00000001019c23bf mono_jit_exec + 287
+21  mono                                0x00000001019c4bb4 mono_main + 9140
+22  mono                                0x00000001019433cd main + 253
+23  mono                                0x00000001019432c4 start + 52
+24  ???                                 0x0000000000000002 0x0 + 2
+</code></pre>
+<p>Debug info from gdb:</p>
+<p>(lldb) command source -s 0 ‘/tmp/mono-gdb-commands.2ms21c’<br/>
+Executing commands in ‘/tmp/mono-gdb-commands.2ms21c’.<br/>
+(lldb) process attach --pid 37629<br/>
+warning: (x86_64) /Library/Frameworks/Mono.framework/Versions/5.8.1/lib/mono/4.5/mscorlib.dll.dylib empty dSYM file detected, dSYM was created with an executable with no debug info.<br/>
+Process 37629 stopped</p>
+<ul>
+<li>thread #1, name = ‘tid_307’, queue = ‘com.apple.main-thread’, stop reason = signal SIGSTOP<br/>
+frame #0: 0x00007fff67362232 libsystem_kernel.dylib<code>__wait4 + 10 libsystem_kernel.dylib</code>__wait4:<br/>
+-&gt;  0x7fff67362232 &lt;+10&gt;: jae    0x7fff6736223c            ; &lt;+20&gt;<br/>
+0x7fff67362234 &lt;+12&gt;: movq   %rax, %rdi<br/>
+0x7fff67362237 &lt;+15&gt;: jmp    0x7fff67358b25            ; cerror<br/>
+0x7fff6736223c &lt;+20&gt;: retq<br/>
+Target 0: (mono) stopped.</li>
+</ul>
+<p>Executable module set to “/Library/Frameworks/Mono.framework/Versions/Current/Commands/mono”.<br/>
+Architecture set to: x86_64h-apple-macosx.<br/>
+(lldb) thread list<br/>
+Process 37629 stopped</p>
+<ul>
+<li>thread #1: tid = 0x64999, 0x00007fff67362232 libsystem_kernel.dylib<code>__wait4 + 10, name = 'tid_307', queue = 'com.apple.main-thread', stop reason = signal SIGSTOP thread #2: tid = 0x6499e, 0x00007fff67361a1e libsystem_kernel.dylib</code>__psynch_cvwait + 10, name = ‘SGen worker’<br/>
+thread #3: tid = 0x6499f, 0x00007fff67358246 libsystem_kernel.dylib`semaphore_wait_trap + 10, name = ‘Finalizer’<br/>
+(lldb) thread backtrace all</li>
+<li>thread #1, name = ‘tid_307’, queue = ‘com.apple.main-thread’, stop reason = signal SIGSTOP
+<ul>
+<li>frame #0: 0x00007fff67362232 libsystem_kernel.dylib<code>__wait4 + 10 frame #1: 0x00000001019feb8e mono</code>mono_handle_native_crash(signal=, ctx=, info=) at mini-exceptions.c:2726 [opt]<br/>
+frame #2: 0x00007fff6751ff5a libsystem_platform.dylib<code>_sigtramp + 26 frame #3: 0x00007fff67361b6f libsystem_kernel.dylib</code>__pthread_kill + 11<br/>
+frame #4: 0x00007fff6752c080 libsystem_pthread.dylib<code>pthread_kill + 333 frame #5: 0x00007fff672bd1ae libsystem_c.dylib</code>abort + 127<br/>
+frame #6: 0x00000001057aca52 libmonosgen-2.0.1.dylib<code>monoeg_log_default_handler + 105 frame #7: 0x00000001057ac9d7 libmonosgen-2.0.1.dylib</code>monoeg_g_logv + 83<br/>
+frame #8: 0x00000001057acaca libmonosgen-2.0.1.dylib<code>monoeg_g_log + 120 frame #9: 0x00000001056a444e libmonosgen-2.0.1.dylib</code>mono_icall_lock + 72<br/>
+frame #10: 0x00000001056a43c4 libmonosgen-2.0.1.dylib<code>mono_add_internal_call + 21 frame #11: 0x000000010439a1ba libUrho3DCSharp.dylib</code>Urho3DRegisterMonoInternalCalls + 26<br/>
+frame #12: 0x0000000101ecf527<br/>
+frame #13: 0x0000000101953a07 mono<code>mono_jit_runtime_invoke(method=&lt;unavailable&gt;, obj=&lt;unavailable&gt;, params=0x0000000000000000, exc=0x00007fdcee844610, error=&lt;unavailable&gt;) at mini-runtime.c:2800 [opt] frame #14: 0x0000000101b15db4 mono</code>do_runtime_invoke(method=0x00007fdcef0141e0, obj=0x0000000000000000, params=0x0000000000000000, exc=0x00007ffeee2be1d8, error=0x00007ffeee2be220) at object.c:2849 [opt]<br/>
+frame #15: 0x0000000101b11f04 mono<code>mono_runtime_class_init_full [inlined] mono_runtime_try_invoke(method=&lt;unavailable&gt;, obj=&lt;unavailable&gt;, params=&lt;unavailable&gt;, error=0x00007ffeee2be220) at object.c:2956 [opt] frame #16: 0x0000000101b11ebf mono</code>mono_runtime_class_init_full(vtable=0x00007fdcee001c70, error=0x00007ffeee2be220) at object.c:473 [opt]<br/>
+frame #17: 0x00000001019af3d5 mono<code>mono_generic_class_init(vtable=&lt;unavailable&gt;) at jit-icalls.c:1462 [opt] frame #18: 0x0000000101ecf2f7 frame #19: 0x0000000101ecf239 frame #20: 0x0000000101953a07 mono</code>mono_jit_runtime_invoke(method=, obj=, params=0x00007ffeee2be5b8, exc=0x00007fdcee001c70, error=) at mini-runtime.c:2800 [opt]<br/>
+frame #21: 0x0000000101b15db4 mono<code>do_runtime_invoke(method=0x00007fdced407f98, obj=0x0000000000000000, params=0x00007ffeee2be5b8, exc=0x0000000000000000, error=0x00007ffeee2be5f8) at object.c:2849 [opt] frame #22: 0x0000000101b193d9 mono</code>do_exec_main_checked [inlined] mono_runtime_invoke_checked(method=, obj=, error=) at object.c:3002 [opt]<br/>
+frame #23: 0x0000000101b19398 mono<code>do_exec_main_checked(method=0x00007fdced407f98, args=&lt;unavailable&gt;, error=0x00007ffeee2be5f8) at object.c:4726 [opt] frame #24: 0x00000001019c23bf mono</code>mono_jit_exec(domain=, assembly=, argc=1, argv=0x00007ffeee2be918) at driver.g.c:1040 [opt]<br/>
+frame #25: 0x00000001019c4bb4 mono<code>mono_main [inlined] main_thread_handler at driver.g.c:1109 [opt] frame #26: 0x00000001019c4b81 mono</code>mono_main(argc=2, argv=) at driver.g.c:2222 [opt]<br/>
+frame #27: 0x00000001019433cd mono<code>main [inlined] mono_main_with_options(argc=&lt;unavailable&gt;, argv=&lt;unavailable&gt;) at main.c:46 [opt] frame #28: 0x00000001019433b9 mono</code>main(argc=2, argv=) at main.c:339 [opt]<br/>
+frame #29: 0x00000001019432c4 mono<code>start + 52 thread #2, name = 'SGen worker' frame #0: 0x00007fff67361a1e libsystem_kernel.dylib</code>__psynch_cvwait + 10<br/>
+frame #1: 0x00007fff6752a589 libsystem_pthread.dylib<code>_pthread_cond_wait + 732 frame #2: 0x0000000101bcec9e mono</code>thread_func [inlined] mono_os_cond_wait(mutex=) at mono-os-mutex.h:173 [opt]<br/>
+frame #3: 0x0000000101bcec8b mono<code>thread_func at sgen-thread-pool.c:165 [opt] frame #4: 0x0000000101bcec7d mono</code>thread_func(data=0x0000000000000000) at sgen-thread-pool.c:196 [opt]<br/>
+frame #5: 0x00007fff67529661 libsystem_pthread.dylib<code>_pthread_body + 340 frame #6: 0x00007fff6752950d libsystem_pthread.dylib</code>_pthread_start + 377<br/>
+frame #7: 0x00007fff67528bf9 libsystem_pthread.dylib<code>thread_start + 13 thread #3, name = 'Finalizer' frame #0: 0x00007fff67358246 libsystem_kernel.dylib</code>semaphore_wait_trap + 10<br/>
+frame #1: 0x0000000101b7b2fc mono<code>finalizer_thread [inlined] mono_os_sem_wait(flags=MONO_SEM_FLAGS_ALERTABLE) at mono-os-semaphore.h:90 [opt] frame #2: 0x0000000101b7b2f1 mono</code>finalizer_thread at mono-coop-semaphore.h:43 [opt]<br/>
+frame #3: 0x0000000101b7b2e5 mono<code>finalizer_thread(unused=&lt;unavailable&gt;) at gc.c:866 [opt] frame #4: 0x0000000101b375b0 mono</code>start_wrapper [inlined] start_wrapper_internal at threads.c:1003 [opt]<br/>
+frame #5: 0x0000000101b37513 mono<code>start_wrapper(data=&lt;unavailable&gt;) at threads.c:1063 [opt] frame #6: 0x00007fff67529661 libsystem_pthread.dylib</code>_pthread_body + 340<br/>
+frame #7: 0x00007fff6752950d libsystem_pthread.dylib<code>_pthread_start + 377 frame #8: 0x00007fff67528bf9 libsystem_pthread.dylib</code>thread_start + 13<br/>
+(lldb) detach</li>
+</ul>
+</li>
+</ul>
+<h1>=================================================================<br/>
+Got a SIGABRT while executing native code. This usually indicates<br/>
+a fatal error in the mono runtime or one of the native libraries<br/>
+used by your application.</h1>
+<p>Abort trap: 6<br/>
+(lldb) quit</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Does 102 sample run?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>The output of the crash is from  Program.cs from sample 102</p>
+<p>I copied Program.cs to the build/bin folder<br/>
+csc Program.cs -r:Urho3DNet.dll<br/>
+mono Program.exe</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Maybe try sample that gets built by cmake</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1314_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Omid</div>
+          <div class="post_content">
+<p><span class="mention">@rku</span>  Do you have any plan to make Nuget package?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>No immediate plans. Unsure how useful it would be without rest of the tools though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Hey <span class="mention">@Omid</span> and anyone else interested - nuget is here!</p>
+<p>Here is how to get it working:</p>
+<ol>
+<li>Create C# project</li>
+<li>Install <a href="https://www.nuget.org/packages/***.Urho3DNet/" rel="nofollow noopener">***.Urho3DNet</a> package</li>
+<li>Set your project framework to .net 4.7.1</li>
+<li>Set your project cpu architecture to x64</li>
+</ol>
+<p>A sample <code>Program.cs</code> to get things running faster:</p>
+<pre><code class="lang-cs">//
+// Copyright (c) 2017-2019 Rokas Kupstys.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+using System;
+using System.Diagnostics;
+using System.IO;
+using Urho3DNet;
+
+namespace DemoApplication
+{
+    [ObjectFactory]
+    class RotateObject : LogicComponent
+    {
+        public RotateObject(Context context) : base(context)
+        {
+            SetUpdateEventMask(UpdateEvent.UseUpdate);
+        }
+
+        public override void Update(float timeStep)
+        {
+            var d = new Quaternion(10 * timeStep, 20 * timeStep, 30 * timeStep);
+            GetNode().Rotate(d);
+        }
+    }
+
+    class DemoApplication : Application
+    {
+        private Scene _scene;
+        private Viewport _viewport;
+        private Node _camera;
+        private Node _cube;
+        private Node _light;
+
+        public DemoApplication(Context context) : base(context)
+        {
+        }
+
+        public override void Setup()
+        {
+            var currentDir = Directory.GetCurrentDirectory();
+            EngineParameters[Urho3D.EpFullScreen] = false;
+            EngineParameters[Urho3D.EpWindowWidth] = 1920;
+            EngineParameters[Urho3D.EpWindowHeight] = 1080;
+            EngineParameters[Urho3D.EpWindowTitle] = "Hello C#";
+            EngineParameters[Urho3D.EpResourcePaths] = "CoreData";
+            EngineParameters[Urho3D.EpResourcePrefixPaths] = $"{currentDir};{currentDir}/..";
+        }
+
+        public override void Start()
+        {
+            GetInput().SetMouseVisible(true);
+
+            // Viewport
+            _scene = new Scene(GetContext());
+            _scene.CreateComponent&lt;Octree&gt;();
+
+            _camera = _scene.CreateChild("Camera");
+            _viewport = new Viewport(GetContext());
+            _viewport.SetScene(_scene);
+            _viewport.SetCamera(_camera.CreateComponent&lt;Camera&gt;());
+            GetRenderer().SetViewport(0, _viewport);
+
+            // Background
+            GetRenderer().GetDefaultZone().SetFogColor(new Color(0.5f, 0.5f, 0.7f));
+
+            // Scene
+            _camera.SetPosition(new Vector3(0, 2, -2));
+            _camera.LookAt(Vector3.Zero);
+
+            // Cube
+            _cube = _scene.CreateChild("Cube");
+            var model = _cube.CreateComponent&lt;StaticModel&gt;();
+            model.SetModel(GetCache().GetResource&lt;Model&gt;("Models/Box.mdl"));
+            model.SetMaterial(0, GetCache().GetResource&lt;Material&gt;("Materials/DefaultGrey.xml"));
+            var rotator = _cube.CreateComponent&lt;RotateObject&gt;();
+
+            // Light
+            _light = _scene.CreateChild("Light");
+            _light.CreateComponent&lt;Light&gt;();
+            _light.SetPosition(new Vector3(0, 2, -1));
+            _light.LookAt(Vector3.Zero);
+        }
+    }
+
+    internal class Program
+    {
+        public static void Main(string[] args)
+        {
+            using (var context = new Context())
+            {
+                using (var application = new DemoApplication(context))
+                {
+                    application.Run();
+                }
+            }
+        }
+    }
+}
+</code></pre>
+<p>Edit:<br/>
+On gitter we discovered that package does not work correctly with old style .csproj projects. If you run into problems - use <a href="https://gist.github.com/***/c676212bd8d35d07b0067858fa94a950" rel="nofollow noopener">sample csproj</a> for testing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1314_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Omid</div>
+          <div class="post_content">
+<p>Thanks. Good job <img alt=":+1:" class="emoji" src="../../../images2/0850595d032cf0aaee6402139a1ec97b.png" title=":+1:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3871_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glebedev</div>
+          <div class="post_content">
+<p>Just in case anyone going to google for it and find this thread: there is a Visual Studio Multi-Project Template you can use to create ***/Urho3DNet application</p>
+<p><a class="onebox" href="https://marketplace.visualstudio.com/items?itemName=GlebLebedev.Urho3DNet" rel="noopener nofollow ugc" target="_blank">https://marketplace.visualstudio.com/items?itemName=GlebLebedev.Urho3DNet</a></p>
+<p>It has projects for .net framework, .net core, uwp, xamarin android and ios. The application logic code is in a shared .net standard 2.0 class library and there is another one for content (temporal workaround while I’m figuring out how to work with IWizard).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>There is also <a href="http://Urho.Net" rel="noopener nofollow ugc">Urho.Net</a> from elix22, which was based off UrhoSharp branch.<br/>
+I think elix22 updated it to work with latest Urho3D source.  It also contains example from Lumak and Action stuff from UrhoSharp.</p>
+<aside class="quote quote-modified" data-post="1" data-topic="6674">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/a2f2e32365b559c3f889cdbccadeaf5e.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/urho-net-c-cross-platform-game-development-framework/6674">Urho.Net C# Cross platform game development framework</a> <a class="badge-wrapper bullet" href="/c/showcase/17"><span class="badge-category-bg" style="background-color: #F1592A;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Share things created with or for Urho3D.">Showcase</span></a>
+</div>
+<blockquote>
+    In the last couple of months I had a lot of spare time (thanks to Covid) 
+I have been working on a C# cross platform game development framework . 
+Basically it’s updated C# bindings (using UrhoSharp binding tools) for Urho3D . 
+Currently runs on Windows,Linux,Mac,iOS,Android. 
+No dependency on Xamarin.iOS or Xamarin.Android . 
+First class Visual Studio Code support on all 3 platforms Linux,Window,MacOS (autocompletion , debugging , Mobile deployment for iOS and Android) 
+Why I did it ? 
+Because …
+  </blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3871_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glebedev</div>
+          <div class="post_content">
+<p>I’ve also ported Actions to the Urho3DNet, added some fluent goodness on top of it:</p>
+<pre><code>                    var action1 = ActionBuilder&lt;Node&gt;.Build()
+                        .RotateBy(2, 0, -2.0f * (float)Math.PI, 0)
+                        .RepeatForever()
+                        .Complete();
+                    action1.Run(_actionManager, _currentIcon.Frame1Node);
+                    var action2 = ActionBuilder&lt;Node&gt;.Build()
+                        .Show()
+                        .Then(_=&gt;_
+                            .RotateBy(1, 0, 2.0f * (float)Math.PI, 0)
+                            .RepeatForever())
+                        .Complete();
+                    action2.Run(_actionManager, _currentIcon.Frame3Node);</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Automatic object serialization</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Automatic object serialization</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>We discussed this briefly with <span class="mention">@Eugene</span></p>
+<p>A very cool feature would be automatic serialization of attributes that point to <code>Serializable</code> or it’s subclass.</p>
+<p>My proposed implementation of this is to have <code>Serializer</code> track serialization of objects by their pointer. Object would be serialized when it is encountered for the first time. If any other objects reference same object - a reference entry should be serialized instead.<br/>
+Deserialization would happen in similar manner: deserialized objects are put to the map and pointer is served from the map when object reference entry is encountered.</p>
+<p>Caveats:</p>
+<ul>
+<li>A bit of extra state is added to <code>Serializer</code> and <code>Deserializer</code>. Not perfect, but on the other hand <code>Deserializer</code> already has some state.</li>
+<li>Attributes may store any instance of <code>RefCounted</code> while we can serialize only instances of <code>Serializable</code>.</li>
+<li>Proposed scheme gets in a way of parallel (de)serialization. On the other hand engine does not do any of that.</li>
+</ul>
+<p>If implemented, this would give us automagic serialization of objects referenced engine attributes. Even circular references would work. Imagine that - entire game state could be saved/loaded in one swoop with a bit of care.</p>
+<p>What are your thoughts? Maybe anyone has a better idea how this could be implemented? or maybe we do not want this at all?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Looks like noone cares. Sigh.</p>
+<p>In the meantime i implemented proof of concept serialization using <a href="http://uscilab.github.io/cereal/" rel="nofollow noopener">cereal</a> library.</p>
+<p>To my surprise API is pretty non-invasive.</p>
+<pre><code class="lang-cpp">    /// Load from binary data. Return true if successful.
+    bool Load(Deserializer&amp; source, SerializationFormat format);
+    /// Save as binary data. Return true if successful.
+    bool Save(Serializer&amp; dest, SerializationFormat format) const;
+</code></pre>
+<p>These serialize object to binary/xml/json. You probably noticed that they are not virtual. This is because user is supposed to implement a single <code>template&lt;typename Archive&gt; void serialize(Archive&amp; ar, uint32_t version)</code> for both serialization and deserialization. Down to one function from six, quite an upgrade i would say. This function can also be hidden from public API <em>i think</em>, but <code>cereal</code> would still be required to be included in SDK as user would have to interact with it if user decided to serialize extra stuff that is not registered as attributes.</p>
+<p>Binary output format is ok. It suffers from same issues like current urho’s one, which is not saving attribute names and being dependent on serialization order. On the other hand <code>serialize()</code> function has a <code>version</code> variable which can be used to make code support both older and newer versions, so if you use binary serialization for save files - new game versions could support older saves.</p>
+<p>JSON and XML serialization is a considerable downgrade from aesthetic point of view.</p>
+<pre><code class="lang-json">{
+    "value0": {
+        "cereal_class_version": 1,
+        "Integer Foo": {
+            "value0": 1234
+        }
+    }
+}
+</code></pre>
+<pre><code class="lang-xml">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;root&gt;
+	&lt;value0&gt;
+		&lt;cereal_class_version&gt;1&lt;/cereal_class_version&gt;
+		&lt;Integer_Foo&gt;
+			&lt;value0&gt;123&lt;/value0&gt;
+		&lt;/Integer_Foo&gt;
+	&lt;/value0&gt;
+&lt;/root&gt;
+</code></pre>
+<p>Maybe <code>cereal</code> could be patched to produce a bit more user-friendly output.</p>
+<p>Things to be explored:</p>
+<ul>
+<li>Inheritance. <code>cereal</code> supports that.</li>
+<li>Serialization of <code>Serializable</code> instances. Pretty confident that can be pulled off. <code>cereal</code> already supports serializing instances and saves them only once even if multiple objects reference same thing.</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4698">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fd3b88ecdc16c24107db787de64d9d59.png" width="20"/> rku:</div>
+<blockquote>
+<p>Looks like noone cares. Sigh.</p>
+</blockquote>
+</aside>
+<p>I care about Urho without having something useful to say about each of its workings. Your proposal sounds nice and more efficient, but I must admit the exact technicalities are a bit over my head. The same may be true for many others.</p>
+<p>Sometimes its the least appreciated efforts which bear most value. <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/c5efadebdea06e0499f03c0a7e1e9e61.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I’m in the same boat as <span class="mention">@Modanung</span> here. I care about Urho3D, and if something makes it better I’m all for it, but serialization isn’t something that I think about (or even use, for that matter) all that often, so I’m not likely to pipe up about it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I care about serialization.<br/>
+In fact, I believe I just fixed a bug in networked scene replication.</p>
+<p>Serializing matters, but we should observe, there are several kinds of serializing!<br/>
+We may serialize to, and from, the following: memory, network, and disk.</p>
+<p>I don’t understand the engine well enough to comment further, but the point is,<br/>
+it depends on your application, and the context, what we serialize, how we serialize it,<br/>
+and how we reconstruct it later! Serialization is possibly one of the most complex subjects<br/>
+that we could talk about - how does it serialize across platforms? What about Endian issues?<br/>
+There is a lot of things to talk about with respect to serializing, and getting it right is very cool.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="4698" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>how does it serialize across platforms?</p>
+</blockquote>
+</aside>
+<p>Automagically <img alt=":wink:" class="emoji" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title=":wink:"/></p>
+<aside class="quote no-group" data-post="5" data-topic="4698" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>What about Endian issues?</p>
+</blockquote>
+</aside>
+<p>Cereal provides a separate portable binary archive serializer which takes care of that. Most of the time we dont care though. Even current urho serializer does not.</p>
+<p>And a small update on progress:</p>
+<pre><code class="lang-cpp">class CerealTest : public Serializable
+{
+    URHO3D_OBJECT(CerealTest, Serializable);
+    virtual void Serialize(::cereal::BinaryInputArchive&amp; ar) { ar(*this); }
+    virtual void Serialize(::cereal::BinaryOutputArchive&amp; ar) { ar(*this); }
+    virtual void Serialize(::cereal::PortableBinaryInputArchive&amp; ar) { ar(*this); }
+    virtual void Serialize(::cereal::PortableBinaryOutputArchive&amp; ar) { ar(*this); }
+    virtual void Serialize(::cereal::XMLInputArchive&amp; ar) { ar(*this); }
+    virtual void Serialize(::cereal::XMLOutputArchive&amp; ar) { ar(*this); }
+    virtual void Serialize(::cereal::JSONInputArchive&amp; ar) { ar(*this); }
+    virtual void Serialize(::cereal::JSONOutputArchive&amp; ar) { ar(*this); }
+
+public:
+    explicit CerealTest(Context* context) : Serializable(context)
+    {
+    }
+
+    static void RegisterObject(Context* context)
+    {
+        context-&gt;RegisterFactory&lt;CerealTest&gt;();
+        URHO3D_ATTRIBUTE("Integer Foo", int, foo_, 0, AM_DEFAULT);
+    }
+
+    template&lt;typename Archive&gt;
+    void serialize(Archive&amp; ar)
+    {
+        ar(::cereal::make_nvp(BaseClassName::GetTypeNameStatic().CString(), cereal::base_class&lt;BaseClassName&gt;(this))
+            ,CEREAL_NVP(hash_)
+            ,CEREAL_NVP(vector2_)
+        );
+    }
+
+    int foo_ = 0;
+    Vector2 vector2_{12, 34};
+    StringHash hash_;
+};
+</code></pre>
+<p>Produces:</p>
+<pre><code class="lang-xml">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;root&gt;
+	&lt;value&gt;
+		&lt;value name="Serializable"&gt;
+			&lt;value name="Integer Foo"&gt;123&lt;/value&gt;
+		&lt;/value&gt;
+		&lt;value name="hash_"&gt;555&lt;/value&gt;
+		&lt;value name="vector2_"&gt;12 34&lt;/value&gt;
+	&lt;/value&gt;
+&lt;/root&gt;
+</code></pre>
+<pre><code class="lang-json">[
+    {
+        "Serializable": {
+            "Integer Foo": 1234
+        },
+        "hash_": 555,
+        "vector2_": [
+            12.0,
+            34.0
+        ]
+    }
+]
+</code></pre>
+<p>XML output required some modifications to cereal, but they are pretty minor. Overall i am pretty happy with output. There are a few things to note.</p>
+<p>Cereal has support for polymorphic types. Problem with that is that it requires extra macro to be used at global scope. This example would have required following:</p>
+<pre><code class="lang-cpp">CEREAL_REGISTER_TYPE(CerealTest);
+CEREAL_REGISTER_POLYMORPHIC_RELATION(CerealTest::BaseClassName, CerealTest)
+</code></pre>
+<p>This sucks as it is extra bookkeeping user must not forget about. Besides we already have this information recorded using <code>URHO3D_OBJECT()</code> macro. Those macros are also used to enable cereal to serialize object from most derived to the base. I could not get that part working however, so as a workaround i added bunch of <code>virtual void Serialize()</code> that call a correct templated serialization function variant. At least these can be hidden behind <code>URHO3D_OBJECT()</code> macro if need be.</p>
+<p>Lets look at actual serialization function:</p>
+<pre><code class="lang-cpp">    template&lt;typename Archive&gt;
+    void serialize(Archive&amp; ar)
+    {
+        ar(::cereal::make_nvp(BaseClassName::GetTypeNameStatic().CString(), cereal::base_class&lt;BaseClassName&gt;(this))
+            ,CEREAL_NVP(hash_)
+            ,CEREAL_NVP(vector2_)
+        );
+    }
+</code></pre>
+<p>Single function handles serialization <em>and</em> deserialization to any number of supported formats. I am still stunned about this <img alt=":wink:" class="emoji" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title=":wink:"/> <code>make_nvp()</code> (stands for “make name-value-pair”) for serialization of base class is not strictly necessary, but it makes output nicer. One thing you may find confusing is that <code>Integer Foo</code> attribute is registered to <code>CerealTest</code> class, but it is serialized as part of <code>Serializable</code> class. This is because <code>Serializable</code> class manages all attributes. This could probably be solved though.</p>
+<p>As you see <code>StrignHash</code> and <code>Vector2</code> types are serialized transparently to the user as well. Their values in XML and JSON look user-friendly, but it comes at a cost of implementing serialization a little bit differently for every format.</p>
+<pre><code class="lang-cpp">
+// Vector2
+template &lt;class Archive&gt; inline
+void CEREAL_SAVE_FUNCTION_NAME(Archive&amp; ar, const Urho3D::Vector2&amp; value)
+{
+    if (std::is_same&lt;Archive, JSONInputArchive&gt;::value || std::is_same&lt;Archive, JSONOutputArchive&gt;::value)
+    {
+        size_type size = 2;
+        ar(make_size_tag(size));    // Make json use array. Without this output would be {"value0": 12.0, "value1": 34.0}
+        ar(value.x_, value.y_);
+    }
+    else if (std::is_same&lt;Archive, XMLInputArchive&gt;::value || std::is_same&lt;Archive, XMLOutputArchive&gt;::value)
+        ar(std::string(value.ToString().CString()));    // Serialize as string to make everything fit into one xml tag.
+    else
+        ar(value.x_, value.y_);  // Binary archives, at least they are trivial
+}
+
+template &lt;class Archive&gt; inline
+void CEREAL_LOAD_FUNCTION_NAME(Archive&amp; ar, Urho3D::Vector2&amp; value)
+{
+    if (std::is_same&lt;Archive, JSONInputArchive&gt;::value || std::is_same&lt;Archive, JSONOutputArchive&gt;::value)
+    {
+        size_type size = 2;
+        ar(make_size_tag(size));
+        ar(value.x_, value.y_);
+    }
+    else if (std::is_same&lt;Archive, XMLInputArchive&gt;::value || std::is_same&lt;Archive, XMLOutputArchive&gt;::value)
+    {
+        std::string text;
+        ar(text);
+        value = Urho3D::ToVector2(text.c_str());
+    }
+    else
+        ar(value.x_, value.y_);
+}
+URHO3D_SERIALIZE_PLAIN(XML, Urho3D::Vector2);  // Hint cereal that this type is simple enough that it does not need multi-level xml tree.
+</code></pre>
+<p>For time being i removed versioning. This matter still needs some thought. Object version has has also to be declared with a macro <code>CEREAL_CLASS_VERSION(Type, Version)</code> at global scope. Maybe versioning could be achieved by defining <code>using Version = 1;</code> in the class and have cereal use that automatically if it is present.</p>
+<hr/>
+<p>Conclusion: current implementation is very early WIP, but it holds promise to satisfy all requirements. Implementation that is on par with current features is possible now (although file formats would change). More concerning part is support for polymorphism, so we could also serialize any subclasses of <code>Serializable</code> stored in shared pointers and have them restored properly. This would likely require some serious work reimplementing bulk of cereal’s features to use metadata defined in <code>URHO3D_OBJECT()</code> macro.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Very nice!<br/>
+I’ve just quit playing around with using RTTR to automate angelscript bindings at runtime.<br/>
+Cereal looks quite tidy!</p>
+<p>A few questions though.<br/>
+<span class="hashtag">#1</span> - Can it serialize private members?<br/>
+<span class="hashtag">#2</span> - Can we tag public members to NOT be serialized?<br/>
+<span class="hashtag">#3</span> - How does it serialize object references / deal with circular references? I mean - are referenced objects serialized uniquely, or entirely serialized every time a reference is encountered?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="7" data-topic="4698" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>I’ve just quit playing around with using RTTR to automate angelscript bindings at runtime.</p>
+</blockquote>
+</aside>
+<p>If you are interested in the topic you should drop by to Urho’s gitter chat and talk to <span class="mention">@hugoam</span>. He is working on his own <a href="https://github.com/hugoam/toy/" rel="noopener nofollow ugc">toy</a> engine which automatic binding at runtime to lua and now javascript.</p>
+<aside class="quote no-group" data-post="7" data-topic="4698" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p><span class="hashtag">#1</span> - Can it serialize private members?</p>
+</blockquote>
+</aside>
+<p>Yes! It can serialize anything that serialization function has access to. We can even make serialization function private and still allow cereal to access it through friendling a class.</p>
+<aside class="quote no-group" data-post="7" data-topic="4698" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p><span class="hashtag">#2</span> - Can we tag public members to NOT be serialized?</p>
+</blockquote>
+</aside>
+<p>Serialization is not automatic.</p>
+<pre><code class="lang-cpp">    template&lt;typename Archive&gt;
+    void serialize(Archive&amp; ar)
+    {
+        ar(::cereal::make_nvp(BaseClassName::GetTypeNameStatic().CString(), cereal::base_class&lt;BaseClassName&gt;(this))
+            ,CEREAL_NVP(hash_)
+            ,CEREAL_NVP(vector2_)
+        );
+    }
+</code></pre>
+<p>To stop serializing <code>hash_</code> you would just remove <code>,CEREAL_NVP(hash_)</code> from <code>ar()</code> call.</p>
+<aside class="quote no-group" data-post="7" data-topic="4698" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p><span class="hashtag">#3</span> - How does it serialize object references / deal with circular references? I mean - are referenced objects serialized uniquely, or entirely serialized every time a reference is encountered?</p>
+</blockquote>
+</aside>
+<p>cereal takes care of that as well. Raw pointers are not serialized, but shared/weak pointers are. Cereal takes care to track references and serialize object only once even if it occurs multiple times during serialization. When deserializing it automatically puts same reference to multiple shared pointers as it was seen during serialization. This part needs some work though, because cereal supports only shared pointers from stdlib.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2552_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glitch-method</div>
+          <div class="post_content">
+<p>this is fantastic, thanks!<br/>
+i’m just a hobbyist and mostly in over my head around here, but this is sort of important. my project is still in the sketching stages, but it absolutely depends on this kind of data-oriented feature. i had been looking at ASN.1 (+xer/ber) recently with this kind of mechanic in mind.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>This won’t make into upstream but we made our own solution in ***. And uniform serialization is pending. So check it out if that is something you need.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2552_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glitch-method</div>
+          <div class="post_content">
+<p>i already expect to follow your fork as well as main for a few reasons. ;p  figured i’d mention though, since the thread didn’t get a grand reception.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

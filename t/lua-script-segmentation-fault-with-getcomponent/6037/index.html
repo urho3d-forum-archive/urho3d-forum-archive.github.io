@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Lua script segmentation fault with GetComponent()</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Lua script segmentation fault with GetComponent()</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Hello, I have a custom C++ component <code>Actor</code>. When I try to get it from Lua script with <code>self.node:GetComponent("Actor")</code>, I get a segmentation fault error. I can get any other Urho3D component from the same node. Also, I can also nil “get” a non-existing component without crashing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Just offhand, but have you written and loaded bindings to bind your custom class to Lua so that Lua knows about it? I’ve done quite a bit of custom component usage with Lua in the past, and never had any issues, but I don’t think I ever tried to obtain a pointer to a component that hadn’t been bound to Lua so I can’t say for sure if this is it or not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Yeah, ih fact, I’ve realized that I did not do it. I am not sure if I know how to do it though. There is <a href="https://urho3d.fandom.com/wiki/Registering_your_C%2B%2B_components_to_the_Lua_Script_API_with_tolua%2B%2B" rel="nofollow noopener">a guide here</a> but I dont find <code>tolua++</code> in my tools folder.</p>
+<p><span class="mention">@JTippetts</span> can you, please, direct me to some source that explains how to do the binding?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>It essentially involves writing a custom ‘cleaned’ header for your class, that is processed by the tolua++.exe executable. You can find the tolua exe in the bin/tool/ subfolder in your build directory. You can either add a directive to your cmake file to call tolua++ with your header, or do it manually (which is what I typically tend to do), but either way once tolua does it’s thing you will have a .cpp file that you add to your project. That .cpp file defines a function that you call when initializing your Lua context.</p>
+<p>When constructing your cleaned header, you will build it as so:</p>
+<pre><code>// testcomponent.pkg
+
+$#include &lt;Urho3D/Scene/Component.h&gt;
+$#include "testcomponent.h"
+$using namespace Urho3D;
+
+class TestComponent : public Component
+{
+  // Omit object constructor and destructor, since you shouldn't ever manually be creating components in script.
+
+  // Declare member functions, public variables, etc...
+};
+</code></pre>
+<p>Make sure you have the <code>$#</code> directives, which will be directly transplanted (minus the <code>$</code>) into the generated .cpp file. Process this cleaned header with the tolua exe:</p>
+<pre><code>tolua++.exe -o bindtestcomponent.cpp bindtestcomponent.pkg
+</code></pre>
+<p>This will output a file, bindtestcomponent.cpp, inside of which will be defined a function to call in order to load the bindings for your class, something like:</p>
+<pre><code>TOLUA_API int tolua_testcomponent_open (lua_State* tolua_S);
+</code></pre>
+<p>Once you have gotten that far, you can add your .cpp to your project. Then, wherever you initialize your Lua context, you can call that function and pass your context and the bindings will be loaded and available, so that you can use the component in script just like any built-in component. For example, if using the Urho3DPlayer, you could edit Urho3DPlayer.cpp and around lines <a  rel="nofollow noopener">185</a> and <a  rel="nofollow noopener">206</a> (the first location is if both AngelScript and Lua are enabled, the second location is if only Lua is enabled) you would then call your open function like so:</p>
+<pre><code>TOLUA_API int tolua_testcomponent_open (lua_State* tolua_S);
+tolua_testcomponent_open(GetSubsystem&lt;LuaScript&gt;()-&gt;GetState());</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Wow! Thank you very much! Will try it tomorrow and inform about results.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p><span class="mention">@JTippetts</span> a question though. I’m developing under Linux. Is tolua++ available for Linux?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>Yes, it should still be an executable in bin/tool. It is built as part of the process when Urho3D is built, since the library build process invokes it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>Thanks! I’ve successfully bound my first component <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>I have several questions though:</p>
+<ol>
+<li>I can’t find <code>tolua++</code> in <em>bin/tools</em> of Linux shared and static builds.</li>
+<li>I don’t find either <em>ToCppHook.lua</em> file in the <em>LuaScripts/pkg</em> - in fact, I don’t find the folder at all.</li>
+<li>Can you direct me where to look for the info on how to make a custom-made subsystem available as a global variable, like input or so.</li>
+</ol>
+<p>FYI, I’ve installed tolua++ from the Ubuntu repository.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<p>In fact, I’ve compiled myself Urho3D and got <code>tolua++</code> and I’ve found also <em>ToCppHook.lua</em> in Source/Urho3D/LuaScript/pkgs/ToCppHook.lua</p>
+<p>Now, however, I have a problem. When I try to tolua++ a function like</p>
+<pre><code class="lang-auto">Text3D* CreateDrawable(const String&amp; ch);
+</code></pre>
+<p>everything is ok, but when I try to compile, I get</p>
+<pre><code class="lang-auto">BindEntity.cpp:(.text+0xd1): undefined reference to `tolua_tourho3dstring(lua_State*, int, char const*)'
+</code></pre>
+<p>I see that it is related to <code>#include &lt;Urho3D/LuaScript/ToluaUtils.h&gt;</code> and I have <em>ToluaUtils.h</em> in the include dir, however, somehow it does not compile.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>Sorry, yeah, I had forgotten the line to include ToluaUtils. Just throw that include in there like</p>
+<pre><code>$#include &lt;Urho3D/LuaScript/ToluaUtils.h&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2097_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lunarovich</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="10" data-topic="6037" data-username="JTippetts1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/7959f0d708dd3df34167f10f810416b9.png" width="20"/> JTippetts1:</div>
+<blockquote>
+<p>$#include &lt;Urho3D/LuaScript/ToluaUtils.h&gt;</p>
+</blockquote>
+</aside>
+<p>Thanks for the response. However, when I look at the bind cpp file, I see it included. However, I still get an undefined reference. Even when I include it excplicitely in the pkg file, I get an undefined reference. Btw, I’m using 1.71 linux 64 shared deb package as Urho3D.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>Can’t really say what the problem might be, other than to double check your build and settings. If you built urho with Lua support, then the code from ToluaUtils.cpp should be in there during link, so if it’s not then something is messed up somewhere.</p>
+<p>Edit: just noticed you are using a 1.7 package. I highly recommend pulling from master and building it. There have been a lot of bug fixes since the 1.7 release.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

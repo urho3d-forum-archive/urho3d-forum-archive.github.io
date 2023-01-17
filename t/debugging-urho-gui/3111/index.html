@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Debugging Urho GUI</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Debugging Urho GUI</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Hi, all!</p>
+<p>As I told a lot lately I have showstopper kind of trouble with UI elements which generate popup window.<br/>
+These are Menu and DropDownList. Both do display original widget but fail to display popup menu.<br/>
+Today I was able to  display Menu popup for some time but after some minimal change it stopped working again<br/>
+and then I was not able to repeat the result. Struggling for 20+ hours for nothing again, I decided to<br/>
+debug the thing properly, so to find out why it is so brittle. Could somebody point me out somewhere in Urho code<br/>
+so I look for the culprits?<br/>
+Please don’t point me to editor, I know everything works there, but it is not possible to repeat.<br/>
+Probably there are some not obvious magic happens.<br/>
+I found that popup window defaultStyle needs to be set to style XML otherwise it will display<br/>
+white (root window style do not apply), but that happened before. Now I see nothing at all,<br/>
+like nothing is drawn and the click is ignored. I tried to display popup window manually and it works fine,<br/>
+so it is something with menu itself which is wrong. I will probably replace it with separate button and menu<br/>
+if debugging will take too long, but I’d prefer to finally make such widgets work and solve this puzzle…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Can’t offer advice on debugging the GUI, but here’s the code I use to make a dropdown list for a simple in-game editor I have (if you need any more of the code let me know, I tried to just pull out whatever was needed for the DropDownList):</p>
+<pre><code class="lang-cpp">SharedPtr&lt;UIElement&gt; me_;
+	static SharedPtr&lt;XMLFile&gt; Style;
+
+void EditorGroup::SetPosition(UIElement* child)
+{
+	if (!child)
+		return;
+	IntVector2 size = child-&gt;GetMinSize();
+	child-&gt;SetPosition(position_);
+	if (useColumns_)
+	{
+		position_.y_ += size.y_;
+		breakOffset_ = Max(size.x_, breakOffset_);
+		me_-&gt;SetMinSize(position_.x_ + breakOffset_, position_.y_);
+	}
+	else
+	{
+		position_.x_ += size.x_;
+		breakOffset_ = Max(size.y_, breakOffset_);
+		me_-&gt;SetMinSize(position_.x_, position_.y_ + breakOffset_);
+	}
+	child-&gt;SetStyleAuto(Style);
+}
+
+EditorGroup* EditorGroup::CreateDropdown(String label, Vector&lt;Variant&gt; values, int val)
+{
+
+	DropDownList* l = me_-&gt;CreateChild&lt;DropDownList&gt;(label);
+	int height = 0; int width = 0;
+	for (int i = 0; i &lt; values.Size(); ++i)
+	{
+		width = Max(width, 8*values[i].GetString().Length());
+		height = Max(height, 16);
+	}
+	l-&gt;SetPlaceholderText(label);
+	l-&gt;SetResizePopup(true);
+	l-&gt;SetSelection(0);
+	EditorGroup* c = new EditorGroup(l);
+	l-&gt;SetMinSize(width, height);
+	SetPosition(l);
+
+	for (int i = 0; i &lt; values.Size(); ++i)
+	{
+		Text* item = new Text(l-&gt;GetContext());
+		item-&gt;SetText(values[i].ToString());
+		item-&gt;SetName(values[i].ToString());
+		item-&gt;SetMinSize(8*values[i].GetString().Length(),16);
+
+		item-&gt;SetStyle("EditorEnumAttributeText");
+		l-&gt;AddItem(item);
+	}
+	children_.Push(SharedPtr&lt;EditorGroup&gt;(c));
+	c-&gt;type_ = DROPDOWN;
+	c-&gt;defaultValue_ = val;
+	c-&gt;extendedValue_ = values;
+	c-&gt;SubscribeToEvent(l, E_ITEMSELECTED, HANDLER(EditorGroup, HandleEvent));
+	return c;
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, debugging the GUI I found that in both cases I have zero-sized window.<br/>
+While I set window min sizes, it looks like it was resized to zero so not displaying.<br/>
+Need to check this some meore…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>I’m unable to reproduce Your problems. Can You show problematic parts of Your code or at least describe layout setup (parent-child structure, aligment etc.)?</p>
+<p>You can also check this functions (ie copy and run in hello gui sample), both are working:</p>
+<pre><code>void CreateDropDown()
+{
+    DropDownList@ dropDown = ui.root.CreateChild("DropDownList", "List");
+    dropDown.SetSize(128, 64);
+    dropDown.SetPosition((graphics.width / 6), (graphics.height / 2));
+    dropDown.SetStyleAuto();
+    
+    dropDown.resizePopup = true;
+    
+    for(int i = 0; i &lt; 5; i++)
+    {
+        Text@ item = Text();
+        item.text = "Item" + String(i);
+        item.SetStyleAuto();
+        dropDown.AddItem(item);
+    }
+}
+
+void CreatePopupMenu()
+{
+    Menu@ menu = ui.root.CreateChild("Menu", "menu");
+    menu.SetSize(128,64);
+    menu.SetPosition((graphics.width * 0.7), (graphics.height /2));
+    menu.SetStyleAuto();
+    
+    Window@ popup = Window();
+    popup.SetSize(128,128);
+    popup.SetStyle("Window", cache.GetResource("XMLFile", "UI/DefaultStyle.xml"));
+    menu.popup = popup;
+    menu.SetPopupOffset(20,10);
+    
+    Text@ label = popup.CreateChild("Text", "label");
+    label.SetStyleAuto();
+    label.text = "Popup Menu";
+    label.textAlignment = HA_CENTER;
+    
+    label.enableAnchor = true;
+    label.SetMinAnchor(0, 0);
+    label.SetMaxAnchor(1, 0.15);
+    label.SetPivot(0.0, 0.0);
+    
+    UIElement@ btnHolder = popup.CreateChild("UIElement", "btnHolder");
+    btnHolder.enableAnchor = true;
+    btnHolder.SetMinAnchor(0, 0.15);
+    btnHolder.SetMaxAnchor(1, 1);
+    
+    btnHolder.SetLayout(LM_VERTICAL, 0, IntRect(0, 0, 0, 0));
+    for(int i = 0; i &lt; 3; i++)
+    {
+        Button@ btn = btnHolder.CreateChild("Button", "btn");
+        btn.SetStyleAuto();
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I’m still in process of debugging. Somehow popup window size is set to 0, I currently debug why this happens.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I don’t want to repeat some magic passes, I want to understand what is really needed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>OK I now found the solution to my problem.</p>
+<ol>
+<li>Thou shalt set default style (defaultStyle) for all popup windows.</li>
+<li>Thou shalt SetLayout(LM_VERTICAL/LM_HRIZONTAL) on popup window.<br/>
+if LM_FREE is wanted add additional UIElement.</li>
+<li>ThouShalt SetMinSize after SetLayout.</li>
+</ol>
+<p>I’m not sure about 3. but that fixed my problem. Then I removed it and there is no problem.<br/>
+To be safe I set it back. It looks like it depends on what widgets are in the window.<br/>
+I have Window-&gt;ScrollView-&gt;UIElement-&gt;{Lots of UIElement-&gt;{Checkbox, Text}}<br/>
+When I did not have ScrollView it worked with 1 + 2, but as I added ScrollView it broke.<br/>
+While fixing this I also did lots of reordering of operations, so the fix might be reordering + SetMinSize.<br/>
+I don’t know but it works now. I will leave debugging code in there just in case it will break again.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

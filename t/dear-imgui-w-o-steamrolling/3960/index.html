@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Dear ImGui w/o steamrolling</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Dear ImGui w/o steamrolling</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>While there’s been a ton of Dear ImGui implementations created by many, all of those I’ve seen have employed some degree of steamrolling over the existing UI (ie. new subsystem that doesn’t play nice, directly hooking ImGui samples code, etc).</p>
+<p><a href="https://gist.github.com/JSandusky/54b85068aa30390c91a0b377703f042e" rel="nofollow noopener">ImGuiElement Github gist</a></p>
+<p>This implementation is as a UIElement that largely plays nice with the existing Urho3D UI, respecting z-order, mouse-mode, touch as left-button, renders through UIBatch, etc. <em>Cludge hacks</em> are always demanding fullscreen size (which is pretty much the dear imgui way) and cheating with screen-&gt;element coordinates. While multiple instances sort of work (font issues … debatable), it’s not really intended for that or for being a child of anything but the root … seems to work though. (all the cludge has notes in the sources)</p>
+<p>Playing nice with the main UI keeps it handy as a debug tool rather than an outright UI replacement, doesn’t mangle the usability of a HUD, legible dev interface without juggling multiple UI skins, etc.</p>
+<p>Takes a function pointer or overload to render the UI as well as sends an event. Use from Angelscript is via subscribing to the event and then pumping out stuff.</p>
+<pre><code>// Angelscript code
+...
+SubscribeToEvent("IMGUIDraw", "HandleIMGUIDraw");
+...
+void HandleIMGUIDraw(StringHash eventType, VariantMap&amp; eventData)
+{
+    // superficially retains the dear imgui API, &amp;inout instead of *s
+    // because a window isn't being made it's goes to the automatic "Debug" window
+    ImGui::Button("This button added by Angelscript!");
+    ImGui::Text("This text came from angelscript too!");
+    ImGui::ColorEdit3("Color Editor", imButtonColor);
+    ImGui::ColorButton("Colors", imButtonColor);
+    
+    if (testStrArray.length == 0)
+    {
+        testStrArray.Push("Roger");
+        testStrArray.Push("Moore");
+        testStrArray.Push("Timothy");
+        testStrArray.Push("Dalton");
+    }
+    ImGui::Combo("Testing this out", comboIdx, testStrArray);
+}
+</code></pre>
+<p><img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/9/9adbeea203c39988262930cb3fd19d3252ce68ca.png"/></p>
+<p>Angelscript bindings are ~90%, most of what’s missing are flags in the <code>Begin__XXX__</code> functions and varargs <em>fun</em>, note the use of a namespace so it’s still <code>ImGui::Text()</code> in Angelscript. C++11 required for the bindings as that’s how I had the robot spit everything out from the imgui headers.</p>
+<p>No lua-bindings as the amount of pass by pointer/ref involved isn’t something Lua’s type-system can cope with - without pumping a ton of multi-valued returns or tables+keys (messy either way).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Hi all!</p>
+<p>As this implementation is nice, a problem with it is that it is not possible to SetCullMode(CULL_NONE) per batch, so it is hard wired to CULL_CCW in UI.cpp, which prevents some ImGUI parts (like text cursor) from drawing. Is it possible to avoid Urho modification in this  case and set culling somewhere within UIElement? I wonder…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>I wonder what is easier - to convert ImGui vertex buffer to some proper winding or to disable culling<br/>
+in Urho3D for UI. I tould be much easier if Urho supported culing control from user code… I don’t want to support local Urho patches…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Resolved this temporarily by applying vertices in both winding orders, which is big overhead, but makes GUI look good.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I thought you can just change the UI technique – <strong>CoreData/Techniques/BasicVColUnlitAlpha.xml</strong> and add no cull there. UI elements are all quads so you shouldn’t get any performance loss.</p>
+<p>edit: oh wait, UI fetches shaders, not technique, then maybe you can change this line to CULL_NONE:</p>
+<pre><code class="lang-auto">    graphics_-&gt;SetCullMode(CULL_CCW);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, it is what I call “hardwired”, I work using separate tree to avoid patching Urho,<br/>
+so it is easier for me to do updates and avoid sending PRs completely.<br/>
+With change like this I will have to support patch which will never end-up upstream,<br/>
+which is not good… So I look for some alternative solution…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Ah, Ok. I thought you had made changes to the UI already, but I get that you made changes to the imgui code. But I wonder if setting <em>graphics_-&gt;SetCullMode(CULL_CCW)</em> is even necessary. I guess it’d make sense if you’re rendering 3D models.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>Well, with such things I will not be happy changing one hard wired value to another - who knows what will break?<br/>
+If I pass uibatch data twice, it is ovehead, but not actually much, I get serious frame drop,<br/>
+but nothing too hard for the application I do now. I use ImGui for tools and stock widets for end-user interfaces, so unless I end up with 1-2 fps I can manage with current solution.</p>
+<p>However if there is some better way I willbe more than happy to go that way as I have uneasy feeling of CPU cycles being wasted for nothing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>You can check the crossproduct of the 3 verts of the 1st triangle of the quad to determine whether z term points in or out. Form a Vector3 from the x,y term with z=0 and (v1-v0)).CrossProduct(v2-v0) should give you the z result.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

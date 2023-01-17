@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Urho3D reads data wrong</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Urho3D reads data wrong</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3734_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kest</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>So I’m working on an importer for a map file. But the deserializer reads the data wrong.<br/>
+Let me give an example.</p>
+<p>For the header in the map file, it has some data then states a name that declares it’s a valid file, such as:<br/>
+[Some data] MAPFILE [More data]. Instead, I have to do file.ReadLine().Contains to make sure it contains it which I don’t think it’s an approach I’d like, especially since I need to do a lot more reading with Strings, such as texture images and entity data, and when I do ReadString, it treats all data as a String.</p>
+<p>All I’m asking is how would I approach this and fix this, as it’s causing my a big headache and pushing back development.</p>
+<p>Thanks,<br/>
+Kest</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Toss a <em>map</em> file onto pastebin or a github gist so someone can see it.</p>
+<p>There’s nothing inherently wrong with the <code>ReadLine().Contains(...)</code> though as a quick failure check but you do need to be aware that you need to Seek(0) later to reset the position if you’re going to be feeding a lexer with <code>ReadAll()</code> or so on.</p>
+<p><code>ReadString</code> does exactly what it should, it eats every character until a null terminal. <code>Deserializer</code> is fairly raw and not meant for tokenizing and other lexer tasks. If you need to do lexing consider using stb_c_lexer or another lexer.</p>
+<p>If there are no quoted strings (that could contain spaces) in the map format in question then you could chop into words like <code>ReadIES(...)</code> does in the RampGenerator. That’s only viable for really really simple text formats, beyond that you need a tokenizer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3734_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kest</div>
+          <div class="post_content">
+<p>Thank you for the reply.</p>
+<p>For the map file data, it’s structured like the RMesh in SCP: Containment Breach. Here’s a file that I picked out: <a href="https://github.com/Regalis11/scpcb/blob/master/GFX/map/173_opt.rmesh" rel="noopener nofollow ugc">Example RMesh file</a></p>
+<p>I’m glad you pointed these functions out, as I was really just confused about any other option. I’ll experiment some more.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>It’s a binary file so deserializer will work, it looks that format is using sized strings instead of null terminated strings like Deserializer expects. In which case a uint32 is storing the size of the string that follows.</p>
+<p>Something along the lines of this should do:</p>
+<pre><code class="lang-auto">String ReadSizePrefixedString(Deserializer&amp; src)
+{
+    static char tempBuffer[512];
+    const unsigned strSize = src.ReadUInt();
+    src.Read(tempBuffer, strSize);
+    return String(tempBuffer, strSize);
+}
+</code></pre>
+<p>Do be aware that Deserializer knows nothing about endianness so if the format isn’t in the system’s natural endianness you’re going to have problems.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3734_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kest</div>
+          <div class="post_content">
+<p>Thanks for the reply, and thank you for the helpful start!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

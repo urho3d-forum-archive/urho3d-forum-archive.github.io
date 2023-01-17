@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[Rectified] Possible memory leak</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[Rectified] Possible memory leak</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I’m testing large object creation and removing with the following test code. This is needed for my usage purpose. I have found memory grow rapidly after some times.</p>
+<p>Here is the test code. I added inside the HandleUpdate of the example 4.</p>
+<pre><code>int counter = 0;
+Node* mushroomNodeTest [1000];
+double obj = 0;
+void StaticScene::HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+	counter++;
+	if (counter == 1)
+	{
+		obj+=1000;
+		//instructionText-&gt;SetText(String(obj));
+		
+		for (int i = 0; i &lt; 1000; ++i)
+		{
+			mushroomNodeTest[i] = scene_-&gt;CreateChild("Mushroom");
+			mushroomNodeTest[i]-&gt;SetPosition(Vector3(Random(90.0f) - 45.0f, 0.0f, Random(90.0f) - 45.0f));
+			mushroomNodeTest[i]-&gt;SetRotation(Quaternion(0.0f, Random(360.0f), 0.0f));
+			mushroomNodeTest[i]-&gt;SetScale(0.5f + Random(2.0f));
+			StaticModel* mushroomObject = mushroomNodeTest[i]-&gt;CreateComponent&lt;StaticModel&gt;();
+		}
+	}
+
+	if (counter == 2)
+	{
+		if (mushroomNodeTest)
+		{
+			for (int i = 0; i &lt; 1000; ++i)
+			{
+				mushroomNodeTest[i]-&gt;Remove();
+				
+			}
+		}
+		counter = 0;
+	}
+
+    using namespace Update;
+
+    // Take the frame time step, which is stored as a float
+    float timeStep = eventData[P_TIMESTEP].GetFloat();
+
+    // Move the camera, scale movement with time step
+    MoveCamera(timeStep);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/73_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">artgolf1000</div>
+          <div class="post_content">
+<p>Try this after remove all nodes:</p>
+<p><code>// Release all unused resources
+GetSubsystem&lt;ResourceCache&gt;()-&gt;ReleaseAllResources(false);
+</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Hi, I tried both debug and release mode, with both true/false setting.</p>
+<p>That doesn’t seems to be working.</p>
+<p>Best Regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>It doesn’t seem that this is some memory leak in code. MSVC reports nothing and Urho itself is unlikely to have a leak in such generic mechanism.</p>
+<p>I suppose that you are just doing wrong things in general that lead to memory fragmentation and growing of used memory amount. Probably Urho need more pools, but it won’t be made in near future.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="2719" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>at you are just doing wrong things in general</p>
+</blockquote>
+</aside>
+<p>What do you mean? Have you test the function I posted?</p>
+<p>This is the function inside the default example 4. I just added in 2 for loops and three globals to demonstrate the problem.</p>
+<p>After creating and removing 8 million nodes with static model components your ram usage will be at 1GB.</p>
+<p>Do you think that bit of the code I posted is wrongly written?</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="2719" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>What do you mean? Have you test the function I posted?</p>
+</blockquote>
+</aside>
+<p>Yes, I reproduced memory growing. But I <em>think</em> that it is not a memory leak, but memory fragmentation caused by allocating tons of small objects: every node and every StaticModel internally cause many allocations. I think so because this problem is invisible for leak analyzers and there is no evidence except task manager that is not very reliable.</p>
+<p>Redundant allocating is a problem of Urho, is some sense. I’d like to look at it at some point.<br/>
+However, your problem is caused by your code. Nodes and components are not designed to be constantly created and destroyed, so the best solution is to avoid it.</p>
+<p>BTW, are you able to <em>crash</em> app with out-of-memory?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>I haven’t able to crash the app yet ^^.</p>
+<p>I’m creating a discrete event sim. The method I’m using required to create and destroy lots of objects. That’s why I’m stress test this. I want to run at least 50 years at the rate of 1 node created and destroy per simulation second.</p>
+<p>I have created 8.65 milliions objects in my code and the memory turns out mostly due do create and destroy node with static model on Urho3D engine. That was running over 100 days simulation in less than 3 minutes. My target was 1 billion object. But I think I will run out of ram at that rate.</p>
+<p>Let me see if I can crash my app :).</p>
+<hr/>
+<p>Updated:<br/>
+Tested 100 million create and delete on my application code. The memory usage seems to be stable at 1.40 Gb.</p>
+<p>Cheers</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="8" data-topic="2719" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>Tested 100 million create and delete on my application code. The memory usage seems to be stable at 1.40 Gb.</p>
+</blockquote>
+</aside>
+<p>Thank you! It confirms my guess. Stabling means that it is an issue about probably memory fragmentation or memory management in Windows, not leak in Urho.</p>
+<p>However, Urho needs some pools, IMO.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="10" data-topic="2719" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>However, Urho needs some pools, IMO.</p>
+</blockquote>
+</aside>
+<p>Indeed! Also more orientation on Data Driven</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I tested George’s code and verified that the memory usage increases due to fragmentation but no memory leak.  On Win10, VS2013 debug - took 25 mins. to settle and fragmented 1/2 GB just on a simple scene with his code.</p>
+<p>I am curious as to how <span class="mention">@Dave82</span> 's Infested game is holding up when transitioning from indoor to outdoor and vice versa frequently.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>It works without any problem so far.I didn’t encountered any memory growth in frequent removing/loading resources.I tested it a lot and after a certain time the memory usage stops growing.Sometimes even goes down drastically even if i load a new resource (possibly a bigger chunk of memory is released by the OS than the new resource).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Thanks for the message.<br/>
+As per my last message, this question should be marked as solved for now.</p>
+<p>I have further test my simulation framework with 500 millions create and delete components and nodes (Running for quite a while). The memory became stable at 1.4GB on my system.</p>
+<p>Regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I know that 1k creation and removal per frame test is a bit extreme but good to know that a real game doesn’t see this problem.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

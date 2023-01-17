@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Custom mesh loading problem[SOLVED]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Custom mesh loading problem[SOLVED]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Hi , i finished my mesh loader but  i can’t get it to work properly… It seems that the data is loaded correctly , but it’s always 1/3 of my mesh is rendered (i’m assuming that theres something wrong with the index buffer but can’t figure it out , its like the draw range should be indexCount * 3…)</p>
+<p>There should be 10 spheres on this picture but only 3.33 of them are visible :<br/>
+<img alt="" height="" src="../../../images2/b680abd4d0f5951d149a56654e70dc56.jpg" width=""/></p>
+<p>Here’s my loading code (NOTE : I used the push method to fill the buffers so it’s easier to read the code)</p>
+<p>[code]Urho3D::StaticModel * TFSceneLoader::readStaticModel(Urho3D::File &amp;file)<br/>
+{<br/>
+// parse the file and load the corresponding data (exported from 3ds max)<br/>
+int numMeshBuffers = file.ReadInt();</p>
+<pre><code>// Use dynamic lighting ? (Not used in Urho3D)
+bool useDynamicLighting = file.ReadBool();
+
+// list of all materials used by this model
+Urho3D::Vector&lt;Urho3D::SharedPtr&lt;Urho3D::Material&gt; &gt; materials;
+
+INFLOG("---------- LOADING MESH STARTED --------------------\n");
+INFLOG("       Num mesh buffers : %d " , numMeshBuffers)
+
+// first read materials.They are stored in the same order as the VertexBuffers
+for (int x = 0; x &lt; numMeshBuffers; x++)
+{
+	Urho3D::SharedPtr&lt;Urho3D::Material&gt; mat(readMaterial(file));
+	materials.Push(mat);
+}
+
+Urho3D::SharedPtr&lt;Urho3D::Model&gt; model(new Urho3D::Model(context_));
+model-&gt;SetNumGeometries(numMeshBuffers);
+
+Urho3D::BoundingBox bb;
+
+// read Geometries (mesh buffers in irrlicht)
+// One geometry component holds 1 vertex and index buffer
+for (int m = 0; m &lt; numMeshBuffers; m++)
+{
+	Urho3D::SharedPtr&lt;Urho3D::Geometry&gt; newGeometry(new Urho3D::Geometry(context_));
+	
+	int numVertices = file.ReadInt();
+	char uvSets = file.ReadByte();
+
+	INFLOG("              Num Vertices : %d " , numVertices)
+	INFLOG("              Vertex type : %d " , uvSets)
+
+	unsigned int vertexDecl = Urho3D::MASK_POSITION|Urho3D::MASK_NORMAL|Urho3D::MASK_TEXCOORD1;
+	if (uvSets == 2) vertexDecl |= Urho3D::MASK_TEXCOORD2;
+	
+	// Create vertexData buffer
+	Urho3D::Vector&lt;float&gt; vertexData;
+
+	for (int v = 0; v &lt; numVertices; v++)
+	{
+		Urho3D::Vector3 pos = file.ReadVector3(); 
+		Urho3D::Vector3 normal = file.ReadVector3(); 
+		Urho3D::Vector2 uv1 = file.ReadVector2();
+
+		vertexData.Push(pos.x_); vertexData.Push(pos.y_); vertexData.Push(pos.z_);
+		vertexData.Push(normal.x_); vertexData.Push(normal.y_); vertexData.Push(normal.z_);
+		vertexData.Push(uv1.x_); vertexData.Push(uv1.y_);
+                                      
+                                      // If there's 2nd uv set for lightmap...
+		if (vertexDecl &amp; Urho3D::MASK_TEXCOORD2)
+		{
+			Urho3D::Vector2 uv2 = file.ReadVector2();
+			vertexData.Push(uv2.x_);
+			vertexData.Push(uv2.y_);
+		}
+		// store aabb point;
+		bb.Merge(pos);
+	}
+
+	// read index buffer :
+	int indexCount =  file.ReadInt();
+	Urho3D::Vector&lt;unsigned short&gt; indexData;
+
+	INFLOG("              Num indices : %d " , indexCount)
+
+	for (int ib = 0; ib &lt; indexCount; ib++)
+	{
+		indexData.Push(file.ReadUShort());
+		indexData.Push(file.ReadUShort());
+		indexData.Push(file.ReadUShort());
+	}
+
+	// create vertex buffer
+	Urho3D::SharedPtr&lt;Urho3D::VertexBuffer&gt; vertexBuffer(new Urho3D::VertexBuffer(context_));
+	vertexBuffer-&gt;SetShadowed(true);
+	vertexBuffer-&gt;SetSize(numVertices , vertexDecl);
+	vertexBuffer-&gt;SetData(&amp;vertexData[0]);
+	
+	// create index buffer
+	Urho3D::SharedPtr&lt;Urho3D::IndexBuffer&gt; indexBuffer(new Urho3D::IndexBuffer(context_));
+	indexBuffer-&gt;SetShadowed(true);
+	indexBuffer-&gt;SetSize(indexCount , false);
+	indexBuffer-&gt;SetData(&amp;indexData[0]);
+
+	// add buffers to geometry
+	newGeometry-&gt;SetVertexBuffer(0 , vertexBuffer);
+	newGeometry-&gt;SetIndexBuffer(indexBuffer);
+	newGeometry-&gt;SetDrawRange(Urho3D::TRIANGLE_LIST, 0, indexCount);
+
+	model-&gt;SetGeometry(m , 0 , newGeometry);
+	model-&gt;SetNumGeometryLodLevels(m,1);	
+}
+
+model-&gt;SetBoundingBox(bb);
+
+INFLOG("---------- LOADING MESH FINISHED --------------------\n");
+
+Urho3D::StaticModel * staticModel = new Urho3D::StaticModel(context_);
+staticModel-&gt;SetModel(model);
+
+for (int m = 0; m &lt; numMeshBuffers; m++)
+{
+	staticModel-&gt;SetMaterial(materials[m]);
+}
+return staticModel;
+</code></pre>
+<p>}[/code]</p>
+<p>I checked : i load the correct number of vertices and indices.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>AHHH how could i be so blind… i had to</p>
+<pre><code class="lang-auto"></code></pre>
+<p>and not</p>
+<pre><code class="lang-auto"></code></pre>
+<p>It works perfectly now…</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

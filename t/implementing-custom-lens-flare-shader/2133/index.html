@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Implementing custom lens flare shader</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Implementing custom lens flare shader</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">htmlboss</div>
+          <div class="post_content">
+<p>Hey all! This is my first time trying to implement a shader (from john chapman graphics) in Urho3D. I’ve read as much documentation as I could find on the subject, but the shader will not work (no blatant visual errors, or other indicators at runtime). I am appending my xml file to the cloned renderpath of the primary viewport, and enabling it (so it’s probably me being noob with this post-processing pipeline and the shader too). Any ideas? Thanks a bunch in advance!  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>LensFlare.xml:</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+	&lt;command  type="quad" tag="LensFlare" vs="LensFlare" ps="LensFlare" output="viewport" blend="add" enabled="true"&gt;
+		&lt;parameter name="Samples" value="8" /&gt;
+		&lt;parameter name="Dispersal" value="0.25" /&gt;
+		&lt;parameter name="HaloWidth" value="1.0" /&gt;
+		&lt;parameter name="Distortion" value="1.0" /&gt;
+		&lt;texture unit="InputTex" name="viewport" /&gt;
+		&lt;texture unit="LensColor" name="Textures/lenscolor.png" /&gt;
+	&lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>LensFlare.glsl</p>
+<p>[code]/*******************************************************************************<br/>
+Copyright © 2013 John Chapman<br/>
+Edited for Urho3D by htmlboss (2016)</p>
+<pre><code>This software is distributed freely under the terms of the MIT License.
+See "license.txt" or "http://copyfree.org/licenses/mit/license.txt".
+</code></pre>
+<p>*******************************************************************************/<br/>
+//<span class="hashtag">#include</span> “common/def.glsl”</p>
+<p>// Urho3D Stuff<br/>
+<span class="hashtag">#include</span> “Uniforms.glsl”<br/>
+<span class="hashtag">#include</span> “Samplers.glsl”<br/>
+<span class="hashtag">#include</span> “Transform.glsl”<br/>
+<span class="hashtag">#include</span> “ScreenPos.glsl”</p>
+<p>layout(binding=0) uniform sampler2D sInputTex;<br/>
+layout(binding=1) uniform sampler1D sLensColor;</p>
+<p>const int MAX_SAMPLES = 64;<br/>
+uniform int cSamples; // Samples for ghosting generation<br/>
+uniform float cDispersal; // Ghosting dispersion factor<br/>
+uniform float cHaloWidth; // Width of Halo<br/>
+uniform float cDistortion; // Chromatic aberration factor</p>
+<p>varying vec2 vScreenPos;</p>
+<p>noperspective in vec2 vTexcoord; // 2D screen coords?</p>
+<p>layout(location=0) out vec4 fResult; //Final output</p>
+<p>/<em>----------------------------------------------------------------------------</em>/<br/>
+vec4 textureDistorted(<br/>
+in sampler2D tex,<br/>
+in vec2 texcoord,<br/>
+in vec2 direction,<br/>
+in vec3 distortion<br/>
+) {<br/>
+return vec4(<br/>
+texture(tex, texcoord + direction * distortion.r).r,<br/>
+texture(tex, texcoord + direction * distortion.g).g,<br/>
+texture(tex, texcoord + direction * distortion.b).b,<br/>
+1.0<br/>
+);<br/>
+}</p>
+<p>/<em>----------------------------------------------------------------------------</em>/<br/>
+// Not doing anything here…<br/>
+void VS() {<br/>
+mat4 modelMatrix = iModelMatrix;<br/>
+vec3 worldPos = GetWorldPos(modelMatrix);<br/>
+gl_Position = GetClipPos(worldPos);<br/>
+vTexcoord = GetQuadTexCoord(gl_Position); // Is this right??<br/>
+vScreenPos = GetScreenPosPreDiv(gl_Position);<br/>
+}</p>
+<p>void PS() {<br/>
+vec2 texcoord = -vTexcoord + vec2(1.0); // flip texcoords<br/>
+vec2 texelSize = 1.0 / vec2(textureSize(sInputTex, 0));</p>
+<pre><code>vec2 ghostVec = (vec2(0.5) - texcoord) * cDispersal;
+vec2 haloVec = normalize(ghostVec) * cHaloWidth;
+
+vec3 distortion = vec3(-texelSize.x * cDistortion, 0.0, texelSize.x * cDistortion);
+</code></pre>
+<p>// sample ghosts:<br/>
+vec4 result = vec4(0.0);<br/>
+for (int i = 0; i &lt; cSamples; ++i) {<br/>
+vec2 offset = fract(texcoord + ghostVec * float(i));</p>
+<pre><code>	float weight = length(vec2(0.5) - offset) / length(vec2(0.5));
+	weight = pow(1.0 - weight, 10.0);
+
+	result += textureDistorted(
+		sInputTex,
+		offset,
+		normalize(ghostVec),
+		distortion
+	) * weight;
+}
+
+result *= texture(sLensColor, length(vec2(0.5) - texcoord) / length(vec2(0.5)));
+</code></pre>
+<p>//	sample halo:<br/>
+float weight = length(vec2(0.5) - fract(texcoord + haloVec)) / length(vec2(0.5));<br/>
+weight = pow(1.0 - weight, 10.0);<br/>
+result += textureDistorted(<br/>
+sInputTex,<br/>
+fract(texcoord + haloVec),<br/>
+normalize(ghostVec),<br/>
+distortion<br/>
+) * weight;</p>
+<pre><code>fResult = result; //Output final result
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi!</p>
+<p>I am not familar with this technicue yet, but i guess you probably forgot to add a few additional passes in RenderPath</p>
+<ol>
+<li>Gettting threshold from actual frame to additional RT (it store within only while-black color only) (see to boom shader how it extract overbrighten-white color)</li>
+<li>Bluring previous RT</li>
+<li>Use your shader (for mix default scene frame and this new RT)</li>
+</ol>
+<p>So i think needed more complex RenderPath, and not just what you added previously</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">htmlboss</div>
+          <div class="post_content">
+<p>So here’s an update: I basically copy-pasted the bloom shader and just added the lens flare stuff as an additional command, BUT it seems to be sampling the logo from the bottom-left corner of the window (da fuq?) so I just see a massive blurred Urho3D logo across my screen. If I remove all UI code in the sample program, the shader goes back to not doing anything…am I getting the wrong “screen layer” in the xml file?</p>
+<p>New xml:</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="blurv" tag="Bloom1" sizedivisor="4 4" format="rgb" filter="true" /&gt;
+    &lt;rendertarget name="blurh" tag="Bloom1" sizedivisor="4 4" format="rgb" filter="true" /&gt;
+    &lt;rendertarget name="threshold" tag="Bloom1" /&gt;
+    
+    &lt;command type="quad" tag="Bloom1" vs="Bloom1" ps="Bloom1" psdefines="BRIGHT" output="threshold"&gt;
+        &lt;parameter name="BloomThreshold" value="0.3" /&gt;
+        &lt;texture unit="diffuse" name="viewport" /&gt;
+    &lt;/command&gt;
+
+    &lt;command type="quad" tag="Bloom1" vs="Bloom1" ps="Bloom1" psdefines="FLARE" output="blurh" &gt;
+        &lt;parameter name="Samples" value="8" /&gt;
+        &lt;parameter name="Dispersal" value="0.25" /&gt;
+        &lt;parameter name="HaloWidth" value="1.0" /&gt;
+        &lt;parameter name="Distortion" value="1.0" /&gt;
+        &lt;parameter name="FlareMix" value="1.0" /&gt;
+
+        &lt;texture unit="LensColor" name="Textures/lenscolor.png" /&gt;
+    &lt;/command&gt;
+    
+    &lt;command type="quad" tag="Bloom1" vs="Bloom1" ps="Bloom1" psdefines="BLURH" output="blurh"&gt;
+        &lt;texture unit="diffuse" name="blurv" /&gt;
+    &lt;/command&gt;
+    
+    &lt;command type="quad" tag="Bloom1" vs="Bloom1" ps="Bloom1" psdefines="BLURV" output="blurv"&gt;
+        &lt;texture unit="diffuse" name="blurh" /&gt;
+    &lt;/command&gt;
+    
+    &lt;command type="quad" tag="Bloom1" vs="Bloom1" ps="Bloom1" psdefines="COMBINE" output="viewport"&gt;
+        &lt;parameter name="BloomMix" value="0.9 0.4" /&gt;
+
+        &lt;texture unit="diffuse" name="viewport" /&gt;
+        &lt;texture unit="normal" name="blurv" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Hi there htmlboss,</p>
+<p>Welcome to the forums! You should probably focus more and test your GLSL code. It looks like there’s a lot of incompatibilities there and your light source position/direction is not setup properly.</p>
+<p>But then again if you’re just new to the engine, I suggest doing some simple shader stuff first until you get some grasp on how it works compared to generic GLSL setup.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">htmlboss</div>
+          <div class="post_content">
+<p>[quote=“rasteron”]Hi there htmlboss,</p>
+<p>Welcome to the forums! You should probably focus more and test your GLSL code. It looks like there’s a lot of incompatibilities there and your light source position/direction is not setup properly.</p>
+<p>But then again if you’re just new to the engine, I suggest doing some simple shader stuff first until you get some grasp on how it works compared to generic GLSL setup.[/quote]</p>
+<p>Thanks mate! You know, you’re probably right about doing the simple shader stuff first <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/> I got a little excited about all the features Urho has (since C++ is second-nature to me) so I jumped into the deep-end with GLSL LOL. Is there some specific documentation for Urho’s shader pipeline?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>Is there some specific documentation for Urho’s shader pipeline?</p>
+</blockquote>
+</aside>
+<p>IMO documentation in part of about shaders is extreamly tiny<br/>
+<a href="http://urho3d.github.io/documentation/HEAD/_shaders.html">urho3d.github.io/documentation/H … aders.html</a></p>
+<p>Also related<br/>
+<a href="http://urho3d.github.io/documentation/HEAD/_render_paths.html">urho3d.github.io/documentation/H … paths.html</a><br/>
+<a href="http://urho3d.github.io/documentation/HEAD/_materials.html">urho3d.github.io/documentation/H … rials.html</a><br/>
+<a href="http://urho3d.github.io/documentation/HEAD/_rendering.html">urho3d.github.io/documentation/H … ering.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">reattiva</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p></p>
+</blockquote>
+</aside>
+<p>I think you can use only the standard units names or the texture unit number. See ParseTextureUnitName and textureUnitNames.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<aside class="quote">
+<blockquote>
+<p>Thanks mate! You know, you’re probably right about doing the simple shader stuff first <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/> I got a little excited about all the features Urho has (since C++ is second-nature to me) so I jumped into the deep-end with GLSL LOL.</p>
+</blockquote>
+</aside>
+<p>Sure thing. You can always check out existing code and some of them are simple enough for you to get started creating or porting shaders.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

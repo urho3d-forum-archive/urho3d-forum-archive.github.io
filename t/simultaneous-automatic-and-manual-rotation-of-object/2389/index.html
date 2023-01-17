@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Simultaneous automatic and manual rotation of object</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Simultaneous automatic and manual rotation of object</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OMID-313</div>
+          <div class="post_content">
+<p>Hi all,</p>
+<p>I want to set up a scene, where a model is rotating automatically. Besides, the user will be able to rotate the model manually by mouse movement.<br/>
+In other words, the total rotation will be the “automatic rotation + mouse rotation”.</p>
+<p>The following is the code I’ve written:</p>
+<p>[code]<span class="hashtag">#include</span> “Scripts/Utilities/Sample.as”</p>
+<p>Node@ mushroomNode;</p>
+<p>void Start()<br/>
+{<br/>
+SampleStart();<br/>
+CreateScene();<br/>
+SetupViewport();<br/>
+SubscribeToEvents();<br/>
+}</p>
+<p>void CreateScene()<br/>
+{<br/>
+scene_ = Scene();</p>
+<pre><code>scene_.CreateComponent("Octree");
+
+Node@ lightNode = scene_.CreateChild("DirectionalLight");
+lightNode.direction = Vector3(0.6f, -1.0f, 0.8f); // The direction vector does not need to be normalized
+Light@ light = lightNode.CreateComponent("Light");
+light.lightType = LIGHT_DIRECTIONAL;
+
+    mushroomNode = scene_.CreateChild("Mushroom");
+    mushroomNode.position = Vector3(0.0f, 0.0f, 300.0f);
+    mushroomNode.rotation = Quaternion(0.0f, 0.0f, 0.0f);
+    mushroomNode.SetScale(0.5f);
+    StaticModel@ mushroomObject = mushroomNode.CreateComponent("StaticModel");
+    mushroomObject.model = cache.GetResource("Model", "3D_Models/Shoe_2.mdl");
+    mushroomObject.ApplyMaterialList();
+
+    ScriptInstance@ instance = mushroomNode.CreateComponent("ScriptInstance");
+    instance.CreateObject(scriptFile, "Rotator");
+    Rotator@ rotator = cast&lt;Rotator&gt;(instance.scriptObject);
+    rotator.rotationSpeed = Vector3(10.0f, 20.0f, 30.0f);
+
+cameraNode = scene_.CreateChild("Camera");
+cameraNode.CreateComponent("Camera");
+
+cameraNode.position = Vector3(0.0f, 30.0f, 0.0f);
+</code></pre>
+<p>}</p>
+<p>void SetupViewport()<br/>
+{<br/>
+Viewport@ viewport = Viewport(scene_, cameraNode.GetComponent(“Camera”));<br/>
+renderer.viewports[0] = viewport;<br/>
+}</p>
+<p>void MoveCamera(float timeStep)<br/>
+// this function moves the object, not the camera. Only its name is camera !!<br/>
+{<br/>
+if (ui.focusElement !is null)<br/>
+return;</p>
+<pre><code>const float MOVE_SPEED = 10.0f;
+const float MOUSE_SENSITIVITY = 0.05f;
+
+IntVector2 mouseMove = input.mouseMove;
+yaw += MOUSE_SENSITIVITY * mouseMove.x;
+pitch += MOUSE_SENSITIVITY * mouseMove.y;
+pitch = Clamp(pitch, -90.0f, 90.0f);
+
+ mushroomNode.rotation = Quaternion(pitch, yaw, 0.0f);
+
+if (input.keyDown['W'])
+    cameraNode.Translate(Vector3(0.0f, -5.0f, 0.0f) * MOVE_SPEED * timeStep);
+if (input.keyDown['S'])
+    cameraNode.Translate(Vector3(0.0f, 5.0f, 0.0f) * MOVE_SPEED * timeStep);
+if (input.keyDown['A'])
+    cameraNode.Translate(Vector3(5.0f, 0.0f, 0.0f) * MOVE_SPEED * timeStep);
+if (input.keyDown['D'])
+    cameraNode.Translate(Vector3(-5.0f, 0.0f, 0.0f) * MOVE_SPEED * timeStep);
+if (input.keyDown['Q'])
+    cameraNode.Translate(Vector3(0.0f, 0.0f, -5.0f) * MOVE_SPEED * timeStep);
+if (input.keyDown['E'])
+    cameraNode.Translate(Vector3(0.0f, 0.0f, 5.0f) * MOVE_SPEED * timeStep);
+</code></pre>
+<p>}</p>
+<p>void SubscribeToEvents()<br/>
+{<br/>
+SubscribeToEvent(“Update”, “HandleUpdate”);<br/>
+}</p>
+<p>void HandleUpdate(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+float timeStep = eventData[“TimeStep”].GetFloat();<br/>
+MoveCamera(timeStep);<br/>
+}</p>
+<p>class Rotator : ScriptObject<br/>
+{<br/>
+Vector3 rotationSpeed;</p>
+<pre><code>    void Update(float timeStep)
+    {
+            node.Rotate(Quaternion(rotationSpeed.x * timeStep, rotationSpeed.y * timeStep, rotationSpeed.z$
+    }
+</code></pre>
+<p>}</p>
+<p>String patchInstructions = “”;[/code]</p>
+<p>But unfortunately, it doesn’t rotate the object automatically.<br/>
+But if I comment out the following line:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>which is responsible for rotating the object by mouse, it works.<br/>
+It means that either automatic or manual rotation works, but not both at the same time.</p>
+<p>How can I make them both work at the same time !!?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>“Rotator” rotate object but after that you rewrite rotation by “mushroomNode.rotation”. You need use “node.Rotate()” instead “node.rotation”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OMID-313</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ef19ff5c6f85c4920b8ebf7eda2e2ed6.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>“Rotator” rotate object but after that you rewrite rotation by “mushroomNode.rotation”. You need use “node.Rotate()” instead “node.rotation”.</p>
+</blockquote>
+</aside>
+<p>Thanks <span class="mention">@1vanK</span> for your reply.<br/>
+This solved my problem  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

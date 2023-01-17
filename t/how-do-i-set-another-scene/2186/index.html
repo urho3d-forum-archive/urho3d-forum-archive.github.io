@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How do I set another Scene?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How do I set another Scene?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/789_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Ray_Koopa</div>
+          <div class="post_content">
+<p>I probably didn’t quite grasp the scene management…</p>
+<p>Anyway, I thought scenes are used for different stages of the game. Like:<br/>
+[ul][li]Main Menu[/li]<br/>
+[li]In-Game (with some nodes for a pause menu overlay)[/li]<br/>
+[li]Level Editor[/li][/ul]</p>
+<p>I only know that a scene is simply instantiated in the Application class when the game starts. But how does the engine actually know which scene is “active”? How can I make another scene active?</p>
+<p>Or is there only one and just one scene in Urho3D in which I have to remove all child nodes and insert new ones when switching between the stages mentioned in the list above?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><code>        SharedPtr&lt;Viewport&gt; viewport(new Viewport(context_, scene_, camera));
+        GetSubsystem&lt;Renderer&gt;()-&gt;SetViewport(0, viewport);</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/789_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Ray_Koopa</div>
+          <div class="post_content">
+<p>So I just modify the viewport? What happens to nodes in the scene not given to the Viewport anymore? Won’t they continue to update and play sounds?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><code>/// Enable or disable scene update.
+void Scene::SetUpdateEnabled(bool enable);</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/789_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Ray_Koopa</div>
+          <div class="post_content">
+<p>Yeah, okay. That disables further updates. But what happens to already playing sounds? They should be stopped.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>All sound sources from disabled scene paused</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/789_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Ray_Koopa</div>
+          <div class="post_content">
+<p>Hmm okay, if that’s the “official” way to go, I’m gonna try it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Note that the scene should to be changed at the beginning of iteration of a game loop. Otherwise, errors may occur. I mostly use this way:</p>
+<p>[code]    Game(Context* context) : Application(context)<br/>
+{<br/>
+// First handler for first event.<br/>
+SubscribeToEvent(E_BEGINFRAME, URHO3D_HANDLER(Game, ApplyGameState));<br/>
+}</p>
+<pre><code>void ApplyGameState(StringHash eventType, VariantMap&amp; eventData)
+{
+    if (GLOBAL-&gt;gameState_ != GLOBAL-&gt;neededGameState_)
+    {
+        // Change game state logic.
+        ....
+        GLOBAL-&gt;gameState_ = GLOBAL-&gt;neededGameState_;
+    }
+
+    if (GLOBAL-&gt;currentLevelIndex_ != GLOBAL-&gt;neededLevelIndex_)
+    {
+        GLOBAL-&gt;currentLevelIndex_ = GLOBAL-&gt;neededLevelIndex_;
+        // Change scene.
+        ....
+    }
+}
+</code></pre>
+<p>[/code]</p>
+<p>It works like <a href="https://docs.unity3d.com/ScriptReference/Application.LoadLevel.html">docs.unity3d.com/ScriptReferenc … Level.html</a></p>
+<aside class="quote">
+<blockquote>
+<p>Actual level change happens in the beginning of the next frame</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>To clarify sound management further, you usually have a SoundListener which is in a node in a certain scene. You can switch the currently active SoundListener (there can only be one at a time) from the Audio subsystem.</p>
+<p>Menu / UI -type sounds can also be played “scenelessly” if you’re not using SoundSource3D, however a sound source still needs to be attached to a node. See the example number 14.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/789_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Ray_Koopa</div>
+          <div class="post_content">
+<p>[quote=“1vanK”]<code>/// Enable or disable scene update.
+void Scene::SetUpdateEnabled(bool enable);</code>[/quote]<br/>
+Shouldn’t this prevent all the components in the nodes in the scene on which this is set to false from getting updates called on them?</p>
+<p>I made a simple RotatorComponent which dumbly rotates an object. When I call SetUpdateEnabled(false), it still rotates…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It depends on what event you are listening to for the update. Scene update events will be stopped by updateEnabled = false, global application update event is not. If in doubt, you probably should ask from the authors of the C# binding.</p>
+<p>If you check Urho’s 05_AnimatingScene example, the object rotation stops properly by updateEnabled being set to false.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Scellow</div>
+          <div class="post_content">
+<p>Here is how i do:</p>
+<pre><code class="lang-auto">    public class BaseScene : Scene
+    {
+        public virtual void Init() { }
+
+        public virtual void CleanUI()
+        {
+            TheRoguer.Instance.UI.Root.RemoveAllChildren();
+        }
+        
+        public virtual void Dispose() { }
+    }
+
+    public class LoginScene : BaseScene
+    {
+        // ..
+    }
+
+
+
+    public class SceneManager
+    {
+        public BaseScene Scene;
+
+        public static SceneManager Instance = new SceneManager();
+
+
+        public void SetScene(BaseScene scene)
+        {
+            Scene?.CleanUI();
+            Scene?.Dispose();
+            Scene?.Remove();
+
+            Scene = scene;
+            Scene.Init();
+        }
+    }</code></pre>
+<p>And to change scene:</p>
+<pre><code>        SceneManager.Instance.SetScene(new LoginScene());
+</code></pre>
+<p>There are probably better ways to do that, but it works fine for my needs</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/789_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Ray_Koopa</div>
+          <div class="post_content">
+<p>Yeah, that’s similar to how I do it by now. Though I still have the scene switching logic in my Application class. I also switch the scene in BeginFrame as it was suggested earlier.<br/>
+Took me some time to understand inheriting from <code>Scene</code> is actually not that bad and kinda required for such a logic to work fine.</p>
+<p>The only thing that still raises my eyebrows a little is that you call Scene?.Remove(), but the doc says it removes the scene from the parent node, but the scene is the root, so that shouldn’t have any effect, or should it?</p>
+<p>Here’s my code, though it uses the UrhoSharp C# wrapper.</p>
+<p>[code]public class Game : Application<br/>
+{<br/>
+private StageBase _currentStage;<br/>
+private StageBase _nextStage;</p>
+<pre><code>public Game()
+	: base(new ApplicationOptions("Data"))
+{
+}
+
+internal StageBase CurrentStage
+{
+	get
+	{
+		return _currentStage;
+	}
+	set
+	{
+		// Do not immediately change the stage, and queue it to be done at the start of the next frame.
+		_nextStage = value;
+	}
+}
+
+protected override void Start()
+{
+	Time.FrameStarted += Time_FrameStarted;
+	CurrentStage = new MenuStage(this);
+}
+
+private void Time_FrameStarted(FrameStartedEventArgs obj)
+{
+	// Switch the stage if any was queued.
+	if (_nextStage != null)
+	{
+		// Give the stage a chance to cleanup (and possibly store its status later on). Then destroy all nodes.
+		if (_currentStage != null)
+		{
+			_currentStage.Stop();
+			_currentStage.UpdateEnabled = false;
+			_currentStage.Clear(true, true);
+			_currentStage.Remove();
+			UI.Clear();
+		}
+
+		// Activate the new stage and call its method to set itself up.
+		_currentStage = _nextStage;
+		_currentStage.Start();
+		_nextStage = null;
+	}
+}
+</code></pre>
+<p>}[/code]</p>
+<p>My extended Scenes are called “Stages” for whatever reason I might not like soon <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/></p>
+<p>[code]internal abstract class StageBase : Scene<br/>
+{<br/>
+internal StageBase(Game game)<br/>
+{<br/>
+Game = game;<br/>
+}</p>
+<pre><code>protected Game Game { get; private set; }
+
+internal abstract void Start();
+
+internal abstract void Stop();
+</code></pre>
+<p>}[/code]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

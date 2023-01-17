@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Inconsistent use of OnMarkedDirty?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Inconsistent use of OnMarkedDirty?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Learning about components, and I encountered this concept of a ‘dirty node’. Basically, a scene node stores its position relative to the root scene node (aka the ‘world transform’ of the scene node), and when its local position (relative to its parent scene node) changes, the world transform is no longer accurate. That inaccuracy means the scene node is ‘dirty’, and it gets ‘cleaned’ by updating the stored world transform with <code>Node::UpdateWorldTransform()</code>.</p>
+<p>Components, which are attached to nodes, have the option (i.e. the implementer of a Component has the option) to respond to a node being made dirty, with the virtual function <code>Component::OnMarkedDirty()</code>. However, the calls to <code>OnMarkedDirty()</code> in Node.cpp seem inconsistent. There are only three calls:</p>
+<ul>
+<li>in <code>Node::AddListener()</code>, when a component is added as a listener to a node then if the node is dirty <code>OnMarkedDirty()</code> will be called right away; supposedly the whole point of components ‘listening’ to arbitrary nodes is for being able to respond when those nodes become dirty (or enabled/disabled)</li>
+<li>that idea is backed up by the second call, in <code>Node::MarkDirty()</code> (name is self-explanatory), where all of the node’s listener components call <code>OnMarkedDirty()</code>
+</li>
+<li>the third call, however… is in <code>Node::AddComponent(...)</code>; but nowhere do I see a component being added as a listener to the node that owns it</li>
+</ul>
+<p>Note: yes, nodes both own components, and have a list of other (owned and unowned) components called ‘listeners’. Separate lists</p>
+<p>So, why is <code>OnMarkedDirty()</code> called in <code>AddComponent()</code>, if a component doesn’t listen to its own node unless explicitly told to?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>This is a component based lib. Visual and  behavior are driven at component level.</p>
+<p>Please correct me if I’m wrong, I think the node is listening to the component rather than component listening to a node.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I have spent 5 mins looking at the code and I failed to find plausible answer.<br/>
+Could be historical artifact. Could be some non-trivial scenario.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>The node maintains a list of ‘listeners’, which are components that listen to the node. The purpose is knowing when the node is dirty.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Checked the git blame, it looks like an 8yr old mistake. I guess OnMarkedDirty() doesn’t get used very much.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Maybe the big fish, Lasse, can answer this.<br/>
+OnMarkDirty can be a performance issue in some components e.g. splinepath.  You don’t want to call it in every update.  In some situations (e.g. splinepath component), manually update is needed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Well the question here is why it gets called when a component is added to a node, even if that component isn’t listening to the node.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>I think components hold reference to the node.  So any change to the component surely updates the node.  Again let Lasse answer this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><code>markedDirty_</code> plays an important role in network replication as well:</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Scene/Component.cpp#L200</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="190" style="counter-reset: li-counter 189 ;">
+<li>    {
+</li>
+<li>        networkState_-&gt;previousValues_[i] = networkState_-&gt;currentValues_[i];
+</li>
+<li>
+</li>
+<li>        // Mark the attribute dirty in all replication states that are tracking this component
+</li>
+<li>        for (PODVector&lt;ReplicationState*&gt;::Iterator j = networkState_-&gt;replicationStates_.Begin();
+</li>
+<li>             j != networkState_-&gt;replicationStates_.End(); ++j)
+</li>
+<li>        {
+</li>
+<li>            auto* compState = static_cast&lt;ComponentReplicationState*&gt;(*j);
+</li>
+<li>            compState-&gt;dirtyAttributes_.Set(i);
+</li>
+<li>
+</li>
+<li class="selected">            // Add component's parent node to the dirty set if not added yet
+</li>
+<li>            NodeReplicationState* nodeState = compState-&gt;nodeState_;
+</li>
+<li>            if (!nodeState-&gt;markedDirty_)
+</li>
+<li>            {
+</li>
+<li>                nodeState-&gt;markedDirty_ = true;
+</li>
+<li>                nodeState-&gt;sceneState_-&gt;dirtyNodes_.Insert(node_-&gt;GetID());
+</li>
+<li>            }
+</li>
+<li>        }
+</li>
+<li>    }
+</li>
+<li>}
+</li>
+<li>
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

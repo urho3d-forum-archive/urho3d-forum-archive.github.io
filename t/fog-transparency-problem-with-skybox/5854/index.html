@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Fog transparency problem with Skybox</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Fog transparency problem with Skybox</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I am trying to add skybox into my scene, but looks the Zone fog is buggy. Its always opaque, that doesnt makes sense for me, coz the result is very ugly.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox" href="https://puu.sh/F5dtZ/9dee70ed20.png" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/0c4f84e42553b129aa0a5d7f85eabc6a.png" width="649"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">786×605</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>As you can see, the distance fog isnt setting a transparency. I already tried to set Fog color for 0,0,0,0, but didnt work. I already tried to change the pixel shader part, but when I set some alpha value, didnt work too.</p>
+<p>How I can solve this problem? I am using OpenGL, already tried with Directx, same issue.<br/>
+Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="5854" data-username="dev4fun">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6df1fe13ae3a31e86f42534520c3ac8e.png" width="20"/> dev4fun:</div>
+<blockquote>
+<p>that doesnt makes sense for me</p>
+</blockquote>
+</aside>
+<p>How “transparent fog” is supposed to work from technical point of view? You cannot magically transform opaque material into transparent one. And even if all your materials are transparent, transparent fog color will <em>not</em> look like what you want.</p>
+<p>If you want to get “skybox-colored” fog, you have to sample skybox texture in every single shader and use this sampled value instead of fog color.</p>
+<p>Or you have to run separate post-processing and blend final image into skybox basing on depth.</p>
+<p>Both options are not cheap at all. I don’t know any game engine that has transparent fog as you described.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>On forward rendering I expected the sky box it’s the latest thing being drawn, this way, if I set some alpha value on any object at pixel shader color, I thought that alpha should be applied on scene, but isn’t. (Something like DiffAlpha).</p>
+<p>What I said about transparency fog is something like I did on my rendering engine:<br/>
+<a class="onebox" href="https://puu.sh/F5mYC/6295b385d7.png" rel="nofollow noopener" target="_blank">
+<img height="500" src="../../../images2/4106c0f89d116ffda3efef6e8f828ec9.png" width="682"/>
+</a>
+</p>
+<p>As you can see, objects that r far away, an alpha value is applied on pixel shader. I do this on this way:</p>
+<pre><code>//Shaded Color
+float4 shadedColor = textureColor + specular;
+float transparency = DiffuseColor.a - ApplyDistanceFade(input.viewPosition, FogEnd);
+
+//Apply Diffuse Color
+shadedColor *= DiffuseColor;
+
+#ifdef REFLECTION	
+	shadedColor.rgb += reflectionColor * 0.4f;
+#endif
+
+return float4(shadedColor.rgb,transparency);
+</code></pre>
+<p>For this I asked if its possible on Urho, in my opinion, it’s much more beautiful.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="5854" data-username="dev4fun">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6df1fe13ae3a31e86f42534520c3ac8e.png" width="20"/> dev4fun:</div>
+<blockquote>
+<p>What I said about transparency fog is something like I did on my rendering engine</p>
+</blockquote>
+</aside>
+<p>And here is the reason why it’s not viable<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="NXEc1l27xwHQON9m1bWDm9e2hl"  height="500" src="../../../images2/dd185f69cccb529209abb01c04b263f7.jpeg" width="505"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">image</span><span class="informations">590×584 137 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Do you see how objects are ghosting and visible thru each other?<br/>
+It is unavoidable artifact of transparent fog color.<br/>
+That’s probably the reason why no game engine supports it.</p>
+<aside class="quote no-group" data-post="3" data-topic="5854" data-username="dev4fun">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6df1fe13ae3a31e86f42534520c3ac8e.png" width="20"/> dev4fun:</div>
+<blockquote>
+<p>On forward rendering I expected the sky box it’s the latest thing being drawn, this way, if I set some alpha value on any object at pixel shader color, I thought that alpha should be applied on scene</p>
+</blockquote>
+</aside>
+<p>I don’t get how it should work.<br/>
+Object alpha color determines how much the object will blend into already rendered objects.<br/>
+If skybox is the latest thing rendered, object cannot blend into skybox regardless of object’s alpha.<br/>
+You need to render skybox first if you want to blend into it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>What about doing it through a post processing pass by reading the depth buffer to determine the fog (skybox) weight in the scene? Then you would still draw everything normally before that and shouldn’t run into the ghostly looking objects (other than that they blend with the sky)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Maybe it would look best if objects faded to a fog color first (up until, let’s say, approximately three quarters the fog distance) only mixing in the sky beyond that point?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hm ye, that artifact sucks, but I still prefer this way haha.</p>
+<p>Btw I am not familar to Urho rendering yet, but later 'll try something, I dont know what’s the best way to follow, if it’s hard etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I think you are trying to solve the problem from wrong end.<br/>
+It’s much simpler to change skybox so it has constant (e.g gray-ish) color near the horizon than to blend objects.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>This is the solution I’ve adopted for may game, however, the problem with it is if you have tall objects or mountains in the landscape which stick out of the horizon, then the illusion breaks up.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I think you might be able to achieve the effect you want by modifying the Skybox fragment shader to render a mix of the skybox texture and the geometry already rendered. You need to read the depth buffer and then set the skybox transparency inversely proportional to the depth value, so that the skybox is completely transparent close by and opaque far away and a range in between. This means you don’t need the Fog effect build in Urho and should disable it.</p>
+<p>The problem with this is that the skybox is rendered last (I think) in the opaque pass, so the effect will not work for transparent objects which are rendered afterwards.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hmm good solution, thanks for idea. Have you implemented this idea?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>No, the exact algorithm only occurred to me as I was reading through this thread <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/> , however, I did, in the past, want to do something like what you want to achieve, a blend between the skybox and world objects, but I just couldn’t come up with the right solution at the time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>I solved the problem using the technique with Alpha pass and setting the depthwrite for true. On shaders I just needed to change the out color of Pixel Shader to use diffColor.a * fogFactor.</p>
+<p>For now is working very well, if I feel something is wrong and get worse, probably I will back to the old way…</p>
+<p> <a class="onebox" href="https://puu.sh/FvXOK/99c7e55849.png" rel="nofollow noopener" target="_blank">
+<img height="500" src="../../../images2/a616f7e16f2f5890eb91f1f78575f4d3.png" width="666"/>
+</a>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="13" data-topic="5854" data-username="dev4fun">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6df1fe13ae3a31e86f42534520c3ac8e.png" width="20"/> dev4fun:</div>
+<blockquote>
+<p>using the technique with Alpha pass</p>
+</blockquote>
+</aside>
+<p>By this you’re talking about on the skybox, or on every object’s material in the game? If it’s the latter I feel like that might have a performance impact. Though I’m glad you got it working, it looks pretty nice in that image!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>On every object’s material, I believe would have a performance impact ye, but for now, isn’t a really problem. Probably I will come back to this issue in the future for a better solution.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Is it acceptable that the fog is basically wallhack that let players see thru the objects?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dev4fun</div>
+          <div class="post_content">
+<p>Hmm for this type of game yes, we r talking about MMORPG, so doesnt really matters this problem.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>RefCount performance</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">RefCount performance</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I have some thoughts on how reference counting is implemented.</p>
+<p>As of now, for every object in Urho3D that inherits from <code>RefCounted</code> (so nearly everything in the engine and most of the stuff in a user’s application) there will be two calls to malloc. One to allocate the object and another for allocating the <code>RefCount</code> object: <a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/blob/master/Source/Urho3D/Container/RefCounted.cpp#L33</a></p>
+<p>The question here is: Is calling malloc twice having any impact on performance? Or are there other things that outweigh the cost of allocating?</p>
+<p>If this is a concern, then I have two ideas. The first is to inline <code>refs_</code> and <code>weakRefs_</code> into RefCounted and get rid of <code>RefCount</code> entirely. In order for weakrefs to still work, the conditions for when the object is destructed and freed would have to be modified: Call the destructor when <code>refs_</code> reaches zero, free the memory when <code>weakRefs_</code> reaches zero. This has the advantage of only having a single malloc call and the refcounts are located close to the object itself which makes the cache more coherent. The disadvantage is the additional delete logic, having to overload operator new, and the object remains allocated as long as there are weak references pointing to it.</p>
+<p>Another idea might be to have a memory pool for <code>RefCount</code> objects. This would improve allocation speed but the refcount would be located far away from the object in memory, which is bad news for the cache whenever you modify the refcounts.</p>
+<p>I’d like to hear your thoughts. Maybe this whole thing is also not an issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="4273">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/12a1dc2eccbee0e3555e7cc3e716f46e.png" width="20"/> TheComet:</div>
+<blockquote>
+<p>The first is to inline <code>refs_</code> and <code>weakRefs_</code> into RefCounted and get rid of <code>RefCount</code> entirely. In order for weakrefs to still work, the conditions for when the object is destructed and freed would have to be modified: Call the destructor when <code>refs_</code> reaches zero, free the memory when <code>weakRefs_</code> reaches zero.</p>
+</blockquote>
+</aside>
+<p>Once you called dtor, you are not allowed to read or modify any part of the object.<br/>
+/&gt;</p>
+<aside class="quote no-group" data-post="1" data-topic="4273">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/12a1dc2eccbee0e3555e7cc3e716f46e.png" width="20"/> TheComet:</div>
+<blockquote>
+<p>Another idea might be to have a memory pool for <code>RefCount</code> objects.</p>
+</blockquote>
+</aside>
+<p>Once you have global pool for something, you must care about threading. So it should be thread-local pool. Not so easy, questionable performance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Either way you go there’s something to be lost. Threading issues with memory pools, memory issues with moving it into the same class.</p>
+<p>And if you try to do it like a shared pointer thing where you store the counter and instance in the same structure to be near each-other, you end up “leaking” memory because if there’s still a weak reference you can’t release the counter and thus you can’t release the memory for the actual instance. Not to mention that you get a few inconveniences.</p>
+<p>Either way it gets nasty. That’s why <code>shared_ptr</code> and similar smart pointers use a similar counter that is allocated separately. And <code>ReferenceCounted</code> is no different than that.</p>
+<p>If you do have a memory allocator that can allocate the counter  near the instance, you could just overwrite the <code>new</code> operator to replace the default behavior. Should reduce the number of changes to be made to existing code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="4273" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Once you called dtor, you are not allowed to read or modify any part of the object.</p>
+</blockquote>
+</aside>
+<p>Good point. Maybe it’s possible to do as <span class="mention">@S.L.C</span> said, somehow allocate RefCount near the object being refcounted. Or perhaps even allocating a larger block of memory to fit both and constructing them next to each other?</p>
+<aside class="quote no-group" data-post="3" data-topic="4273" data-username="S.L.C">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/aa1895aba5007d63790c391fb6bef3db.png" width="20"/> S.L.C:</div>
+<blockquote>
+<p>And if you try to do it like a shared pointer thing where you store the counter and instance in the same structure to be near each-other, you end up “leaking” memory because if there’s still a weak reference you can’t release the counter and thus you can’t release the memory for the actual instance.</p>
+</blockquote>
+</aside>
+<p>In the grand scheme of things, this probably won’t matter too much for two reasons: 1) weak references aren’t <em>that</em> common and 2) the refcounted objects all have a relatively small memory footprint. I can’t think of any single Urho class that requires over, say, 1kB of memory when allocated.</p>
+<p>I’m just thinking out loud here. I’ll have to actually do some measurements.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="4273">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/12a1dc2eccbee0e3555e7cc3e716f46e.png" width="20"/> TheComet:</div>
+<blockquote>
+<p>Or are there other things that outweigh the cost of allocating?</p>
+</blockquote>
+</aside>
+<p>You know, we have 50% single-threaded rendering with constant memory reallocation for per-batch instancing buffers…</p>
+<p>Every time I see yet another thread about optimizing refcnt, or optimizing string copies, or complains about probably slow new attributes, I want to say “Sweet summer child…”</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1164_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">orefkov</div>
+          <div class="post_content">
+<p>Imho, by optimizing refcount allocation in 100 times, common programm performance increased by 0.01%<br/>
+Do you have profiled tests telling that It is bottleneck for engine?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="6" data-topic="4273">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/9f00551e78b4b4b1725a5dff4ab7a087.png" width="20"/> orefkov:</div>
+<blockquote>
+<p>Imho, by optimizing refcount allocation in 100 times, common programm performance increased by 0.01%<br/>
+Do you have profiled tests telling that It is bottleneck for engine?</p>
+</blockquote>
+</aside>
+<p>memory fragmentation is problem also</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cosar</div>
+          <div class="post_content">
+<p>I think cache misses and memory fragmentation can lead to performance issues and should not be neglected. On top of that, proper profiling on core mechanics is hard to achieve, so it’s very difficult to asses the impact.<br/>
+There might be another way that will avoid double allocation and non-contiguous memory, and without detaching the destructor from the deallocation.<br/>
+Instead of a weak reference counter, we can have a weak reference double linked list (weak_ptr containing node information), with the head kept in RefCounted. The penalty is a tail insert at weak reference creation, a node removal at breaking the weak reference, and a list traversal at object destruction (when strong refs go to zero) to invalidate existing weak refs.<br/>
+The assumption is that weak references are used just occasionally to break circular dependencies and that most objects don’t have weak refs to them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Actually after using std::make_shared() memory is freed only after all weak_refs is deleted, so we can do the same and just move refcounters into objects</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cosar</div>
+          <div class="post_content">
+<p>That’s what TheComet’s first proposal was (and the easiest to implement). If delayed memory freeing is not an issue, then this looks like the best approach.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

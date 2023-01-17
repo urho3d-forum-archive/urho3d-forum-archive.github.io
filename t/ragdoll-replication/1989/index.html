@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Ragdoll replication?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Ragdoll replication?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">krokodilcapa</div>
+          <div class="post_content">
+<p>Hi!</p>
+<p>I’ve tried to replicate ragdolls, but on the client side it doesn’t work. How can I replicate manual controlled bones?<br/>
+Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Just a side note - games usually make ragdolls a client-side effect because they’re expensive to network.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">krokodilcapa</div>
+          <div class="post_content">
+<p>I know, but in my case there wouldn’t be too lot ragdolls - only a few one in one time. By the way, there are ways to optimize networked physics: for example send  body orientations and positions only when it changed since the last time, and also give a treshold of changes (so send message only if a body moved more than 5cm since the last message)<br/>
+I don’t know yet if Urho already using this kind of optimizations, I just wanted to know first that why don’t it working while simple bodies seems to works online, like a simple box with rigid body, or the ball in the Scene Replication sample.<br/>
+Anyway, I’ve took a small look on the code, and found “Create bones as local, as they are never to be directly synchronized over the network” so maybe the reason why the way of ragdoll in the CreateRagdoll sample not working online, because I creating the ragdoll bodies to only server side node’s child?<br/>
+I have to dig more into the Urho code of course, but I hoped that this question will save some time for me, maybe I just didn’t noticed a function what enables manually controlled bone replication?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>What Enhex said. Is replicating ragdoll state essential to gameplay? If not - you dont have to go through pains to synchronize it because it really is pointless.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>For API completeness it could make sense to optionally allow the skeleton bones to be created replicated, with the caveat that you’re likely making a bad decision regarding bandwidth use.</p>
+<p>Another possibility is that you write your own network message to manually sync a skeleton and you simply send that from the server periodically according to your own update logic.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">krokodilcapa</div>
+          <div class="post_content">
+<p>Thanks Lasse, I planned the second possibility, what you’ve wrote, but I wanted make sure if I just missed some enable/disable function for that bone replication or not.<br/>
+Anyway, as I know Bullet has a possibility to set the physics calculation to fix on server and client side too, so it should be the same (at least very closely) results on both sides. The base replication (like the balls in the Scene Replication sample) uses this way, or server sends the body positions/rotations to the client side object’s “fake” physics body? And if the second one used, then can you confirm if there are this kind of optimizations what I’ve wrote before - change threshold, and message only on non-sleeping bodies?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There is no change threshold, so any time the position or rotation changes even slightly, a message is sent on the next network “frame”. Sleeping bodies don’t change the transform so they also don’t generate messages.</p>
+<p>You have the option to create rigidbody / collisionshape as local on the server to avoid creating the body on client (in this case linear/angular velocities don’t have to be replicated to client, saving some bandwidth) But by default the rigidbody is just as “real” on the client, and I’d suspect that for ragdolls physics you need that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">krokodilcapa</div>
+          <div class="post_content">
+<p>Allright, my final (sor far) concept will be the next:<br/>
+I’ll keep the bones as local, and when ragdoll is active, the server will send only the current moving ragdoll bone’s position and rotation to the clients (using flags so client will know which bone need to update from the message). I will use a small threshold for positions and rotations too, and also a slow rate for the message sending, but the client side ragdoll bones will interpolate between the latest positions, so I avoid the spectacular lagging.<br/>
+Then I’ll see how much I hit the data traffic  <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/> But as I said there won’t be too much ragdolls in one time…</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

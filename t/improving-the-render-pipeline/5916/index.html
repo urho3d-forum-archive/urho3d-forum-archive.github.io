@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Improving the render pipeline</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Improving the render pipeline</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="15" data-topic="5913" data-username="Modanung">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8d8b355ba34b4e347e81eaaa2cb3b7b0.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>The subjective validity of your statement also depends on what one considers to be “functional changes <em>in</em> Urho”. It is in the lightweight bare-bones nature of Urho for its functionality to expand in the peripherals.</p>
+</blockquote>
+</aside>
+<p>Said it before. If you cannot implement some simple task without deep changes in the engine, it’s not really “lightweight”, it’s “missing features”. Or outright missing features, e.g. no networking in Web builds. I don’t mean Urho cannot be used. It totally can and Urho community prove it. But it would be lie to say that Urho don’t miss anything.</p>
+<p>Also, only a person who never looked at Urho renderer code can call it “lightweight”. It’s complicated as hell. Ever looked at View.cpp/Batch.cpp?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="5916" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Also, only a person who never looked at Urho renderer code can call it “lightweight”. It’s complicated as hell. Ever looked at View.cpp/Batch.cpp?</p>
+</blockquote>
+</aside>
+<p>Some things like the logic for pingponging postprocess buffers is definitely not clear or lightweight, instead it’s just very hardcoded and there’s an element of “magic” to it, which is not nice to have.</p>
+<p>One thing which I pondered as a simpler replacement was having high-level helper operations (ie. collect visible objects, collect light interactions, render a collection of objects…) in the Renderer which could be used to make your custom render process in code, somewhat like Unity’s Scriptable Render Pipelines are today. Back when I worked on it, Turso3D went a bit into this direction, but didn’t get very far.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="5916" data-username="cadaver">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>One thing which I pondered as a simpler replacement was having high-level helper operations (ie. collect visible objects, collect light interactions, render a collection of objects…) in the Renderer which could be used to make your custom render process in code, somewhat like Unity’s Scriptable Render Pipelines are today</p>
+</blockquote>
+</aside>
+<p>This sounds quite close to what I meant here:</p>
+<aside class="quote no-group" data-post="74" data-topic="5872" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/><a href="https://discourse.urho3d.io/t/migration-from-custom-container-library-to-augmented-eastl/5872/74">Migration from custom container library to augmented EASTL</a>
+</div>
+<blockquote>
+<p>I have several ideas how to change renderer, but I will not make any plans or promises until I confirm they will work out well.<br/>
+I want to try one radical approach, but it will require huge commitment of effort and therefore you will not get any updates in the nearest months about it.</p>
+</blockquote>
+</aside>
+<p>Since you are here, maybe you can share some thoughts?</p>
+<p>There are a lot of issues (or so I think) in the renderer.<br/>
+Going from top to bottom:</p>
+<ol start="0">
+<li>Hard to extend and configure render paths, need an instance for each permutation. E.g. if I want to choose between sRGB and RGB with just a flag, or I want optional GBuffer layer for Deferred, I need to clone RP. We have it now with e.g. Forward/ForwardDepth</li>
+<li>There is no per-view-per-drawable state, essentially making things like smooth LOD transitions very hard to implement in multi-view use cases.</li>
+<li>Drawables store a lot of temporary View-specific data used only in rendering.</li>
+<li>Vertex lights fall back into pixel lights (lolwat) instead of spherical harmonics (cannot really blame Urho because there were no SH back then, but still an issue)</li>
+<li>Hardcoded vertex and pixel shader permutations, missing automatic shader defines. E.g. I want shader to automatically get defines like <code>PASS_LITBASE</code>, <code>TEXTURE_DIFFUSE</code> or <code>INPUT_NORMAL</code>. If we had it, there would be no need to have 100 techniques for each permutation.</li>
+<li>Almost zero caching of computations done in View/Batch.cpp, even if result is the same for consequent frames.</li>
+<li>Uniform Buffers are used in the way opposite to how they are supposed to be used. No wonder they are slower on OpenGL and are disabled there.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Not really other ideas, but I thought of the default shaders (ie. LitSolid) being quite monstrous and that it would have been nicer to have shader per purpose, like DiffuseTextured, NormalMappedTextured and possibly get rid of Techniques altogether at same time. Shaders could have then definitions (either automatically or manually) what requirements they have for textures / vertex input streams.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="5916" data-username="cadaver">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>but I thought of the default shaders (ie. LitSolid) being quite monstrous and that it would have been nicer to have shader per purpose, like DiffuseTextured, NormalMappedTextured and possibly get rid of Techniques altogether at same time</p>
+</blockquote>
+</aside>
+<p>How would you avoid copy-paste in such shaders?<br/>
+Even if you extract everything into functions… Well, we already extracted pretty much everything into functions. And LitSolid is still quite huge. Shall we split it, there would be a lot of repeating lines in all variations.</p>
+<p>It’s also not clear what configuration deserves separate shader and what configuration shall be just a define. How many variations should spawn from just LitSolid?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I think, using utility functions where possible.</p>
+<p>However, I see how shaders are split more as a content choice, the engine shouldn’t need to mandate it either way, just be able to configure whatever it wants out of the shader (like the light type or shadowing on/off). Ideally I always saw whatever Urho included just as an example shader, and the user writing their real shaders <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p>Having deferred / forward embedded in same material or shader is also potentially cumbersome no matter how you look at it.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ResourceCache returning WeakPtrs</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ResourceCache returning WeakPtrs</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>I was wondering whether it would be worth moving the ResourceCache to use WeakPtrs instead of raw now we’ve moved Events and Variant over? If there are any implications around it (haven’t tried, currently on a trip).</p>
+<pre><code class="lang-auto">template&lt;typename T&gt;
+WeakPtr&lt;T&gt; GetResource(String name);
+
+template&lt;typename T&gt;
+WeakPtr&lt;T&gt; GetResource(char* name);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It’s slightly different. Variant pointers in the events used to be void pointers, which would need to be unsafely cast to an object type you had to practically guess. In this case it’s good to have the object references as WeakPtr’s because the lifetime of the Variant or VariantMap is unknown, and can possibly outlive the object being pointed to.</p>
+<p>On the other hand, when we’re requesting a resource, we can be sure it won’t be immediately be blown away from under our feet, because the ResourceCache itself holds a SharedPtr to it. Using raw pointers in the majority of function parameters or return values (scene manipulation, resources etc.) makes the functions easier to expose to script. The caller can also immediately convert the raw pointer to a SharedPtr or WeakPtr at will, because they’re intrusively counted and the refcount structure always comes with the object itself.</p>
+<p>As a summary: I don’t see a need for this change now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Azalrion</div>
+          <div class="post_content">
+<p>Good enough for me, the only case where they could be considered unsafe is after ReleaseAllResources but I expect that could be classed as a programming error trying to access a saved raw pointer after calling that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Right, certainly I would never recommend holding a raw pointer to a resource for example as a member variable, in that case either SharedPtr or WeakPtr is more appropriate.</p>
+<p>In AngelScript a handle will automatically act like a SharedPtr. The Lua bindings, on the other hand, are somewhat evil in this respect, because either an object will be auto-garbage collected (this is never used for something the engine returns to you, like resources) or it simply doesn’t care of the object lifetime and expects the pointer to stay valid.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OvermindDL1</div>
+          <div class="post_content">
+<p>The LUA bindings I have used before (the ones that were ported from boost::python, whatever it was called, this was years ago), handled lifetime management better than that as I recall?  Maybe see how it did it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>Right, certainly I would never recommend holding a raw pointer to a resource for example as a member variable, in that case either SharedPtr or WeakPtr is more appropriate.</p>
+</blockquote>
+</aside>
+<p>I agree with that and your summary in earlier post. That said, I have observed in a very few places in our code that a raw resource pointer is being converted into SharedPtr in a locally scoped variable. I am asking myself whether that is really necessary. The reference count would be decremented when the variable goes out of scope but, as you said, the actual resource is still being cached in the ResourceCache as it still holds a SharedPtr to it. For example:</p>
+<ul>
+<li>In Texture3D::Load(Deserializer&amp; source) method. The pointer conversion is required could be because of Texture3D::Load(SharedPtr image, bool useAlpha) needs it. But why the latter needs it to be SharedPtr?</li>
+<li>In HelloGUI::Start() method.</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The Texture2D load function uses SharedPtr to automate memory management when it needs to request lower sized mips from Image. In that case the initial image pointer is overwritten with each smaller mip, and as the loading proceeds, each previous intermediate mip is automatically freed. That could however be refactored to take the initial image as a raw pointer, and use the SharedPtr in the mip loading loop only.</p>
+<p>HelloGUI code is simply non-idiomatic code and needs to be refactored so that unnecessary refcount management and giving an overly convoluted example is avoided.</p>
+<p>EDIT: took a detailed look, having Texture2D/3D/Cube take in an image raw pointer would potentially be dangerous, or need making the code a lot more complicated. As the mip loop promotes the image to shared pointer, it has the danger of deleting the image if it was not held in a shared pointer to begin with, and in that sense it’s better to make it explicit in the function signature that a SharedPtr is being used.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Many thanks for the detail explanation, I have overlooked the mip looping part.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

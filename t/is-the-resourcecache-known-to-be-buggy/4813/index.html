@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Is the ResourceCache known to be buggy?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Is the ResourceCache known to be buggy?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Using SharpReality/C#, running on Hololens.</p>
+<p>Have been working a lot with <a href="https://github.com/xamarin/urho-samples/tree/master/FeatureSamples/Core/43_BasicTechniques" rel="nofollow noopener">this sample</a>, and about every other launch, there is an exception thrown when working with the ResourceCache on the fly.</p>
+<p>So if running in a loop, code like this frequently throws an exception:</p>
+<pre><code class="lang-auto">earthModel.SetMaterial(ResourceCache.GetMaterial($"Sample43/Mat{material}.xml", sendEventOnFailure: false));
+</code></pre>
+<p>However, if I pre-populate the ResourceCache with code like this:</p>
+<pre><code class="lang-auto">            var materials = new string[,]
+            {
+                { "NoTexture", "NoTextureUnlit", "NoTextureNormal", "NoTextureAdd", "NoTextureMultiply" },
+                { "Diff", "DiffUnlit", "DiffNormal", "DiffAlpha", "DiffAdd" },
+                { "DiffEmissive", "DiffSpec", "DiffNormalSpec", "DiffAO", "DiffEnvCube" },
+                { "Water", "Terrain", "NoTextureVCol", "Default", "CustomShader" },
+            };
+
+            for (int i = 0; i &lt; materials.GetLength(1); i++)
+                for (int j = 0; j &lt; materials.GetLength(0); j++)
+                    var throwMeAway = Application.ResourceCache.GetMaterial($"Sample43/Mat{materials[j, i]}.xml", sendEventOnFailure: false);
+'''
+
+Then the exceptions go away.</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Last time I checked, Urho does not throw exceptions. So if there is an exception, it could be thrown by the bindings that you’re using. In which case you can’t really blame Urho since it isn’t something from the engine itself.</p>
+<p>Also <code>throws an exception</code> is a bit vague. As sometimes different exceptions have different meanings. Which is supposed to narrow the hunt for issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>My hurried description … actually it results in memory access violations. But here’s how Visual Studio outputs the error in debug mode:</p>
+<p>Exception thrown: ‘System.AccessViolationException’ in Urho.dll<br/>
+An unhandled exception of type ‘System.AccessViolationException’ occurred in Urho.dll<br/>
+Attempted to read or write protected memory. This is often an indication that other memory is corrupt.</p>
+<p>In  order to generate this error, on demand, in the <a href="https://github.com/xamarin/urho-samples/blob/master/FeatureSamples/Core/20_HugeObjectCount/HugeObjectCount.cs" rel="nofollow noopener">Feature Sample Huge Object coun</a>t,  at this point:</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/FeatureSamples/Core/20_HugeObjectCount/HugeObjectCount.cs#L157" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/FeatureSamples/Core/20_HugeObjectCount/HugeObjectCount.cs#L157" rel="nofollow noopener" target="_blank">xamarin/urho-samples/blob/b72d055a424d0e6be825c0239683c225d29ee723/FeatureSamples/Core/20_HugeObjectCount/HugeObjectCount.cs#L157</a></h4>
+<pre class="onebox"><code class="lang-cs"><ol class="start lines" start="147" style="counter-reset: li-counter 146 ;">
+<li>					for (int x = -125; x&lt; 125; ++x)</li>
+<li>					{</li>
+<li>						// Create new group if no group yet, or the group has already "enough" objects. The tradeoff is between culling</li>
+<li>						// accuracy and the amount of CPU processing needed for all the objects. Note that the group's own transform</li>
+<li>						// does not matter, and it does not render anything if instance nodes are not added to it</li>
+<li>						if (lastGroup == null || lastGroup.NumInstanceNodes &gt;= 50 * 50)</li>
+<li>						{</li>
+<li>							using (var boxGroupNode = scene.CreateChild("BoxGroup"))</li>
+<li>							{</li>
+<li>								lastGroup = boxGroupNode.CreateComponent&lt;StaticModelGroup&gt;();</li>
+<li class="selected">								lastGroup.Model = cache.GetModel("Models/Box.mdl");</li>
+<li>							}</li>
+<li>						}</li>
+<li>
+</li>
+<li>						var boxNode = scene.CreateChild("Box");</li>
+<li>						boxNode.Position = new Vector3(x*0.3f, 0.0f, y*0.3f);</li>
+<li>						boxNode.SetScale(0.25f);</li>
+<li>						boxNodes.Add(boxNode);</li>
+<li>						lastGroup.AddInstanceNode(boxNode);</li>
+<li>					}</li>
+<li>				}</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>I inserted this line:</p>
+<pre><code class="lang-auto">lastGroup.Material = Material.FromColor(Randoms.NextColor());
+</code></pre>
+<p>And sure enough, out pops the violation.</p>
+<p>I’m starting to suspect it’s not related to the ResourceCache, but to the Material class.</p>
+<p>This is that code:</p>
+<pre><code class="lang-auto">		{
+			var material = new Material();
+			var cache = Application.Current.ResourceCache;
+			float tolerance = 0.001f;
+			if (unlit)
+				material.SetTechnique(0, Math.Abs(color.A - 1) &lt; tolerance ? CoreAssets.Techniques.NoTextureUnlit : CoreAssets.Techniques.NoTextureUnlitAlpha, 1, 1);
+			else
+				material.SetTechnique(0, Math.Abs(color.A - 1) &lt; tolerance ? CoreAssets.Techniques.NoTexture : CoreAssets.Techniques.NoTextureAlpha, 1, 1);
+			material.SetShaderParameter("MatDiffColor", color);
+			return material;
+		}
+</code></pre>
+<p>Then .SetTechnique</p>
+<pre><code class="lang-auto">public void SetTechnique (uint index, Technique tech, uint qualityLevel = 0, float lodDistance = 0f)
+		{
+			Runtime.ValidateRefCounted (this);
+			Material_SetTechnique (handle, index, (object)tech == null ? IntPtr.Zero : tech.Handle, qualityLevel, lodDistance);
+		}
+</code></pre>
+<p>And SetShaderParameter</p>
+<pre><code class="lang-auto">		{
+			Runtime.ValidateRefCounted (this);
+			Material_SetShaderParameter2 (handle, name, ref value);
+		}
+</code></pre>
+<p>And the ValidateRefCounted</p>
+<pre><code class="lang-auto">		// for RefCounted, UrhoObjects
+		internal static void ValidateRefCounted&lt;T&gt;(T obj, [CallerMemberName] string name = "") where T : RefCounted
+		{
+			//TODO: remove ValidateRefCounted from IsExiting in the Binder
+			if (name == "IsExisting")
+				return;
+
+			if (IsClosing)
+			{
+				var errorText = $"{typeof(T).Name}.{name} (Handle={obj.Handle}) was invoked after Application.Stop";
+				LogSharp.Error(errorText);
+				throw new InvalidOperationException(errorText);
+			}
+			if (obj.IsDeleted) //IsDeleted is set to True when we receive a native callback from RefCounted::~RefCounted
+			{
+				var errorText = $"Underlying native object was deleted for Handle={obj.Handle}. {typeof(T).Name}.{name}";
+				LogSharp.Error(errorText);
+				throw new InvalidOperationException(errorText);
+			}
+			//if (obj.Handle == IntPtr.Zero)
+			//{
+			//}
+			//TODO: check current thread?
+		}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Haven’t researched this through the SharpReality implementation but notice this:</p>
+<p>using for example:</p>
+<p>var mat = Material.FromColor(Randoms.NextColor());<br/>
+object.Material = mat;</p>
+<p>is more stable than using</p>
+<p>object.SetMaterial(Material.FromColor(Randoms.NextColor());</p>
+<p>Meaning, some seemingly random exceptions stop when all the .SetMaterial() calls are converted to Material =.</p>
+<p>Still prepopulating the ResourceCache though.</p>
+<p>And a second area of random exceptions is around execution on the main thread vs background threads.  This exception isn’t well exposed to the developer when it happens. I tend to see memory access violations as the clue that it’s happening, and go look in the code for something affecting the GUI running on a background thread.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Want to add a followup to this.</p>
+<p>I’ve successfully reduced the issues my code experienced down to zero. And have changed my mind the resource cache might be buggy.</p>
+<p>There were two primary issues occurring in my code, due to my own mistakes. The first is uncleaned actions still running on nodes that were deleted, and this at times corrupts or complains on memory access. The second is calling functions that affect the UI from a background thread, rather than invoking on the main thread.</p>
+<p>After fixing these issues, at this time no unexplained exceptions are happening, at least regarding Materials creation and the resource cache.</p>
+<p>The constantly recurring exception pointed out above that happens consistently with a code change to the Huge Object Count feature sample, to paint each box a different color, will still happen at times, but typically passes the first time. So likely it is still something in my code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Want to add a bit more about materials.</p>
+<p>Scenario:</p>
+<ol>
+<li>Created a new class, and inherit from Component, the class is a simple box that changes colors</li>
+<li>In OnUpdate method choose the material based on some setting that frequently changes</li>
+</ol>
+<p>So the box.Material = matA, or = matB, or = matC.</p>
+<p>This frequently throws exceptions. And found the exception is because when re-using the material, say matA or matB or matC, the material is found in the IsDeleted state.</p>
+<p>The class creates a reference to each material in the OnAttachedToNode method in a class variable.</p>
+<p>To address this exception, after assigning the material, for instance using:</p>
+<pre><code class="lang-auto">matA = Material.FromColor(Color.White);
+</code></pre>
+<p>it is necessary to add this line:</p>
+<pre><code class="lang-auto">matA.AddRef();
+</code></pre>
+<p>So it seems there is an aggressive cleanup or garbage collection that does not respect the class variable holding the reference to the material, and cleans it up as soon as the box is assigned a new material.</p>
+<p>so this code</p>
+<pre><code class="lang-auto">box.Material = matA; 
+... //after some other code executes
+box.Material = matB;
+</code></pre>
+<p>The next access to matA will throw an exception because matA.IsDeleted is true;</p>
+<p>Am I missing something? or is the matA.AddRef(); standard code that must be added?</p>
+<p>I don’t mind adding this code, but finding other cases where I have less control, for instance with using the TintTo action, it will often throw an exception because a material it’s using has been deleted. I can rewrite this action class, but don’t want to.</p>
+<p>Wondering why the material is being cleaned when references are still held.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

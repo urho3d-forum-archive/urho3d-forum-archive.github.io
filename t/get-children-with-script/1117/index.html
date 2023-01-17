@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Get Children With Script</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Get Children With Script</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<p>Have really been enjoying working with the AngelScript API of Urho3D, It makes prototyping very very fast  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/> .<br/>
+Can the GetChildrenWithScipt(scriptObjectName, true/false) method of nodes and scene be modified to return scriptObject interfaces of base class when the specified script object name is that of a base class.<br/>
+For example :</p>
+<pre><code class="lang-auto">    class A : ScriptObject
+    {
+        ...
+    }
+
+    class B : A
+    {
+        ...
+    }
+
+    class C: A
+    {
+        ...
+    }</code></pre>
+<p>Then in your code you create script objects of B and C into Nodes. When you call</p>
+<pre><code class="lang-auto">    scene.GetChildrenWithScript("A", true)</code></pre>
+<p>the returned array contains class A handles (or interface) for both B and C</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This code has been added to master branch with slight modifications. Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>This code has been added to master branch with slight modifications. Thanks!</p>
+</blockquote>
+</aside>
+<p>I tried again but it seems not to work  <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<p>Thanks Sinoid and Cadaver, I’ve tested it out and it works good  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/348_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bluemoon</div>
+          <div class="post_content">
+<p>Okay, so I got a bit adventurous and realized that I needed a similar function at the C++ end which in this scenario is to get children with derived components  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/> A little addition to Node.h did the trick</p>
+<p>Add to Node.h the following methods (I figured out that using template was the easiest way to get it to work)</p>
+<pre><code class="lang-auto">template &lt;class T&gt; bool Node::HasDerivedComponent() const 
+{ 
+	T* component = GetDerivedComponent&lt;T&gt;();
+	if(component)
+	   return true;
+	else
+	   return false;
+}
+
+template &lt;class T&gt; void Node::GetChildrenWithDerivedComponent(PODVector&lt;Node*&gt;&amp; dest, bool recursive) const
+{
+    dest.Clear();
+
+    if (!recursive)
+    {
+        for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+        {
+            if ((*i)-&gt;HasDerivedComponent&lt;T&gt;())
+                dest.Push(*i);
+        }
+    }
+    else
+        GetChildrenWithDerivedComponentRecursive&lt;T&gt;(dest);
+}
+
+template &lt;class T&gt; void Node::GetChildrenWithDerivedComponentRecursive(PODVector&lt;Node*&gt;&amp; dest) const
+{
+	for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+    {
+        Node* node = *i;
+        if (node-&gt;HasDerivedComponent&lt;T&gt;())
+            dest.Push(node);
+        if (!node-&gt;children_.Empty())
+            node-&gt;GetChildrenWithDerivedComponentRecursive&lt;T&gt;(dest);
+    }
+}</code></pre>
+<p>In line with the “GetChildrenWithComponentRecursive” method “GetChildrenWithDerivedComponentRecursive” has private access</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

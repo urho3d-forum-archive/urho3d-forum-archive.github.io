@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to Create UI Tree View?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to Create UI Tree View?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We’re planning to use Urho’s GUI system, but need a TreeView control, which does not exist natively.</p>
+<p>What is the best way to create a Tree View from the existing native classes?  I’m guessing we’ll need to create a new class, that derives from UIElement, and then manages the contents of this container manually.</p>
+<p>But TreeView seems like a pretty common control - plus we see it in the Urho Editor too.   So we didn’t want to re-invent the wheel, if it’s already done.   Or, if we do need to “invent this wheel”, we’re looking for a few hints/pointers on how to best go about it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p><code>ListView</code> has some flags that let it be a tree. You can check editor scripts to see how exactly it’s working.</p><aside class="onebox githubblob" data-onebox-src="https://github.com/urho3d/Urho3D/blob/9f968f3d24a97ee0619e1310522ebb6e89507363/bin/Data/Scripts/Editor/EditorHierarchyWindow.as#L26">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/9f968f3d24a97ee0619e1310522ebb6e89507363/bin/Data/Scripts/Editor/EditorHierarchyWindow.as#L26</a></h4>
+<pre class="onebox">    <code class="lang-as">
+      <ol class="start lines" start="16" style="counter-reset: li-counter 15 ;">
+          <li>const StringHash TYPE_VAR("Type");
+</li>
+          <li>const StringHash NODE_ID_VAR("NodeID");
+</li>
+          <li>const StringHash COMPONENT_ID_VAR("ComponentID");
+</li>
+          <li>const StringHash UI_ELEMENT_ID_VAR("UIElementID");
+</li>
+          <li>const StringHash DRAGDROPCONTENT_VAR("DragDropContent");
+</li>
+          <li>const StringHash[] ID_VARS = { StringHash(""), NODE_ID_VAR, COMPONENT_ID_VAR, UI_ELEMENT_ID_VAR };
+</li>
+          <li>Color nodeTextColor(1.0f, 1.0f, 1.0f);
+</li>
+          <li>Color componentTextColor(0.7f, 1.0f, 0.7f);
+</li>
+          <li>
+</li>
+          <li>Window@ hierarchyWindow;
+</li>
+          <li class="selected">ListView@ hierarchyList;
+</li>
+          <li>bool showID = true;
+</li>
+          <li>
+</li>
+          <li>// UIElement does not have unique ID, so use a running number to generate a new ID each time an item is inserted into hierarchy list
+</li>
+          <li>const uint UI_ELEMENT_BASE_ID = 1;
+</li>
+          <li>uint uiElementNextID = UI_ELEMENT_BASE_ID;
+</li>
+          <li>bool showInternalUIElement = false;
+</li>
+          <li>bool showTemporaryObject = false;
+</li>
+          <li>Array&lt;uint&gt; hierarchyUpdateSelections;
+</li>
+          <li>
+</li>
+          <li>Variant GetUIElementID(UIElement@ element)
+</li>
+      </ol>
+    </code>
+  </pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>OK - trying to make this work, but ListView is not acting very well, with two defects:</p>
+<ol>
+<li>The Scrollbar is not working.  It shows, but doesn’t reflect that there are 30 items in the ListView to be shown, and you cannot scroll down.</li>
+<li>The click area for each item is cut too narrow by about 20 pixels (the final 2 characters “&lt;=” are non-clickable).   Not a huge deal, but worth noting; should be fixed.</li>
+</ol>
+<p><strong>Here is my code (inserted into the “HelloGUI” sample:</strong></p>
+<pre><code>		Urho.Gui.ListView treeView = new ListView();
+                    treeView.Size = new IntVector2(w, 150);
+		treeView.Position = new IntVector2(xmargin, y);
+		treeView.HierarchyMode = true;
+		treeView.LayoutMode = LayoutMode.Free;
+
+		window.AddChild(treeView);
+		treeView.SetStyleAuto();
+
+		for (int i = 0; i &lt; 30; i++)
+		{
+			Text item = new Text();
+			item.Size = new IntVector2(w - 20, 15);
+			item.Position = new IntVector2(5, i * 15);
+			item.Name = "Item #" + i + ": not clickabled beyond here=&gt;|&lt;=";
+			item.Value = item.Name;
+			treeView.AddItem(item);
+			item.SetStyleAuto();
+		}
+</code></pre>
+<p>And here is the resulting output:</p>
+<p><img alt="image" data-base62-sha1="yUWfkFFFGEsfwaWkZ4DGTHGHgnj" height="224" src="../../../images2/9a8f7c2d87acf037e36259b40af961f9.png" width="496"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>The Samples could really use a more GUI samples, to show at least one example of every GUI control type.  Currently, it only shows Window, Button, CheckBox, and LineEdit controls.  No others.</p>
+<p>And the LineEdit control has the defect of no “ClipBorder”… so that the cursor starts out flush with the left border (no margin).   I finally figured a fix for this by adding a single line of code for each LineEdit instance:</p>
+<pre><code>		lineEdit.ClipBorder = new IntRect(7, 0, 7, 0);
+</code></pre>
+<p>(Which here provides 7 pixel margin on both left and right sides.)</p>
+<p>Without this fix, it looks like this:</p>
+<p><img alt="image" data-base62-sha1="cOZbGXRAFw0OZ1xwAUCdcheP9ZR" height="59" src="../../../images2/c381cb70287bab054d4f7d611d0acf66.png" width="390"/></p>
+<p>and with the fix, it looks like this:</p>
+<p><img alt="image" data-base62-sha1="ue4vdL8lL9IKPtkZ14gyTVJgFPf" height="57" src="../../../images2/15ab58bce2ea0153fc79a88587c63c99.png" width="382"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>UI is tricky , but it is manageable once you know how to work with it .<br/>
+I wrote a quick and basic example using my UIBuilder , it should also work on stock frameworks</p><aside class="onebox githubblob" data-onebox-src="https://github.com/Urho-Net/Samples/blob/main/UIBuilder/Source/HotReload/UI/TreeViewWindow.cs">
+<header class="source">
+<a href="https://github.com/Urho-Net/Samples/blob/main/UIBuilder/Source/HotReload/UI/TreeViewWindow.cs" rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/Urho-Net/Samples/blob/main/UIBuilder/Source/HotReload/UI/TreeViewWindow.cs" rel="noopener nofollow ugc" target="_blank">Urho-Net/Samples/blob/main/UIBuilder/Source/HotReload/UI/TreeViewWindow.cs</a></h4>
+<pre><code class="lang-cs">
+namespace Urho.Gui
+{
+    public class TreeViewWindow : Window
+    {
+        ListView treeView;
+        public TreeViewWindow()
+        {
+            Application.Current.UI.Root.AddChild(this);
+            var Graphics = Application.Current.Graphics;
+            SetStyleAuto();
+            Size = new IntVector2(Graphics.Width, Graphics.Height);
+            CreateTreeView(Graphics.Width,Graphics.Height);
+
+            UpdateLayout();
+
+        }
+
+
+        void CreateTreeView(int width,int height)
+</code></pre>
+
+
+  This file has been truncated. <a href="https://github.com/Urho-Net/Samples/blob/main/UIBuilder/Source/HotReload/UI/TreeViewWindow.cs" rel="noopener nofollow ugc" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>
+The items are expended/collapsing by double clicking them</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screen Shot 2021-11-01 at 13.21.17"><img alt="Screen Shot 2021-11-01 at 13.21.17" data-base62-sha1="iUZNjdM4UwhTQePY8xGX82PFY0u"  height="431" src="../../../images2/101c6142439a3edb4519dcae76e87873.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2021-11-01 at 13.21.17</span><span class="informations">1920×1200 163 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We’re stuck on UrhoSharp, which is over 3 years old now, and aging.  The GUI here seems to have some  bugs, such as I presented.   Looks like we’ll hold off on the GUI work until we are able to switch to your <a href="http://Urho.NET" rel="noopener nofollow ugc">Urho.NET</a>, which we hope may be soon.   <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

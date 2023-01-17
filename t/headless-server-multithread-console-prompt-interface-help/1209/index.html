@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Headless server multithread console prompt - Interface Help!</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Headless server multithread console prompt - Interface Help!</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hi</p>
+<p>Does anyone have any idea how to setup multithreading in Urho?</p>
+<p>I have a application class(like the samples) that has a subclass(which is the application.). In the subclass I run a logiccomponent that gets a getline. It calls a event. Custom event that a handler in the application subclass has. It runs functions and code there.</p>
+<p>I probably subclass  in  a derived class to keep everything neat.</p>
+<p>There needs to be two threads. The main code and then the component-serverconsoleinterface needs to be in a separate thread. So, there is no conflicts.</p>
+<p>Do anyone have any suggestion? The documentation on threads seems vague to me. Later on I want to add Telnet access to.</p>
+<p>Vivienne</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>multithreading <a href="http://discourse.urho3d.io/t/multithreading/864/1">topic885.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/a206ef460b2be73995958e48edfb5c6d.png" width="20"/> rasteron:</div>
+<blockquote>
+<p>multithreading <a href="http://discourse.urho3d.io/t/multithreading/864/1">topic885.html</a></p>
+</blockquote>
+</aside>
+<p>Yea. I’m looking at this code.</p>
+<p>[code]    void AddSomeWork()<br/>
+{<br/>
+WorkQueue* queue = GetSubsystem();<br/>
+SharedPtr item = SharedPtr(new WorkItem);<br/>
+Log* log = GetSubsystem();<br/>
+item-&gt;aux_ = (void*)&amp;log;<br/>
+item-&gt;workFunction_ = &amp;DoingSomeMonkeyWork;<br/>
+item-&gt;sendEvent_ = true;</p>
+<pre><code>            queue-&gt;AddWorkItem(item);
+    }[/code]
+</code></pre>
+<p>Specifically</p>
+<pre><code class="lang-auto"></code></pre>
+<p>I am assuming thats where the bulk the thread creation. Baasically adding a Start function and starting the logiccomponent there.</p>
+<p>something like</p>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I recommend using the WorkQueue &amp; tasks only for short tasks that need to repeat from frame to frame and benefit from multicore scaling. Something like reading console input sounds like a job for the Thread class, which represents a long-lived thread and is fairly simple to use. Search “public Thread” from Urho code to see where it’s being subclassed &amp; used.</p>
+<p>However, for this exact task the ProcessUtils.h also includes a non-blocking console read function, GetConsoleInput(), which you should be able to use in the main thread, so if it works well for you you shouldn’t need to even create a thread.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]I recommend using the WorkQueue &amp; tasks only for short tasks that need to repeat from frame to frame and benefit from multicore scaling. Something like reading console input sounds like a job for the Thread class, which represents a long-lived thread and is fairly simple to use. Search “public Thread” from Urho code to see where it’s being subclassed &amp; used.</p>
+<p>However, for this exact task the ProcessUtils.h also includes a non-blocking console read function, GetConsoleInput(), which you should be able to use in the main thread, so if it works well for you you shouldn’t need to even create a thread.[/quote]</p>
+<p>Yea. I found the code.</p>
+<p>[code]String GetConsoleInput()<br/>
+{<br/>
+String ret;<br/>
+<span class="hashtag">#ifdef</span> URHO3D_TESTING<br/>
+// When we are running automated tests, reading the console may block. Just return empty in that case<br/>
+return ret;<br/>
+<span class="hashtag">#endif</span></p>
+<pre><code>#ifdef WIN32
+HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+if (input == INVALID_HANDLE_VALUE || output == INVALID_HANDLE_VALUE)
+    return ret;
+
+// Use char-based input
+SetConsoleMode(input, ENABLE_PROCESSED_INPUT);
+
+INPUT_RECORD record;
+DWORD events = 0;
+DWORD readEvents = 0;
+
+if (!GetNumberOfConsoleInputEvents(input, &amp;events))
+    return ret;
+
+while (events--)
+{
+    ReadConsoleInputW(input, &amp;record, 1, &amp;readEvents);
+    if (record.EventType == KEY_EVENT &amp;&amp; record.Event.KeyEvent.bKeyDown)
+    {
+        unsigned c = record.Event.KeyEvent.uChar.UnicodeChar;
+        if (c)
+        {
+            if (c == '\b')
+            {
+                PrintUnicode("\b \b");
+                int length = currentLine.LengthUTF8();
+                if (length)
+                    currentLine = currentLine.SubstringUTF8(0, length - 1);
+            }
+            else if (c == '\r')
+            {
+                PrintUnicode("\n");
+                ret = currentLine;
+                currentLine.Clear();
+                return ret;
+            }
+            else
+            {
+                // We have disabled echo, so echo manually
+                wchar_t out = c;
+                DWORD charsWritten;
+                WriteConsoleW(output, &amp;out, 1, &amp;charsWritten, 0);
+                currentLine.AppendUTF8(c);
+            }
+        }
+    }
+}
+#elif !defined(ANDROID) &amp;&amp; !defined(IOS)
+int flags = fcntl(STDIN_FILENO, F_GETFL);
+fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+for (;;)
+{
+    int ch = fgetc(stdin);
+    if (ch &gt;= 0 &amp;&amp; ch != '\n')
+        ret += (char)ch;
+    else
+        break;
+}
+#endif
+
+return ret;
+</code></pre>
+<p>}[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]I recommend using the WorkQueue &amp; tasks only for short tasks that need to repeat from frame to frame and benefit from multicore scaling. Something like reading console input sounds like a job for the Thread class, which represents a long-lived thread and is fairly simple to use. Search “public Thread” from Urho code to see where it’s being subclassed &amp; used.</p>
+<p>However, for this exact task the ProcessUtils.h also includes a non-blocking console read function, GetConsoleInput(), which you should be able to use in the main thread, so if it works well for you you shouldn’t need to even create a thread.[/quote]</p>
+<p>I have to look at the class. I’m trying to figure it out. It should be something simple.  Although to me it looks extremely vague.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Is there any other example? All I want to do is run a component-&gt;Start() / class in another thread?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1508150f71fcef53ebe1d65b4e91fa85.png" width="20"/> vivienneanthony:</div>
+<blockquote>
+<p>All I want to do is run a component-&gt;Start() / class in another thread?</p>
+</blockquote>
+</aside>
+<p>Sounds like you need another “process” instead of “thread”.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>[quote=“vivienneanthony”]All I want to do is run a component-&gt;Start() / class in another thread?</p>
+</blockquote>
+</aside>
+<p>Sounds like you need another “process” instead of “thread”.[/quote]</p>
+<p>Someone said to just focus on the Thread class.</p>
+<p>I’m looking at <a  rel="nofollow noopener">github.com/urho3d/Urho3D/blob/m … orkQueue.h</a> also.</p>
+<p>Just not certain which method nor how. I know what I want to do just the method to do it I’m not clear about.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I am sorry if I have confused you further. Note that I was referring to “process” and “thread” in their general context. I was not referring to Urho3D::Thread class in particular. And I said “sounds like” only because I don’t know for sure your actual use case. A process can have many threads, it can run an instance of your app separate from the other. On the server side programming, you usually hear people fork a process from the main process. All I want to say is, determine first what you need.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>I am sorry if I have confused you further. Note that I was referring to “process” and “thread” in their general context. I was not referring to Urho3D::Thread class in particular. And I said “sounds like” only because I don’t know for sure your actual use case. A process can have many threads, it can run an instance of your app separate from the other. On the server side programming, you usually hear people fork a process from the main process. All I want to say is, determine first what you need.</p>
+</blockquote>
+</aside>
+<p>I was thinking the method would be start the program application class as normal and assign it as the main thread. Then start the servercontrolcomponent in another thread or child.</p>
+<p>I am looking at Thread.h and Thread.cpp which I think I would have to use but I’m not certain how.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>After fooling around looking at some Urho source. I got this.</p>
+<p>[code]vivienne@vivienne-System-Product-Name:~$ cd /media/home2/vivienne/GameEconomicUrho<br/>
+vivienne@vivienne-System-Product-Name:/media/home2/vivienne/GameEconomicUrho$ cd bin<br/>
+vivienne@vivienne-System-Product-Name:/media/home2/vivienne/GameEconomicUrho/bin$ ./GameEconomicServer<br/>
+[Tue Jul 28 00:41:58 2015] INFO: Opened log file /home/vivienne/.local/share/urho3d/logs/GameEconomicServer.log<br/>
+[Tue Jul 28 00:41:58 2015] INFO: Created 3 worker threads<br/>
+[Tue Jul 28 00:41:58 2015] INFO: Added resource path /media/home2/vivienne/GameEconomicUrho/bin/Data/<br/>
+[Tue Jul 28 00:41:58 2015] INFO: Added resource path /media/home2/vivienne/GameEconomicUrho/bin/CoreData/<br/>
+[Tue Jul 28 00:41:58 2015] INFO: Initialized engine<br/>
+Info: Loading database configuration .<br/>
+Info: Loading database configuration successful.<br/>
+Info: Database connection succesful.<br/>
+Info: Database Markets table found.<br/>
+Info: Database MarketTransactions table found.<br/>
+Info: Database Traders table found.<br/>
+Info: Database CargoBays table found.<br/>
+Info: Database CargoBayCatalog table found.<br/>
+Info: Database Players table found.<br/>
+Info: Database Accounts table found.<br/>
+Headless Server Model<br/>
+Programmer Vivienne Anthony</p>
+<p>Enter Command &gt;&gt; quit<br/>
+Enter Command &gt;&gt; [Tue Jul 28 00:41:59 2015] ERROR: Sending events is only supported from the main thread<br/>
+quit<br/>
+Enter Command &gt;&gt; [Tue Jul 28 00:42:01 2015] ERROR: Sending events is only supported from the main thread<br/>
+t<br/>
+Enter Command &gt;&gt; [Tue Jul 28 00:42:03 2015] ERROR: Sending events is only supported from the main thread</p>
+<p>Error. Invalid  command<br/>
+Enter Command &gt;&gt;<br/>
+Error. Invalid  command<br/>
+Enter Command &gt;&gt;<br/>
+[/code]</p>
+<p>Why can’t sub threads can’t send events? Or can I force it to.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5dc21abd616a69d8b82c2d56dfa657a5.png" width="20"/> weitjong:</div>
+<blockquote>
+<p>I am sorry if I have confused you further. Note that I was referring to “process” and “thread” in their general context. I was not referring to Urho3D::Thread class in particular. And I said “sounds like” only because I don’t know for sure your actual use case. A process can have many threads, it can run an instance of your app separate from the other. On the server side programming, you usually hear people fork a process from the main process. All I want to say is, determine first what you need.</p>
+</blockquote>
+</aside>
+<p>I think it’s working now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“cadaver”]I recommend using the WorkQueue &amp; tasks only for short tasks that need to repeat from frame to frame and benefit from multicore scaling. Something like reading console input sounds like a job for the Thread class, which represents a long-lived thread and is fairly simple to use. Search “public Thread” from Urho code to see where it’s being subclassed &amp; used.</p>
+<p>However, for this exact task the ProcessUtils.h also includes a non-blocking console read function, GetConsoleInput(), which you should be able to use in the main thread, so if it works well for you you shouldn’t need to even create a thread.[/quote]</p>
+<p>I used that code and it seems to work the only problem I have is when nothing is entered just “return”. it returns 0 basically a empty string.</p>
+<p>So, with the function itself I can’t determine when a line is entered with just a return key. It’s not a breaking thing. Just would be a nuisance.</p>
+<p>I had to create a thread but it’s minor.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Hm yes, that would be good to differentiate. Maybe return a string with just a CR or LF in that case, though they’re normally stripped.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

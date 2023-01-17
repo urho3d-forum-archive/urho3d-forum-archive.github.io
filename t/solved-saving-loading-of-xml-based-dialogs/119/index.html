@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Saving/Loading of XML based dialogs</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Saving/Loading of XML based dialogs</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>Automatically saving/loading of POD types is easy using the ATTRIBUTE macro inside RegisterObject(Context* context).</p>
+<p>But what if I wanted to automatically save/load the changes of a Resource, in this case an XMLFile. I see there is a VAR_RESOURCEREF as part of the VariantType enum, but how would I use it with the ATTRIBUTE macro and my XMLFile?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The serialization system doesn’t readily extend into saving whole resources automatically. Normally attributes only refer to a resource, which the VAR_RESOURCEREF is for (think of model / material attributes in StaticModel)</p>
+<p>However, there’s one workaround which is possibly a bit ugly. You can save a binary buffer inside a Variant. Look at how the NavigationMesh component stores its data.</p>
+<p>By using the ACCESSOR_ATTRIBUTE macro you can define get and set functions for the attribute. In several cases those get/set functions are “fictional” -&gt; they’re just used for the attribute serialization, not as actual user-callable getters &amp; setters. For example in NavigationMesh, the functions GetNavigationDataAttr() &amp; SetNavigationDataAttr() serialize the navigation mesh into a binary buffer variant. Or a slightly more normal example, GetModelAttr() &amp; SetModelAttr() in StaticModel, which form a ResourceRef variant from the current model.</p>
+<p>Another way is to just load and save your XMLFile into a separate, ordinary file. I’d actually recommend that. If you need that to happen automatically as a part of Serializable load / save, those functions are virtual so you can override them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>The thing is, I would like to have only a single save file, where everything is contained, including all the dialogs and also the scene itself. The problem is, I can’t successfully load the xml dialog(s) (saving is not a problem) because XMLFile::Load returns false here:</p>
+<p>if (source.Read(buffer.Get(), dataSize) != dataSize)<br/>
+return false;</p>
+<p>It is assuming that the file only contains the xml dialog, but in my case it includes much more.</p>
+<p>I tried doing it like in the StaticModel example you mentioned, but that doesn’t save the xml. I assume I would have to do it like in the NavigationMesh example (using a buffer) and traverse the whole xml file when implementing my own Get/SetDialogAttr methods.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In general resources always assume they’re the only thing being read from a Deserializer, because how else would an XML file know how big the actual data is? But you can work around like this:</p>
+<ul>
+<li>Save XMLFile into a temporary buffer (VectorBuffer)</li>
+<li>Get the size of the buffer after save</li>
+<li>Write the size to your save file, followed by data. You can repeat this for as many data files as you wish.</li>
+<li>When loading, read the data size from the file first, then read the data into another temporary VectorBuffer. Perform XML file load from the buffer, not from the file.</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>Ah, that’s a good idea. Ok, so I did this but now it can’t properly load the dialog components. It says “Component type 013F not known, creating UnknownComponent as placeholder”.</p>
+<p>Am I overriding Load/Save correctly, or does it interfere with RegisterObject or something?</p>
+<pre><code class="lang-auto">bool Dialog::Load(Deserializer&amp; source, bool setInstanceDefault)
+{
+    unsigned size = source.ReadUInt();
+
+    VectorBuffer temp;
+    if (source.Read(temp.GetModifiableData(), size) != size)
+        LOGERROR("Load might be corrupted");
+
+    m_dialogXML-&gt;Load(temp);
+
+    return Component::Load(source, setInstanceDefault);
+}
+
+bool Dialog::Save(Serializer&amp; dest) const
+{
+    VectorBuffer temp;
+    m_dialogXML-&gt;Save(temp);
+
+    unsigned size = temp.GetSize();
+
+    if (!dest.WriteUInt(size))
+        LOGERROR("Save might be corrupted");
+    if (dest.Write(temp.GetData(), size) != size)
+        LOGERROR("Save might be corrupted");
+
+    // Write attributes
+    return Component::Save(dest);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Component loading expects the data stream to contain type &amp; ID first, because those are actually loaded in Node’s code, so that it knows what component to create.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>Getting closer. Now “source.Read(temp.GetModifiableData(), size” crashes, because GetModifiableData() seems to return null.</p>
+<p>When I do this:</p>
+<pre><code class="lang-auto">PODVector&lt;unsigned char&gt; buffer(size);
+VectorBuffer temp(buffer);</code></pre>
+<p>it still crashes, and I don’t get any debug information (only show disassembly).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Perhaps in this case MemoryBuffer is actually more appropriate, for that one you can manually assign the data buffer to use.</p>
+<p>The crash likely happens because you’re reading to a null size or not large enough buffer. Now that I look at it VectorBuffer doesn’t have a convenient function to resize the buffer at once, instead it’s usually written to in increments, ie. WriteInt() etc. so that it expands the buffer on demand. I will look into providing a VectorBuffer::Resize() or similar later.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>Yay. I got it working now. The crash was actually unrelated to the buffer issue. As always, thanks for your help!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Nice that you got it working. Hm, VectorBuffer in fact already has Resize(). For some reason I didn’t spot it in the morning.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

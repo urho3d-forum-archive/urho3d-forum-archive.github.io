@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Camera perspective, frustum for augmented reality</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Camera perspective, frustum for augmented reality</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SteveU3D</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I made a long time ago an application in openGL to do augmented reality, and I want to do it with Urho3D now.<br/>
+I have the intrinsic parameters of my camera, optic center (cx, cy) and focal (fx, fy).<br/>
+In openGL, I set the camera with :</p>
+<pre><code>glFrustum(-_near*cx/(GLfloat)fx,_near*(FRAMEWIDTH-cx)/(GLfloat)fx,_near*(cy-FRAMEHEIGHT)/(GLfloat)fy,_near*cy/(GLfloat)fy,_near,_far);
+</code></pre>
+<p>The prototype is :</p>
+<pre><code>glFrustum(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+</code></pre>
+<p>What’s the equivalent in Urho3D? I saw that there is a frustum class in Urho3D but in the camera class, there is no “SetFrustum” function, only GetFrustum(). So how to assign a frustum to a scene?</p>
+<p>I tried :</p>
+<pre><code>camera-&gt;SetAspectRatio((float)FRAMEWIDTH/(float)FRAMEHEIGHT);
+camera-&gt;SetFov(CV_MAT_ELEM( *intrinsic_matrix, float,0,0));
+camera-&gt;SetNearClip(0.1f);
+camera-&gt;SetFarClip(1000.0);
+</code></pre>
+<p>but it doesn’t give the expected result.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/123_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">kostik1337</div>
+          <div class="post_content">
+<p>Maybe, you can use Camera::SetProjection, which sets custom projection matrix?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SteveU3D</div>
+          <div class="post_content">
+<p>Indeed, I was looking to it and the post :<br/>
+<aside class="quote" data-post="8" data-topic="2195">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/dd5fc924d2032d28cd11f559a4c57f3c.png" width="20"/><a href="http://discourse.urho3d.io/t/set-custom-project-matrix-in-camera/2195/8" rel="nofollow noopener">Set custom project matrix in Camera</a>
+</div>
+<blockquote>
+<p>I guess we can add a method smth like this:   void Camera::SetProjection(const Matrix4&amp; projection) {   //TODO: calculate values   //calculation depends on DX\GL and LH\RH coordinate systems   //for example, this is how fovY is calculated:   float fovY = 360 * atanf(1 / projection.m11_) / M_PI;   SetAspectRatio(apect);   SetFov(fovY);   SetNearClip(nearClip);   SetFarClip(farClip); }</p>
+</blockquote>
+</aside></p>
+<p>It should do what I need, I’ll try.<br/>
+Thansk!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SteveU3D</div>
+          <div class="post_content">
+<p>So I tried different things, also following the answer of cadaver here <a href="http://discourse.urho3d.io/t/how-to-dynamic-switch-gl-projection-and-gl-modelview/2229/2">[How to] Dynamic switch GL_PROJECTION and GL_MODELVIEW</a> where he explains projection, model and view matrices that must be applied to the camera and the scene, but I still can’t have the good result for augmented reality.<br/>
+I put a box in the scene and it must translate and rotate the same way as a chessboard. I get the rotation (matrice and vector) and translation (vector) of the chessboard with openCV.</p>
+<p>Here is my openGL code that works. I want to convert it to Urho3D.</p>
+<pre><code>//rotation and translation matrix
+GLfloat RTMat[16]={
+		CV_MAT_ELEM( *rotMat, float, 0,0),
+		-CV_MAT_ELEM( *rotMat, float, 1,0),
+		-CV_MAT_ELEM( *rotMat, float, 2,0),
+		0.0f,
+		CV_MAT_ELEM( *rotMat, float, 0,1),
+		-CV_MAT_ELEM( *rotMat, float, 1,1),
+		-CV_MAT_ELEM( *rotMat, float, 2,1),
+		0.0f,
+		CV_MAT_ELEM( *rotMat, float, 0,2),
+		-CV_MAT_ELEM( *rotMat, float, 1,2),
+		-CV_MAT_ELEM( *rotMat, float, 2,2),
+		0.0f,
+		tX,    //translation onX
+		tY,    // ... Y
+		tZ,    // ... Z
+		1.0f
+	};
+
+glViewport(0,0,FRAMEWIDTH,FRAMEHEIGHT);
+glMatrixMode(GL_PROJECTION);
+glLoadIdentity();
+float _near=0.1f, _far=1000.0;
+
+//(fx, fy) focal length on X and Y, (cx, cy) optical center		
+glFrustum(-_near*cx/(GLfloat)fx,_near*(FRAMEWIDTH-cx)/(GLfloat)fx,_near*(cy-FRAMEHEIGHT)/(GLfloat)fy,_near*cy/(GLfloat)fy,_near,_far);
+
+glMatrixMode(GL_MODELVIEW);
+glLoadIdentity();
+
+glMultMatrixf(RTMat);
+</code></pre>
+<p>Does anybody know the good “conversion” to Urho3D?<br/>
+Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SteveU3D</div>
+          <div class="post_content">
+<p>It’s OK, I just used SetPosition and SetRotation on my object node. My first tests had some errors in the computed vlaues <img alt=":unamused:" class="emoji" src="../../../images2/21382c100a852239caa7667da5bafe68.png" title=":unamused:"/>.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

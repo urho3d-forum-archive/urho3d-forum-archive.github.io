@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to handle different types of collisions with different effects?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to handle different types of collisions with different effects?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2527_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Spongeloaf</div>
+          <div class="post_content">
+<p>This is my first game project, coming from a world of scripting and microcontroller programming. This is reasonably different than anything I’ve done before. I need a sanity check, please.</p>
+<p>My game is all in 2d. It has a few basic types of objects. Planets, space rocks, missiles, and explosions. I’m using a custom component called “Actor” to store information and set basic behaviors.</p>
+<p>For example, if a missile collides with a planet, it should simply be destroyed. If a missile collides with a space rock, it detonates and pushes the rock with a physics force. If a missile collides with a detonation, it should also be pushed, but not detonated. There are a few more basic behaviors but that’s enough for now.</p>
+<p>I’m concerned that the way I’m handling these different cases is clunky and over-thought. I’m handling collision events by subscribing to <code>E_PHYSICSBEGINCONTACT2D</code>, <code>E_PHYSICSUPDATECONTACT2D</code>, and <code>E_PHYSICSENDCONTACT2D</code>.</p>
+<p>I call a function and pass in eventtype &amp; eventdata, and unpack the roles as follows:</p>
+<pre><code class="lang-auto">Node* na = static_cast&lt;Node*&gt;(eventData[P_NODEA].GetPtr());
+Node* nb = static_cast&lt;Node*&gt;(eventData[P_NODEB].GetPtr());
+
+Actor* aa = na-&gt;GetComponent&lt;Actor&gt;();
+Actor* ab = nb-&gt;GetComponent&lt;Actor&gt;();
+	
+Roles ra = aa-&gt;get_role();
+Roles rb = ab-&gt;get_role();
+</code></pre>
+<p>Then I pass them through a matrix of if-statements. This is the part I fear is clunky and over thought. The following example is just two cases, but there are at least 25 of them, and it goes up exponentially if I add more roles. Because in any collision between two different nodes, either one may be A or B, I need two cases for a missile colliding with a rock. (NODEA == missle &amp;&amp; NODEB == rock) or (NODEA == rock &amp;&amp; NODEB == missile).</p>
+<p>Here’s what that looks like:</p>
+<pre><code class="lang-auto">// Roles are enums. 
+// There are currently 25 of these if statements to cover all cases 
+
+if ((ra == Roles::ROCK) &amp;&amp; (rb == Roles::MISSILE))
+{
+	// detonate missile
+}
+
+if ((ra == Roles::MISSILE) &amp;&amp; (rb == Roles::ROCK))
+{
+	// detonate missile
+}
+
+if ((ra == Roles::ROCK) &amp;&amp; (rb == Roles::ROCK))
+{
+	// do nothing. The physics engine will handle bouncing.
+        // There's only a few "Do nothing" cases. I could get rid of them, but it would not trim a lot of fat
+}
+</code></pre>
+<p>Of course that could be condensed to only one if statement with a few extra parentheses thrown in there, but I’m just not sure I like this solution. The problem is I can’t see any other effective method. If I add another role, that makes the number of if statements skyrocket because I have N^2 cases. It works, but it seems very…derpy.</p>
+<p>Is this a reasonable solution? Would you question my sanity if you saw this in production? Do you have some other ideas? Is there some feature of the engine to facilitate this procedure that I’m not aware of? Should I just shutup and get back to work?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>What I do is have them all inherit from a common parent (Actor in your case) and call a virtual function *in the collision event* that takes a role as parameter <code>virtual void Actor::OnCollide(Roles ColliderRole)</code>. Having an if else chain isn’t a bad choice if you don’t plan to add more roles, but if you do plan then having virtual functions is easier</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2552_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glitch-method</div>
+          <div class="post_content">
+<p>too new to give a good code example, but it seems fairly sane considering all roles are being treated as an Actor. you can’t get away from some kind of elaborate matrix where you list out how roleA should behave with roleXYZ, but you may be able to make it “neater”… I may do something like what <span class="mention">@throwawayerino</span> mentioned, and/or maintain an array, couple options there… an Nx3 array (role, role, result), so your if block becomes something like</p>
+<pre><code class="lang-auto">    for n in array:
+        arrayA = array[n,1]
+        arrayB = array[n,2]
+        if (roleA = arrayA &amp; roleB = arrayB]) or (roleB = arrayA &amp; roleA = arrayB) then
+            return array[n,3]
+    next</code></pre>
+<p>then you’d have to maintain the array by adding an array[n+1, (new role, arrayA, new result)] for each unique arrayA.<br/>
+or -<br/>
+an XxX array containing only results, like</p>
+<pre><code class="lang-auto">return = array[roleA, roleB]</code></pre>
+<p>then maintain by adding array[new role, roleB] for each unique roleB,<br/>
+and adding array[roleA, new role] for each unique roleA.</p>
+<p>i’m not sure which would end up messier or bloated if you’re going to add a lot of roles, though. and like I said, i’m new… so someone else could probably give you a neater solution. just seemed worth mentioning.</p>
+<p>edit: formatting, iguess my phone doesn’t like me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Are you just ignoring sequencing? You can deal with Rock vs Missle and Missle vs Rock in one go by ordering your sides.</p>
+<pre><code class="lang-auto">// sort keys so tests are invariant to parameter sequence
+if (roleB &lt; roleA)
+{
+    swap(roleA, roleB);
+    swap(actorA, actorB);
+}
+</code></pre>
+<p>It’s generally easier to just use a table of function pointers with a <em>key</em> object for this sort of callback lookup. Using a proper key instead of some if statements makes it easier to deal with the <code>leftSide = min(roleA, roleB), rightSide = max(roleA, roleB)</code> you’ll need to do if you want to be invariant to sequence, you deal with it once and never deal with it again - instead of every <code>if</code> statement needing to be in the correct order.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2527_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Spongeloaf</div>
+          <div class="post_content">
+<p>Damn, I like this.</p>
+<p>I hadn’t thought of sorting them by comparison, but that should work implicitly if I’m using an enum class right? If so, I’ll definitely keep the role matrix, as <span class="mention">@glitch-method</span> agrees it’s necessary in some capacity, but this will drastically cut down on the umber of cases. Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>In <a href="https://gitlab.com/luckeyproductions/heXon" rel="nofollow noopener">heXon</a> I just used things like <code>if (otherNode-&gt;HasComponent&lt;T&gt;())</code> and <code>GetDerivedComponent&lt;Enemy&gt;()</code> inside <code>NodeCollisionStart</code> event handlers. It worked for me, and keeps the logic where it happens. I don’t know about the computational difference, the game <em>is</em> aptly named <em>hack zone</em>.<br/>
+Since there’s a constant race for the pickups in the case of multi-player, it may happen two ships hit a pickup during the same frame. Distances are therefor also taken into account to assure fairness.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2527_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Spongeloaf</div>
+          <div class="post_content">
+<p><span class="mention">@Modanung</span><br/>
+The only reason I haven’t done the same is that most of my components are re-used among actors, and certain combinations of components need to be handled differently.</p>
+<p>I could also make more bespoke components, but I think this is less work for a similar result, in my case anyway.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Similar to navigation problem.<br/>
+Add index to all your component role types.</p>
+<p>Add a 2D matrix as lookup table for your role index components.  Then label 0,1, 2 etc.</p>
+<p>This should reduce your combinations of if.</p>
+<p>Then just return the lookup value and call the respected function.</p>
+<p>e.g.</p>
+<p>NORMAL = 0<br/>
+DETONATE = 1<br/>
+OTHER = 2</p>
+<p>collisionType = LookUpCollisionType( ra.index, rb.index);</p>
+<p>switch(collisionType )<br/>
+case NORMAL:<br/>
+DoNormalThing()<br/>
+case DETONATE:<br/>
+ExplodeThing()<br/>
+case OTHER:<br/>
+DoOtherThing()</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>I think this maybe is related to what I’ve working. It’s not finished yet, but the idea is to store different collision info in the same model. Maybe it should use a different model file with only the collision info per-vertex (tips are welcome), but this is not decided. For now just use the color vertex.</p>
+<p><img alt="output" data-base62-sha1="eJKMX8ReOvSqhoDPLUdnskxVjt9" height="166" src="../../../images2/82a8eb652fde207e1a56657bf5699d20.gif" width="320"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>That seems more like a way to vary friction. An interesting concept nonetheless.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>I’ve never think it that way <img alt=":thinking:" class="emoji" src="../../../images2/95fb74f06c03358715b7b493b96f1e60.png" title=":thinking:"/>. Found some interesting wiki about mario kart collision (<a href="http://wiki.tockdom.com/wiki/KCL_(File_Format)" rel="nofollow noopener">http://wiki.tockdom.com/wiki/KCL_(File_Format)</a>) and tried to replicate with Urho3D. Maybe could create a special file format for collision. I like the idea of having one model with different collision flags.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I guess this method makes most sense in gastropodic settings. <img alt=":snail:" class="emoji" src="../../../images2/c70daf43a4e57d495a928b9892524f7e.png" title=":snail:"/><br/>
+Note that in Mario Kart there are cases where you can land off-track and be return by Lakitu. In these cases there is no wall collision, only invalid areas. Also karts don’t roll. I’d say it’s quite a specialized approach: Powerful (fast and watertight), but with limited applicability. Although I guess you <em>could</em> equip any model with vertex colors…</p>
+<p>Maybe you could make a repository for this experiment to inspire people to be creative with vertex colors?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2552_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">glitch-method</div>
+          <div class="post_content">
+<p>I like the possibilities of this approach.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>@ karts don’t roll - in these kinds of action games, roll is clamped to a limited range, this is also true of games like Tony Hawk variants, we can’t flip upside down, but things can get exciting. Limiting the range of roll helps us reduce our workload as game devs, because we don’t need to consider what happens if we land on our roof, which adds to the sense of continuity and ease of use, and reduces side effects associated with inertial frames of reference</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

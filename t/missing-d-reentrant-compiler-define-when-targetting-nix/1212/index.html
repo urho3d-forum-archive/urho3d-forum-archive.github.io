@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Missing &ldquo;-D_REENTRANT&rdquo; compiler define when targetting *nix</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Missing &ldquo;-D_REENTRANT&rdquo; compiler define when targetting *nix</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Is this an oversight or intentional? Urho3D lib and its sub-libs like SDL uses pthread on Unix-like platforms. I have not observed an Urho3D app to bad-behave even though it was built without this define. When I call the “SDL-config --cflags”, its output clearly states that SDL expects this define. Yet none have reported any problems. What gives?</p>
+<p>I have time to do some research on this subject this morning and found this article that explains the potential danger of mixing supposedly multi-threading app linking with pthread but without the “_REENTRANT” define set with glibc that does. See <a href="http://pauillac.inria.fr/~xleroy/linuxthreads/faq.html#H">pauillac.inria.fr/~xleroy/linuxt … faq.html#H</a>. It makes sense to me, which is why I even bother to search for the answer in the first place. I cannot explain why Urho3D app does not crash spectacularly on Linux/OSX though. Or is it just accident waiting to happen?</p>
+<p>Separately, I have done a quick test using GCC and Clang on my Linux box and Clang on my OSX box. When given ‘-pthread’ compiler flag, they all emit “-D_REENTRANT” compiler defines to the compiler. And I have done a quick build test using GCC on Linux, this flag also instructs linker to link against “pthread” implicitly. From what I read, it instructs linker to link against a platform-specific library for multi-threading automatically. So it is portable too although we do not really need it because we do not support other niche *nix platforms yet at the moment. It only took me awhile to reconfigure our build system to use this compiler flags. However, I would like to hear from others, especially from Lasse, on what yours/his take on this matter before pushing my changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>We have a bastardized CMakeList for SDL which is missing a lot of platform checks for Unixes, as at the time of original SDL adoption SDL’s own CMakeList was broken. Their own CMakeList does</p>
+<pre><code class="lang-auto">set(PTHREAD_CFLAGS "-D_REENTRANT")
+set(PTHREAD_LDFLAGS "-pthread")</code></pre>
+<p>so it’s certainly what we should be doing as well. As a sidenote, once 2.0.4 is out it might be worth to migrate to their CMakeList, if it works right.</p>
+<p>The reason for lack of problems is probably that using the affected C library functions happens only in the main thread, while the worker threads mostly do just basic memory allocation and data processing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks for the quick reply. Yes, your reasoning for lack of problem is plausible. I am making some build tests on my OSX box as I speak. I will push it when all are OK.</p>
+<p>EDIT: I have pushed my changes. I forgot to reset the OS clock to current time before pushing (I usually just save/restore VM session without actually rebooting it), so the newly pushed changes appears to be made by me 25 days ago.  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

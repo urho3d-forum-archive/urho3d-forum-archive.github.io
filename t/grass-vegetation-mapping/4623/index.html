@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Grass/vegetation mapping</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Grass/vegetation mapping</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I am in the process of developing a grass/ground vegetation mapping scheme as outlined <a href="https://www.shamusyoung.com/twentysidedtale/?p=23354" rel="nofollow noopener">here</a>, using a static mesh with billboard structures that follows the player around. The mesh draws vegetation info from a texture overlaid on the terrain, which describes how to draw/place it. The technique phases in the vegetation at a certain radius, by increasing a scale factor from 0 to keep things from visibly popping into place.</p>
+<p>So far, I have been able to implement it fairly well in Urho3D.</p>
+<p><img alt="" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/c/cb3fbf10a0be7b6a7d75d969859db63d56ed9ce0.jpeg"/></p>
+<p>(I’m using a very quickly made experimental mesh, so it doesn’t look the greatest yet; just trying to figure the technique out before I spend a bunch of time refining it.)I do have a couple issues, though, that I’m unable to sort out:</p>
+<ol>
+<li>
+<p>Because the mesh is being deformed in the vertex shader using a vertex texture fetch from the heightmap, the actual geometry is clipped from view if, for example, the player is on a high hill, since the ‘real’ bounding box of the grass structure still sits at Y=0 and is not very tall. I can hack my way around this by adding a small bit of degenerate geometry to the grass mesh, placing it at some arbitrary high point (Y=300 works well) above the rest of the mesh to artificially inflate the height of the mesh bounding box, but I was wondering if there was a less hackish way of ensuring the grass mesh is drawn even if the ‘real’ bounding box is out of frustum. Is there some way to mark a model as “do not cull for any reason” or something like that? I don’t like having to blow up the size of the bounding box, since that can play hell with shadow mapping when looking out horizontally on the terrain.</p>
+</li>
+<li>
+<p>I created a GrassShadow.glsl shader to implement a VS for the shadow pass, that implements the same texture fetch and translation as the main shader, but it doesn’t seem to work. If I use the default Shadow.glsl I get shadows as if the grass were always at the Y=0 plane, but the shadows do not ‘follow’ the grass as it translates upward due to the heightmap. However, if I use a modification of Shadow.glsl that includes the texture fetch and translation, I get no shadows at all, even at Y=0, which makes me wonder if the Shadow shader isn’t getting all of the uniforms I’m sending the main shader.</p>
+</li>
+</ol>
+<p>Can anybody confirm whether or not the shadow pass gets the same set of uniforms as the main shader? I am setting the HeightData uniform, the HeightMap texture and the CoverMap texture manually through code after the material is loaded.</p>
+<p>The main shader can be seen at <a class="inline-onebox-loading" href="https://pastebin.com/NdRufTKZ" rel="nofollow noopener">https://pastebin.com/NdRufTKZ</a> while the shadow shader can be seen at <a class="inline-onebox-loading" href="https://pastebin.com/DLKV4ThW" rel="nofollow noopener">https://pastebin.com/DLKV4ThW</a></p>
+<p>I am passing 2 textures (the heightmap and the foliage coverage map) as well as a vec4 uniform that contains the heightmap dimensions and the terrain sampling sizes (x/z sample spacing and height) that are passed to Terrain::SetSpacing. The shader uses the sampling parameters and size to calculate texture coordinates, then indexes the heightmap texture to calculate a vertical translation that is applied to the vertex. The coverage map currently encodes X and Z offsets in the R and B channels, to translate the billboard geometry by a small amount to help alleviate the rigid grid-like structure.</p>
+<p>Edit: I have uploaded a repo demonstrating the issue: <a class="inline-onebox-loading" href="https://github.com/JTippetts/Urho3DGrassTest" rel="nofollow noopener">https://github.com/JTippetts/Urho3DGrassTest</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="4623">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fa8323cd130f703ad0982cec8eee46b7.png" width="20"/> JTippetts:</div>
+<blockquote>
+<p>Can anybody confirm whether or not the shadow pass gets the same set of uniforms as the main shader?</p>
+</blockquote>
+</aside>
+<p>Yes. They use the same batch management stuff as everything else, so <code>Batch::Prepare</code> takes care of it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/783_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alan</div>
+          <div class="post_content">
+<p>After a lot of building nonsense as rant on gitter, I had 5 minutes to very quickly take a look at it, and after some changes in the shader I got working shadows:<br/>
+<img alt="image" height="486" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/b/bc824ade1427f1ebf4cf14e357316d38ca4dae81.jpeg" width="690"/><br/>
+I’m still trying to determine what’s exactly the problem though, I don’t really understand why the x/z of the verts are being changed and the var names aren’t helping much <img alt=":trolleybus:" class="emoji" src="/images/emoji/twitter/trolleybus.png?v=9" title=":trolleybus:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>The X/Z displacement was an attempt (not real successful) to pull the billboards off the grid somewhat. The coverage map would hold randomized offsets in R and B. You can see in your screenshot, the grid bias is horrendous using this technique, so something needs to be done to make it workable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I note you have shadows on the displaced terrain. That’s… uh… weird. Because I don’t, hence this topic.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/783_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Alan</div>
+          <div class="post_content">
+<p>This was solved on Gitter and I’m updating here so others can benefit from the solution.<br/>
+The problem was that when rendering the shadows the built-in cCameraPos uniform is the position of the shadow caster, not the actual camera that’s rendering the scene, and since that position was used to calculate the size of the bushes in this case, that was the cause of the problem.<br/>
+For completeness, here’s how I fixed that issue, it’s probably not the most elegant way to do that but I believe it’s the simplest:<br/>
+<aside class="onebox githubcommit">
+<header class="source">
+<a href="https://github.com/Alan-FGR/Urho3DGrassTest/commit/cde33e427962a1637bdf0e59d8b7c61542025cb1" rel="nofollow noopener" target="_blank">github.com/Alan-FGR/Urho3DGrassTest</a>
+</header>
+<article class="onebox-body">
+<a href="https://github.com/Alan-FGR" rel="nofollow noopener" target="_blank">
+<img alt="Alan-FGR" class="thumbnail onebox-avatar" height="90" src="../../../images2/fbe349d4778e9c4ccbb20812e9809dd6.png" width="90"/>
+</a>
+<h4>
+<a href="https://github.com/Alan-FGR/Urho3DGrassTest/commit/cde33e427962a1637bdf0e59d8b7c61542025cb1" rel="nofollow noopener" target="_blank">fix</a>
+</h4>
+<div class="date">
+  by <a href="https://github.com/Alan-FGR" rel="nofollow noopener" target="_blank">Alan-FGR</a>
+  on <a href="https://github.com/Alan-FGR/Urho3DGrassTest/commit/cde33e427962a1637bdf0e59d8b7c61542025cb1" rel="nofollow noopener" target="_blank">02:41AM - 30 Oct 18 UTC</a>
+</div>
+<div class="github-commit-stats">
+  changed <strong>3 files</strong>
+  with <strong>8 additions</strong>
+  and <strong>3 deletions</strong>.
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<hr/>
+<p>EDIT: Oops… actually, I was thinking this thread was just for the shadows problem… it’s confusing now, sorry guys <img alt=":sweat_smile:" class="emoji" src="../../../images2/677108e2ca3184440222fa48fee4f409.png" title=":sweat_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

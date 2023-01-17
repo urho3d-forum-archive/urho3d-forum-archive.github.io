@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Diamond Method Displacement Problem</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Diamond Method Displacement Problem</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I’m working on the procedural terrain and trying to implement a different noise type. The problem I have is with the floats. It seems to work but oddly the color is cycling isntead of 0 to 1. I’m getting 0 to 1, 0 to 1, repeatedly. Basically destryoing the elevation.</p>
+<p>Here is the code and a link to the results from it.</p>
+<p><a href="http://en.wikipedia.org/wiki/Diamond-square_algorithm#Midpoint_displacement_algorithm" rel="nofollow noopener">en.wikipedia.org/wiki/Diamond-sq … _algorithm</a></p>
+<p>Current results picture.</p>
+<p><a href="http://tinypic.com/view.php?pic=2kotwx&amp;s=8" rel="nofollow noopener">tinypic.com/view.php?pic=2kotwx&amp;s=8</a></p>
+<p>[code]/// Cold to create noise through the Diamond method. Requires offset and better hash table to create random heightmaps but repeatable<br/>
+bool Image::generateDiamondMethod1 (float * buffer,const int &amp;width, const int &amp;height, const float &amp;maxYcoords,const float &amp;minYcoords)<br/>
+{<br/>
+//an initial seed value for the corners of the data<br/>
+float SEED = 0.0f;<br/>
+unsigned int DATA_SIZE=width+1;<br/>
+float diamond[DATA_SIZE][DATA_SIZE];</p>
+<pre><code>//initialise the values of the corners++
+diamond[0][0] = SEED;
+diamond[0][DATA_SIZE-1] = SEED;
+diamond[DATA_SIZE-1][0] = SEED;
+diamond[DATA_SIZE-1][DATA_SIZE-1] = SEED;
+
+float h =100.0; 	//the range (-h -&gt; h) for the average offset
+srand(1);		//seed the random generator
+
+//side length is the distance of a single square side
+//or distance of diagonal in diamond
+//each iteration we are looking at smaller squares and diamonds, we decrease the variation of the offset
+for (int sideLength = DATA_SIZE-1; sideLength &gt;= 2; sideLength /= 2, h /= 2.0)
+{
+
+    int halfSide = sideLength/2;
+
+    //generate new square values
+    for(int x=0; x&lt;DATA_SIZE-1; x+=sideLength)
+    {
+        for(int y=0; y&lt;DATA_SIZE-1; y+=sideLength)
+        {
+
+            //x,y is upper left corner of the square
+            //calculate average of existing corners
+            float avg = diamond[x][y] + 				//top left
+                        diamond[x+sideLength][y]   +				//top right
+                        diamond[x][y+sideLength]   + 				//lower left
+                        diamond[x+sideLength][y+sideLength]; 	//lower right
+            avg /= 4.0;
+
+            //center is average plus random offset in the range (-h, h)
+            float offset = (-h) + rand() * (h - (-h)) / RAND_MAX;
+            diamond[x+halfSide][y+halfSide] = avg + offset;
+
+        } //for y
+    } // for x
+
+    //Generate the diamond values
+    //Since diamonds are staggered, we only move x by half side
+    //NOTE: if the data shouldn't wrap the x &lt; DATA_SIZE and y &lt; DATA_SIZE
+    for (int x=0; x&lt;DATA_SIZE-1; x+=halfSide)
+    {
+        for (int y=(x+halfSide)%sideLength; y&lt;DATA_SIZE-1; y+=sideLength)
+        {
+
+            //x,y is center of diamond
+            //we must use mod and add DATA_SIZE for subtraction
+            //so that we can wrap around the array to find the corners
+
+            float avg =
+                diamond[(x-halfSide+DATA_SIZE)%DATA_SIZE][y] +	//left of center
+                diamond[(x+halfSide)%DATA_SIZE][y]				+	//right of center
+                diamond[x][(y+halfSide)%DATA_SIZE]				+	//below center
+                diamond[x][(y-halfSide+DATA_SIZE)%DATA_SIZE];	//above center
+
+            avg /= 4.0;
+
+            //new value = average plus random offset
+            //calc random value in the range (-h,+h)
+            float offset = (-h) + rand() * (h - (-h)) / RAND_MAX;
+            avg = avg + offset;
+
+            //update value for center of diamond
+            diamond[x][y] = avg;
+
+            //wrap values on the edges
+            //remove this and adjust loop condition above
+            //for non-wrapping values
+            if (x == 0) diamond[DATA_SIZE-1][y] = avg;
+            if (y == 0) diamond[x][DATA_SIZE-1] = avg;
+        } //for y
+    } //for x
+} //for sideLength
+
+/// Set maxY and minY to 0.0f
+float maxY = diamond[1][1];
+float minY = diamond[1][1];
+
+/// Calculate minY and maxY values
+for (int x = 0; x&lt;DATA_SIZE-1; x++)
+{
+    for(int y=0; y&lt;DATA_SIZE-1; y++)
+    {
+        if (diamond[x][y] &gt; maxY)
+            maxY = diamond[x][y];
+        if (diamond[x][y] &lt; minY)
+            minY = diamond[x][y];
+    }
+}
+
+/// Calculate height from 0 to 1
+for(int x=0; x &lt; DATA_SIZE-1; x++)
+{
+    for(int y=0; y &lt; DATA_SIZE-1; y++)
+    {
+        //change range to 0..1
+        diamond[x][y] = (diamond[x][y] - minY) / (maxY - minY);
+    }
+
+}
+
+/// Copy color float from create texture
+for(unsigned x = 0; x&lt;width; x++)
+{
+    for(unsigned y = 0; y&lt;height; y++)
+    {
+        /// incremennt memory which seems to work
+        int index = x+(y*width);
+
+        buffer[index]=diamond[x][y];
+    }
+}
+
+return true;
+</code></pre>
+<p>}[/code]</p>
+<p>Code to produce output</p>
+<p>[code]/// generate perlin output<br/>
+bool Image::GenerateBuild(float * buffer, unsigned *output)<br/>
+{<br/>
+int width=width_;<br/>
+int height=height_;<br/>
+int components=components_;<br/>
+int depth=1;</p>
+<pre><code>// loop through all the floats then convert to grayscale setting the color basis to .5 (forcing values 0 to 1)
+for(unsigned x = 0; x&lt;width; x++)
+{
+    for(unsigned y = 0; y&lt;height; y++)
+    {
+
+        /// incremennt memory which seems to work
+        int index = x+(y*height);
+
+        unsigned col = buffer[index]* 255;  /// create color value
+
+        col = rgba32ToUInt(col,col,col, 255);
+
+        output[index] = col;      /// set grayscale - rgba is not needed. it seems to be screwy with this type of code.
+    }
+}
+
+return true;
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Can the problem be with this code below? When I change the offset to be 0. to<span class="bbcode-b"> float offset=0.1;</span></p>
+<p>I get.</p>
+<p><a href="http://tinypic.com/r/20r4did/8" rel="nofollow noopener">tinypic.com/r/20r4did/8</a></p>
+<p>[code]        //x,y is upper left corner of the square<br/>
+//calculate average of existing corners<br/>
+float avg = diamond[x][y] + 				//top left<br/>
+diamond[x+sideLength][y]   +				//top right<br/>
+diamond[x][y+sideLength]   + 				//lower left<br/>
+diamond[x+sideLength][y+sideLength]; 	//lower right<br/>
+avg /= 4.0;</p>
+<pre><code>            //center is average plus random offset in the range (-h, h)
+            float offset = (-h) + rand() * (h - (-h))  / RAND_MAX;[/code]</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Problem partially fixed.</p>
+<p>Could use help on the last part. Check out my response to dhayden.</p>
+<p>Vivienne</p>
+<p>[quote]dhayden,</p>
+<p>I looked and modified the code as such . It is partially fixed. Here is a link of the produced image so I am trying to figure out the rest of the problem.</p>
+<p>Main Picture<br/>
+<a href="http://tinypic.com/r/23ser1s/8" rel="nofollow noopener">tinypic.com/r/23ser1s/8</a></p>
+<p>Troubled area after I inverted in a paint program (If that helps)<br/>
+<a href="http://tinypic.com/r/2irlxsz/8" rel="nofollow noopener">tinypic.com/r/2irlxsz/8</a></p>
+<p>code segment</p>
+<p>[code]  //calculate average of existing corners<br/>
+float avg = diamond[x][y] + 				//top left<br/>
+diamond[(x+sideLength)%DATA_SIZE][y]   +				//top right<br/>
+diamond[x][ (y+sideLength)%DATA_SIZE]   + 				//lower left<br/>
+diamond[(x+sideLength)%DATA_SIZE][(y+sideLength)%DATA_SIZE]; 	//lower right</p>
+<pre><code>            avg /= 4.0;
+</code></pre>
+<p>[/code]code segment</p>
+<p>[code]   for (int x = 0; x&lt;DATA_SIZE;x++)<br/>
+{<br/>
+for(int y=0; y&lt;DATA_SIZE; y++)<br/>
+{<br/>
+if (diamond[x][y] &gt; maxY)<br/>
+maxY = diamond[x][y];<br/>
+if (diamond[x][y] &lt; minY)<br/>
+minY = diamond[x][y];<br/>
+}<br/>
+}</p>
+<pre><code>/// Calculate height from 0 to 1
+for(int x=0; x &lt; DATA_SIZE; x++)
+{
+    for(int y=0; y &lt; DATA_SIZE; y++)
+    {
+        //change range to 0..1
+        diamond[x][y] = (diamond[x][y] - minY) / (maxY - minY);
+    }
+
+}
+</code></pre>
+<p>[/code]</p>
+<p>[quote]<br/>
+In that code, I think you need to change x+sideLength to (x+sideLength)%DATA_SIZE, and change y+sideLength to (y+sideLength)%DATA_SIZE.</p>
+<p>And are you sure your loop bounds are correct? Diamond is defined with DATA_SIZE items in each index, but some of your loops (e.g… line 89) are:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>The largest value of x in this loop will be DATA_SIZE-2, which is one less than the largest index. This should be:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>dhayden,</p>
+<p>[/quote][/quote]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>This code produces this output.  What the heck!!</p>
+<p>Code</p>
+<p>[code]   cout &lt;&lt; "\r\nlocation1 "&lt;&lt; diamond[305][742];<br/>
+cout &lt;&lt; "\r\nlocation2 " &lt;&lt;diamond[288][732];</p>
+<pre><code>/// Set maxY and minY to 0.0f
+float maxY = diamond[1][1];
+float minY = diamond[1][1];
+
+for (int x = 0; x&lt;DATA_SIZE;x++)
+{
+    for(int y=0; y&lt;DATA_SIZE; y++)
+    {
+        if (diamond[x][y] &gt; maxY)
+            maxY = diamond[x][y];
+        if (diamond[x][y] &lt; minY)
+            minY = diamond[x][y];
+    }
+}
+
+cout &lt;&lt; "\r\nminY"&lt;&lt; minY;
+cout &lt;&lt; "\r\nmaxY"&lt;&lt; maxY;[/code]
+</code></pre>
+<p>Output - Command Line (Debug)</p>
+<p><code>location1 -24.0164
+location2 -13.1731
+minY-21.6058
+maxY186.181</code><br/>
+The for loop is not catching the minY and maxY!!!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>1-Byte-Per-Pixel (8bpp) Texture Support? (e.g. Luminance)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">1-Byte-Per-Pixel (8bpp) Texture Support? (e.g. Luminance)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We’re wanting to add a single, 8-bit channel per pixel, such as a “Luminance” map, and so we only need 1 byte per pixel to indicate the “Brightness” of that pixel.</p>
+<p>I’m not sure how to do this in Urho3D.  Is it possible?   We’re trying to avoid setting a full UInt32 for each pixel (4 bytes instead of 1).</p>
+<p>The Texture formats seem to be limited to these values:</p>
+<p>public enum CompressedFormat<br/>
+{<br/>
+None = 0,<br/>
+Rgba = 1,<br/>
+Dxt1 = 2,<br/>
+Dxt3 = 3,<br/>
+Dxt5 = 4,<br/>
+Etc1 = 5,<br/>
+PvrtcRgbN2Bpp = 6,<br/>
+PvrtcRgbaN2Bpp = 7,<br/>
+PvrtcRgbN4Bpp = 8,<br/>
+PvrtcRgbaN4Bpp = 9<br/>
+}</p>
+<p>Our images are programmatic, such as a geographic Height Map.  We read in the elevations of the area, and then write values to a bitmap.   We’d like to simply write a value of 0…255 for the height, rather than a 32-bit float, or UInt32.     1 byte is enough for us.</p>
+<p>Here’s an image of our Map app here.   The color coding here is based off Height and Slope.  Currently we’re encoding the “slope” component into the RBGA format “Alpha” channel, but we really need to reserve this channel for “alpha” so that we can have transparency.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="1uHmv6kWbMEHRPpvwC96TmPTwSZ"  height="381" src="../../../images2/1badbfe5eb52200d9d5efe027c3743a0.jpeg"  width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1548×857 839 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>If you’re running out of channels, maybe you could <em>pair</em> two equally sized images?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Ideally, we’d like to have just 2 channels per pixels:</p>
+<ol>
+<li>1 Byte - indicates Palette Color (0…255 options) - this indicates “Height/Elevation” at that pixel.</li>
+<li>1 Byte - indicates Brightness / Alpha (where  0 = Invisible, 1…255 are fully opaque)</li>
+</ol>
+<p>And then send our Pixel shader a 2nd texture of “Palette colors”.</p>
+<p>In short, we’re trying to save on RAM and processing-time (less data makes it faster).</p>
+<p>As far as I can tell, there is no way to format a texture to be 1-byte-per-pixel?  Although I suppose we could do something more creative such as “tiling” and have tile <span class="hashtag">#1</span> use the first two channels, then tile <span class="hashtag">#2</span> use the 2nd two channels…   So the same texture would be used for 2 tiles.</p>
+<p>Maybe that’s the answer.  (Texture sharing, and mapping different channels to different tiles.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Doesn’t Graphics provide several options for this - GetAlphaFormat() and GetLuminanceFormat() for 1Bpp, and then GetLuminanceAlphaFormat() and GetRG16() for 2Bpp? In any case, I would guess (I have no evidence for it) that it would be more efficient to use a 2Bpp texture over 2 separate 1Bpp textures unless you are only going to be modifying one or they are different sizes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="6454" data-username="SirNate0">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fb52f23a6782e890737d90432eac55f2.png" width="20"/> SirNate0:</div>
+<blockquote>
+<p>GetLuminanceFormat</p>
+</blockquote>
+</aside>
+<p>Ah shoot, this could be another UrhoSharp limitation on the API.   UrhoSharp only provides “Graphics.GetFormat(CompressedFormatEnum)”… and those enumeration options are shown in my initial post, and doesn’t contain a Luminance option.</p>
+<p>We may opt for a 4-channel RBGA format, and split it across 2 Renderable Tiles.   Tile <span class="hashtag">#1</span> will use Channels RG, and Tile <span class="hashtag">#2</span> will use Channels BA.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="5" data-topic="6454" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>“Graphics.GetFormat(CompressedFormatEnum)”</p>
+</blockquote>
+</aside>
+<p>1bpp luminance texture is <em>not</em> compressed format.<br/>
+It should be accessible directly via e.g. <code>Image::SetSize</code> (it should take number of components as input)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Eugene, I think may be my solution right there, thanks!   UrhoSharp still allows us to set the Texture Format as a “uint”, and so we’ll just have to do our own logic to determine the “Luminance Format”, which appears to be:</p>
+<p>D3D9:  50 (L8)<br/>
+D3D11:  61 (R8_UNORM)<br/>
+OpenGL: 33321 (R8)</p>
+<p>Or if I wanted, looks like I should be able to easily select/create a 2-channel texture (16bpp), and use that as well.</p>
+<p>I’ll give this a try and let you know how it works out.  THANKS!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="8" data-topic="6454" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>Or if I wanted, looks like I should be able to easily select/create a 2-channel texture (16bpp), and use that as well.</p>
+</blockquote>
+</aside>
+<p>I <em>think</em> that 1-channel textures are supported as well. You may need to use R component instead of A in shader tho.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Eugene, I tried to convert the DiffMap to 2-channel format  (R8G8_UINT), and every channel (RGBA) in the shader from the Sampler turns up as “0”.    Is the DiffMap <em>allowed</em> to be 2-channel in these shaders?    I didn’t see a mapping for “Luminance” in the “samplers.hlsl”, but saw options for Specular and Emissive – both of which seemed to be RGB format for all the shaders that use these.</p>
+<p>I see no examples that make use of any 1 or 2 channel textures.  Can you point me to some example code that does this?   (all the examples I see use RGB or RGBA formatted textures)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Shaders don’t care about number of channels. Although I want to see how you create 2-channel texture on code side.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>This is how I create the texture:<br/>
+_textureFormat = 50;   // equiv to:  DXGI_FORMAT_R8G8_UINT<br/>
+_texture.SetSize(size.Width, size.Height, _textureFormat, TextureUsage.Static);<br/>
+_texture.SetData(0, 0, 0, size.Width, size.Height, (void*)bitmap.pBits);</p>
+<p>This code works fine for 4-channel RGBA format, but not for 2-channel.   _texture is a Texture2D.</p>
+<p>For 2-channel, the shader just shows blank.</p>
+<p>The Pixel Shader looks like this:<br/>
+void PS(<br/>
+float2 oTexCoord : TEXCOORD0,<br/>
+float4 iColor : COLOR0,<br/>
+out float4 oColor : OUTCOLOR0)<br/>
+{<br/>
+float4 diffColor = iColor * Sample2D(DiffMap, oTexCoord).rgba;<br/>
+diffColor.a = 1.0;<br/>
+oColor = diffColor;<br/>
+}</p>
+<p>Channels R &amp; G should have non-zero data… but all I see is “opaque BLACK” (Color 0,0,0,1)</p>
+<p>====<br/>
+My concern is that Urho3D isn’t just “normal shader logic” since we use some built in include files, like “sampling.hlsl” which defines “DiffMap”.    I wasn’t sure if Urho3D somehow demands that DiffMap always be a 4-channel texture.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>NOTE – it’s working if I change the format from 50 to 49, which is R8G8_UNORM.</p>
+<p>So we’re all set now, it seems.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

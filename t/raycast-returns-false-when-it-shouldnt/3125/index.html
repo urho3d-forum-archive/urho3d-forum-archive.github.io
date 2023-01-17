@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Raycast returns false when it shouldn&rsquo;t</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Raycast returns false when it shouldn&rsquo;t</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pihozamo</div>
+          <div class="post_content">
+<p>Hello, I’m trying to create a sort of grid navmesh using raycasts, however, for some reason the raycast return false when it shouldn’t. Here is the code:</p>
+<pre><code>void Game::CreateNavigationGraph(const IntVector3&amp; startPos)
+{
+	const Vector3 downVec(0, -1, 0);
+	const IntVector3 dirVecs[] = { IntVector3(1, 0, 0), IntVector3(-1, 0, 0), IntVector3(0, 0, 1), IntVector3(0, 0, -1) };
+	Drawable* hitDrawable;
+
+	HashSet&lt;IntVector3&gt; visited;
+	HashSet&lt;IntVector3&gt; onStack;
+	Vector&lt;IntVector3&gt; ar;
+	Vector&lt;Vector3&gt; hitPoints;
+	ar.Push(startPos);
+
+	while (!ar.Empty()) {
+		Vector3 hitPos;
+		const IntVector3 v = ar.Back();
+		ar.Pop();
+		onStack.Erase(v);
+
+		if (Raycast(100.0f, hitPos, hitDrawable, Ray(Vector3(v), downVec))) {
+			for (int i = 0; i &lt; 4; i++) {
+				const IntVector3 v2 = v + dirVecs[i];
+
+				if (!visited.Contains(v2) &amp;&amp; !onStack.Contains(v2)) {
+					ar.Push(v2);
+					onStack.Insert(v2);
+					//Log::Write(LOG_INFO, String(v2));
+				}
+			}
+			hitPoints.Push(hitPos);
+		}
+		visited.Insert(v);
+	}
+
+	//Log::Write(LOG_INFO, String(hitPoints.Size()));
+	for (int i = 0; i &lt; hitPoints.Size(); i++) {
+		ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+		Node* n = scene_-&gt;CreateChild("Cube");
+		n-&gt;SetPosition(hitPoints[i]);
+		n-&gt;SetScale(Vector3(0.2f, 0.2f, 0.2f));
+		StaticModel* model = n-&gt;CreateComponent&lt;StaticModel&gt;();
+		model-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Cube.mdl"));
+		model-&gt;SetCastShadows(true);
+		//Log::Write(LOG_INFO, String(hitPoints[i]));
+	}
+}
+</code></pre>
+<p>For the Raycast function:</p>
+<pre><code>bool Gourmet::Raycast(const float&amp; maxDistance, Vector3&amp; hitPos, Drawable*&amp; hitDrawable, const Ray&amp; ray)
+{
+	hitDrawable = 0;
+
+	// Pick only geometry objects, not eg. zones or lights, only get the first (closest) hit
+	PODVector&lt;RayQueryResult&gt; results;
+	RayOctreeQuery query(results, ray, RAY_TRIANGLE, maxDistance, DRAWABLE_GEOMETRY);
+	scene_-&gt;GetComponent&lt;Octree&gt;()-&gt;RaycastSingle(query);
+	if (results.Size())
+	{
+		RayQueryResult&amp; result = results[0];
+		hitPos = result.position_;
+		hitDrawable = result.drawable_;
+		return true;
+	}
+
+	return false;
+}
+</code></pre>
+<p>I’ve made sure I applied the scale, position and location of my plane model on Blender, and I’m not sure why it doesn’t work. It seems to me that it maybe some type of optimization made by the Octree, because it seems that it stops working after a certain distance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>When I had problems like this, moving such code into FixedUpdate and waiting a few seconds before starting of raycast did the trick.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="3125" data-username="Pihozamo">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/209e09ba8ccb3a1dd2188c171da013cc.png" width="20"/> Pihozamo:</div>
+<blockquote>
+<p>It seems to me that it maybe some type of optimization made by the Octree, because it seems that it stops working after a certain distance.</p>
+</blockquote>
+</aside>
+<p>Instead of using octree raycast try to use Drawable::ProcessRayQuery on your model</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pihozamo</div>
+          <div class="post_content">
+<p><span class="mention">@lezak</span> That solved the problem! But do you know why the Octree doesn’t apply raycasts after a certain block distance?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>I came across same issue just few days ago and since then I havn’t had time to look into it closers. I think that it is caused, at least in my case, by model being bigger then octant in which it is placed and octree raycast takes into account only geometries that fit this octant. For example after decreasing number of subdivisions in octree raycast will also give expected results.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

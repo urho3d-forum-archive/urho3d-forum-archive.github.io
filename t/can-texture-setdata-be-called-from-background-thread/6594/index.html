@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Can Texture.SetData() be called from Background Thread?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Can Texture.SetData() be called from Background Thread?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We have a map application which loads Map Tiles 512x512 pixel on demand.   We load from disk on a background thread, but then Urho seems to demand that we do the “Texture.SetData(…)” on the Urho Update thread, which means that times spent on this method interrupts the Frame rate.</p>
+<p>We load up to 20 tiles at once.   When the user zooms out, we actually load NEW LOWER REZ tiles to fill in the space.   However, while those new tiles are loading, the user is stuck viewing the previous higher rez tiles.   If we don’t have LOD’s for these tiles, then the user sees “dither” (where pixels flicker madly because the image it’s trying to render is too high resolution, and LODS are needed).</p>
+<p>So to resolve this, we load the tiles with 3 LODs and that gets rid of the dither.</p>
+<p>However, loading 3 LOD’s takes 1.2 msec per tile (on a PC, will be slower on mobile devices).  But if we only set 1 LOD (using SetData(x, y, fmt, (void*)dataPointer), it only takes 0.33 msec per tile (almost 4x faster).</p>
+<p>20 tiles x 1.2 msec = 24 msec (on a PC).   For mobile devices, we expect this might be much slower (e.g. 3 msec/tile == 60 msec for 20 tiles).   And so this may cause a rendering hiccup, as we call “Texture.SetData()” for 3 LODs.</p>
+<p>===<br/>
+Is there a way to call “Texture.SetData()” on a background thread without crashing Urho?  (when we’ve tried this, it often results in sporadic application crashes, sudden)   If we can call SetData on the background thread, safely, then we don’t have to be concerned about the rendering hiccup.</p>
+<p>Our code looks like this:</p>
+<p>_textture.SetNumLevels(3);<br/>
+…<br/>
+IntPtr pixelPtr = {points to the pixel buffer}<br/>
+Urho.Resources.Image img2 = Tile._cache.UtilityImage;  // we re-use this Image for each tile<br/>
+img2.SetData((byte*)pixelPtr);  // First we send the Pixel Buffer to the Image.  Takes about 0.3 msec<br/>
+_texture.SetData(img2, false);  /// then we send the Image to the Texture.  This step takes the longest.  Takes about 1 msec</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>TL;DR: No, you cannot and it’s quite hard to change.</p>
+<p>Longer answer: Unless you create multiple GAPI contexts, you cannot work with GAPI from different threads. You <em>probably tecnhincally</em> can manage multiple contexts and write GPU resource from background thread while using main thread, assuming you don’t read and write resource simultaneously from different threads, your platform and GAPI support this stuff and you don’t encounter any driver bugs on the way.</p>
+<p>The most common solution is to write data chunk by chunk: instead of uploading whole resource do it for small enough region. Bigger engines like Unity do it under the hood and have settings like “main thread resource upload quota”. Urho does not implement it on its own, but it’s not impossible.</p>
+<p>I assume that you have this function exposed in C#:<br/>
+</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/Texture2D.h#L65</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="55" style="counter-reset: li-counter 54 ;">
+<li>void OnDeviceReset() override;
+</li><li>/// Release the texture.
+</li><li>void Release() override;
+</li><li>
+</li><li>/// Set size, format, usage and multisampling parameters for rendertargets. Zero size will follow application window size. Return true if successful.
+</li><li>/** Autoresolve true means the multisampled texture will be automatically resolved to 1-sample after being rendered to and before being sampled as a texture.
+</li><li>    Autoresolve false means the multisampled texture will be read as individual samples in the shader and is not supported on Direct3D9.
+</li><li>    */
+</li><li>bool SetSize(int width, int height, unsigned format, TextureUsage usage = TEXTURE_STATIC, int multiSample = 1, bool autoResolve = true);
+</li><li>/// Set data either partially or fully on a mip level. Return true if successful.
+</li><li class="selected">bool SetData(unsigned level, int x, int y, int width, int height, const void* data);
+</li><li>/// Set data from an image. Return true if successful. Optionally make a single channel image alpha-only.
+</li><li>bool SetData(Image* image, bool useAlpha = false);
+</li><li>
+</li><li>/// Get data from a mip level. The destination buffer must be big enough. Return true if successful.
+</li><li>bool GetData(unsigned level, void* dest) const;
+</li><li>/// Get image data from zero mip level. Only RGB and RGBA textures are supported.
+</li><li>bool GetImage(Image&amp; image) const;
+</li><li>/// Get image data from zero mip level. Only RGB and RGBA textures are supported.
+</li><li>SharedPtr&lt;Image&gt; GetImage() const;
+</li><li>
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+If you don’t… Well, my condolences.
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Thanks Eugene.   We’re probably just going to limit the amount of Data Transfer per frame, and handle it that way.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

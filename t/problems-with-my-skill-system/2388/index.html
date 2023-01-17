@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Problems with my skill system</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Problems with my skill system</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">microface</div>
+          <div class="post_content">
+<p>Please forgive my poor English.<br/>
+I have some problems with my skill system in my game. Actually, I just do not know how to realize my skill system(in RPG-like games).<br/>
+Unlike the inventory system, each skill is a class (which derives from LogicComponent) rather an object. So I need a container to store my character’s skills. This container cannot be defined as something like ‘Vector&lt;Skill*&gt;’ as it should contain a bunch of classes rather than objects. So how can I just store a bunch of classes in a structure ?<br/>
+What I really want to ask is that how do you guys(No offense. I have no idea is it a polite statement or not.) build your skill systems?<br/>
+THANKS!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sir_Nate</div>
+          <div class="post_content">
+<p>I  would either go with not using a separate class for each, or use an instancer. Have another class that returns a logic component based on the type, and either use a switch statement to return the class needed, or have a templatized instancer driving from a common parent that stores returns the class, and store them in a hash map (the same way the context instances new classes once you’ve registered the factory).</p>
+<p>As to your latter question, I have a single class for my skills, which then uses either a timeline for the effects (you can define your own events, and then just read them from the timeline and use the event data as needed), my own timeline format, out a script object with a few pre-defined methods. I want to keep my game mod-able, though, so I am willing to take the small performance hit from this as compared to native code.</p>
+<p>If you want to keep using separate classes, you can try what I’ve described above, and there is also some class information stuff in the newer versions of CPP. I also did what you are trying in an earlier iteration, but I abandoned it. I can pull out that code and look at exactly what I did if you would like, though.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">microface</div>
+          <div class="post_content">
+<p>Um, is that to say what I need to do is to realize all the skills in only one class and trigger them according to specific input? Actually, I do not catch your meaning which using a timeline for the effects. Is not timeline just a tool for realizing animation? How can you realize the skill logic with it?</p>
+<p>Sorry that I may not follow you quite well. Could you please speak a little more clearly or maybe show me some of your codes ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sir_Nate</div>
+          <div class="post_content">
+<p>It depends on what you are trying to do.</p>
+<ol>
+<li>Are these skills ‘attacks’ that are used at specific times (based on user input) and then are finished or are they passive things (you gain them, and then you get, e.g. an experience bonus whenever you kill something)?</li>
+<li>Is your game a turn-based RPG (like Pokemon, Dragon Quest, etc.) or a real time one (think Zelda, perhaps the Tales of ____ games (I don’t really remember the combat in them though))?</li>
+</ol>
+<p>Attacks + Real time<br/>
+–you will need something like a timeline, as the attacks will have to move in certain ways and initiate their effects at certain times<br/>
+Attacks + Turn based<br/>
+–you can probably do you system the same way you do items – skill have float damage, chanceOfHitting, chanceOfStatusCondition; int numberOfHits; enum STATUS_CONDITION; enum TYPE; float sp/mp/mana/___Cost;<br/>
+Passive + Real time<br/>
+–you probably just need an Object or Component, not a LogicComponent, as most of them will probably just respond to specific events (E_ENEMY_KILLED, etc.) and not to the general Update, FixedUpdate, etc. events<br/>
+Passive + Turn based<br/>
+–these can probably be realized as 2 functions – an applySkill(Character) that adjusts current stats and such and a removeSkill(Character) that un-does that change, but that is up to you.</p>
+<p>My game falls in to the Attacks+Real time, hence the timeline, but I also have abilities that fall into passive+real time, for which I use a script object (so basically a logic component).</p>
+<p>If you need a container just to store which skill you have, just use a Vector or Vector to store the name(hash) of the class and instantiate from the context as needed. You’ll just have to register each as a factory (context_-&gt;RegisterFactory();//replace Attack with each of your skill classes in turn). If you need a pointer to the objects of each class, use a Vector&lt;LogicComponent*&gt; to store them (you should probably use WeakPtrs or SharedPtrs though).</p>
+<p>If you provide more details, I can try to give more specific feedback.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">microface</div>
+          <div class="post_content">
+<p>It’s a real-time shooting online-game which is something like <span class="bbcode-i">OverWatch</span>. Each player can choose a character and choose skills(both active and passive) to carry before one round starts. So I need a interface with which I can change one’s skills after a round.</p>
+<p>Active ones are something that one can trigger by its input while passive ones are just something like a buff which always impacts the character during one round.</p>
+<p>e.g. One of the skills is something like that launching a missile, then it will follow anyone else who else is within its tracking range.</p>
+<p>Also other ones like launching a rocket which can trigger a debuff on someone it hitted.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sir_Nate</div>
+          <div class="post_content">
+<p>I would go with just a vector of Strings then. Have all of your skills be logic components (or perhaps a class derived from logic component, which would allow you to have functions like GetDescription() and GetImage(), etc. for the skills (things you know most every one of them should have). You can then instantiate them with Context’s CreateObject(StringHash), or, for that matter, just use Node’s CreateComponent(StringHash type,…) and construct accordingly. Since you won’t be doing this often, I would go with a Vector over a Vector, as it makes it easier to print them out in logging and such. Active skill can then just use the regular events (input, update, etc.) to act, and the passive buffs can use OnNodeSet or (probably better, thought not necessarily) DelayedStart. For the buffs/debuffs, you can either just use Node variables, or you can create a Creature/Player/… component that stores all of the stat information and just use Node::GetComponent&lt;&gt; and Node::HasComponent&lt;&gt;.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">microface</div>
+          <div class="post_content">
+<p>What you suggested really did a great favor to me though I may not catch your idea very well sometimes. I’ll try it then, and thanks a lot for your help!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

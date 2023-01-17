@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Normals causing mesh to go all over the place</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Normals causing mesh to go all over the place</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3734_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kest</div>
+          <div class="post_content">
+<p>Hello again, I bring an issue that’s recently come up. So I’ve been working on my mesh importer and everything is working properly, except for defining normals. I’ve calculated the normals automatically and they seem to be right, but one issue is that when I apply them to the Vertex Data, it spawns this.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="fdgfsd"><img alt="fdgfsd" data-base62-sha1="1qPuplVG1BYmueVmwLuOM3T6SoK"  height="500" src="../../../images2/e8fdcf334345d03b51e8dc67b9d22912.png" width="593"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">fdgfsd</span><span class="informations">1114×939 8.62 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>I have this defining the features of the model.</p>
+<pre><code class="lang-auto">unsigned elements = MASK_POSITION | MASK_TEXCOORD1 | MASK_TEXCOORD2 | MASK_NORMAL;
+</code></pre>
+<p>I’ve been looking for answers about this, I’m thinking that it’s not in the proper order or something, but if someone is able to suggest something I’d greatly appreciate it. Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>Hi,<br/>
+Maybe trying with renderdoc could give a hint about whats going on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3734_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kest</div>
+          <div class="post_content">
+<p>I’m unfamiliar with RenderDoc, should I show the code to make it easier or would you rather RenderDoc?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Yeah, but how to you fill the data itself? Note that order of vertex elements in mask is irrelevant, you should fill stuff in predefined order. See VertexBuffer.cpp code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3734_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kest</div>
+          <div class="post_content">
+<p>Hello, I’m currently setting this to the side, though I will come back to this later. Though if you want to take a look I’ll leave this here.</p>
+<pre><code class="lang-auto">for (int i = 0; i &lt; meshcount; i++)
+    {
+        SharedPtr&lt;Geometry&gt; geom(new Geometry(context_));
+
+        URHO3D_LOGINFO("RMESH LOOP: " + (String)(i + 1));
+
+        for (int j = 0; j &lt; 2; j++)
+        {
+            byte texflag = source.ReadUByte();
+            if (texflag != 0)
+            {
+                String texString = ReadBlitzString(source);
+                if (!texString.Empty())
+                {
+                    texString.Replace(".jpg", "");
+                    texString.Replace(".png", "");
+                    URHO3D_LOGINFO("Texture found: " + texString);
+
+                    if (texString.Contains("_lm"))
+                    {
+                        mat = readMaterial(texString);
+                        if (!lmMats.Contains(mat))
+                        {
+                            URHO3D_LOGDEBUG("Getting Lightmap!");
+                            lmMats.Push(mat);
+                        }
+                    }
+                    else
+                    {
+                        mat = readMaterial(texString);
+                        brushMats.Push(mat);
+                    }
+                }
+            }
+        }
+
+        //Visible
+        Vector&lt;float&gt; vertData_;
+        //Vector3 normal = Vector3(0, 1, 0);
+        int vertcount = source.ReadInt();
+        for (int j = 0; j &lt; vertcount; j++)
+        {
+            //URHO3D_LOGINFO("Reading vertex loop: " + (String)(j + 1));
+            float x = source.ReadFloat();
+            float y = source.ReadFloat();
+            float z = source.ReadFloat();
+
+            vertices.Push(Vector3(x, y, z));
+
+            float Diffu = source.ReadFloat();
+            float Diffv = source.ReadFloat();
+
+            float LMu = source.ReadFloat();
+            float LMv = source.ReadFloat();
+
+            //URHO3D_LOGDEBUGF("UV: %s", uv.ToString());
+
+            //Gonna' see on how to make this work. -Kest
+            byte r = source.ReadUByte();
+            byte g = source.ReadUByte();
+            byte b = source.ReadUByte();
+            Color color = Color(r, g, b);
+
+            //Push into vertData_
+            vertData_.Push(x);
+            vertData_.Push(y);
+            vertData_.Push(z);
+
+            //vertData_.Push(normal.x_);
+            //vertData_.Push(normal.y_);
+            //vertData_.Push(normal.z_);
+
+            vertData_.Push(Diffu);
+            vertData_.Push(Diffv);
+
+            vertData_.Push(LMu);
+            vertData_.Push(LMv);
+
+            bb.Merge(Vector3(x, y, z));
+        }
+
+        Vector&lt;ushort&gt; indData_;
+
+        int tricount = source.ReadInt();
+        for (int j = 0; j &lt; tricount; j++)
+        {
+            ushort tri1 = (ushort)source.ReadInt();
+            ushort tri2 = (ushort)source.ReadInt();
+            ushort tri3 = (ushort)source.ReadInt();
+
+            indData_.Push(tri1);
+            indData_.Push(tri2);
+            indData_.Push(tri3);
+
+            Vector3 v0 = vertices[tri1];
+            Vector3 v1 = vertices[tri2];
+            Vector3 v2 = vertices[tri3];
+
+            Vector3 d1 = v0 - v1;
+            Vector3 d2 = v2 - v1;
+
+            Vector3 normal = d1.CrossProduct(d2).Normalized();
+
+            vertData_.Push(normal.x_);
+            vertData_.Push(normal.y_);
+            vertData_.Push(normal.z_);
+        }
+
+        unsigned elements = MASK_POSITION | MASK_NORMAL | MASK_TEXCOORD1 | MASK_TEXCOORD2;
+
+        SharedPtr&lt;VertexBuffer&gt; vertexBuf(new VertexBuffer(context_));
+        vertexBuf-&gt;SetShadowed(true);
+        vertexBuf-&gt;SetSize(vertcount, elements);
+        vertexBuf-&gt;SetData(&amp;vertData_[0]);
+
+        URHO3D_LOGINFOF("Vertex buffer done in loop %d.", i + 1);
+
+        SharedPtr&lt;IndexBuffer&gt; indexBuf(new IndexBuffer(context_));
+        indexBuf-&gt;SetShadowed(true);
+        indexBuf-&gt;SetSize(tricount * 3, false);
+        indexBuf-&gt;SetData(&amp;indData_[0]);
+
+        URHO3D_LOGINFOF("Index buffer done in loop %d.", i + 1);
+
+        geom-&gt;SetVertexBuffer(0, vertexBuf);
+        geom-&gt;SetIndexBuffer(indexBuf);
+        geom-&gt;SetDrawRange(TRIANGLE_LIST, 0, tricount * 3);
+
+        URHO3D_LOGINFOF("Geometry done in loop %d, setting model geometry.", i + 1);
+
+        model-&gt;SetGeometry(i, 0, geom);
+        model-&gt;SetNumGeometryLodLevels(i, 1);
+    }
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>This is default order of elements:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="sZRf5wVohcFRX2vIs2lykpX2jfl"  height="262" src="../../../images2/d385a44f0f641c6ad954618ee92d2841.png" width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">image</span><span class="informations">760×289 30.5 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div><br/>
+So you need to shuffle your write code according to it.</p>
+<p>The possible caveat is reading code. If you are reading arbitrary mesh, elements theoretically may be stored in arbitrary order, and you have to check exact elements, offsets and types to get exact bytes.</p>
+<p>If your original buffer consists only of legacy elements in specific order (like on picture), it’s okay to read it as you do it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1437_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">elix22</div>
+          <div class="post_content">
+<p>unsigned elements = MASK_POSITION | MASK_NORMAL |  MASK_TEXCOORD1 | MASK_TEXCOORD2 | ;</p>
+<p>You are defining the above elements   , <strong>Position , Normal , 2 UV channels</strong><br/>
+But your code doesn’t reflect that , where is this Color coming from ?<br/>
+You are writing your generated normal at the end (in the vertData) , but it must be written immediately after the Position.</p>
+<p><span class="mention">@Eugene</span>  is right , the order and byte size and Element mask must reflect your model .</p>
+<p>You can look at these links for reference.</p><aside class="onebox githubblob" data-onebox-src="https://github.com/urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L2476">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L2476</a></h4>
+<pre class="onebox">      <code class="lang-cpp">
+        <ol class="start lines" start="2466" style="counter-reset: li-counter 2465 ;">
+            <li>        for (unsigned i = 0; i &lt; 4; ++i)
+</li>
+            <li>        {
+</li>
+            <li>            if (i &lt; blendIndices[index].Size())
+</li>
+            <li>                *destBytes++ = blendIndices[index][i];
+</li>
+            <li>            else
+</li>
+            <li>                *destBytes++ = 0;
+</li>
+            <li>        }
+</li>
+            <li>    }
+</li>
+            <li>}
+</li>
+            <li>
+</li>
+            <li class="selected">Vector&lt;VertexElement&gt; GetVertexElements(aiMesh* mesh, bool isSkinned)
+</li>
+            <li>{
+</li>
+            <li>    Vector&lt;VertexElement&gt; ret;
+</li>
+            <li>
+</li>
+            <li>    // Position must always be first and of type Vector3 for raycasts to work
+</li>
+            <li>    ret.Push(VertexElement(TYPE_VECTOR3, SEM_POSITION));
+</li>
+            <li>
+</li>
+            <li>    if (mesh-&gt;HasNormals())
+</li>
+            <li>        ret.Push(VertexElement(TYPE_VECTOR3, SEM_NORMAL));
+</li>
+            <li>
+</li>
+            <li>    for (unsigned i = 0; i &lt; mesh-&gt;GetNumColorChannels() &amp;&amp; i &lt; MAX_CHANNELS; ++i)
+</li>
+        </ol>
+      </code>
+    </pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<aside class="onebox githubblob" data-onebox-src="https://github.com/urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L2406">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L2406</a></h4>
+<pre class="onebox">      <code class="lang-cpp">
+        <ol class="start lines" start="2396" style="counter-reset: li-counter 2395 ;">
+            <li>void WriteLargeIndices(unsigned*&amp; dest, aiMesh* mesh, unsigned index, unsigned offset)
+</li>
+            <li>{
+</li>
+            <li>    if (mesh-&gt;mFaces[index].mNumIndices == 3)
+</li>
+            <li>    {
+</li>
+            <li>        *dest++ = mesh-&gt;mFaces[index].mIndices[0] + offset;
+</li>
+            <li>        *dest++ = mesh-&gt;mFaces[index].mIndices[1] + offset;
+</li>
+            <li>        *dest++ = mesh-&gt;mFaces[index].mIndices[2] + offset;
+</li>
+            <li>    }
+</li>
+            <li>}
+</li>
+            <li>
+</li>
+            <li class="selected">void WriteVertex(float*&amp; dest, aiMesh* mesh, unsigned index, bool isSkinned, BoundingBox&amp; box,
+</li>
+            <li>    const Matrix3x4&amp; vertexTransform, const Matrix3&amp; normalTransform, Vector&lt;Vector&lt;unsigned char&gt;&gt;&amp; blendIndices,
+</li>
+            <li>    Vector&lt;Vector&lt;float&gt;&gt;&amp; blendWeights)
+</li>
+            <li>{
+</li>
+            <li>    Vector3 vertex = vertexTransform * ToVector3(mesh-&gt;mVertices[index]);
+</li>
+            <li>    box.Merge(vertex);
+</li>
+            <li>    *dest++ = vertex.x_;
+</li>
+            <li>    *dest++ = vertex.y_;
+</li>
+            <li>    *dest++ = vertex.z_;
+</li>
+            <li>
+</li>
+            <li>    if (mesh-&gt;HasNormals())
+</li>
+        </ol>
+      </code>
+    </pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>In addition for each VertexBuffer  you create/write , you must set both the vertices count and element mask</p>
+<p>See</p><aside class="onebox githubblob" data-onebox-src="https://github.com/urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L1032">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L1032</a></h4>
+<pre class="onebox">      <code class="lang-cpp">
+        <ol class="start lines" start="1022" style="counter-reset: li-counter 1021 ;">
+            <li>unsigned startVertexOffset = 0;
+</li>
+            <li>unsigned startIndexOffset = 0;
+</li>
+            <li>unsigned destGeomIndex = 0;
+</li>
+            <li>bool isSkinned = model.bones_.Size() &gt; 0;
+</li>
+            <li>
+</li>
+            <li>outModel-&gt;SetNumGeometries(numValidGeometries);
+</li>
+            <li>
+</li>
+            <li>for (unsigned i = 0; i &lt; model.meshes_.Size(); ++i)
+</li>
+            <li>{
+</li>
+            <li>    aiMesh* mesh = model.meshes_[i];
+</li>
+            <li class="selected">    Vector&lt;VertexElement&gt; elements = GetVertexElements(mesh, isSkinned);
+</li>
+            <li>    unsigned validFaces = GetNumValidFaces(mesh);
+</li>
+            <li>    if (!validFaces)
+</li>
+            <li>        continue;
+</li>
+            <li>
+</li>
+            <li>    bool largeIndices;
+</li>
+            <li>    if (combineBuffers)
+</li>
+            <li>        largeIndices = model.totalIndices_ &gt; 65535;
+</li>
+            <li>    else
+</li>
+            <li>        largeIndices = mesh-&gt;mNumVertices &gt; 65535;
+</li>
+            <li>
+</li>
+        </ol>
+      </code>
+    </pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<aside class="onebox githubblob" data-onebox-src="https://github.com/urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L1046">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L1046</a></h4>
+<pre class="onebox">      <code class="lang-cpp">
+        <ol class="start lines" start="1036" style="counter-reset: li-counter 1035 ;">
+            <li>
+</li>
+            <li>bool largeIndices;
+</li>
+            <li>if (combineBuffers)
+</li>
+            <li>    largeIndices = model.totalIndices_ &gt; 65535;
+</li>
+            <li>else
+</li>
+            <li>    largeIndices = mesh-&gt;mNumVertices &gt; 65535;
+</li>
+            <li>
+</li>
+            <li>// Create new buffers if necessary
+</li>
+            <li>if (!combineBuffers || vbVector.Empty())
+</li>
+            <li>{
+</li>
+            <li class="selected">    vb = new VertexBuffer(context_);
+</li>
+            <li>    ib = new IndexBuffer(context_);
+</li>
+            <li>
+</li>
+            <li>    if (combineBuffers)
+</li>
+            <li>    {
+</li>
+            <li>        ib-&gt;SetSize(model.totalIndices_, largeIndices);
+</li>
+            <li>        vb-&gt;SetSize(model.totalVertices_, elements);
+</li>
+            <li>    }
+</li>
+            <li>    else
+</li>
+            <li>    {
+</li>
+            <li>        ib-&gt;SetSize(validFaces * 3, largeIndices);
+</li>
+        </ol>
+      </code>
+    </pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<aside class="onebox githubblob" data-onebox-src="https://github.com/urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L1057">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Tools/AssetImporter/AssetImporter.cpp#L1057</a></h4>
+<pre class="onebox">      <code class="lang-cpp">
+        <ol class="start lines" start="1047" style="counter-reset: li-counter 1046 ;">
+            <li>    ib = new IndexBuffer(context_);
+</li>
+            <li>
+</li>
+            <li>    if (combineBuffers)
+</li>
+            <li>    {
+</li>
+            <li>        ib-&gt;SetSize(model.totalIndices_, largeIndices);
+</li>
+            <li>        vb-&gt;SetSize(model.totalVertices_, elements);
+</li>
+            <li>    }
+</li>
+            <li>    else
+</li>
+            <li>    {
+</li>
+            <li>        ib-&gt;SetSize(validFaces * 3, largeIndices);
+</li>
+            <li class="selected">        vb-&gt;SetSize(mesh-&gt;mNumVertices, elements);
+</li>
+            <li>    }
+</li>
+            <li>
+</li>
+            <li>    vbVector.Push(vb);
+</li>
+            <li>    ibVector.Push(ib);
+</li>
+            <li>    startVertexOffset = 0;
+</li>
+            <li>    startIndexOffset = 0;
+</li>
+            <li>}
+</li>
+            <li>
+</li>
+            <li>// Get the world transform of the mesh for baking into the vertices
+</li>
+            <li>Matrix3x4 vertexTransform;
+</li>
+        </ol>
+      </code>
+    </pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

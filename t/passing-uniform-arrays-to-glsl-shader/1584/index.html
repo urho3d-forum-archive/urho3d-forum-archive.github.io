@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Passing uniform arrays to GLSL shader</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Passing uniform arrays to GLSL shader</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi I am trying to pass an uniform array to GLSL shader. I tried via SetShaderParameter but I couldn’t get it to work. For my custom instancing I am trying to pass an array of quaternions or matrices to the shader through C++. Is it currently supported?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Look at how the skinning matrix is defined and transferred as an array of floats (Batch.cpp line 245), that at least works.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks cadaver. I am having some problems getting it to work via the Graphics class. Is there any specific workflow I need to follow in order to bind it to an existing material. If I set a color to red and I call it in the shader with uniform vec4 cmycol  it is not working. I think the Material class is missing the option for arrays.</p>
+<pre><code class="lang-auto">ShaderVariation*  vertexShader_ = graphics-&gt;GetShader(VS, "simple");
+ShaderVariation*  pixelShader_ = graphics-&gt;GetShader(PS, "simple");
+graphics-&gt;SetShaders(vertexShader_,pixelShader_);
+graphics-&gt;SetShaderParameter("mycol",Vector4(1.0,0.0,0.0,1.0));</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You’re right, for materials you currently have to use single uniforms. I suppose support for e.g. float array data could be added by allowing the VariantVector type in material shader parameters, but it would not be efficient since Graphics would have to reassemble the data from the individual Variants into one memory block before assigning to the GPU.</p>
+<p>EDIT: using the Buffer Variant data type would be better, since it’s already just a memory blob, but would be more cryptic to assign.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks cadaver. Is there an example on how to do it with Buffer Variant data type? Does it need changes to the engine?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Possibility to set Buffer type Variants (freeform data blob, will be interpreted as float arrays) has been added to Graphics::SetShaderParameter Variant overload in the master branch. These will also be serialized/deserialized in materials, but will look hostile to text editing, so in practice you would have to set them in code.</p>
+<p>Use Variant::SetBuffer(const void* data, unsigned size) to set from a memory blob. Or in AngelScript you’d do something like</p>
+<pre><code class="lang-auto">    Variant array;
+    VectorBuffer buf;
+    buf.WriteFloat(1.0);
+    buf.WriteFloat(2.0);
+    buf.WriteFloat(3.0);
+    buf.WriteFloat(4.0);
+    ...
+    array = buf;
+    material.shaderParameters["MyArray"] = array;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/69_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ghidra</div>
+          <div class="post_content">
+<p>this is great!<br/>
+Will be very useful!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks a lot cadaver. It works like a charm.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I am currently testing animated transforms and the only way I found to get it working is by setting the Clear() method of the VectorBuffer inside the update. Is that efficient or there is a better way?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you are using the Vectorbuffer WriteXXX() functions, then you need to Clear() before writing new data or else it gets appended. Using Variant::SetBuffer() instead with a memory blob that you provide and update (SetBuffer makes a copy of it) is potentially more efficient, at least in terms of function call count.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Do you have a simple example for a memory blob in C++? I am currently doing something like this inside the update method.</p>
+<p>[code]for (int i =0; i&lt;NUMINSTANCES; i++)<br/>
+{<br/>
+_positions[i] += Vector3(0,0.1*sin(i),0);</p>
+<pre><code>_positionbuf.WriteVector4(Vector4(_positions[i].x_, _positions[i].y_, _positions[i].z_,1.0));
+</code></pre>
+<p>}</p>
+<p>_material-&gt;SetShaderParameter(“vposition”, _positionbuf);<br/>
+_positionbuf.Clear();[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>No, I’m assuming competency of C++ pointers and “dirty” data manipulation using reinterpret casts and such, and am not going to explain that, but you should be able to refer to Urho’s own vertex data manipulation code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks cadaver. I understand know that a memory blob means a void pointer.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

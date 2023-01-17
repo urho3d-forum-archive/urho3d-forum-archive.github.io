@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>A novice question about the math in Urho3D&rsquo;s PBR shader</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">A novice question about the math in Urho3D&rsquo;s PBR shader</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elfstone</div>
+          <div class="post_content">
+<p>I was/am struggling to understand the math, and I just read this <a class="inline-onebox" href="https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/" rel="noopener nofollow ugc">PI or not to PI in game lighting equation | Sébastien Lagarde</a> to get some idea of whether or not there should be a PI in the calculation.</p>
+<p>Now, from what I understand, generally the lightColor’s unit in a game is defined in the way so that outColor =  PI * BRDF * materialDiffuse * lightColor * NdotL, which in turn makes the Lambertian diffuse as simple as outColor = materialDiffuse * NdotL * lightColor. Or if the lightColor represents the actual intensity, the equation would be materialDiffuse * NdotL * lightColor / PI.</p>
+<p>But while reading Urho3D’s shader, I found that its Lambertian term seemingly strangely is divided by PI twice!</p>
+<p>See in PBRLitSolid.hlsl: void PS(…)<br/>
+finalColor.rgb = BRDF * lightColor * (atten * shadow) / M_PI;</p>
+<p>and in BRDF.hlsl: LambertianDiffuse(…)<br/>
+return diffuseColor * (1.0 / M_PI) ;</p>
+<p>also in BRDF.hlsl: CustomLambertianDiffuse(…)<br/>
+return diffuseColor * (1.0 / M_PI) * pow(NdotV, 0.5 + 0.3 * roughness)</p>
+<p>How come “/ M_PI” is done twice?<br/>
+Let’s forget the Lambertian term, why is the finalColor BRDF * lightColor / M_PI in the first place?<br/>
+Should it be “* M_PI” instead?</p>
+<p>Excuse me for being a total amateur in CG, but please somebody tell me where did I miss. Or if Urho3D is using some other rendering scheme, could you explain, or is it documented somewhere?</p>
+<p>Thanks in advance!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>As a person who recently worked with PBR in Urho…<br/>
+I don’t trust anything in Urho PBR shaders and I rewrote them from scratch. There are many weird or wrong places, and I don’t feel like trying to find reason behind it.</p>
+<p>If you want to understand maths of PBR, read Filament docs, not Urho shaders.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>The PBR shaders are a kitchen sink hell problem. You can toggle this or that and there’s then this way or that way things play out (pretty sure Lambert divide is independent of specular and final contribution though). That leads to a lot of redundant math and as in this case, repeated math in the shaders where a more forceful “<em>you will do it this way</em>” approach would do things more simply (or at least clearly).</p>
+<p>TL;DR the PBR shaders suck and it’s partially my fault. Don’t trust the shaders.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elfstone</div>
+          <div class="post_content">
+<p>That’s a bit disappointing.<br/>
+I’ll try Filament next. Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elfstone</div>
+          <div class="post_content">
+<p>GetBRDF does call Diffuse:<br/>
+float3 Diffuse(float3 diffuseColor, float roughness, float NdotV, float NdotL, float VdotH)<br/>
+{<br/>
+//return LambertianDiffuse(diffuseColor);<br/>
+return CustomLambertianDiffuse(diffuseColor, NdotV, roughness);<br/>
+//return BurleyDiffuse(diffuseColor, roughness, NdotV, NdotL, VdotH);<br/>
+}.<br/>
+Then it returns diffuseFactor + specularFactor.<br/>
+Then the result BRDF gets divided by M_PI again, and as I have said, this line alone is difficult for me to understand:<br/>
+finalColor.rgb = BRDF * lightColor * (atten * shadow) / M_PI;</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>In case you are curious, this is as close to “Filament shaders in Urho” as we will ever get:</p><aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/***/***/blob/ek/renderer/master/bin/CoreData/Shaders/GLSL/v2/_BRDF.glsl" rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/***/***/blob/ek/renderer/master/bin/CoreData/Shaders/GLSL/v2/_BRDF.glsl" rel="noopener nofollow ugc" target="_blank">***/***/blob/ek/renderer/master/bin/CoreData/Shaders/GLSL/v2/_BRDF.glsl</a></h4>
+<pre><code class="lang-glsl">/// _BRDF.glsl
+/// [Pixel Shader only]
+/// [Lit material only]
+/// Generalized functions used to calculate high-frequency surface lighting.
+/// Independent from actual light types and properties.
+/// Low-frequency lighting from spherical harmonics and lightmaps is not processed here.
+#ifndef _BRDF_GLSL_
+#define _BRDF_GLSL_
+
+#ifdef URHO3D_PIXEL_SHADER
+
+#ifdef URHO3D_IS_LIT
+
+#ifndef _GAMMA_CORRECTION_GLSL_
+    #error Include "_GammaCorrection.glsl" before "_BRDF.glsl"
+#endif
+
+#ifdef URHO3D_AMBIENT_PASS
+
+#ifndef _SURFACE_DATA_GLSL_
+</code></pre>
+
+  This file has been truncated. <a href="https://github.com/***/***/blob/ek/renderer/master/bin/CoreData/Shaders/GLSL/v2/_BRDF.glsl" rel="noopener nofollow ugc" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elfstone</div>
+          <div class="post_content">
+<p>It looks great!<br/>
+I wasn’t sure if I understood the equations correctly. Your version seems to have nothing against my understanding.<br/>
+I guess the devs didn’t agree on where to do the division, thus resulted in an extra one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>Correctness comes first. It seems to me PBR should be reworked for Urho.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>That one isn’t me. I’m not related to the CustomLambertian, I know nothing about it or the reasoning behind it so I have no comment on what it should or shouldn’t be doing.</p>
+<p>Presently I do Destiny 1 style LUT shading and only target VR so much of this PBR nonsense has exited my brain as pointless, I now do Doom 3 style low-tech tricks and care more about translucent shadowmaps than anyone else.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elfstone</div>
+          <div class="post_content">
+<p>I had no clue at first, but now I believe somebody tried to extract the common divisor M_PI, from diffuse and specular, but it ended up repeated in multiple places somehow.</p>
+<p>PBR.hlsl: GetBRDF(…)<br/>
+<code>specularFactor = distTerm * visTerm * fresnelTerm * ndl/ M_PI;</code><br/>
+See, this “M_PI” is extracted from distTerm.</p>
+<p>Hopefully someone can check and fix it if it’s indeed wrong.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

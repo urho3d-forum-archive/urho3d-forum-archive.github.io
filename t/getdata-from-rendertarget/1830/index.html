@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>GetData from RenderTarget</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">GetData from RenderTarget</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vrivotti</div>
+          <div class="post_content">
+<p>Hi.<br/>
+I have an Android/iOS app running with Urho3D and I need to grab a snapshot.<br/>
+I’ve tried using an aux rendertarget texture and use GetData to get the texture contents, but I’m getting a “Getting texture data not supported” error.<br/>
+What am I doing wrong? Is there any other way of doing it?<br/>
+Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>It’s not supported on mobile devices. GetData makes an underlying call to glGetTexImage, which is not supported on GL ES. AFAIK, glBlitFramebuffer is going to be needed but I am not sure if it’s going to be supported here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcosta</div>
+          <div class="post_content">
+<p>glReadPixels, why not?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>We could add an OpenGL-only method to Graphics to use glReadPixels to read from the backbuffer or the current rendertarget. Doing it yourself carries a risk that the current rendertarget is not actually current, as it’s being lazily managed before each draw call.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcosta</div>
+          <div class="post_content">
+<p>Are guys willing to implement it? We have it working on a custom made engine which is shared between iOS and Android. It was written in c# on top of OpenTK. The function that we have for more than 1 year is the following</p>
+<pre><code>    unsafe public byte[] GetTextureBytes()
+    {
+        byte[] bytes = new byte[Texture.Width * Texture.Height * 4];
+
+        var state = new StateManager ();
+        state.Push ();
+
+        FBOManager.Active = FrameBuffer;
+        TextureManager.Active = Texture;
+
+        fixed(byte* buffer = &amp;bytes[0]) 
+        {
+            GL.PixelStore (PixelStoreParameter.PackAlignment, 1);
+            GL.ReadPixels (0, 0, Texture.Width, Texture.Height, PixelFormat.Rgba, PixelType.UnsignedByte, (IntPtr)buffer);
+        }
+
+        state.Pop ();
+
+        return bytes;
+    }
+</code></pre>
+<p>cheers<br/>
+Manuel</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It’s one possibility, another possibility is to just expose a function which makes sure the selected rendertarget (ie. after Graphics::SetRenderTarget) is current, to allow the user to make the glReadPixels() call themselves.The latter could be desirable in case the parameters of glReadPixels() are not obvious, but I suspect in most cases one wants to read 8bit RGB(A) data.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Took a look at the GL rendering code. You can use the following sequence to be able to use glReadPixels from either the backbuffer or a rendertarget:</p>
+<ul>
+<li>Graphics::SetRenderTarget() &lt;- null ptr for backbuffer</li>
+<li>Graphics::SetViewport() &lt;- can be anything you like, this ensures that the proper FBO is active</li>
+<li>Now you’re safe to call glReadPixels()</li>
+</ul>
+<p>Also for a fullscreen capture of the backbuffer you’re already able to just use Graphics::TakeScreenShot().</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vrivotti</div>
+          <div class="post_content">
+<p>Thank you cadaver, I’ll give it a try.<br/>
+Nonetheless, it would be great to have a crossplatform way of doing it (we want to support Windows too).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The glReadPixels() GLES workaround was rather easy to add directly to Texture2D::GetData() and TextureCube::GetData(), it’s in the master branch now. It works if the texture in question is a rendertarget. It induces a rendertarget switch when you read the data, so it possibly isn’t very performant.</p>
+<p><a >github.com/urho3d/Urho3D/commit … 17102db709</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mcosta</div>
+          <div class="post_content">
+<p>Tkx!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

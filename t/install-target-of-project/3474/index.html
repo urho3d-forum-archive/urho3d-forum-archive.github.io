@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Install target of project</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Install target of project</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>When invoking <code>make install</code> or similar on my project, is there an easy way to have the build system copy the local Data and CoreData directories to <code>bin/</code> (so not the Data/CoreData directories that were installed with Urho3D, but the project specific Data/CoreData directories) and also copy <a href="http://libUrho3D.so" rel="nofollow noopener">libUrho3D.so</a> as well as libraries that were created using <code>setup_library (SHARED)</code> to <code>lib/</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>If you don’t explicitly define your own resource dirs then the build system will default it to Urho provided resource dirs. See the usage of <code>define_resource_dirs()</code> macro. Although I haven’t tested it that way, but I believe <code>make install</code> should install whichever resource dirs being explicitly defined.</p>
+<p>As for the <code>libUrho3D.so</code>, it is already configured to be installed to /lib dir from the install prefix path. You don’t need other *.so from other sub-libs that Urho depended on. However, if it is one of your own then of course you have to tell the build system to do that yourself, when the macro has not done it yet (didn’t check the code, not 100% sure).</p>
+<p>One thing to note, we have configured the RPATH for common use cases. You may have to adjust this when you have deviated from the common use cases. Anyway, If after installing and you find that <code>ldd</code> command output complaints about missing shared libs while they are actually physically installed, now you know what to look for.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Okay, I’ve played around with this some more and I’m not getting anywhere. I have multiple issues.</p>
+<pre><code class="lang-auto">...
+set (RESOURCE_DIRS
+      "${CMAKE_SOURCE_DIR}/bin/CoreData"
+      "${CMAKE_SOURCE_DIR}/bin/Data")
+setup_main_executable ()
+</code></pre>
+<p>This causes symlinks to be created in build/bin which is good, but <code>make install</code> does not copy Data or CoreData to the installation directory. How do I make that happen?</p>
+<pre><code class="lang-auto">set (DEST_RUNTIME_DIR ${CMAKE_BINARY_DIR}/bin)
+</code></pre>
+<p>Doing this in the top-most CMakeLists.txt for some reason causes the executable file to be deleted right before <code>install</code> can copy it. If I look in <code>build/bin</code> right before I run <code>make install</code> I see the target “lightship-server”. When I run <code>make install</code> I get the following error and suddenly “lightship-server” is no longer in <code>build/bin</code>.</p>
+<pre><code class="lang-auto">-- Install configuration: "Debug"
+CMake Error at server/cmake_install.cmake:50 (file):
+  file INSTALL cannot find
+  "/home/thecomet/documents/programming/cpp/lightship-cpp/build/bin/lightship-server".
+Call Stack (most recent call first):
+  cmake_install.cmake:38 (include)
+
+</code></pre>
+<pre><code class="lang-auto">define_source_files (
+    GLOB_CPP_PATTERNS src/*.cpp
+    GLOB_H_PATTERNS include/lightship/*.h)
+setup_library (SHARED)
+</code></pre>
+<p>This does not by default install my library to <code>lib/</code> so I assume I have to do that myself with:</p>
+<pre><code class="lang-auto">install (TARGETS lightship DESTINATION "lib")
+</code></pre>
+<p>which works. I was just wondering if there was an existing mechanism I could use from the Urho3D build system, to, for example, figure out if it should be <code>lib32</code> or <code>lib64</code> or if there was a mechanism to version my library and create symlinks (e.g. <code>liblightship.so.1</code> and a symlink <code>liblightship.so</code> to it) or if I have to do this myself.</p>
+<p>And finally, <a href="http://libUrho3D.so" rel="nofollow noopener">libUrho3D.so</a> does not get installed to <code>lib/</code></p>
+<pre><code class="lang-auto">$ make install                                                                                                        (master✱) 
+[ 45%] Built target lightship
+[ 68%] Built target lightship-server
+[ 86%] Built target lightship-client
+[100%] Built target lightship-mapconverter
+Install the project...
+-- Install configuration: "Debug"
+-- Installing: /home/thecomet/documents/programming/cpp/lightship-cpp/build/dist/lib/liblightship.so
+-- Set runtime path of "/home/thecomet/documents/programming/cpp/lightship-cpp/build/dist/lib/liblightship.so" to ""
+-- Installing: /home/thecomet/documents/programming/cpp/lightship-cpp/build/dist/bin/lightship-server
+-- Set runtime path of "/home/thecomet/documents/programming/cpp/lightship-cpp/build/dist/bin/lightship-server" to ""
+-- Installing: /home/thecomet/documents/programming/cpp/lightship-cpp/build/dist/bin/lightship-client
+-- Set runtime path of "/home/thecomet/documents/programming/cpp/lightship-cpp/build/dist/bin/lightship-client" to ""
+-- Installing: /home/thecomet/documents/programming/cpp/lightship-cpp/build/dist/bin/lightship-mapconverter
+-- Set runtime path of "/home/thecomet/documents/programming/cpp/lightship-cpp/build/dist/bin/lightship-mapconverter" to ""
+</code></pre>
+<p>(I’m not going to worry about rpath for now, I first just want this to work). As you can see, <a href="http://libUrho3D.so" rel="nofollow noopener">libUrho3D.so</a> is not installed. What do I have to do to have it copied along with my game to <code>lib/</code>?</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Hmm, you didn’t use the new macro that I mentioned in last comment? Check its usage in the online doc with the latest 1.7 revision.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

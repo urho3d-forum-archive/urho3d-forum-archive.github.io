@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Porting bgfx to Urho3D</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Porting bgfx to Urho3D</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hi ,<br/>
+I am thinking of porting bgfx to Urho3D as an extension or replacement of the existing rendering engine.<br/>
+Is there currently any easy way of adapting third party rendering library in Urho3D, like passing geometry, lights, cameras ?<br/>
+They have a long feature list that can even surpass Unreal Engine in some areas .</p>
+<p>It as it has been used in a few mobile commercials games and they look quite good .</p>
+<p><a href="https://github.com/bkaradzic/bgfx" rel="nofollow noopener">github.com/bkaradzic/bgfx</a></p>
+<p><a href="https://www.youtube.com/watch?v=viYQyuzNctE#t=13" rel="nofollow noopener">youtube.com/watch?v=viYQyuzNctE#t=13</a></p>
+<p><a href="https://www.youtube.com/watch?v=PoAMDzuEJ3I" rel="nofollow noopener">youtube.com/watch?v=PoAMDzuEJ3I</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Look at how the existing Render subsystem is implemented. OGL, DX9, and DX11 all define their own Renderer subsystem that gets switched between at compile time. You could implement your bgfx renderer similarly.</p>
+<p>Alternatively define your own bgfx subsystem, initialize the engine with no Renderer subsystem, and then wire everything appropriately.</p>
+<p>Alternatively keep everything the same, but implement you bgfx subsystem that renders to a render texture. Then draw it similarly to the UI subsystem, on top of the existing Renderer, etc…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/62_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoogleBot42</div>
+          <div class="post_content">
+<p>I can’t believe I haven’t heard of this before.  <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/>  It is very cool!  I would like to see this be ported to the engine.  If it is possible, I do wonder how it would perform in comparison to the subsystems already finished.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">boberfly</div>
+          <div class="post_content">
+<p>I debated whether or not to do this awhile ago. After the renderer refactor I don’t think it is really worth doing. For one, the bgfx-specific submission-based renderer where it sorts everything for you using hash keys would be doubling up the work Urho3D already does when arranging and sorting batches so you’d disable it like you would when drawing GUIs with bgfx. Unless you replace all of Urho3D::Graphics and how it submits calls to how bgfx expects and not just make a bgfx toggle next to DX9/11/GL. You’d also need to make yet another set of shaders for it, albeit ones which would work in both GL and DX.</p>
+<p>Bgfx has the option to render in another thread so that’s something interesting to see if it would speed things up with Urho3D, but it might behave oddly with Urho3D’s threaded culling, but I’m just speculating. Also the planned DX12/Vulkan backends that Urho could support ‘for free’ once bgfx gets patched.</p>
+<p>Urho would probably benefit more from just adding a compute shader abstraction like bgfx has to make it on-par with bgfx imo.</p>
+<p>Funny story, the Dogbyte game was once using Horde3D that used some of my GL ES 2.0 porting efforts to render it, before they changed to bgfx… <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I’m not sure if bgfx handles well the large amount of shader permutations that Urho generates. If I understand right, you pass an “ubershader” similar to Urho’s shaders to its shader compiler, then it spits out the permutations as separate files. In Urho there may easily be thousands of permutations of a single shader, though most of them never get used, so it would rather need to be able to invoke the compiler at runtime on demand, or have the compiler built-in to the renderer. Also, it has a fixed drawcall limit per frame due to the drawcall sorting scheme. It was something quite high (32768?) but nevertheless it’s something I’d personally feel uneasy about.</p>
+<p>Other than that, it’s your usual API agnostic low-level graphics solution, outside of the drawcall submission queue and the compute shader support the low-level operations are very similar to Urho’s existing graphics subsystem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I have feeling that it might get slower than the native Urho3D rendering subsystem which kind of kills it for me. Also I think feature-wise Urho3d is not that far away. For something in the future if they support more Rendering APIs it might make more sense. I wonder how the guys from Dogbyte balanced the graphics so well on mobile.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bkaradzic</div>
+          <div class="post_content">
+<p>Hi guys, I noticed traffic to my GItHub project is coming from here and joined forum to clarify a few things.</p>
+<p>Default bgfx limit is 64K, but it’s configurable if you need more or less (if you want to save memory). Limits do exist on GPU, CPU, memory, etc. It’s not like renderer without explicit limit are just unbound and can do whatever, more likely limit is there you just don’t know what is it.</p>
+<p>There is performance comparison with different renderers and platforms, see 17-drawstress table:<br/>
+<a href="https://github.com/bkaradzic/bgfx#17-drawstress" rel="nofollow noopener">github.com/bkaradzic/bgfx#17-drawstress</a></p>
+<p>This test specifically stresses bgfx submission loop. There is num^3 cubes, updating their model matrix while trying to maintain 60Hz. You can try recreating similar example with Urho3D and comparing it with bgfx. Benefit of switching Urho3D to bgfx is that you have to stop worrying about renderer and focus on other things like user usability, editors, effects, etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">boberfly</div>
+          <div class="post_content">
+<p>Hi Branimir welcome to the forums! I’m that annoying guy who added the ‘Add Vulkan Support’ to bgfx’s issue tracker… <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>We do have an object count stress test but it’s more or less mirroring the Ogre3D one:<br/>
+<a  rel="nofollow noopener">github.com/urho3d/Urho3D/tree/m … bjectCount</a></p>
+<p>Maybe one that copies bgfx could be made to see the differences like you said.</p>
+<p>Cheers</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Welcome!</p>
+<p>The object stress test in Urho tests also culling, light interactions, scene render queue management and automatic instancing, which the bgfx drawstress-test doesn’t. To perform a more equal test one needs to use the Urho Graphics class directly for the low-level interface, something like this (not exactly same, but it performs a number of drawcalls in different positions using the same state. The setting of the material color and viewproj matrix are actually redundant, when the shaders are kept same.)</p>
+<pre><code class="lang-auto">    Model* mod = GetSubsystem&lt;ResourceCache&gt;()-&gt;GetResource&lt;Model&gt;("Models/Box.mdl");
+    if (mod)
+    {
+        ShaderVariation* noTextureVS = graphics_-&gt;GetShader(VS, "Basic");
+        ShaderVariation* noTexturePS = graphics_-&gt;GetShader(PS, "Basic");
+
+        int num = 200;
+
+        for (int x = -num; x &lt; num; ++x)
+        {
+            for (int y = -num; y &lt; num; ++y)
+            {
+                Matrix3x4 pos(Vector3(x*0.007f, y*0.007f, 0.5f), Quaternion::IDENTITY, 0.005f);
+                graphics_-&gt;SetShaders(noTextureVS, noTexturePS);
+                graphics_-&gt;SetShaderParameter(VSP_VIEWPROJ, Matrix4::IDENTITY);
+                graphics_-&gt;SetShaderParameter(PSP_MATDIFFCOLOR, Color::RED);
+                graphics_-&gt;SetShaderParameter(VSP_MODEL, pos);
+                graphics_-&gt;SetBlendMode(BLEND_REPLACE);
+                graphics_-&gt;SetDepthTest(CMP_ALWAYS);
+                graphics_-&gt;SetDepthWrite(false);
+                graphics_-&gt;SetColorWrite(true);
+
+                mod-&gt;GetGeometry(0, 0)-&gt;Draw(graphics_);
+            }
+        }
+    }</code></pre>
+<p>I tested both drawstress &amp; this code snippet, both using D3D9, and the performance figures were nearly equal. Which is as I suspected, as in the end both bgfx &amp; Urho Graphics class will be talking to the graphics API using a minimal amount of API calls. This leads me to believe that migrating to bgfx would not offer either significantly worse or significantly better performance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>With <span class="mention">@cadaver</span> resigning maybe this matter is worth revisiting? Even if bgfx does not offer immediate performance gains it still provides free support for new rendering APIs, some of which we will definitely not see ever implemented in Urho3D as it is now. bgfx port (or even full migration) could relieve some maintenance stress.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Maybe. I heard about some problems with bgfx, but I’ve never tried it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Could you elaborate? <span class="mention">@bkaradzic</span> is very helpful  and they might just get addressed. Besides i would like to point out that i am willing to help too. As far as i am capable anyway.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>My suggestion now is that you should have some kind of game plan how you’re going to benefit from it, and how you’re going to change the high-level rendering to accomodate. E.g. doing clustered forward lighting, using compute shaders? Otherwise it’s just a lot of work, and it’ll be hard to keep the existing featureset 100%.</p>
+<p>Preferably you shouldn’t be compiling new shaders during runtime at all (ie. know all used permutations beforehand), but that’s kind of hard with the level of configurability the renderpath and materials / techniques offer.</p>
+<p>However, I think you should be bold in taking Urho rendering to new directions, as if you ask enough users you will no doubt end up with an impossible featureset (e.g. function on low-end mobiles, keep all existing features…) At some point it may be better to just break compatibility majorly, if the benefits are clear enough.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bkaradzic</div>
+          <div class="post_content">
+<p>There is already Urho3D to bgfx port going on here:</p><aside class="onebox githubfolder" data-onebox-src="https://github.com/jamesmintram/Urho3D/tree/JM-NoopGraphics">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/0973ea8ce7121c320f68413e2a2f23ab.svg" width="32"/>
+<a href="https://github.com/jamesmintram/Urho3D/tree/JM-NoopGraphics" rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h3><a href="https://github.com/jamesmintram/Urho3D/tree/JM-NoopGraphics" rel="noopener nofollow ugc" target="_blank">GitHub - jamesmintram/Urho3D at JM-NoopGraphics</a></h3>
+<p><a href="https://github.com/jamesmintram/Urho3D/tree/JM-NoopGraphics" rel="noopener nofollow ugc" target="_blank">JM-NoopGraphics</a></p>
+<p><span class="label1">Cross-platform 2D and 3D game engine. Contribute to jamesmintram/Urho3D development by creating an account on GitHub.</span></p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<aside class="quote no-group" data-full="true" data-post="11" data-topic="1036" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Maybe. I heard about some problems with bgfx, but I’ve never tried it.</p>
+</blockquote>
+</aside>
+<p>Need more info… <img alt=":slight_smile:" class="emoji" src="../../../images2/480f97b912eb537e18032299081e582a.png" title=":slight_smile:"/></p>
+<aside class="quote no-group" data-post="13" data-topic="1036" data-username="cadaver">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>My suggestion now is that you should have some kind of game plan how you’re going to benefit from it, and how you’re going to change the high-level rendering to accomodate. E.g. doing clustered forward lighting, using compute shaders? Otherwise it’s just a lot of work, and it’ll be hard to keep the existing featureset 100%.</p>
+</blockquote>
+</aside>
+<p>Benefits of porting to bgfx are not just about high-level features. There is benefit of having identical feature set while using common shader language so that adding new, and maintaining existing features is not difficult. Also by just switching to bgfx, Urho3D will get new rendering backends, and that part of maintenance will be offloaded elsewhere.</p>
+<p>I actually recommend first straight port to achieve 1:1 feature set, as if bgfx is just another rendering backend (next to existing ones) in Urho3D. Once that’s complete old rendering backends can be dropped, and all state tracking, sorting, and then in 2nd step other stuff that bgfx internally supports can be removed from higher level scene code in Urho3D. Once bgfx is fully integrated people should investigate about adding more advanced stuff.</p>
+<p>The reason why I think it’s not good idea to start port + add bunch of new features is that engine might end up in rump state, where port is not fully functional, but new features are not completely added either. So in that state might not be appealing to anyone.</p>
+<p>Anyhow if anyone is interested to help with this port just let join effort in that repo above.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>Don’t do that porting inside the main Urho3D repo. If ported, Urho3D is no longer Urho3D. If this port is desirable, please do so in other repo, any other repo.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bkaradzic</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="15" data-topic="1036">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/616e31ac3a98a36e7523b7f453239fc1.png" width="20"/> yushli1:</div>
+<blockquote>
+<p>Don’t do that porting inside the main Urho3D repo. If ported, Urho3D is no longer Urho3D. If this port is desirable, please do so in other repo, any other repo.</p>
+</blockquote>
+</aside>
+<p>That port is not in main repo, it’s done by someone from AtomicEngine community for their purpose (their focus is more shipping games than building an engine). As for Urho3D, it’s whatever Urho3D community wants. bgfx is intentionally designed as renderer-only in hope that not having other parts of engine will be more appealing for engine creators to use it. Idea was like people are using 3rdParty libs for physics, sound, navigation/AI, networking, windowing/input, etc. but there is nothing like that for rendering. From my point of view, Urho3D using bgfx or not, there is no change…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="15" data-topic="1036">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/616e31ac3a98a36e7523b7f453239fc1.png" width="20"/> yushli1:</div>
+<blockquote>
+<p>Don’t do that porting inside the main Urho3D repo. If ported, Urho3D is no longer Urho3D. If this port is desirable, please do so in other repo, any other repo.</p>
+</blockquote>
+</aside>
+<p>This is absurd and suggesting that is suggesting engine to stagnate because noone is going to write backend for dx12, noone is going to write backend for metal, noone is going to write backend for vulkan. Not to mention bgfx solving write-once shader problem…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>IMHO, being done elsewhere first does not exclude us to pull the good bits in later, if the license permits it and if it turns out to be really that good where we may be decide to trade it off with Urho backward API compatibility. For one time we could be just the “recipient” of other people hard work and experiment. I have my doubt it will happen anytime soon though as it looks like the porting work has just began a few days ago.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>This is not absurd and this is not suggesting engine to stagnate. keep Urho3D what makes it is Urh3D, then add to it, not try to make it another one. If dx12 is to be supported, do so in Urho3D’s style, If vulkan is to be supported, do so in Urho3D’s style. Do not drag it to another structure with other design desicions. This kind of backend should be carried out in other repo. What in Urho3D’s main repo, should be adapted to Urho3D first. Urho3D can bring over the good bits of course. But keep Urho3D what makes it Urho3D is essential.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>BTW, If you are so eager to help Urho3D, why not begin to port useful rendering features from Atomic Engine to urho3D engine, instead of arguing about porting to a completely different rendering backend?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<blockquote>
+<p>keep Urho3D what makes it is Urh3D</p>
+</blockquote>
+<p>Why do you think that outsourcing physics, networking, navigation and scripting <em>is</em> Urho way and outsourcing renderer is <em>not</em> Urho way?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There are some parts of the rendering, like reusing the same shadow map over and over in between light accumulation passes, that will not map well to bgfx’s views, or require a bit of ugly hackery. Since it incurs repeated rendertarget switches, it’s probably not a good idea to do at all, and worth dropping. Also, since bgfx seems to have 256 view id limit, you cannot do “unlimited” lights that way anyway, though it’s probably not realistic to have &gt; 256 shadowed lights in a scene, it’s just that the current Urho rendering allows you to do that (and tank your framerate)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="22" data-topic="1036">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>There are some parts of the rendering, like reusing the same shadow map over and over in between light accumulation passes, that will not map well to bgfx’s views</p>
+</blockquote>
+</aside>
+<p>Thanks! I heard about exactly this, but didn’t manage to recall.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>Because rendering is the core of a game engine. And the design and structure of it determines the characteristic of that engine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote" data-post="24" data-topic="1036">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/616e31ac3a98a36e7523b7f453239fc1.png" width="20"/> yushli1:</div>
+<blockquote>
+<p>Because rendering is the core of a game engine.</p>
+</blockquote>
+</aside>
+<p>Scene graph, editor and public API is the core of the engine.<br/>
+Built-in shaders and assets is the basis of the engine appearance.<br/>
+Renderer backend is neither first nor second. It’s just an implementation detail that you never notice unless you are developer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1163_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli1</div>
+          <div class="post_content">
+<p>A game engine is chosen by its user first by the quality of graphics it can render, or its first impression. then its performance, then its code style, then its structure and API usage. Not the other way around. In that sense, pulling the rendering techniques from other engine, and integrate it seamlessly with Urho3D is prefered than ,say, improving its public API. This is also the hard part that few people are willing or qualitified to do so to improve Urho3D right now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<p>BGFX is simply a abstraction layer not an engine, it does not change Urhos feature set and it wouldn’t be to difficult to port the current shaders over, the changes will only be the same as changing from DirectX to OpenGL at first, it just opens some doors to us such as having new rendering API’s and hardware specific fixes that would require a dedicated team to keep on top of. Using it doesnt make Urho any less Urho.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3014_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weiyuemin</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="14" data-topic="1036" data-username="bkaradzic">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/e933c94d3d67504efb00bc0f8e24fc89.png" width="20"/> bkaradzic:</div>
+<blockquote>
+<p>Urho3D to bgfx port</p>
+</blockquote>
+</aside>
+<p>curious about the Urho3D to bgfx porting. jamesmintram’s port seemed not complete</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Time passed, and I changed my mind on the subject.</p>
+<p>Porting Urho to bgfx is not really viable option – among all other things, it inflicts major performance penalty on batching. I don’t remember exact numbers, but HugeObjectCount was <em>times</em> slower.</p>
+<p>Abstraction level of bgfx is so high so it simply doesn’t allow the amount of control that Urho requires.<br/>
+Sure, you can build <em>new</em> engine around bgfx so it doesn’t suffer from limitations <em>too much</em>. But proting Urho? I don’t believe this is possible.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3014_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weiyuemin</div>
+          <div class="post_content">
+<p>do you have a branch that work on the porting, maybe I can continue work on it? (as you said HugeObjectCount was times slower, I guess you had a branch that tries the porting…)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Here’s the branch I tested and even fixed sometimes. I don’t remember exact version or configuration I tested, tho.<br/>
+</p><aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/0973ea8ce7121c320f68413e2a2f23ab.svg" width="32"/>
+<a href="https://github.com/boberfly/Urho3D/tree/feature/bgfx" rel="nofollow noopener" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="400" src="https://avatars0.githubusercontent.com/u/5601445?s=400&amp;v=4" width="400"/>
+<h3><a href="https://github.com/boberfly/Urho3D/tree/feature/bgfx" rel="nofollow noopener" target="_blank">boberfly/Urho3D</a></h3>
+<p>Cross-platform rendering and game engine. Contribute to boberfly/Urho3D development by creating an account on GitHub.</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3014_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weiyuemin</div>
+          <div class="post_content">
+<p>just tried this branch, found the sample HugeObjectCount is about 20% slower than the original Urho at cc25bef60ec57fc409dae1b3f07539e73e18aad3 when both using D3D11 renderer.</p>
+<p>So maybe there is some other problems in this branch that leads the slowness?</p>
+<p>when using BGFX renderer, compilation failed. I’ll continue try it tomorrow.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I might have tested it with disabled instancing back then.<br/>
+Can you try it this way as well?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3014_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weiyuemin</div>
+          <div class="post_content">
+<p>my test results yesterday is not that exact. Actually no 20% slower problem.</p>
+<p>Today I checkout an unmodified Urho at cc25bef60ec57fc409dae1b3f07539e73e18aad3 and tested HugeObjectCount again on my i7 9700k + rtx 2070s (release build, SPACE pressd to rotate these cubes after starting the sample):</p>
+<p>with instance d3d11: fps26<br/>
+no instance d3d11:  fps23<br/>
+with instance gl: fps25<br/>
+no instance gl:  fps21</p>
+<p>and boberfly’s feature/bgfx branch:<br/>
+with instance d3d11: fps24-25<br/>
+no instance d3d11: fps22</p>
+<p>fps almost the same. but a little difference: on boberfly’s feature/bgfx, when f2 pressed only a little text is displayed. when using original Urho, when f2 pressed there are many lines of text displayed (DEBUGHUD_SHOW_ALL)</p>
+<p>on my modified Urho: (I think main difference is I modified debughud to only show fps)<br/>
+with instance gl: fps29<br/>
+no instance gl: fps27</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>When you make BGFX compile, can you check it too?<br/>
+I remember huge perf difference between non-instanced BGFX and non-instanced… pretty much everything.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1207_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rbnpontes</div>
+          <div class="post_content">
+<p>Please continue this great job, I think there will be a great contribution to the community</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3014_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weiyuemin</div>
+          <div class="post_content">
+<p>I make bgfx renderer compiled by commenting out all URHO3D_D3D11 like things in cmake files. (otherwise URHO3D_D3D11 and URHO3D_BGFX will both be defined and leads to compile error)</p>
+<p>but it can’t run correctly.</p>
+<p>My cmake arguments: -DURHO3D_BGFX=1 -DURHO3D_SAMPLES=1 -DURHO3D_SYSTEMUI=1<br/>
+(is there anything wrong with these arguments?)</p>
+<p>will continue try this when i’m free</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3014_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weiyuemin</div>
+          <div class="post_content">
+<p>bgfx renderer result: fps 15.5  (instance is default off)</p>
+<p>compared to d3d11, indeed slower.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3014_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weiyuemin</div>
+          <div class="post_content">
+<p>when using d3d11 renderer, there’s difference if you press or not press space (to rotate the cubes):</p>
+<p>not rotate the cubes: fps 37<br/>
+rotate the cubes: fps22    (both non-instance)</p>
+<p>when using bgfx renderer, there’s no difference if you press or not press space (to rotate the cubes).<br/>
+both fps 15.5</p>
+<p>seemed some dirty mechanism broken on bgfx renderer</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Batching performance penalty is not caused by any bug (as far as my understanding goes), it is just how BGFX is implemented. It’s not broken, it’s deliberately made to be slower for sake of implementation simplicity.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">brokensoul</div>
+          <div class="post_content">
+<p>What you guys think about Magnum(<a href="https://github.com/mosra/magnum" rel="noopener nofollow ugc">https://github.com/mosra/magnum</a>) or Diligent (<a href="https://github.com/DiligentGraphics/DiligentEngine" rel="noopener nofollow ugc">https://github.com/DiligentGraphics/DiligentEngine</a>) ? Instead of bgfx</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>They don’t have feature parity with current Urho renderer, so I don’t think it will ever get to main repo even if someone implemented it</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<p>To name another candidate:<br/>
+</p><aside class="onebox allowlistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/0973ea8ce7121c320f68413e2a2f23ab.svg" width="32"/>
+<a href="https://github.com/ConfettiFX/The-Forge" rel="noopener nofollow ugc" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="400" src="https://avatars1.githubusercontent.com/u/18152936?s=400&amp;v=4" width="400"/>
+<h3><a href="https://github.com/ConfettiFX/The-Forge" rel="noopener nofollow ugc" target="_blank">ConfettiFX/The-Forge</a></h3>
+<p>The Forge Cross-Platform Rendering Framework PC, Linux, Ray Tracing, macOS / iOS, Android, XBOX, PS4, PS5, Switch, Stadia - ConfettiFX/The-Forge</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Wow this one looks really interesting and most feature rich so far. Did anyone tried it yet  ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>It certainly seems interesting, though I don’t think I’ll like their code style:<br/>
+</p><aside class="onebox githubissue">
+<header class="source">
+<a href="https://github.com/ConfettiFX/The-Forge/issues/177" rel="noopener" target="_blank">github.com/ConfettiFX/The-Forge</a>
+</header>
+<article class="onebox-body">
+<div class="github-row">
+<div class="github-icon-container" title="Issue">
+<svg aria-hidden="true" class="github-icon" height="60" viewbox="0 0 14 16" width="60"><path d="M7 2.3c3.14 0 5.7 2.56 5.7 5.7s-2.56 5.7-5.7 5.7A5.71 5.71 0 0 1 1.3 8c0-3.14 2.56-5.7 5.7-5.7zM7 1C3.14 1 0 4.14 0 8s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm1 3H6v5h2V4zm0 6H6v2h2v-2z"></path></svg>
+</div>
+<div class="github-info-container">
+<h4>
+<a href="https://github.com/ConfettiFX/The-Forge/issues/177" rel="noopener" target="_blank">Forge polluting global C++ namespace</a>
+</h4>
+<div class="github-info">
+<div class="date">
+        opened <span class="discourse-local-date" data-date="2020-06-19" data-format="ll" data-time="13:23:25" data-timezone="UTC">01:23PM - 19 Jun 20 UTC</span>
+</div>
+<div class="user">
+<a href="https://github.com/alex-mat" rel="noopener" target="_blank">
+<img alt="alex-mat" class="onebox-avatar-inline" height="20" src="../../../images2/1ebf621517f57a0a1c596c87ad2d77b6" width="20"/>
+          alex-mat
+        </a>
+</div>
+</div>
+</div>
+</div>
+<div class="github-row">
+<p class="github-content">Hello,
+I ran into a few issues where Forge clashes with my own types when integrated with my own engine, for instance...</p>
+</div>
+<div class="labels">
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>13 posts were split to a new topic: <a href="/t/c-vs-c-again/6555">C vs c++ (again)</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<blockquote>
+<p>It certainly seems interesting, though I don’t think I’ll like their code style:</p>
+</blockquote>
+<p>Meh, it grows on you.</p>
+<aside class="quote no-group" data-full="true" data-post="44" data-topic="1036" data-username="Dave82">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/39fd1aeff01d89e7279fa956666af00e.png" width="20"/> Dave82:</div>
+<blockquote>
+<p>Wow this one looks really interesting and most feature rich so far. Did anyone tried it yet ?</p>
+</blockquote>
+</aside>
+<p>I use it currently. It works and it’s not demonstrably slower than the equivalent raw API code, which doesn’t sound like much but that is a lot to ask for. I don’t care for the shader-tool suggested and just use shader-conductor.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Should add that I would never consider <em><strong>porting</strong></em> Urho3D to The-Forge. If someone were to try such a thing it’d make more sense to be a ‘Graphics2’ option that excluded legacy ‘Graphics’ and UI, becoming a project choice and doesn’t discard legacy targets or mess with anyone else too much.</p>
+<p>Common functionality would get moved out into mostly purely calculative functions (OcclusionBuffer works anywhere, skinning matrix math doesn’t change, etc) and the new stuff be render-graph based with a much more raw API direct to The-Forge (you still have to handle transitions/barriers in The-Forge).</p>
+<p>Using that clean split makes it more sensible to be hugging modern methods like indirect-draws, GPU cluster/triangle culling, splitting large batch-pumps into jobs for threaded cmd-lists, compute skinning, and opens up async rendering without creating a gigantic mess in Graphics.</p>
+<p>Sounds like a lot of work, but it’s not that bad. Compute skinning greatly simplifies shader and rendering complexity by effectively reducing everything to “static-draws” after the prep-work has been done. UI is the headache, to interop-layer or to not and do something else is the question.</p>
+<p>Maybe 140hrs to get to a “proof” stage without UI, assuming graphics was the only beef one had. (I dropped Urho for custom because of physics+audio+state more so than what I could do with graphics, SDL not handling windows spatial is a serious deal breaker).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>Any progress on this direction?<br/>
+This port will allow Urho3D running on more graphics API, e.g. Vulkan, Metal.<br/>
+Bgfx has been improving.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>AFAIK there was an attempt, but bgfx API was too limited at the time to offer comparable performance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/821_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">WangKai</div>
+          <div class="post_content">
+<p>It’s a good path to me, as long as the third party library is good enough, no matter what it is. It’s better than dying.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="51" data-topic="1036" data-username="WangKai">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/8d788b223c509beebfc362364798c6b3.png" width="20"/> WangKai:</div>
+<blockquote>
+<p>It’s better than dying.</p>
+</blockquote>
+</aside>
+<p>To be honest, Urho is dying <em>not</em> because of missing Vulkan API.<br/>
+bgfx not gonna help here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Let’s be honest, nobody will ever use Urho3D to make AAA games. The niche of our engine is indie games. Therefore, an advanced graphics engine is not needed here. An indi developer simply won’t have the money to create quality content with PBR textures, normal maps, hair physics and other features of expensive games. Our movement will move towards more 2D support. I have some drafts, but for now I’m busy restructuring the engine. Unfortunately it took longer than I thought. From this point of view, Urho3D is more alive than, for example, ***, which moving in the wrong direction.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3817_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hunkalloc</div>
+          <div class="post_content">
+<blockquote>
+<p>The niche of our engine is indie games. Therefore, an advanced graphics engine is not needed here.</p>
+</blockquote>
+<p>This depends heavily on what you consider “advanced”. There are a lot of features on a graphics engine that help indies be more productive and be more efficient. Take imposters, for example, or lightmapping. Or terrain texture blending.</p>
+<blockquote>
+<p>An indi developer simply won’t have the money to create quality content with PBR textures, normal maps, hair physics and other features of expensive games</p>
+</blockquote>
+<p>That’s simply not true. I’m an indie artist and I can afford to create quality content because that is my jam. A Substance subscription is cheap, and there are plenty of open-source tools out there capable of producing PBR content. In fact, most of them do so because it is the industry standard. Not supporting PBR alienates a huge part of the indie developer userbase.</p>
+<blockquote>
+<p>From this point of view, Urho3D is more alive than, for example, ***, which moving in the wrong direction.<br/>
+*** is adding features that makes developers, regardless of their background, more productive. I can move my assets into the engine more easily. The built-in editor is a god send for an artist like me. And lightmapping saves me from having to deal with a complicated Blender-based workflow.</p>
+</blockquote>
+<p>Urho is supposed to be a general purpose, complete, game engine. I don’t think all perspectives are being considered here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3817_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hunkalloc</div>
+          <div class="post_content">
+<p>Just look at the Most Popular add-ons for Unity on their marketplace. It’s all stuff created to make indie devs more productive with less resources: <a class="inline-onebox" href="https://assetstore.unity.com/?category=tools&amp;orderBy=1" rel="noopener nofollow ugc">Unity Asset Store - The Best Assets for Game Making</a></p>
+<p>Terrain and sky generators, so we can prototype and get worlds faster. IK, so we don’t have to animate every single situation out there. An improved inspector, to make debugging easier and iterations faster. Lightmapping, again. A*/Basic AI.</p>
+<p>Those are tools have help indie be competitive with AAA. Just because features are “advanced”, doesn’t mean that they are not useful. 16xMSAA and realtime global GI? Yeah, maybe not useful, but I think not all perspectives are being considered here. Productivity is key.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I have other things to do than engage in useless arguments. If you are such a cool artist, then help the project by creating a beautiful demo to attract people.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1422_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">amerkoleci</div>
+          <div class="post_content">
+<p>I have been following all changes you’ve made and make 0 sense to me, adding alias, switching from uint to int, at what scope? There used to be a strong community behind urho but I would never use Urho at current state, too sad authors like <span class="mention">@cadaver</span> totally ignored all commits you did by totally broking urho.</p>
+<p>Don’t take me wrong, is not hate speech but really.</p>
+<p>Seriously, reconsider your priorities and stop thinking about which direction is *** going.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Remind me how much money you paid me to do what you want and not what I want?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1422_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">amerkoleci</div>
+          <div class="post_content">
+<p>What kind of answer is this? By 10 years old kid or what?</p>
+<p>You’re changing a years of open source effort done by other people without having respect for their time/effort.</p>
+<p>Grew up dude!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Do you have some kind of fetish about children? <a href="https://discourse.urho3d.io/t/moving-urho3d-github-io-to-urho3d-io/6861/19">https://discourse.urho3d.io/t/moving-urho3d-github-io-to-urho3d-io/6861/19</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I don’t really respect you. Because your contribution to the engine is zero, but why did you get that your opinion matters.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1422_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">amerkoleci</div>
+          <div class="post_content">
+<p>Lol, very mature from you.</p>
+<p>Keep up this way!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="53" data-topic="1036" data-username="1vanK">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/8e14485e10e801cd7ee7668b4f98a5bf.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>From this point of view, Urho3D is more alive than, for example, ***, which moving in the wrong direction.</p>
+</blockquote>
+</aside>
+<p>You are confident. It is a race then.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><img alt="1_dx9" data-base62-sha1="pPxAQrCL9ICPkEAWsuJ3t3nyEtZ" height="361" src="../../../images2/ff48a517a7061209620c9a524081c9f8.png" width="566"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3598_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">niansa</div>
+          <div class="post_content">
+<p>Where is cubemapping, a half-decent editor and all? And where is the community??</p>
+<p><span class="mention">@1vanK</span> Seriously, did you ever contribute to the engine? You only ever degraded it with stupid commits. Signed iterators and shit <strong>can</strong> cause serious issues.<br/>
+All you are doing is abusing your powers. And censoring opinions like these by suspending forum accounts.<br/>
+I and many others here kindly ask you to restore the engine into a workable state and step back from your position. The engine went downhill ever since you started “contributing”, after the last engine release.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I don’t see anyone else wanting to do the engine. If you don’t like my changes, I have a great option for you: <a class="inline-onebox" >Release 1.8 · urho3d/Urho3D · GitHub</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="65" data-topic="1036" data-username="niansa">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/eb9c543840560a39ac3856c1f5e44421.png" width="20"/> niansa:</div>
+<blockquote>
+<p>Signed iterators and shit <strong>can</strong> cause serious issues.</p>
+</blockquote>
+</aside>
+<p>Where were you when this option was offered?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="65" data-topic="1036" data-username="niansa">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/eb9c543840560a39ac3856c1f5e44421.png" width="20"/> niansa:</div>
+<blockquote>
+<p>Where is cubemapping, a half-decent editor and all?</p>
+</blockquote>
+</aside>
+<p>Why do you think someone else should do it? Start doing, come back with the result.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/774_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dragonCASTjosh</div>
+          <div class="post_content">
+<p>Iv been quit on this forum and engine for a long time since my PBR changes. And its attitudes yours that pushed me away. You say you dont see anyone making meaningful changes but then whever a good idea is purposed its shot down. In my case i was willing to spend the time modernizing the rendering in a way that doesnt effect indie devs at all but it was all rejected in favor of doing backwards changes that reduce the quality of the engine. If you want people to work on the engine you need to support them and incubate the ideas.<br/>
+Things got so bad for me here that i just went and built my own engine for my projects because i didnt want to deal with stupid arguments. Its a shame Urho could been in godots position if there was a respectful and forward-looking community was allowed to exist</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Why should I support or incubate someone. I’m not a nursery nanny. We have a lot of code in the engine that was added in a half-baked state and then abandoned by the developer. And someone else needs to  maintenance him (IK for example). I’m not saying that my code is perfect, but at least I feel responsible for my code. It is unlikely that someone will be able to maintenance my binding generator. But why should I maintain all other code? At the moment I don’t even know if our engine compiles on MacOS because I don’t use that system. I have written about this several times. If you don’t need it, then why should I need it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="69" data-topic="1036" data-username="dragonCASTjosh">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/3b3139e49465a4e9db8307b0879d27b9.png" width="20"/> dragonCASTjosh:</div>
+<blockquote>
+<p>it was all rejected in favor of doing backwards changes that reduce the quality of the engine</p>
+</blockquote>
+</aside>
+<p>I’ve never been a fan of backwards compatibility. A game engine is not an ordinary library. On the contrary, the engine often changes for a particular game. Therefore, it is not a problem to have a separate version of the engine for each of your games.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>To be honest, I tried to understand from your messages who exactly rejected your proposals and which ones? Could you clarify?</p>
+<p>Latest posts:<a href="https://discourse.urho3d.io/t/stealing-panda3ds-render-pipeline/4778/30">https://discourse.urho3d.io/t/stealing-panda3ds-render-pipeline/4778/30?u=1vank</a> <a href="https://discourse.urho3d.io/t/stealing-panda3ds-render-pipeline/4778/36">https://discourse.urho3d.io/t/stealing-panda3ds-render-pipeline/4778/36?u=1vank</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="10" data-topic="1036" data-username="rku">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/0f3152b3c75678395bd69892a813e417.png" width="20"/> rku:</div>
+<blockquote>
+<p>With <span class="mention">@cadaver</span> resigning maybe this matter is worth revisiting? Even if bgfx does not offer immediate performance gains it still provides free support for new rendering APIs, some of which we will definitely not see ever implemented in Urho3D as it is now. bgfx port (or even full migration) could relieve some maintenance stress.</p>
+</blockquote>
+</aside>
+<aside class="quote no-group" data-post="17" data-topic="1036" data-username="rku">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/0f3152b3c75678395bd69892a813e417.png" width="20"/> rku:</div>
+<blockquote>
+<p>This is absurd and suggesting that is suggesting engine to stagnate because noone is going to write backend for dx12, noone is going to write backend for metal, noone is going to write backend for vulkan. Not to mention bgfx solving write-once shader problem…</p>
+</blockquote>
+</aside>
+<p>Sounds reasonable, why is brgfx not integrated to *** after 5+ years?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="71" data-topic="1036" data-username="1vanK">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/8e14485e10e801cd7ee7668b4f98a5bf.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>On the contrary, the engine often changes for a particular game. Therefore, it is not a problem to have a separate version of the engine for each of your games.</p>
+</blockquote>
+</aside>
+<p>You may like this, but I do not. I would rather have only one version of the engine rather than half a dozen. Or at least have changes that break the code using engine be infrequent and quick to fix. For the most part I think Urho has done this well in the past. I’m less sure of now with the sweeping changes to integer types and scripting that have been happening - maybe it’s still fine, but it looks like too much for me to be willing to even try at the moment. At some point I’ll get to it, but probably after I finish my current project in returning to one of my older ones.</p>
+<hr/>
+<aside class="quote no-group quote-modified" data-full="true" data-post="67" data-topic="1036" data-username="1vanK">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/8e14485e10e801cd7ee7668b4f98a5bf.png" width="20"/> 1vanK:</div>
+<blockquote>
+<aside class="quote no-group quote-modified" data-post="65" data-topic="1036" data-username="niansa">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/eb9c543840560a39ac3856c1f5e44421.png" width="20"/> niansa:</div>
+<blockquote>
+<p>Signed iterators … <strong>can</strong> cause serious issues.</p>
+</blockquote>
+</aside>
+<p>Where were you when this option was offered?</p>
+</blockquote>
+</aside>
+<p>Speaking for me, I was on the forum. I think I only saw the stuff on GitHub about it a few weeks late, after the discussion and work for it had largely been finished. I don’t check GitHub as often as the forum (once a month vs once a day), and wrongly expected large changes like that would be discussed in the developer talk section. I don’t entirely mind the change, especially if we put it into Urho 2.0 rather than 1.9. I’m less sure of how I feel about all the typedefs (i32, etc.) but I can see some of the advantages as well, and they don’t require any changes to my code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="74" data-topic="1036" data-username="SirNate0">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/fb52f23a6782e890737d90432eac55f2.png" width="20"/> SirNate0:</div>
+<blockquote>
+<p>You may like this, but I do not. I would rather have only one version of the engine rather than half a dozen.</p>
+</blockquote>
+</aside>
+<p>It’s abstract. None of the engines can provide all the functionality you need for your particular game. For example, I added an additional window to the editor for quick insertion of objects I needed when creating level. Should it be in the engine repository? Or I needed to significantly change the button class to get the effect of a smooth color change, since at the moment an object cannot have several event handlers for same event at the same time. Should I push this to the repository?</p>
+<p>After all, if there have been changes in the repository that break backwards compatibility, then you don’t have to upgrade. You can continue to develop the current game on the old engine, and start a new project on the latest version of the engine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>You want to go down the route of measuring our… features? *** has a totally new renderer and we plan on switching to Diligent for a common graphics backend. Should i list other features *** had and urho never will?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Was it the answer to my question?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Maybe it was like being rude. It’s just that there are those who want to integrate bgfx into the engine, but you probably studied this issue and sewed on the conclusion that this is a bad idea. I would like to know about this reason.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="76" data-topic="1036" data-username="rku">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/0f3152b3c75678395bd69892a813e417.png" width="20"/> rku:</div>
+<blockquote>
+<p>You want to go down the route of measuring our… features?</p>
+</blockquote>
+</aside>
+<p>I’m afraid you will lose. For example, we have the console, the scripting language, the editor.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="73" data-topic="1036" data-username="1vanK">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/8e14485e10e801cd7ee7668b4f98a5bf.png" width="20"/> 1vanK:</div>
+<blockquote>
+<p>Sounds reasonable, why is brgfx not integrated to *** after 5+ years?</p>
+</blockquote>
+</aside>
+<p>The serious answer is that bgfx was tried and found lacking (I don’t have Urho bgfx branch link, sorry).<br/>
+It’s just way too limited. It may be good enough if you build entire new renderer/engine around it, but it’s too restricting for Urho3D. I think that sokol, nvrhi, nri, Diligent or TheForge offer much better API for migrating existing engine, than bgfx.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<aside class="onebox githubfolder" data-onebox-src="https://github.com/boberfly/urho3d/tree/feature/bgfx">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/0973ea8ce7121c320f68413e2a2f23ab.svg" width="32"/>
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h3><a  rel="noopener nofollow ugc" target="_blank">GitHub - boberfly/Urho3D at feature/bgfx</a></h3>
+<p><a  rel="noopener nofollow ugc" target="_blank">feature/bgfx</a></p>
+<p><span class="label1">Cross-platform rendering and game engine. Contribute to boberfly/Urho3D development by creating an account on GitHub.</span></p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p><div class="lightbox-wrapper"><a class="lightbox"   title="1_dx9"><img alt="1_dx9" data-base62-sha1="fl18mrKFsuQaag9tJcS7R2v9XQT" data-dominant-color="F7F8F9" height="102" src="../../../images2/db292130a1777ca82e8042c46db04dab.png"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">1_dx9</span><span class="informations">961×143 8.15 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>xD</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3755_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SoNewBee</div>
+          <div class="post_content">
+<p>really？<br/>
+finally we add bgfx support？<img alt=":star_struck:" class="emoji" height="20" loading="lazy" src="../../../images2/5ea55af5c035e12802d17577dda1c84d.png" title=":star_struck:" width="20"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3755_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SoNewBee</div>
+          <div class="post_content">
+<p>hahahaha<br/>
+that’s really funny</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3755_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SoNewBee</div>
+          <div class="post_content">
+<p>So how about we select Diligent？</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Too many branches, resulting in not many users.<br/>
+It is better to stick to 1 branch and accept all the code changes and make it version 2 :).<br/>
+Let people manage their own changes.</p>
+<p>It will make the engine more lively, but coding quality may go down :).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="86" data-topic="1036" data-username="George1">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/55025fbd2afcb6a1f5abc6e341ed02b9.png" width="20"/> George1:</div>
+<blockquote>
+<p>Let people manage their own changes.</p>
+</blockquote>
+</aside>
+<p>Nobody wants to do anything <a href="https://github.com/Urho3D-CE/Urho3D">https://github.com/Urho3D-CE/Urho3D</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Thanks, I think people shouldn’t complain then.  It’s already there for contribution.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Because:</p>
+<ul>
+<li>It is hidden</li>
+<li>It is a bad idea</li>
+<li>
+<span class="mention">@George1</span> has no idea what he is talking about</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>It’s not hidden <a href="https://discourse.urho3d.io/t/urho3d-community-edition/6513">https://discourse.urho3d.io/t/urho3d-community-edition/6513</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>You can import your whole branch in there and manage it?  This way you don’t have issue with quality of code.</p>
+<p>But it needs advertisement on the main page.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Of course it is hidden. It does not belong to Urho3D organization on github and is in no way involved in official workflow of contributions. As far as everyone is concerned it is just a sandbox of some third party. Even if a contributor knows of that project and it’s purpose - why would they waste their time contributing their code into junkyard instead of main project? Only ones contributing to CE would be ones who are unable to write good-enough code to be accepted to the main repo. Although bar seems to go down enough for that to no longer be a limitation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="92" data-topic="1036" data-username="rku">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/0f3152b3c75678395bd69892a813e417.png" width="20"/> rku:</div>
+<blockquote>
+<p>It does not belong to Urho3D organization on github</p>
+</blockquote>
+</aside>
+<p>There is a technical reason for this, it is not possible to fork a repository to the same organization.</p>
+<aside class="quote no-group" data-post="92" data-topic="1036" data-username="rku">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/0f3152b3c75678395bd69892a813e417.png" width="20"/> rku:</div>
+<blockquote>
+<p>Even if a contributor knows of that project and it’s purpose - why would they waste their time contributing their code into junkyard instead of main project? Only ones contributing to CE would be ones who are unable to write good-enough code to be accepted to the main repo. Although bar seems to go down enough for that to no longer be a limitation.</p>
+</blockquote>
+</aside>
+<p>I first thought about ***.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

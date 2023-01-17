@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Strange doted pattern in texture</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Strange doted pattern in texture</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>Hi.<br/>
+We working on application with Xamarin+Urho on Android.<br/>
+And have strange problem with displaing sprites and terrarin textures.</p>
+<p>Left side of image is screenshot geted from real device and sprite consists of pixel doted pattern over it. Right site is bitmap that copied to sprite.<br/>
+<img alt="" height="" src="../../../images2/f3f318b0459eb8cfaec3a91e234341b7.png" width=""/></p>
+<p>What we do wrong?</p>
+<p>Code that we use to draw on sprite.</p>
+<pre><code class="lang-auto">const int cnt = 5;
+
+        Sprite[] spriteList = new Sprite[cnt];
+        Texture2D[] textureList = new Texture2D[cnt];
+
+        private Texture2D GetTexture(int h , int w)
+        {
+            #region TestDrawTexture
+
+            Texture2D texture=new Texture2D();
+            texture.FilterMode = TextureFilterMode.Nearest;
+            texture.SetNumLevels(1);
+            texture.SetSize(w, h, Graphics.RGBAFormat, TextureUsage.Static);
+
+            return texture;
+            #endregion
+        }
+
+        public bool DrawOnSprite(int num, Bitmap bitmap)
+        {
+            #region DrawOnSprite
+            try
+            {
+                if (num &lt; 0 || num &gt; cnt)
+                {
+                    return false;
+                }
+
+                if (textureList[num] == null)
+                {
+                    textureList[num] = GetTexture(bitmap.Height, bitmap.Width);
+                }
+
+                Texture2D texture = textureList[num];
+
+                unsafe
+                {
+                    int psize = bitmap.Width * bitmap.Height * 4;
+                    int[] pixels = new int[psize];
+
+
+                    if (pixels == null)
+                    {
+                        log.WriteError("Error in DrawOnSprite, pixels == null");
+                        return false;
+                    }
+
+                    {
+                        bitmap.GetPixels(pixels, 0, bitmap.Width, 0, 0, bitmap.Width, bitmap.Height);
+
+						MainModule.obj.SaveBitmap(bitmap,"bitmap_"+num.ToString()+".png");
+
+
+                        fixed (void * data = &amp;(pixels[0]))
+                        {
+                            if (data == null)
+                            {
+                                log.WriteError("Error in DrawOnSprite, data == null");
+                                return false;
+                            }
+
+                            bool result_SetData = texture.SetData(0, 0, 0, texture.Width, texture.Height, (void *) data);
+
+                            if (result_SetData == false)
+                            {
+                                log.WriteError("Error in DrawOnSprite, SetData to textute return false");
+                                return false;
+                            }
+
+
+                            if (spriteList[num] == null)
+                            {
+                                spriteList[num] = new Sprite();
+                            }
+
+                            Sprite sprite = spriteList[num];
+
+                            sprite.Texture = texture;
+                            sprite.SetSize(128, 128);
+                            sprite.BlendMode = BlendMode.Replace;
+
+                            int x = (int) (840/6);
+                            int y = (int) (480/8) + num * sprite.Height + 20;
+                            sprite.Position = new IntVector2(x, y);
+
+                            ApplicationIUHelperClass.obj.AppUI.Root.AddChild(sprite);
+                        }
+                    }
+
+                    return true;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                log.WriteError("Error in DrawOnSprite", ex);
+            }
+            return false;
+            #endregion
+        }
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>The images look like the red and the blue color channel is switched. I guess one is RGB and the other BGR. Do you mean that by strange pattern?</p>
+<p>Maybe switching</p>
+<pre><code class="lang-auto">texture.SetSize(w, h, Graphics.RGBAFormat, TextureUsage.Static);</code></pre>
+<p>to</p>
+<pre><code class="lang-auto">texture.SetSize(w, h, Graphics.BGRAFormat, TextureUsage.Static);</code></pre>
+<p>helps?<br/>
+Can’t find anything in the code and I have no idea where RGBAFormat is even defined.</p>
+<p>If this “chess pattern” with the red, green and blue dots is not supposed to be there: what is there in the image? A solid color? Is something being drawn on top of the image?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="gawag">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/55e94f04c5079bb1da7e4ebdb0e4ddb3.png" width="20"/> gawag:</div>
+<blockquote>
+<p>The images look like the red and the blue color channel is switched. I guess one is RGB and the other BGR. Do you mean that by strange pattern?</p>
+</blockquote>
+</aside>
+<p>The pattern is very faint and maybe not even visible on some screens. Here’s the same image with increased contrast:<br/>
+<img alt="" height="337" src="../../../images2/269d674534b3c1b15ebaed4b0d94e517.png" width="317"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>Oh that I did not see at all. Now that you mentioned it I saw it also in the original image.</p>
+<p>That looks really strange. Is that only when rendering the image? Is it also visible without an image (solid background color)? Does it also occur with other “3d rendering applications” like games? Do the Urho samples have that too?<br/>
+Could be something really hard to find and solve like an OpenGL bug.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This looks like it could be output dithering on the device, if its framebuffer is just 16 bits. I think I encountered this on some Android devices but couldn’t find out how you would reliably control the output bitdepth (on Android) in SDL library’s runtime configuration.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>Hi, thanks for answers.</p>
+<p>I got screenshot from urho samples/static scene example - to avoid problems in our code<br/>
+<img alt="" height="" src="../../../images2/cfff60975946ace39de3ba3b71be5c52.png" width=""/></p>
+<p>On the left - screen from device<br/>
+On the right - screen from genymotion emulator</p>
+<p>As you can see for example Grey joystick on the left is filled by same pattern.</p>
+<p>So if its 16 bit framebuffer, how i can change this ? Or may by test by another opengl application? Its device problem or urho?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>This screenshot from device using this test app <a data-bbcode="true" href="https://play.google.com/store/apps/details?id=com.rtsw.opengldemo&amp;hl=en" rel="nofollow noopener">https://play.google.com/store/apps/details?id=com.rtsw.opengldemo&amp;hl=en</a> and no doted pattern</p>
+<p><img alt="" height="" src="../../../images2/476450904e7c8fc03fad5714d41cf669.png" width=""/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Maybe this is relevant: <a href="https://forums.libsdl.org/viewtopic.php?t=11915&amp;sid=84b9b1355fa97daea83523eea1e2a634" rel="nofollow noopener">forums.libsdl.org/viewtopic.php … eea1e2a634</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>Ok, how i can try call this function glDisable(GL_DITHER) under xamarin - urho ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>Hi i googled, that our device with mali400 have GL_DITHER enabled by default<br/>
+<a data-bbcode="true" href="http://stackoverflow.com/questions/11501514/opengl-es-2-0-artifacts-dithering-in-fbo-on-mali-400" rel="nofollow noopener">http://stackoverflow.com/questions/11501514/opengl-es-2-0-artifacts-dithering-in-fbo-on-mali-400</a></p>
+<p>So, i searched in code of urho and dont see any api to call to modify gl_dither.</p>
+<p>How i can change this value?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">mayatforest</div>
+          <div class="post_content">
+<p>Hi.<br/>
+I found method to fix this call to Android.Opengl.GLES20.GlDisable(Android.Opengl.GLES20.GlDither); $)<br/>
+BW in next release of urho will be added method to set Dither directly in properties.<br/>
+See here <a data-bbcode="true" href="https://github.com/xamarin/urho/issues/137" rel="nofollow noopener">https://github.com/xamarin/urho/issues/137</a> and <a data-bbcode="true"  rel="nofollow noopener">https://github.com/urho3d/Urho3D/issues/1489</a></p>
+<p>Thanks to all.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

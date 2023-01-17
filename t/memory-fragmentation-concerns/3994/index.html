@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Memory Fragmentation Concerns</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Memory Fragmentation Concerns</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I started looking through the engine code in more detail, and I noticed a few possible issues that could cause unnecessary memory fragmentation (which PCs could live with but could affect performance on mobile and maybe even on consoles).</p>
+<ol>
+<li>
+<p>RefCounted class contains an instance of RefCount struct which is allocated on the heap with new() in the constructor. I’m not an expert at reference counting, but is there a good reason for this and not having the struct as a plain member of the class?</p>
+<p>RefCounted::RefCounted() :<br/>
+refCount_(new RefCount())</p>
+</li>
+</ol>
+<p>Looks like the constructor always allocates a new RefCount struct, so I cannot see any reason why it couldn’t be a plain member. Creating and deleting game entities based on RefCounted, would created extra (apparently unnecessary) memory fragmentation by always also allocating/deleting the RefCount struct separately.</p>
+<ol start="2">
+<li>Passing String as a parameter to ResourceCache functions, node creation functions, etc, again unnecessarily allocates, copies then deallocates temporary string of chars, just so that they get passed to a function. Passing “const char*” to all these functions would be much more efficient as it would not require allocating and copying buffers.<br/>
+This is especially ridiculous for ResourceCache which all it really requires is actually a StringHash.</li>
+</ol>
+<p>A possible alternative (to passing “const char*”) solution would be to modify the String class to support shared buffers.</p>
+<p>Can someone enlighten me as to whether there is a good reason for the way things are? Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>The refcount has to be a pointer for the WeakPtr types to work sanely. Otherwise you’d need a list for every living WeakPtr instance to mark them invalid - instead they can just point at the RefCount and the last WeakPtr can delete it when it’s time.</p>
+<p>There is no better solution. It’s basically the same as std::shared_ptr.</p>
+<hr/>
+<blockquote>
+<p>Passing String as a parameter to ResourceCache functions, node creation functions, etc, again unnecessarily allocates, copies then deallocates temporary string of chars, just so that they get passed to a function.</p>
+</blockquote>
+<p>No. They’re almost always passed as <code>const&amp;</code>, nothing is allocated. Every single function in <code>ResourceCache</code> that takes a string does so by reference - not copy.</p>
+<p>That’s fundamental C.</p>
+<blockquote>
+<p>Passing “const char*” to all these functions would be much more efficient as it would not require allocating and copying buffers.</p>
+</blockquote>
+<p>No. The data-segment (where those <code>"My Explicitly typed string"</code> live is a cache minefield and strings in it are a cache-miss everytime. Unless you’re actively in it It’s likely to be the single furthest thing from any point in your program’s lifecycle. It’s only fast when all you care about is the address, dereference that pointer, <code>strlen</code> it, etc and the magic is gone.</p>
+<p>That’s also fundamental C and an eternal compiler development dilemma.</p>
+<blockquote>
+<p>This is especially ridiculous for ResourceCache which all it really requires is actually a StringHash</p>
+</blockquote>
+<p>Again, every single String passed in as an alias, there is <strong>no copy</strong> until the ResourceCache needs to remap a path or store it for itself.</p>
+<p>Also, they’re <strong>paths</strong>, not names.</p>
+<p>How would you remap paths or select appropriate loaders from a StringHash? You can’t, the information required is lost - any structure based solution around it is just reinventing paths but worse.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>Thanks for the reply and clarifications.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="2" data-topic="3994" data-username="Sinoid">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/364b15125065144cbdd62e2448806aa6.png" width="20"/> Sinoid:</div>
+<blockquote>
+<p>Passing String as a parameter to ResourceCache functions, node creation functions, etc, agay unnecessarily allocates, copies then deallocates temporary string of chars, just so that they get passed to a function.</p>
+<p>No. They’re almost always passed as const&amp;, nothing is allocated. Every single function in ResourceCache that takes a string does so by reference - not copy.</p>
+<p>That’s fundamental C.</p>
+</blockquote>
+</aside>
+<p>Unless he means the cases where you pass in a c string to these functions (e.g. if you call the function <code>void Foo(const String&amp; s);</code> with <code>Foo("test");</code>) then this will definitely be a memory allocation, string copy, followed by a deallocation. <code>std::string</code> has a small size optimization which gets around that allocation for small strings, but I don’t think Urho3D does this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p><span class="mention">@QBkGames</span>, I tried to use <code>const char*</code> in my pet engine, but it sux.<br/>
+So unhandy to deal with any string ops and always do these nasty <code>std::string(my_arg)</code> and <code>foo(str.c_str())</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p><span class="mention">@TheComet</span>, right that slipped my mind, and C++11 forbid copy-on-write strings so it’s mandatory (which probably made GCC folks grumble at the time).</p>
+<p>StringHash is used so extensively throughout Urho3D that when there’s a string showing up it generally has a reason (came from data, is script / user facing, the string is meaningful like a path / text / shader <span class="hashtag">#define</span> / etc).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>Regarding Strings, the scenario that <span class="mention">@TheComet</span> refers to is exactly what I meant.</p>
+<p>Although a lot of string data comes from external files which are read in as String, you still refer to a lot of constant strings throughout the game: when getting some resources, when referring to specific UI elements, when referring to specific objects in a XML or JSON file, when looking for specific Nodes or component, etc.<br/>
+So there is quite a lot of scenarios where the String acts simply as a temporary wrapper around a const char* only because the function you are calling requires a const String reference instead of simply accepting a const char* (which is what you are really supplying). Most of these calls happen when the game initialises so your memory gets trashed even before the game begins.</p>
+<p>I’m currently working on a potential solution that should have a minimal impact on existing code base (some changes to String to allow for a shared buffer, thus not requiring allocating and copying the source buffer).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<blockquote>
+<p>I’m currently working on a potential solution that should have a minimal impact on existing code base (some changes to String to allow for a shared buffer, thus not requiring allocating and copying the source buffer).</p>
+</blockquote>
+<p>I assume you’re turning off threads then. Are you’re going to add a refcount or mutex to string? COW plus threads doesn’t mix.</p>
+<p>Do you have histograms or anything that show fragmentation to be a problem?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Would it be possible to create a constexpr string literal operator (maybe _S or _US) to construct an Urho3D::String, and would that alleviate the fragmentation concerns raised? I have no idea – I assume it should be possible to create it, but I really don’t know if it would alleviate the concerns about fragmentation. My guess is that it might, provided all calls to the functions in question added the new suffix to the hard-coded string.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Regarding the string issue. I see two options. Implement a <code>std::string_view</code> like the new c++17 standard. Which might be a little more difficult than expected with C++11. Having C++14 would be favorable since they’ve removed some <code>constexpr</code> limitations. But even with just C++11, where you’re forced to have an immutable implementation. It would still work. I remember trying it a while ago.</p>
+<p>Or, implement the small buffer optimization like many new libraries do these days. The local string implementation really is just a:</p>
+<pre><code>struct String
+{
+	String() : data(local_), size(0) { }
+	~String() { if (data_ != local_) delete[] data_; }
+private:
+
+	char * 			data_;
+	unsigned		size_;
+	union {
+		unsigned 	capacity_;
+		char 		local_[20];
+	};
+};
+</code></pre>
+<p>And you have 32 byte (<em>regardless of architecture</em>) <code>String</code> implementation with room for 19 usable bytes. <code>std::string</code> uses <code>size_t</code> so they loose 4 bytes. but it only occupies 24 bytes on 32-bit.</p>
+<p>Or even better, have them both <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/> Gotta say it looks fun and I might even try it this week. Out of curiosity.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>If you make the change, it would be beneficial if you could also <em>measure</em> the impact these changes have, to see if it matters or not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Personally I like this idea more, although I am not sure yet whether it can be pulled off but using <code>constexpr</code> or user-defined suffix for the <code>String</code> literal looks promising.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>I did make a dummy implementation of a local string in my fork of the engine. Currently the Editor crashes. I’ll have to look into it. And the Variant type is forced to be 32 bytes regardless of architecture.</p>
+<p>As for actual performance, I couldn’t see anything significant. Probably because there is no project that actually puts the engine to a more realistic situation. And in the samples, most of the execution time is spent in physics, math, occlusion, encoding, decoding etc. Very little that stresses the String implementation.</p>
+<p>So to get an idea of the actual performance. I’d have to run some synthetic benchmarks. Which I might do. I’ll be back with some results.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>After thinking about it for a whole day (and half a night), this is what I came up with:</p>
+<pre><code>/// Only meant as a temporary wrapper around a const char*. Only supports const functions as it does not own the char buffer.
+/// Calling functions that change the char buffer can result in memory corruptions.
+class URHO3D_API ConstString : public String
+{
+public:
+	/// Construct from another string.
+	ConstString(const String&amp; str)
+	{
+		length_ = str.Length();
+		buffer_ = (char*)str.CString();
+	}
+
+	/// Construct from a C string.
+	ConstString(const char* str)
+	{
+		length_ = CStringLength(str);
+		buffer_ = (char*)str;
+	}
+};
+</code></pre>
+<p>It’s a bit hacky, but works. Then you use it:</p>
+<pre><code>mushroomObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;(ConstString("Models/Mushroom.mdl")));
+mushroomObject-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;(ConstString("Materials/Mushroom.xml")));
+</code></pre>
+<p>This is the best solution I can think of that requires minimum changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>By the way, I’m not very familiar with git, do you need some special permission to create a branch and open a pull request? I’ve cloned the repository, created a branch but I’m unable to publish it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>As to how much String impacts the game/engine performance, probably not that significant (at least not on a PC, might make a bit more difference on a mobile), but to me any wasted clock cycle is taking away my option to add more entities or features that enrich the game.</p>
+<p>So, one of the attractions of Urho3D is that is advertised as light weight, which in my mind means very optimised and efficient. And the way String is used, does not fit with that attitude.</p>
+<p>There might be other subsystems of the engine that could do with more optimisation (maybe the event system ?), but String is something that jumped at me from the start.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>A string with a local buffer does have some benefits. But sometimes it can be even worse. More memory is used. Move semantics, swapping, copying, default construction etc. take a bit more work than usual. And that takes it’s toll.</p>
+<p>There were definitely things that could have been improved. I might look more into it. I’m pretty sure the quick and dirty implementation I did is far from perfect.</p>
+<p>But for now. I’m starting to think that a string view coupled with the regular string implementation might work better. I’ll have to try and see.</p>
+<p>Default construction empty:</p>
+<pre><code>static void Heap(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String s("abcd");
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Heap);
+
+static void Local(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String2 s("abcd");
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Local);
+</code></pre>
+<p>Output:</p>
+<pre><code>--------------------------------------------------
+Benchmark           Time           CPU Iterations
+--------------------------------------------------
+Heap                1 ns          1 ns 1000000000
+Local               2 ns          2 ns  407922793
+</code></pre>
+<p>Default construction with C string of 4 chars:</p>
+<pre><code>static void Heap(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String s("abcd");
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Heap);
+
+static void Local(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String2 s("abcd");
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Local);
+</code></pre>
+<p>Output:</p>
+<pre><code>--------------------------------------------------
+Benchmark           Time           CPU Iterations
+--------------------------------------------------
+Heap               34 ns         34 ns   21367384
+Local               5 ns          5 ns  100000000
+</code></pre>
+<p>Default construction with C string of 19 chars:</p>
+<pre><code>static void Heap(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String s("abcdefghijklmnefgh");
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Heap);
+
+static void Local(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String2 s("abcdefghijklmnefgh");
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Local);
+</code></pre>
+<p>Constructing with a string that exceeds the local buffer capacity:</p>
+<pre><code>--------------------------------------------------
+Benchmark           Time           CPU Iterations
+--------------------------------------------------
+Heap               33 ns         33 ns   22435754
+Local               6 ns          6 ns  125840759
+</code></pre>
+<p>Default construction with C string of 24 chars:</p>
+<pre><code>static void Heap(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String s("abcdefghijklmnefghijklmn");
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Heap);
+
+static void Local(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String2 s("abcdefghijklmnefghijklmn");
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Local);
+</code></pre>
+<p>Output:</p>
+<pre><code>--------------------------------------------------
+Benchmark           Time           CPU Iterations
+--------------------------------------------------
+Heap               33 ns         33 ns   18643076
+Local              37 ns         37 ns   18696461
+</code></pre>
+<p>Copying arrays of strings:</p>
+<pre><code>typedef Urho3D::Vector&lt; Urho3D::String &gt; StringVec;
+typedef Urho3D::Vector&lt; Urho3D::String2 &gt; String2Vec;
+
+static const unsigned sizes[] = {
+	0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
+	32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63
+};
+static const char * cstr = "abcdefghijklmnefghijklmnabcdefghijklmnefghijklmnabcdefghijklmnefghijklmn";
+
+static void Heap(benchmark::State&amp; state) {
+    StringVec v1, v2;
+    v1.Resize(64);
+    v2.Resize(64);
+    for (unsigned i = 0; i &lt; 64; ++i)
+        v1[i].Append(cstr, i);
+
+    for (auto _ : state) {
+        v1 = v2;
+    }
+}
+BENCHMARK(Heap);
+
+static void Local(benchmark::State&amp; state) {
+    String2Vec v1, v2;
+    v1.Resize(64);
+    v2.Resize(64);
+    for (unsigned i = 0; i &lt; 64; ++i)
+        v1[i].Append(cstr, i);
+
+    for (auto _ : state) {
+        v1 = v2;
+    }
+}
+BENCHMARK(Local);
+</code></pre>
+<p>Output:</p>
+<pre><code>--------------------------------------------------
+Benchmark           Time           CPU Iterations
+--------------------------------------------------
+Heap              308 ns        310 ns    2361658
+Local             409 ns        407 ns    1725827
+</code></pre>
+<p>Integer conversion:</p>
+<pre><code>static void Heap(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String s(242554);
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Heap);
+
+static void Local(benchmark::State&amp; state) {
+    for (auto _ : state) {
+        Urho3D::String2 s(242554);
+        benchmark::DoNotOptimize(s);
+    }
+}
+BENCHMARK(Local);
+</code></pre>
+<p>Output:</p>
+<pre><code>	--------------------------------------------------
+Benchmark           Time           CPU Iterations
+--------------------------------------------------
+Heap              111 ns        111 ns    5608938
+Local              68 ns         68 ns    8974301
+</code></pre>
+<p>Environment:</p>
+<ul>
+<li>Windows 7 x64</li>
+<li>MinGW 7.2.0 x64 POSIX SEH</li>
+<li>Ryzen 5 1600x single threaded <span class="mention">@3.7</span>.</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>That’s basically how a <code>string_view</code> is supposed to look like. Except you’re playing with the destructor of the base class which destroys the buffer. And boy oh boy, destruction you’ll get.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<aside class="quote" data-full="true" data-post="15" data-topic="3994">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/e4ae08e5e9a743881d4bc05a0633aec3.png" width="20"/> QBkGames:</div>
+<blockquote>
+<p>By the way, I’m not very familiar with git, do you need some special permission to create a branch and open a pull request? I’ve cloned the repository, created a branch but I’m unable to publish it.</p>
+</blockquote>
+</aside>
+<p>Did you fork it on GitHub and then clone your fork, or did you just clone the main repo? While you might be able to do it with just the main repo and your local machine, the only way I know too create a pull request is to do it through my fork on GitHub (push the branch to your fork, which you should have write access to, and then visit the GitHub page for your fork and it should give you the option to create a pull request).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>If it wasn’t forked first and was instead cloned from the main Urho3d repo then you have to fork on github then change the url on the local clone. <a href="https://help.github.com/articles/changing-a-remote-s-url/" rel="nofollow noopener">https://help.github.com/articles/changing-a-remote-s-url/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<aside class="quote" data-post="18" data-topic="3994">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4dfc5d0fa7f66ffc42fdd6509cfc065a.png" width="20"/> S.L.C:</div>
+<blockquote>
+<p>Except you’re playing with the destructor of the base class which destroys the buffer. And boy oh boy, destruction you’ll get.</p>
+</blockquote>
+</aside>
+<p>Actually, as long as the capacity variable remains at 0, the destructor shouldn’t be a problem. I’ve already tried it in practice.</p>
+<p>I’m guessing that a “proper” string_view equivalent implementation would be to have the View as the base class with all const methods as its members, and then have the String inherit from the View.<br/>
+I actually thought of that as well, but then you’ll still have to change all function signatures throughout the engine to replace “const String&amp;” to “const StringView&amp;”, in which case it would be much easier to replace them simply with “const char*” and not have to mess around with the view at all. I have no idea what the impact would be for the scripting language bindings but for C++ it should not really break too many things (if any at all).</p>
+<p>(Of course, you’d still use String internally to store char data, but for passing strings around, I still think const char* is the best, most efficient option).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p><span class="mention">@SirNate0</span> &amp; <span class="mention">@Sinoid</span></p>
+<p>Thanks for the clarifications with GitHub. I didn’t know you had to fork first, so I did clone the main repo. The article helped and I’ve now changed the url to my fork.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Switch statement and events</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Switch statement and events</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Hi, I’d like to have a switch statement for events, but can’t seem to figure it out.</p>
+<pre><code class="lang-auto">switch (eventType)
+{
+case E_KEYUP:
+...
+break;
+case E_KEYDOWN:
+...
+break;
+default:
+};
+</code></pre>
+<p>Seems like it should be simple, right? My compiler complains</p>
+<pre><code class="lang-auto">error: switch condition type
+      'Urho3D::StringHash' requires explicit conversion to 'bool'
+        switch (eventType)
+...
+error: value of type
+      'const Urho3D::StringHash' is not implicitly convertible to 'int'
+                case E_KEYUP:
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Apparently you can <a href="https://en.cppreference.com/w/cpp/language/switch" rel="noopener nofollow ugc">only use switch statements with integer types</a>. I’ll just use if-else branches…</p>
+<p>P.S. Trying to use <code>.Value()</code> had const-ness issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I think can get around that problem by defining some constexpr methods, I think (the hashing ones) and/or adding a user defined literal, but it might require c++14 for the while loop or a recursive style rewrite of the function.</p>
+<p>But yes, if-else is probably easier.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>If you really want that approach, without having to dig into the engine and modify things, then you could modify the <code>Source/Urho3D/Math/MathDefs.h</code> file and simply add near the <code>SDBMHash</code> function the following:</p>
+<pre><code>/// Retrieve the lowercase version of an ASCII character.
+inline constexpr int tolower_cx(int c) { return (c &gt; 64 &amp;&amp; c &lt; 91) ? (c + 32) : c; }
+
+/// Retrieve the uppercase version of an ASCII character.
+inline constexpr int toupper_cx(int c) { return (c &gt; 96 &amp;&amp; c &lt; 123) ? (c - 32) : c; }
+
+/// Calculate the hash of the given ASCII string using the SDBM algorithm at compile time.
+inline constexpr unsigned SDBMHash_Cx(const char* s, unsigned i, unsigned n, unsigned h) {
+    return i &lt; n ? SDBMHash_Cx(s, i + 1, n, tolower_cx(s[i]) + (h &lt;&lt; 6) + (h &lt;&lt; 16) - h) : h;
+}
+
+/// User defined literal for converting strings to hashes at compile time.
+inline constexpr unsigned operator "" _H(const char* str, size_t len) { return SDBMHash_Cx(str, 0, len, 0); }
+</code></pre>
+<p>Or even add it to your files if that’s all you need. Doesn’t matter where you add it as long as it can be used.</p>
+<p>And then use the event name directly instead of it’s ID:</p>
+<pre><code>switch (eventType.Value())
+{
+    case "KeyUp"_H:
+    
+    break;
+    case "KeyDown"_H:
+    
+    break;
+    default:
+};
+</code></pre>
+<p>And if you want, you could change the user defined literal name from <code>_H</code> to <code>_E</code> or <code>_Event</code> if you want it to make sense. Or you could keep all of them since they’ll be discarded after compile.</p>
+<p>There are a bunch of places where Urho could’ve make use of <code>constexpr</code>. But it’s using C++11 <code>constexpr</code>. Which is somewhat limited. Wish the engine would’ve jumped straight to C++14 since that’s the sweet spot between compiler support and language features. 17 would be too high but 11 is too low.</p>
+<p>C++14 removes some <code>constexpr</code> limitations and would’ve made some things easier and probably better looking.</p>
+<p>But at this point, the engine would require some major changes as it wasn’t initially designed with that in mind.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Why not just jump to C++14 now? Would the engine have to be refactored? I haven’t tried compiling it with C++14, but my own project needs it and compiles fine with Urho3D as library. EDIT: I suppose using a new C++ version would break the API, so perhaps it would be appropriate for Urho3D2.0.</p>
+<p>Then just use 6-year lead time as policy for updating basic C++ version, or 4/5year idk.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>The engine just recently “<em>switched</em>” to C++11. But only on paper. Not a lot of C++11 was adopted. And I honestly don’t mind. It would take a significant amount work to rewrite all parts of the engine to use C++11 or newer. So I don’t/can’t blame anyone for not happening. I’m certainly not helping in that regard. Even though I could. But time issues <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/></p>
+<p>So yes, you can enable C++14 if your project needs it. Engine has no issue regardless of what C++ version you use as long as it’s newer than what it needs.</p>
+<p>MSVC likely played an important role in people adopting these new standards. Since it lags behind with implementing newer standards.</p>
+<p>For example, the extended/relaxed <code>constexpr</code> from C++14 that I was talking about earlier was implemented in MSVC 2017 but IIRC it had issues which were addressed later on.</p>
+<p>For comparison, GCC had it since version 5 from 2015 and Clang had it since version 3.4 from 2013.</p>
+<p> </p><div class="onebox imgur-album">
+<a href="https://imgur.com/a/7AacLFB" rel="noopener" target="_blank">
+<span class="outer-box" style="width:600px">
+<span class="inner-box">
+<span class="album-title">[Album] Extended constexpr</span>
+</span>
+</span>
+<img height="315" src="../../../images2/e14f102164aa58c9dc2e0029596cf4fb.png" title="Extended constexpr" width="600"/>
+</a>
+</div>
+
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

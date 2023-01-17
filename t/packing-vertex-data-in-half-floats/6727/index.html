@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Packing vertex data in half floats</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Packing vertex data in half floats</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">townforge</div>
+          <div class="post_content">
+<p>In my game (<a class="inline-onebox" href="https://discourse.urho3d.io/t/townforge-a-blockchain-multiplayer-economic-game-with-voxel-world/6722">Townforge: a blockchain multiplayer economic game with voxel world</a>), building geometry is made up of voxels, so grid aligned squres. Each vertex is made of 32 bytes (3 floats for position, 2 floats for textures coordinates, 3 floats for normal). My understanding is that the size of the data itself is a major consideration for performance, so I was looking at how much this could do down, and in theory I could have:</p>
+<p>position: 3 coordinates, for 4096 range and grid aligned, 13 bits each<br/>
+uv: 3 bits each<br/>
+normal: 6 vectors to choose from, so 3 bits</p>
+<p>So I was thinking of making the vertex data be 3 half floats, so 6 bytes, more than 5 times better. The contents would be:<br/>
+data[0]: x on the top bits, u on the bottom 3 bits<br/>
+data[1]: y on the top bits, v on the bottom 3 bits<br/>
+data[2]: z on the top bits, normal on the bottom 3 bits</p>
+<p>Now that’d require  custom a vertex program to mask and regenerate the data. It would also requite adding support for half float for position, since it seems Urho3D does not support it (this is really not my area of expertise so I might be wrong though).</p>
+<p>Is this possible in theory, or is there a showstopper here ?</p>
+<p>For reference, using the half conversion code from Urho3D, this gets me the range I need (it’d limit view distance, but to an acceptable maximum):</p>
+<pre><code class="lang-auto">int main()
+{
+  for (float x = -2048; x &lt;= 2048 + 1; x += 1.0f)
+  {
+    unsigned short y = FloatToHalf(x * 8);
+    float z = HalfToFloat(y) / 8;
+    if (x != z) printf("oops at %f: %f\n", x, z);
+  }
+  return 0;
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>The vertex data fetch is still in multiples of 32 bytes AFAIK.</p>
+<p>There shouldn’t be anything preventing you from adding half support to the vertex-declarations. However, it will make different functions that work with vertex-buffers (like WriteDrawablesToOBJ, mesh triangle raycasts, etc) unusable (will crash) unless modified to support the added half types as they all assume we can safely access float types from the shadow copies of those buffers.</p>
+<p>The generated patching that handles mapping a vertex-declaration/input-layout to a vertex-shader will include the costs to convert those halfs into floats (let’s just pretend mobiles with half support don’t exist to avoid muddiness).</p>
+<p>So really the question you’re going to have to find the answer to is if saving on VBO size is going to cost you less than the conversion to float.</p>
+<p>Situations like “<em>I’m constantly updating these buffers as I stream</em>” change that value.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

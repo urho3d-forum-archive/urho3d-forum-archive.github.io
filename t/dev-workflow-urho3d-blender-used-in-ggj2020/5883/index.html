@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Dev-Workflow ( Urho3D &lt;-&gt; blender ) used in GGJ2020</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Dev-Workflow ( Urho3D &lt;-&gt; blender ) used in GGJ2020</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1815_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dertom</div>
+          <div class="post_content">
+<p>Hi there, in the showcase-section I show my little <a href="https://discourse.urho3d.io/t/ggj-2020-repair/5859/7">ggj2020-entry</a>. Some might know that I’m working on an extended urho3d-blender-exporter ( I don’t dare to call it fork nowadays <img alt=":wink:" class="emoji" src="../../../images2/537e3e653d641df5b9858e75faf3862a.png" title=":wink:"/> ). Not really experienced with urho3d itself but I love the whole design. Especially that it is NOT editor-centric like all the other players. Nonetheless I do want to build my gameobject in blender and want a good urho3d-integration for this.</p>
+<p>Urho’s Object/Attribute system is just a blast for this kind of work as you can just export the objects. I wrote another blender-addon with which you can create blender-nodetrees by an json-file. So the workflow is like this:</p>
+<ol>
+<li>Define from within your project what components you want to export
+<ul>
+<li>you have the option e.g. to export all <strong>registered</strong> LogicComponent</li>
+<li>are just whiteliste all components you want to export. Like this:</li>
+</ul>
+</li>
+</ol>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/dertom95/ggj2020/blob/master/src/StartupApplication.cpp#L99" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/dertom95/ggj2020/blob/master/src/StartupApplication.cpp#L99" target="_blank">dertom95/ggj2020/blob/master/src/StartupApplication.cpp#L99</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="89" style="counter-reset: li-counter 88 ;">
+<li>#ifdef GAME_ENABLE_COMPONENT_EXPORTER</li>
+<li>void StartupApplication::SetupComponentExporter()</li>
+<li>{</li>
+<li>    auto exporter = new Urho3DNodeTreeExporter(context_);</li>
+<li>    context_-&gt;RegisterSubsystem(exporter);</li>
+<li>
+</li>
+<li>    // set whitelist-mode to tell the exporter what components exactly to include for export</li>
+<li>    exporter-&gt;SetExportMode(Urho3DNodeTreeExporter::WhiteList);</li>
+<li>
+</li>
+<li>    // include all Components that inherit from LogicComponent</li>
+<li class="selected">    exporter-&gt;AddSuperComponentHashToFilterList(LogicComponent::GetTypeStatic());</li>
+<li>
+</li>
+<li>
+</li>
+<li>    exporter-&gt;AddMaterialFolder("Materials");</li>
+<li>    exporter-&gt;AddTechniqueFolder("Techniques");</li>
+<li>    exporter-&gt;AddTextureFolder("Textures");</li>
+<li>    exporter-&gt;AddModelFolder("Models");</li>
+<li>    exporter-&gt;AddAnimationFolder("Models");</li>
+<li>    exporter-&gt;AddParticleFolder("Particle");</li>
+<li>    exporter-&gt;AddSoundFolder("Sounds");</li>
+<li>
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>The <a href="https://github.com/dertom95/ggj2020/tree/master/src/Subsystems/LoaderTools">exporter-class</a> itself consists of one cpp/h-file only with a dependency on base64 (which is actually not needed for a simple export)</p>
+<p>In my setup everytime the game is started I export a json-file into the bin-folder with the exported components as json-data readable for my <a href="https://github.com/dertom95/addon_jsonnodetree">addon_jsonnodetree</a></p>
+<p>The component-nodetree is one of two nodetrees being available from within blender. The exported components are managed by the game itself, the materials are managed by a special <a href="https://github.com/dertom95/urho3d-blender-runtime-ver2">urho3d-blender-runtime</a> that is built for communicating with blender and to render multiple views for the current blender-session and to scan the export-folder (which is your resource-path) for textures/materials/techniques/particles/animations/models and export all of this inside material-nodes for you. The material-nodetree is automatically created in your export-path’s root-folder.</p>
+<p><img alt="image" data-base62-sha1="w2PVh19cUICvhfQaYHrI1DllCeb" height="421" src="../../../images2/e1e035b5cecc2fadbb9f13bd7a8b6c8b.png" width="525"/></p>
+<p>So I basically took the opposite path to <span class="mention">@1vanK</span> very cool <a href="https://github.com/1vanK/Urho3D-Blender/tree/2_80">Material-Export-Effort</a> and bring Urho3d itself inside of blender and show the result how it will look afterwards rendered by the urho3d-blender-runtime.</p>
+<p>This is basically done by using urho3d’s resource-reload-function. As soon as you export the scene this state will be shown. This means atm you need to export the scene to keep it in sync. To make this easier there is a new option:<br/>
+<img alt="image" data-base62-sha1="rsQFUtJfwgBS9uoMvV7OyNAe6ps" height="109" src="../../../images2/448bf32012d4ec79d58229f35634b30c.png" width="294"/><br/>
+(I won’t show all new features,…this will be a post of its own once I consider the whole system usable for the broad mass <img alt=":wink:" class="emoji" src="../../../images2/537e3e653d641df5b9858e75faf3862a.png" title=":wink:"/> )</p>
+<p>I plan to make this syncing process automatically someday but with ‘Export on Save’ it works quite ok. But that might depend on your model. So an export can take some time and once you have a scene with multiple objects that might be taken even longer. For this I support Collection-Instances (formerly Group-Instances).</p>
+<p>My setup was to have 2 blends. One blend with my props and one with the scene that is using mostly blender-linked collections and are therefore not exported:</p>
+<p>prop-setup:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   title="image"><img alt="image" data-base62-sha1="aFjgYMAyzSZMc5Y4D307ZJmXzzH"  height="431" src="../../../images2/4d32509124018cf5cdb95359dbe697b3.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1920×1200 567 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<ol>
+<li>The collection, a gameobject in this case ‘Guy_Soldier’, consist of multiple objects (selector, aramture, particle-emitter(as component) )</li>
+<li>The collections you want to export as Urho-Objects need to be marked. These marked collections will be exported as separate object named Objects/col_[NAME].xml in your export-path</li>
+<li>Here you see the assigned ComponentNodetree for the active-object. (You can assign multiple ComponentNodetrees to reuse them)</li>
+</ol>
+<p>Scene-Setup:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   title="image"><img alt="image" data-base62-sha1="v98E6y2Di9ZaOgQxR4C1fAvLi86"  height="431" src="../../../images2/8b28146680800de81f1ee85d39a4972e.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1920×1200 728 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>The scene itself has not much own geometry. In this case only the landscape. Everything else is linked in blender. You can just use “File-&gt;Link-&gt;Props.blend-&gt;Collections-&gt;Cart” to link the cart collection which will from then on be available for adding “shift-a -&gt; collection-instances” (1). To export this is ultrafast because it creates basically only a scene-file.</p>
+<p>At 2) you see the cart-instance and in the outline 3) you see it is linked. In the scene it creates a <a href="https://github.com/dertom95/ggj2020/blob/master/src/Components/GroupInstance.h">“GroupInstance”-Component</a> which will load the collection when the scene is instantiated.</p>
+<p>Back to the nodetrees:<br/>
+Creating materials:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   title="image"><img alt="image" data-base62-sha1="zIUfFWU03RcXt9ry9XaMLbwUEp4"  height="431" src="../../../images2/b5c151291777ae8481a6521f583875d6.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1920×1200 661 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>On the top left-viewport you see it is in rendered mode. Blender tells the urho3d-blender-runtime its viewport-data, urho3d creates a rendertexture and sends it via net ( sry, I’m using pyzmq in blender, which you need to install(super easy) ) back to blender which will draw it on the viewport. Selecting the object and seeing e.g. in Edit-Mode the mesh works. That was actually very hard to get right, especially as I’m not a math-genius and all those matrices or finding the right one or who to get what where was really painful and I almost gave up.</p>
+<p>Aditionally to the renderered model itself you can also add urho3d-gizmos to the scene. In this case the sphere is the collision-shape of its rigidbody. You can toggle phyiscs-visuals at 4).<br/>
+At 3) you see the actual nodetree. In this case very simple. I almost just used vertex color in this project. But you can also assign textures, normalmaps, and can choose all available techniques. You also have texture-preview and they get automatically updated once you put them in the resource-path<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   title="image"><img alt="image" data-base62-sha1="t7oPQJABUhio4bCRqFpQhf4W1Iz"  height="431" src="../../../images2/0fac30af5f49a88278694556a38c743d.png"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1920×1200 488 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Component-Nodetrees:</p>
+<p>To use component-trees you need to select the exported json manually. For this go to one node-editor. e.g. materials or Blender-Compositing-View and select ‘JSON-Nodetree’ on the sidebar and set it in path2. (Path1 is reserved for the materialtree. The checkbox indicates autploading when the file is modified…)<br/>
+<img alt="image" data-base62-sha1="9yKTu8Lj0Nq755RpUZ19Afc2Dbt" height="458" src="../../../images2/1525f8c632ca20a8c1965fa2b63029b7.png" width="610"/></p>
+<p>In this case the cart-logic:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   title="image"><img alt="image" data-base62-sha1="bssI8Mtrkm9q9fnFMzgNdqsJydk"  height="431" src="../../../images2/c85a8c69aa6f08f89fe7e1d1051ea6b2.png"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1920×1200 822 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<ol>
+<li>Give the componentTree a name</li>
+<li>You see a custom component which is just available as you would expect.</li>
+<li>Assign the nodetree to the current object</li>
+</ol>
+<p>In the export process each nodetree’s component is added to its specific node.</p>
+<p>Also very use full is the support for tags and userdata (object-panel):<br/>
+<img alt="image" data-base62-sha1="o5cJZjaGZLATUGs8FnPwZpyZ37T" height="288" src="../../../images2/62eff48d213e6c8c8fd1127a9189ce4d.png" width="311"/></p>
+<p>To have a good starting point I created a very simplistic <a href="https://github.com/dertom95/urho3d-minimal-new-project">minimal-application</a>, which I also used for the GlobalGameJam-Project.</p>
+<p>The features:</p>
+<ul>
+<li>
+<p>BlenderComponent-Exporter</p>
+</li>
+<li>
+<p>Console/Profiler-Integration</p>
+</li>
+<li>
+<p>Lua-Integration</p>
+</li>
+<li>
+<p>Pause-Game (F1)</p>
+</li>
+<li>
+<p>Write Scene (F11)</p>
+</li>
+<li>
+<p>‘one-click’-compile: tools/build_all.sh (sry only for linux)</p>
+<ul>
+<li>this will compile: native,mingw,web,android,rpi,arm64 out of the box.</li>
+<li>there is no need to compile urho3d for each of those. I created <a href="https://hub.docker.com/u/dertom95">docker-images</a> that already include the library based on <span class="mention">@weitjong</span> wonderful dockerimages (The corresponding dockerfiles can be found in ‘<em>tools/Dockerimages</em>’ ).</li>
+</ul>
+</li>
+<li>
+<p>‘one-click’-packager: tools/export_game.sh [gamename]</p>
+<ul>
+<li>this will create for arm,web,mingw,native zip-folder in the export-folder</li>
+<li>optionally you can add files/directories into ‘package_include’-folder. those files will be placed along the exe into the zip</li>
+<li>for android release to be signed you can set env-variable ‘URHO3D_ANDROID_KEYSTORE’ to point to your keystore-file. Additionally jarsigner and zipalign needs to be in PATH. (There is a dedicated script that you can use just for signing, that is called by export-game: tools/sign_apk.sh).
+<ul>
+<li>if you don’t want/need to sign the apk, you find the apk in build/android/apk/debug</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p>Integrated Editor(F12) to toggle from game to editor and back and to be used as ingame-‘debugger’ to see what’s going on. Of course you can still use all functionalities…so if you want to give the blend-export some extra you can do this there.</p>
+</li>
+<li>
+<p>All(?) of those options can be turned off in cmake (at the moment not done automatically in build)<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   title="image"><img alt="image" data-base62-sha1="1xHVclqCvzp63pj0qiiSIR4XtVJ"  height="431" src="../../../images2/a6893303edca66c9784d0296e1705200.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1920×1200 746 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+</li>
+</ul>
+<p>Ok, people. That was a lot. I keep you posted. Whoever wants to give it a try. All of this is already available for download. Here is a pack with all blender-addons you need including the runtimes compiled for Linux and Windows: <a href="https://github.com/dertom95/Urho3D-Blender/releases/tag/0.1.2">https://github.com/dertom95/Urho3D-Blender/releases/tag/0.1.2</a></p>
+<p>I will keep on working on this workflow and will keep you posted as soon as it there is something to be mentioned.</p>
+<p>Greetz, Tom</p>
+<p>PS. I didn’t plan to write so much and I will reread it later! So forgive me the typos. <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><a href="https://en.wikipedia.org/wiki/Blender_Game_Engine">BGE</a>, eat your heart out! <img alt=":astonished:" class="emoji" src="../../../images2/a9809960c82dfdbe215a2b495196c317.png" title=":astonished:"/><br/>
+Amazing work, <span class="mention">@dertom</span>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/788_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">johnnycable</div>
+          <div class="post_content">
+<p>This is absolutely great job! <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We’d like to give this a try and see if we can make it work for us.   It looks like, from Github notes, that you now have this working with the latest Blender 3.0?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

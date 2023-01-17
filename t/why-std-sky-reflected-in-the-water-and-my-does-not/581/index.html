@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Why std sky reflected in the water and my does not</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Why std sky reflected in the water and my does not</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i record video demo of this problem.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="YFDy6Bf-VWc" data-youtube-title="water reflects"></div>
+<p>standart sky doom reflected in water but my sky sphere does not.<br/>
+why?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1151_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hdunderscore</div>
+          <div class="post_content">
+<p>Interesting that it works in the editor.<br/>
+[ul][li]When you open the console in your game (f1), or look at the log, are there errors loading resources?[/li]<br/>
+[li]Do you have a diffuse texture on the water material ?[/li][/ul]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Interesting that it works in the editor</p>
+</blockquote>
+<p>in editor water always reflect random texture, just in that time it reflect right texture )</p>
+<blockquote>
+<p>?Do you have a diffuse texture on the water material ?<br/>
+yes, i’m created diff texure manualy in c++ code</p>
+</blockquote>
+<pre><code class="lang-auto">void GameMain::WaterSetup(Urho3D::String waterNodeName) 
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+	Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+
+	// ??????? ????? ???? ?? ???????????? ?????? ? ???????? ?? ???-?????
+	Node* waterNode_ = scene_-&gt;GetChild("waterNode",true);
+	StaticModel* waterMesh = waterNode_-&gt;GetComponent&lt;StaticModel&gt;();
+	// ???????? ???? ???-????? ????? ???????? ?? ?? ?????? ??????? ????? ???????? 
+	waterMesh-&gt;SetViewMask(0x80000000);
+
+	// ????????? ? ????. ?????????
+	//???????? ????????? ???? ??? ??????????
+	waterPlane_ = Plane(waterNode_-&gt;GetWorldRotation() * Vector3(0.0f, 1.0f, 0.0f), waterNode_-&gt;GetWorldPosition()); 
+	// ? ???? ????????????
+	waterClipPlane_ = Plane(waterNode_-&gt;GetWorldRotation() * Vector3(0.0f, 1.0f, 0.0f), waterNode_-&gt;GetWorldPosition() - Vector3(0.0f, 0.1f, 0.0f));
+
+	// ???????? ?????? ??? ?????????
+	// ??? ????? ????? ???? ????? ????????? ????????? ? ???????, ??? ? ??????? ?????? ????.
+	reflectionCameraNode_ = cameraNode_-&gt;CreateChild();
+	Camera* reflectionCamera = reflectionCameraNode_-&gt;CreateComponent&lt;Camera&gt;();
+
+	reflectionCamera-&gt;SetFarClip(1000.0);
+	reflectionCamera-&gt;SetFov(75.0f);
+	reflectionCamera-&gt;SetViewMask(0x7fffffff); // Hide objects with only bit 31 in the viewmask (the water plane)
+	reflectionCamera-&gt;SetAutoAspectRatio(false);
+	reflectionCamera-&gt;SetUseReflection(true);
+	reflectionCamera-&gt;SetReflectionPlane(waterPlane_);
+	reflectionCamera-&gt;SetUseClipping(true); // Enable clipping of geometry behind water plane
+	reflectionCamera-&gt;SetClipPlane(waterClipPlane_);
+	// The water reflection texture is rectangular. Set reflection camera aspect ratio to match
+	reflectionCamera-&gt;SetAspectRatio((float)graphics-&gt;GetWidth() / (float)graphics-&gt;GetHeight());
+
+
+	// C??????? ???????? ? ???????? ?? ??? ??? ?????????, ?????????? ???????? ??? ????? ????? ? ????????? ???? 
+	int texSize = 2048;
+	SharedPtr&lt;Texture2D&gt; renderTexture(new Texture2D(context_));
+	renderTexture-&gt;SetSize(texSize, texSize, Graphics::GetRGBFormat(), TEXTURE_RENDERTARGET);
+	renderTexture-&gt;SetFilterMode(FILTER_BILINEAR);
+	RenderSurface* surface = renderTexture-&gt;GetRenderSurface();
+	SharedPtr&lt;Viewport&gt; rttViewport(new Viewport(context_, scene_, reflectionCamera));
+	surface-&gt;SetViewport(0, rttViewport);
+	Material* waterMat = cache-&gt;GetResource&lt;Material&gt;("Materials/Water.xml");
+	waterMat-&gt;SetTexture(TU_DIFFUSE, renderTexture);
+}</code></pre>
+<p>I believe this is due to<br/>
+because i’m using the usual great texture and not use cubemap for my sky sphere, besides i’m manualy fix( hack) constant bias = 1 in material for my sky.</p>
+<p>But how can I use on cubemap my sphere sky mesh ?)</p>
+<p>Moreover I do not need doom-like sky.<br/>
+i needed the lower part of the sphere too<br/>
+because my land in air and sky on the bottom of the world, should be seen too.</p>
+<p>May simply try to use cube mesh ?)<br/>
+and to hell with it, I bake for him sky cubemap texture in a blender )</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I came up with an easier way, I copied the standard technique skybox and renamed it to skysphere and in file i’m changed the name of the shader to skysphere.<br/>
+then i found the skybox.hlsl and copied it, then renamed to skysphere.hlsl and corrected for my sphere<br/>
+like this:</p>
+<p>skysphere.hlsl</p>
+<p>[code]<span class="hashtag">#include</span> “Uniforms.hlsl”<br/>
+<span class="hashtag">#include</span> “Samplers.hlsl”<br/>
+<span class="hashtag">#include</span> “Transform.hlsl”</p>
+<p>void VS(float4 iPos : POSITION, float2 iTexCoord: TEXCOORD0,<br/>
+out float4 oPos : POSITION,<br/>
+out float2 oTexCoord : TEXCOORD0)<br/>
+{<br/>
+float4x3 modelMatrix = iModelMatrix;<br/>
+float3 worldPos = GetWorldPos(modelMatrix);<br/>
+oPos = GetClipPos(worldPos);</p>
+<pre><code>oPos.z = oPos.w;
+oTexCoord = iTexCoord;
+</code></pre>
+<p>}</p>
+<p>void PS(float3 iTexCoord : TEXCOORD0,<br/>
+out float4 oColor : COLOR0)<br/>
+{<br/>
+oColor = cMatDiffColor * tex2D(sDiffMap, iTexCoord);<br/>
+}[/code]</p>
+<p>now it working like as it should be</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

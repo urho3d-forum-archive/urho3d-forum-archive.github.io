@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Question regarding Physics RaycastSingle inaccuracy</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Question regarding Physics RaycastSingle inaccuracy</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’m getting some crazy stuff happening when I tried to introduce Foot IK (using sourcecode borrowed from our IK Sample). I get “crazy legs” !!</p>
+<p>When I started debugging the relevant code, I noticed something strange.<br/>
+Just like our sample, I begin by casting a ray down from each foot to the ground.<br/>
+In my case, the ground in question is a static plane pointing directly up (0,1,0).<br/>
+I cast a ray directly down onto it, and I get a collision result, but the normal in the result is not pointing directly straight up! Close, but not quite.<br/>
+Nevertheless, I now cast a second ray from each foot, back along the resulting normal (as per the Sample code). This time, the collision result is something like (0,0.5,0.89) - what the hell?<br/>
+I’m using collision layers and masks appropriately, although I’m yet to check for absolutely certain that I am indeed hitting the ground, and not something else.</p>
+<p>Firstly - why is the result of the first raycast not EXACTLY (0,1,0) ?<br/>
+Secondly - why is the result of the second raycast (almost straight down) not even CLOSE to (0,1,0)?<br/>
+It’s much closer to (0,0,1) which absolutely makes no sense to me…</p>
+<p>[EDIT]<br/>
+Bullet physics provides for a maximum of 16 collision filter layers (16 bit layer and mask values).<br/>
+I currently define 7 bits - the default bullet ones, plus a couple more.<br/>
+My ray (cast from one unit up from the foot position) is hitting the Left Upper Leg body, which has specifically been assigned to the “64” layer (non player character), with a collision mask of “34” (player character=32 | static=2)<br/>
+My physics query is using a mask to query only objects in the static layer (2).<br/>
+Yet, I am getting a collision of the query ray, with the Upper Leg of my character.<br/>
+It appears there is a bug in the RaycastSingle code - either in our current urho master, or in Bullet itself.<br/>
+Our physicsworld.cpp contains the following code in RaycastSingle:</p>
+<pre><code class="lang-auto">rayCallback.m_collisionFilterGroup = (short)0xffff;
+rayCallback.m_collisionFilterMask = (short)collisionMask;</code></pre>
+<p>It appears that the Group flag is not being double-checked against the Mask in Bullet’s ray query.<br/>
+I’d like to confirm this before I go crying to Erwin, what version of Bullet are we on?</p>
+<p>[EDIT AGAIN]<br/>
+I failed to mention that I am creating this scene in code, saving it, then loading it back in.<br/>
+It could be a failure of our scene loader to set the mask correctly on physics bodies.<br/>
+Since I am saving the scene to XML, I can confirm that the layer and mask are being serialized correctly, but I can’t be sure yet that deserializing in Urho is not the culprit.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>It’s 2019, use <code>SphereCast</code>, then report back. People need to stop with the raycast nonsense, yes … your rays get trapped in local minima and are prone to FPU exceptions - use the damn sphere-cast like you should be using - how old is the Nettle paper? Answer: really old.</p>
+<p>If you still have issues with sane SphereCasts then create a repro case. Without a repro no one can help you beyond silly banter. If you refuse to get with 1998 and use sphere-casts then still provide a repro so you can get more help than more silly banter.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>The problem has been narrowed down to incorrect handling of collision layers (groups in bullet) and their masks “after reloading the scene” - so it looks very much like our deserializer is in question, not bullet, not raycasts<br/>
+Happy to switch to spherecasting, but expecting the same issue “after scene load”.<br/>
+I have confirmed that the correct values are being serialized, but am yet to check the masks on rigid bodies after deserializing/loading. Running down bugs for over thirty years now, getting close to the bug is something of a specialty.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve just done some checking and debugging - it appears that Urho is correctly deserializing the collision layer and mask, which means there must be a bug in Bullet!</p>
+<p>Here are my collision filter values, used to define collision layers and masks:</p>
+<pre><code class="lang-auto">enum CollisionFilter
+{
+        Default = 1,
+        Static = 2,
+        Kinematic = 4,
+        Debris = 8,
+        Trigger = 16,
+        PlayerCharacter = 32,
+        NonPlayerCharacter = 64,
+        Everything = -1 //all bits sets: DefaultFilter | StaticFilter | KinematicFilter | DebrisFilter | SensorTrigger
+};</code></pre>
+<p>The rigidbodies in question have a collision layer value of 64 (non player character) and collision mask of 34 (static | player character). In binary, we have layer = 1000000, mask = 0100010</p>
+<p>Raycast is using layer (1111111), and mask = 0000010. It should ONLY be detecting collision with the “static” layer (2) - but I am detecting collision against layer 64!<br/>
+This is not meant to happen, right guys?</p>
+<p>I have carefully checked that all the values are what I expected - I have carefully applied my collision filter layers and masks - I specifically intended to omit raycast collisions against certain bodies, yet I am detecting the collision.</p>
+<p>It would be lovely if someone here would take the time to attempt to reproduce this result before I take my complaint to Erwin Coumans <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+<ol>
+<li>Create a RigidBody (any shape will do), give it some mass, set layer to 64 and mask to 34,</li>
+<li>Cast a ray against the rigidbody, with mask set to 2</li>
+<li>Check result of raycast and confirm yes, we have a collision despite our careful masking.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>OK! I have some answers to this stressful thing.</p>
+<p>Let’s start with Urho code.<br/>
+In PhysicsWorld::RaycastSingle, we’re passing a btCollisionWorld::ClosestRayResultCallback struct to btCollisionWorld::rayTest method.<br/>
+Even though this structure defines collisionlayer and mask members, they ARE NOT IMPLEMENTED by Bullet in the default implementation of ClosestRayResultCallback.<br/>
+In order for PhysicsWorld::RaycastSingle to operate as intended, while respecting our wishes to IGNORE some objects,  we need to derive a NEW URHO3D CLASS!!! from ClosestRayResultCallback AND OVERRIDE  virtual needsCollision method (as per <a href="https://pybullet.org/Bullet/phpBB3/viewtopic.php?t=11536" rel="nofollow noopener">https://pybullet.org/Bullet/phpBB3/viewtopic.php?t=11536</a>) - and implement the new derived struct in PhysicsWorld::RaycastSingle, in order for our filtering to be effective. If we don’t do this, then Bullet IGNORES our layer and mask stuff, and just returns the FIRST object the ray hits, irrespective of our filter options. Must I issue a PR for this?</p>
+<p>I have to admit, I’m quite surprised that a mature lib like Bullet is not enforcing the filtering by default - why provide the layer and mask members and then not apply them?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>I’m using SphereCast to detect falling and standing. And works perfectly.Calling :<br/>
+pw-&gt;RaycastSingle(rc , ray , maxGroundDistance , CL_LEVELMESH);</p>
+<p>Casts a sphere from the center of the player downwards. As intended , the spherecast NEVER hits the player body because it has no CL_LEVELMESH flag set in player’s CollisionLayer.<br/>
+It works perfectly with RaycastSingle too</p>
+<p>You’re doing something wrong…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’m actually not doing anything wrong! I checked!<br/>
+I don’t doubt that spherecast is correctly implemented - but its using a totally different bullet method to perform that test.<br/>
+There are complaints about this issue floating around for some years now, it’s an incomplete feature issue in Bullet that can be worked around by deriving bullet’s raycast result struct and implementing virtual needsCollision.<br/>
+I’ll report back when I’ve tested the changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>As i already stated RaycastSingle works too. Just tested it and works.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Did you deliberately omit the object’s collision layer as per my three step instructions?<br/>
+And did you see a collision when you deliberately asked for none?<br/>
+Or did you just go “yep - it collided, therefore its working”?<br/>
+I do appreciate your comments, I did not mean that to sound so harsh. A second set of eyes is always good.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>My setup is like this :</p>
+<pre><code class="lang-auto">enum eCollisionLayer 
+{
+	CL_NONE,
+	CL_LEVELMESH = 1,
+	CL_PLAYER = 2,
+	CL_RAYCASTABLE = 4,
+	CL_ENEMY = 8,
+	CL_ITEM = 16,
+	CL_INVENTORYMESH = 32,	// A flag to tell if a mesh is visible in the invetory.
+	CL_PARTICLES = 64,		// Particles and billboards.
+	CL_COLLISIONONLY = 128,	// Not rendered ,used only for collision
+	CL_NAVIGATIONMESH = 256,	// navigation mesh.
+};
+
+characterBody-&gt;SetCollisionLayer(CL_PLAYER);
+characterBody-&gt;SetCollisionMask(CL_LEVELMESH);
+
+staicMesh-&gt;SetCollisionMask(CL_LEVELMESH|CL_PLAYER);
+staicMesh-&gt;SetCollisionLayer(CL_LEVELMESH|CL_RAYCASTABLE|CL_PLAYER);
+</code></pre>
+<p>now everywhere i speherecast/raycast with a CL_RAYCASTABLE flag only bodies with this bit set to 1 are hit.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>That is the result I would have expected <img alt=":frowning:" class="emoji" src="../../../images2/51ea35e7c47bd75b6fa0d425ad2d734f.png" title=":frowning:"/> I’m using exactly the same logic, but for some reason, masking is failing. Urho is built from the current master on git. You? I’ll keep digging / adding debug spew until I find the answer, but the issue is not in my code, I’m certain. I started debugging in my own code, now I’ve moved to urho engine code, while also keeping an eye on bullet sourcecode. Working my way from the bottom up. I’m a digital electronic engineer among other hats, I think I have a strong grip on binary logic.<br/>
+Actually maybe you can tell me something useful - did we use the btcollisionshape userpointer to point at our urho collisionshape, so we can cast back from a bullet collisionobject to an urho collisionshape for debug purposes?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>The only difference between your stuff and mine, as I see it, is that I am using bit 1 (value 2), while your stuff is using bit 0 (value 1).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>No , i’m still using 1.5. But i doubt anything in this area was changed since except maybe in bullet itself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’m not even sure which version of bullet is used in the current git master branch (of urho)… but thats the sourcecode im staring down - pretty much everything is golden in this branch, so when I found an anomaly I needed to start asking the stupid questions… I’ve now wasted two days on this, and I will go on wasting my time until I have my pound of flesh. This is very likely to be a bug in Bullet - Erwin has totally neglected Bullet lately, he’s probably bored with it and relying on community support for bugfixes. Historically, there has been a number of issues with collision masking, I don’t doubt that he’s messed up and reverted some fixes. I’ll find out when my eyes bleed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="12" data-topic="4962" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>The only difference between your stuff and mine, as I see it, is that I am using bit 1 (value 2), while your stuff is using bit 0 (value 1).</p>
+</blockquote>
+</aside>
+<p>That’s not entirely true. I don’t have CL_RAYCASTABLE flag set for bodies i don’t want to be hit by raycast neither in mask or layer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>ok sure - but the basic logic of using binary AND to check for matching bitflags holds true<br/>
+“if (objA.layer &amp; objB.mask) &amp;&amp; (objB.layer &amp; objA.mask)” - theres meant to be a doublecheck, which I think I mentioned somewhere in my rant</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>You’re right about that. The layers and masks are really cumbersome and at some point it doesn’t make any sense.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I personally suspect our urho raycastsingle is using group (layer) -1 , and the doublecheck isnt being enforced in bullet, its a wild guess after two days of staring</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Actually your code does make sense… if you set your body mask to 34 and perform a raycast with mask 2 then why do you expect your body to be ignored ? 32|2 == 34 and 34 &amp; 2 is true when raycast performs filtering…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>yeah… just wow, it should not happen, but it does. It’s clearly a bug, and I have pretty much cleared urho of responsibility too (man, I tend to blame urho first, its usually my fault, but occasionally its not my fault, this time not urho), which leaves bullet… whichever version we are using (in the master branch).<br/>
+So far all I have confirmed with you, is that the older version of urho is stable, while the new one has some bugs introduced through third party lib updates.</p>
+<p>I’m sure you are missing the point,  or the logic, or both.<br/>
+I put my objects in group 64.<br/>
+I put my mask as 34.</p>
+<p>Raycast group is -1. Urho code.<br/>
+Mask is set to 2.</p>
+<p>lets compare.</p>
+<p>object a layer (64) against object b mask (2) = 0<br/>
+object b layer (-1) against object a mask (34) = 1.</p>
+<p>Are both true?<br/>
+no<br/>
+(zombieland - always double-tap : a classic example of binary duality and doublecheck)</p>
+<p>then no hit should be the result.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Dave, as an experiment, would you mind grabbing the latest build from the repo? I’ll send you my codeblocks project, you can confirm or deny the issue based on me telling you where to set the breakpoint, it would help me immensely to sleep at night knowing im right</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<aside class="quote no-group" data-full="true" data-post="21" data-topic="4962" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>Dave, as an experiment, would you mind grabbing the latest build from the repo? I’ll send you my codeblocks project, you can confirm or deny the issue based on me telling you where to set the breakpoint, it would help me immensely to sleep at night knowing im right</p>
+</blockquote>
+</aside>
+<p>Well i can’t promise anything… i’m most likely on a road somewhere and when get home i’m dead tired and i barely have time to sit and do anything programming related…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve just disabled the construction of unrelated junk in the scene, so I can more easily and clearly see exactly what’s going on - I’ve added some debug code in the engine, and doublechecked that all rigidbodies have appropriate layer and mask values.<br/>
+Currently, the issue persists.</p>
+<p>I’m struggling with time as well, I get home from work, cook dinner, try to relax, code a bit, and its time for bed.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

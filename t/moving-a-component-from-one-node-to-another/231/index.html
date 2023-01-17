@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Moving a component from one node to another</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Moving a component from one node to another</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>Specifically, a ScriptInstance with a script object. Is this somehow possible?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>You can move a component from one node to another with:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>This assigns the component to the new node and marks it as dirty for the network. Afterwards you’re free to do whatever you want with the old Node, it no longer references this component. I’m not 100% sure how this affects ScriptInstance, but I don’t see any reason why it wouldn’t work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>Yes, I’ve actually tried that method before, but then I get the following warning messages:</p>
+<p>“Node is detached from scene, can not subscribe script object to update events” (this is located in ScriptInstance::UpdateEventSubscription())</p>
+<p>“Unknown attribute name in XML data”</p>
+<p>“Unknown attribute value in XML data”</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Moving a component after creation is not supported, so if you attempt to do it you’ll run into various problems such as the above. I recommend to rethink the program so that moving is not needed, for example simply destroy/recreate the component, though that will cause it to lose state. Another way is to create the component in both nodes in the beginning but disable/enable it as needed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>I wouldn’t necessarily mind destroying and recreating the component, but if that will still cause it to lose state then there is no point in doing that.</p>
+<p>I guess another option would be to keep the component in a separate node, and then just move the node? Although that probably won’t be too good for performance if I expect to have a lot of these. By the way, are there any performance penalties of disabled nodes vs no nodes, except for maybe recursive searches?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If moving the node in the hierarchy is an appropriate solution logic-wise, then I would say to go ahead. Except for the added workload in world transform matrix concatenation, the engine itself should not induce more overhead due to a more complex scene node hierarchy, ie. it’s never the engine that does for example recursive searches, but the application.</p>
+<p>Whether disabled nodes induce overhead depends on the components contained in the node. For example Drawable components remove themselves from the Octree when disabled, so for the rendering subsystem it’s roughly like they didn’t exist at all, except for their memory footprint. Disabled nodes / components remain in the node’s child &amp; component containers just like enabled ones, so they will affect iteration and search times when you call Node’s GetChildren(), GetComponent() etc. functions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>Thanks for the clarification.</p>
+<p>I did solve the problem without using nodes, be just recreating the component and then setting the new component’s attributes based on the old one. I just used the code from Node::CloneRecursive():</p>
+<pre><code class="lang-auto">const Vector&lt;AttributeInfo&gt;* compAttributes = component-&gt;GetAttributes();
+for (unsigned j = 0; j &lt; compAttributes-&gt;Size(); ++j)
+{
+    const AttributeInfo&amp; attr = compAttributes-&gt;At(j);
+    if (attr.mode_ &amp; AM_FILE)
+        cloneComponent-&gt;SetAttribute(j, component-&gt;GetAttribute(j));
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>That brings me to wonder why we don’t have a way to directly clone a component in the first place. Since “moving” components isn’t directly supported, it means half my code is being done wrong. I added a Node::CloneComponent function and created a pull request to the master branch. That should make it a bit easier in the future  <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Xardas</div>
+          <div class="post_content">
+<p>That’s great, although in my case where I create a script object with the script instance, I still have to do it like this:</p>
+<pre><code class="lang-auto">ScriptInstance* newInstance = newNode-&gt;CreateComponent&lt;ScriptInstance&gt;();
+newInstance-&gt;CreateObject(oldInstance-&gt;GetScriptFile(), oldInstance-&gt;GetClassName());
+
+const Vector&lt;AttributeInfo&gt;* compAttributes = oldInstance-&gt;GetAttributes();
+for (unsigned j = 0; j &lt; compAttributes-&gt;Size(); ++j)
+{
+	const AttributeInfo&amp; attr = compAttributes-&gt;At(j);
+	if (attr.mode_ &amp; AM_FILE)
+		newInstance-&gt;SetAttribute(j, oldInstance-&gt;GetAttribute(j));
+}</code></pre>
+<p>Otherwise, the changes made to a script object aren’t preserved.</p>
+<p>So maybe we could check if the component to be cloned is a ScriptInstance with a script object. If that’s the case, then call CreateObject on it before copying the attributes?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Hm, maybe I approached it the wrong way then. The attributes certainly get duplicated, but that’s as far as it goes. The internal state outside of the attributes will not exist.</p>
+<p>How does this ScriptInstance object behave across serialization/deserialization?</p>
+<p>On another idea, it might be better to have a virtual Component::Clone that could then be overridden. Then complex components like ScriptInstance could override it with any special needs. Use would be something like:</p>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The idea in Urho3D serialization is that setting all the attributes and calling ApplyAttributes() at the end should be all that’s necessary (ApplyAttributes was missing from the pull request btw.) Cloning should be just the same as loading, no need to add special-case functions.</p>
+<p>However what needs to be verified is that when a script object defines public variables that should appear as editable/serializable attributes, that those are copied correctly when cloning. In that case the ScriptInstance component modifies its own attribute list on the fly once the script object has been created. I can check that later today.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Node::CloneRecursive doesn’t appear to call ApplyAttributes(), which is why I missed it. Does that then need to be changed as well?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Node::Clone() should call Node::ApplyAttributes() at the very end, which propagates to call ApplyAttributes() on all components and child nodes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Ah, OK that makes sense now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There was a little over-eager optimization which caused the unique script object attributes to not get cloned. It is fixed in the master branch now.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Possible bug in handling of E_PHYSICSCOLLISIONEND</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Possible bug in handling of E_PHYSICSCOLLISIONEND</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve set up a character with an outer physics hull, and deeper in the same hierarchy, some ragdoll bodyparts are attached to various bones. When the app begins, I get E_PHYSICSCOLLISIONSTART twice, which is specifically about the Foot Bodies touching the ground.<br/>
+But I never get E_PHYSICSCOLLISIONEND during walk cycles - it seems the fact that a parent body that remains in contact with the ground, prevents the E_PHYSICSCOLLISIONEND event from being issued in child bodies. I’ll be able to confirm this very soon, by disabling the outer physics hull, but I wanted to know if this is a known issue before I go digging around to find out why this is happening.</p>
+<p>I’m subscribing anonymously to these events, as they are not sent to any node.<br/>
+I also plan to move to node events, but I suspect the same issue will apply.</p>
+<p>I should have added - I set up the collision layers and masks carefully.<br/>
+This is for a Non Player Character:</p>
+<p>Outer Hull has CollisionFilter::NonPlayerCharacter, CollisionFilter::Static<br/>
+Bodyparts have CollisionFilter::NonPlayerCharacter, CollisionFilter::Static || CollisionFilter::PlayerCharacter</p>
+<p>Finally, here’s my physics filters:</p>
+<pre><code class="lang-auto">enum CollisionFilter
+{
+        Default = 1,
+        Static = 2,
+        Kinematic = 4,
+        Debris = 8,
+        Trigger = 16,
+        PlayerCharacter = 32,
+        NonPlayerCharacter = 64,
+        Everything = -1 //all bits sets: DefaultFilter | StaticFilter | KinematicFilter | DebrisFilter | SensorTrigger
+};</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Could it be the parent and child nodes are colliding non stop? To be sure you <em>could</em> name the nodes and output the names of colliding node pairs.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>parent and child are masked to never collide</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>they are in the same group, but their mask indicates they can never hit each other</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>my understanding of bullet physics groups and masks is: I am in this group, I can hit those groups</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>If I’m correct, the collision <em>mask</em> defines the <em>layers</em> a body can collide with.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>layers is an urho term for groups in bullet, but its the same idea, binary flags, bitmasking</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>AND masking is used in bullet to determine collisions</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I specifically omitted the group “non player” from being able to ever be hit by another “non player”, for the purposes of this test</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’m willing to hook up the continual collision event and debug spew it to be sure its not my fault, but I feel like I’m going to be wading around in urho guts again very soon sigh<br/>
+I have a horrible feeling from memory that Bullet only uses 16-bit masks, but even so, I’m only using 7 bits</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group quote-modified" data-post="10" data-topic="4940" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>I’m willing to hook up the continual collision event and debug spew it to be sure its not my fault…</p>
+</blockquote>
+</aside>
+<p>If I had a dime for every time I wrongly blamed Urho in the beginning… <img alt=":wink:" class="emoji" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I know, still, I did due diligence with the masking stuff, so it’s got me baffled - more debug, then wade around in the source as a last resort, given there are no easy answers for complex questions, willing to dig for answers, and post them</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>my concern is that urho might treat shape trees as compounds by default</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>bullet has compound shapes, I suspect urho puts all the child shapes into a compound, I hope not, I doubt this is generally useful, and i bet theres no way to opt out</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I further suspect, that urho does not look for end of contact events in children of its compounds<br/>
+I am here to help, all I can find on my travels, will be revealed, some of it will be PR’d and hopefully well received - Unity made me a worse coder in one year, but I got paid, I got paid to develop games, and also to sell unity solutions, outside of their framework, without the possibility of seeing my fixes make it into the engine.<br/>
+Here, I can give my fixes, sure I won’t be paid, but I can share what I learn, and fix what’s broken.<br/>
+I’m a qualified toolmaker - a trade that no longer exists. I can basically repair anything electromechanical or not, and if it’s too far gone, I can reproduce it from a bar of shit, I am among the last of a dying trade</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>OK! I found that the foot bodies were never colliding with the floor (the two collisions I was seeing were the outer hull of player and non player, with the floor),<br/>
+I feel silly - look at the symbol I used for “or” - I have a logical or (||), I wanted a binary or (|).</p>
+<aside class="quote no-group" data-post="1" data-topic="4940" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>Bodyparts have CollisionFilter::NonPlayerCharacter, CollisionFilter::Static || CollisionFilter::PlayerCharacter</p>
+</blockquote>
+</aside>
+<p>I expanded one foot body to a ridiculous size to ensure it collided with the floor, and I am receiving that event - so I’m fairly confident that I’ll now be able to also receive the end of collision event as well.</p>
+<p>[EDIT]<br/>
+Yep, we have “lift-off” <img alt=":smiley:" class="emoji" src="../../../images2/7014497b1c97c810791a011290bda7f5.png" title=":smiley:"/><br/>
+At this point I’ll switch from using anonymous collision handling events, to node-specific events (since each bodypart is owned by a unique and well-named node), and start experimenting with using foot collisions as a guide to detecting footfalls, as opposed to using animation triggers. This should allow me to apply my foot-planting solution “early” when walking up a slope, and “late” when walking down a slope. I’ll probably still need to use IK to find a proper position for the pelvis based on the animated pose, looking forward to backporting the results into the existing IK Sample, and will offer resulting code back to the community via PR.<br/>
+Oh, I’ve also realized that I can probably omit the foot bodies, if I extend the length of the lower leg bodypart down past the ankle, to the heel, ie, until it touches the zero plane.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I switched to node collision events, because global handlers are prohibitively expensive to service in a complex environment.<br/>
+I’m still having issues, but it’s a different issue - I am getting the “collision ended” event just a few frames after “collision started” - when you walk forward, and plant a foot on the ground, it’s meant to stay planted for a fair while, what the hell? My zombie foot is a kinematic animated body, since the animation says the foot is down, it should stay down, I should not be told that collision has ceased.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Maybe this has to do with the order of events since the animation will lift the foot (and end collision) before any correction are made?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>its happening way too soon</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="Nwsyr5gAEuM" data-youtube-title="You Am I - Berlin Chair"></div>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

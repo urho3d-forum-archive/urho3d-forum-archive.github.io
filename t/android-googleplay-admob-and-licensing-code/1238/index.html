@@ -1,0 +1,2266 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Android GooglePlay, AdMob, and Licensing code</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Android GooglePlay, AdMob, and Licensing code</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>This exchange covers most of Google Play Services Achievements and Leaderboard, AdMob Banner and Interstitial, and Licensing check.  It doesn’t cover in-app purchases, as I haven’t had any in-app products to sell.</p>
+<p><span class="bbcode-b">There are several parts to this exchange.</span><br/>
+I’ll start with Java code which will cover an optional part to remove the default shared library loader and replacing it with loading just a single game shared library, things that need to be changed in SDLActivity, what base function declarations are in SDLActivity, and onto a full implementation of it all in a secondary java file.<br/>
+Then I’ll cover JNI functions which will be an intermediary to Java and native code, and onto ServiceCmd singleton class, and wrap it up with a game side sample code.</p>
+<p><span class="bbcode-b">Edit: this project was built in Android SDK and linked with a library from <a data-bbcode="true" href="https://github.com/okamstudio/godot/tree/master/platform/android/libs/play_licensing">https://github.com/okamstudio/godot/tree/master/platform/android/libs/play_licensing</a></span></p>
+<p><span class="bbcode-b">[size=150]1) Removing the default shared library loader in SDLActivity (optional)[/size]</span><br/>
+This is optional, but I didn’t see a point of having this shared library loader for a final product when I just needed to load <a href="http://MyGame.so">MyGame.so</a> file.  Nor did I need the screen to change from portrait to landscape when I launched the game.<br/>
+In SDLActivity.java, starting at line 88.  Look for comment:  // Urho3D: auto load all the shared libraries available in the library path<br/>
+[ul]<br/>
+i) Remove lines 88 to line 113.<br/>
+ii) grep and remove all instances of <span class="bbcode-b">mIsSharedLibraryLoaded</span> in the file.   Leave SDLActivity.nativeQuit(); there at line 172.<br/>
+iii) replace <span class="bbcode-b">protected boolean onLoadLibrary()</span> function with</p>
+<pre><code class="lang-auto">    // load the .so
+    static {
+        System.loadLibrary( "MyGame" );  // actual filename has "lib" prefix and ".so" suffix, e.g. "libMyGame.so" in the jniLibs folder under Android SDK project
+                                         // or in libs folder for a non Android SDK project            
+    }</code></pre>
+<p>iv) You no longer need SampleLauncher.java and Urho3D.java files, delete them both.  These will be replaced by MyGame.java<br/>
+[/ul]</p>
+<p><span class="bbcode-b">[size=150]2) Changes to SDLActivity[/size]</span><br/>
+[ul]<br/>
+i) replace <span class="bbcode-b">import android.widget.AbsoluteLayout;</span> with import android.widget.RelativeLayout;  // required for AdView<br/>
+ii) optional - change private static final String TAG = “SDL”; to <span class="bbcode-b">protected</span> if you want to use the TAG in MyGame.java class.<br/>
+iii) changes starting from <span class="bbcode-b">onCreate()</span>: change the layout, declare base class functions, JNI func. and changes to the onXXXX() funcs.<br/>
+<span class="bbcode-b">Note:</span> //LUMAKSOFTWARE comments were added to keep track of where I made the changes to the original code.</p>
+<pre><code class="lang-auto">    // Setup
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        Log.v("SDL", "onCreate():" + mSingleton);
+        super.onCreate(savedInstanceState);
+
+        SDLActivity.initialize();
+        // So we can call stuff from static callbacks
+        mSingleton = this;
+
+        // Set up the surface
+        mSurface = new SDLSurface(getApplication());
+
+        // SDL standard layout
+        //mLayout = new AbsoluteLayout(this);
+        mLayout = new RelativeLayout(this);
+        mLayout.addView( mSurface );
+        setContentView( mLayout );
+
+        // intialize app after mLayout is created
+        InitializeApp();
+
+        // rest of setup
+        if ( Build.VERSION.SDK_INT &gt;= 12 ) {
+            mJoystickHandler = new SDLJoystickHandler_API12();
+        }
+        else {
+            mJoystickHandler = new SDLJoystickHandler();
+        }
+    }
+
+    // LUMAKSOFTWARE: declare base class funcs
+    protected void InitializeApp() {
+    }
+    protected void PauseApp() {
+    }
+    protected void ResumeApp() {
+    }
+    protected void DestroyApp() {
+    }
+    protected boolean onProcessUserCommand(int command, Object param) { 
+        return false; 
+    }
+
+    // LUMAKSOFTWARE: user native callback function
+    public static native void nativeUserActivityCallback(int val, int istat, String file);
+
+    // Events
+    @Override
+    protected void onPause() {
+        Log.v("SDL", "onPause()");
+
+        // LUMAKSOFTWARE: pause app
+        PauseApp();
+
+        super.onPause();
+        SDLActivity.handlePause();
+    }
+
+    @Override
+    protected void onResume() {
+        Log.v("SDL", "onResume()");
+        super.onResume();
+        SDLActivity.handleResume();
+
+        // LUMAKSOFTWARE: resume app
+        ResumeApp();
+    }
+
+    @Override
+    protected void onDestroy() {
+        Log.v("SDL", "onDestroy()");
+
+        // LUMAKSOFTWARE: destroy app
+        DestroyApp();
+
+        // Send a quit message to the application
+        SDLActivity.mExitCalledFromJava = true;
+        SDLActivity.nativeQuit();
+
+        // Now wait for the SDL thread to quit
+        if (SDLActivity.mSDLThread != null) {
+            try {
+                SDLActivity.mSDLThread.join();
+            } catch(Exception e) {
+                Log.v("SDL", "Problem stopping thread: " + e);
+            }
+            SDLActivity.mSDLThread = null;
+
+            //Log.v("SDL", "Finished waiting for SDL thread");
+        }
+
+        super.onDestroy();
+        // Reset everything in case the user re opens the app
+        SDLActivity.initialize();
+    }
+</code></pre>
+<p>iv) also replace another place that had AbsoluteLayout with RelativeLayout</p>
+<pre><code class="lang-auto">    static class ShowTextInputTask implements Runnable {
+        /*
+         * This is used to regulate the pan&amp;scan method to have some offset from
+         * the bottom edge of the input region and the top edge of an input
+         * method (soft keyboard)
+         */
+        static final int HEIGHT_PADDING = 15;
+
+        public int x, y, w, h;
+
+        public ShowTextInputTask(int x, int y, int w, int h) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+        }
+
+        @Override
+        public void run() {
+            // LUMAKSOFTWARE: AdView requires RelativeLayout - Add adView to the bottom of the screen.
+            RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+
+            //AbsoluteLayout.LayoutParams params = new AbsoluteLayout.LayoutParams(
+            //        w, h + HEIGHT_PADDING, x, y);
+
+            if (mTextEdit == null) {
+                mTextEdit = new DummyEdit(getContext());
+
+                mLayout.addView(mTextEdit, params);
+            } else {
+                mTextEdit.setLayoutParams(params);
+            }
+
+            mTextEdit.setVisibility(View.VISIBLE);
+            mTextEdit.requestFocus();
+
+            InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.showSoftInput(mTextEdit, 0);
+        }
+    }
+</code></pre>
+<p>v) changes to the SDLCommandHandler() func.</p>
+<pre><code class="lang-auto">    protected static class SDLCommandHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            Context context = getContext();
+            if (context == null) {
+                Log.e(TAG, "error handling message, getContext() returned null");
+                return;
+            }
+            switch (msg.arg1) {
+            case COMMAND_CHANGE_TITLE:
+                if (context instanceof Activity) {
+                    ((Activity) context).setTitle((String)msg.obj);
+                } else {
+                    Log.e(TAG, "error handling message, getContext() returned no Activity");
+                }
+                break;
+            case COMMAND_TEXTEDIT_HIDE:
+                if (mTextEdit != null) {
+                    mTextEdit.setVisibility(View.GONE);
+
+                    InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.hideSoftInputFromWindow(mTextEdit.getWindowToken(), 0);
+                }
+                break;
+
+            default:
+                // LUMAKSOFTWARE: onProcessUserCommand function
+                if ((context instanceof SDLActivity) &amp;&amp; ((SDLActivity) context).onProcessUserCommand(msg.arg1, msg.obj)) {
+                    // returning true means the message was intended for the game/app, 
+                    // otherwise process it as a unhandled message
+                }
+                else if ((context instanceof SDLActivity) &amp;&amp; !((SDLActivity) context).onUnhandledMessage(msg.arg1, msg.obj)) {
+                    Log.e(TAG, "error handling message, command is " + msg.arg1);
+                }
+            }
+        }
+    }
+</code></pre>
+<p>[/ul]</p>
+<p><span class="bbcode-b">[size=150]3) MyGame.java code[/size]</span><br/>
+This replaces the java files mentioned in option 1).<br/>
+This is the main code that drives GooglePlay, AdMob, and License functions, class extends SDLActivity overriding the base class functions that we declared in step 2).</p>
+<pre><code class="lang-auto">//=============================================================================
+// Copyright (c) 2015 LumakSoftware
+//=============================================================================
+package com.mycompany.mygame;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+
+import org.libsdl.app.SDLActivity;
+
+import android.content.Intent;
+
+import android.widget.RelativeLayout;
+import android.content.*;
+import android.view.*;
+import android.os.*;
+import android.util.Log;
+
+//============================================
+// imports for licensing, admob and googleAPI
+//============================================
+import com.google.android.vending.licensing.LicenseChecker;
+import com.google.android.vending.licensing.LicenseCheckerCallback;
+import com.google.android.vending.licensing.Policy;
+import com.google.android.vending.licensing.ServerManagedPolicy;
+import com.google.android.vending.licensing.AESObfuscator;
+
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdSize;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.AdListener;
+import com.google.android.gms.ads.InterstitialAd;
+
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.games.Games;
+import com.google.android.gms.games.Player;
+import com.google.android.gms.plus.Plus;
+
+// game R string values
+import com.mycompany.mygame.R;
+
+//=============================================================================
+// game/app class
+//=============================================================================
+public class MyGame extends SDLActivity implements GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener {
+
+    // google API
+    private GoogleApiClient mGoogleApiClient;
+    private static final int DBG_GCONNECT = 1;
+    private static final int RC_SIGN_IN = 9001;
+    private static final int RC_UNUSED = 5001;
+
+    // AdMob
+    private InterstitialAd mInterstitialAd;
+    private AdView mAdView;
+    private AdRequest mAdRequest;
+    private static final boolean DBG_ADMOB_TESTMODE = true;
+
+    private static final byte[] SALT = new byte[] {
+            -46,  63, 30, -77, -153, -59,  74, -64, 51, 88,
+            -95, -45, 77, -167, -33, -133, -15, 32, -64, 89
+    };
+
+    // license
+    private LicenseCheckerCallback mLicenseCheckerCallback;
+    private LicenseChecker mChecker;
+    private int miLicenseCheckRetries;
+
+    //=================================
+    // LUMAKSOFTWARE: func overrides
+    //=================================
+    @Override
+    protected void InitializeApp(){
+
+        // google api
+        CreateGoogleAPI();
+
+        // licensing - uncomment for test or for in-app purchase stuff
+        //CreateLicenseCheck();
+
+        // AdMob - only create the AdRequest on init, interstitial and adview are created on command
+        CreateAdRequest();
+    }
+
+    @Override
+    protected void PauseApp() {
+        // pause AdView
+        PauseAdView();
+    }
+
+    @Override
+    protected void ResumeApp() {
+        // resume AdView
+        ResumeAdView();
+    }
+
+    @Override
+    protected void DestroyApp(){
+
+        if ( mChecker != null )
+        {
+            mChecker.onDestroy();
+            mChecker = null;
+        }
+
+        // AdView
+        DestroyAdView();
+
+        // disconnect
+        if ( isSignedIn() ){
+            mGoogleApiClient.disconnect();
+        }
+    }
+
+    // LUMAKSOFTWARE: onProcessUserCommand function 
+    @Override
+    protected boolean onProcessUserCommand(int command, Object param) {
+
+        boolean bresult = false;
+        int iParam = (int)param;
+        int iHasFocus = hasWindowFocus()?1:0;
+
+        //if ( command != COMMAND_WINDOW_HAS_FOCUS )
+        //{
+        //    Log.i("SDL", "onProcessUserCommand() cmd=" + command + ", param=" + iParam);
+        //}
+
+        switch ( command ) 
+        {
+        case COMMAND_ADMOB_REQUEST_VIDEO:
+            CreateInterstitialAd();
+
+            if ( mInterstitialAd != null )
+            {
+                if ( mInterstitialAd.isLoaded() )
+                {
+                    nativeUserActivityCallback( COMMAND_ADMOB_STATE_VIDEO, ADMOB_STATE_VIDEO_LOADED, " ");
+                }
+                else
+                {
+                    mInterstitialAd.loadAd(mAdRequest);
+                }
+            }
+            bresult = true;
+            break;
+
+        case COMMAND_ADMOB_SHOW_VIDEO:
+            if ( mInterstitialAd != null &amp;&amp; mInterstitialAd.isLoaded()) {
+                mInterstitialAd.show();
+                nativeUserActivityCallback(COMMAND_ADMOB_STATE_VIDEO, ADMOB_STATE_VIDEO_PLAYING, " ");
+            }
+
+            bresult = true;
+            break;
+
+        case COMMAND_ADMOB_HIDE_VIDEO:
+            // video hides itself, and the game is minimized while the video is playing - do nothing
+            bresult = true;
+            break;
+
+        case COMMAND_ADMOB_DELETE_VIDEO:
+            if ( mInterstitialAd != null ) 
+            {
+                mInterstitialAd = null;
+
+                nativeUserActivityCallback(COMMAND_ADMOB_STATE_VIDEO, ADMOB_STATE_VIDEO_DESTROYED, " ");
+            }
+            bresult = true;
+            break;
+
+        case COMMAND_ADMOB_REQUEST_BANNER:
+            CreateAdView();
+
+            if ( mAdView != null )
+            {
+                mAdView.loadAd( mAdRequest );
+            }
+
+            bresult = true;
+            break;
+
+        case COMMAND_ADMOB_SHOW_BANNER:
+            if ( mAdView != null )
+            {
+                mAdView.setVisibility( View.VISIBLE );
+                nativeUserActivityCallback(COMMAND_ADMOB_STATE_BANNER, ADMOB_STATE_BANNER_VISIBLE, " ");
+            }
+            bresult = true;
+            break;
+
+        case COMMAND_ADMOB_HIDE_BANNER:
+            if ( mAdView != null )
+            {
+                mAdView.setVisibility( View.GONE );
+                nativeUserActivityCallback(COMMAND_ADMOB_STATE_BANNER, ADMOB_STATE_BANNER_HIDDEN, " ");
+            }
+            bresult = true;
+            break;
+
+        case COMMAND_ADMOB_DELETE_BANNER:
+            if ( mAdView != null )
+            {
+                mAdView.destroy();
+                mAdView = null;
+                nativeUserActivityCallback( COMMAND_ADMOB_STATE_BANNER, ADMOB_STATE_BANNER_DESTROYED, " " );
+            }
+            bresult = true;
+            break;
+
+        case COMMAND_LICENSE_QUERY:
+            if ( mChecker != null )
+            {
+                mChecker.checkAccess(mLicenseCheckerCallback);
+            }
+            bresult = true;
+            break;
+
+        case COMMAND_GOOGLEAPI_CONNECT:
+            if ( !isSignedIn() ){
+                mGoogleApiClient.connect();
+            }
+            bresult = true;
+            break;
+
+        case COMMAND_GOOGLEAPI_DISCONNECT:
+            if ( isSignedIn() ){
+                mGoogleApiClient.disconnect();
+            }
+            bresult = true;
+            break;
+
+        case COMMAND_ACHIEVEMENT_QUERY:
+            ShowAchievementsRequested();
+            bresult = true;
+            break;
+
+        case COMMAND_ACHIEVEMENT_SUBMIT:
+            UnlockAchievement(iParam);
+            bresult = true;
+            break;
+
+        case COMMAND_LEADERBOARD_QUERY:
+            ShowLeaderboardsRequested();
+            bresult = true;
+            break;
+
+        case COMMAND_LEADERBOARD_SUBMIT:
+            bresult = true;
+            break;
+
+        case COMMAND_LEADERBOARD_SETTIME_1:
+        case COMMAND_LEADERBOARD_SETTIME_2:
+        case COMMAND_LEADERBOARD_SETTIME_3:
+        case COMMAND_LEADERBOARD_SETTIME_4:
+        case COMMAND_LEADERBOARD_SETTIME_5:
+        case COMMAND_LEADERBOARD_SETTIME_6:
+            SubmitLeaderboardScore( command - COMMAND_LEADERBOARD_SETTIME_1, iParam  );
+            bresult = true;
+            break;
+
+        case COMMAND_WINDOW_HAS_FOCUS:
+            nativeUserActivityCallback(COMMAND_WINDOW_HAS_FOCUS, iHasFocus, " ");
+            bresult = true;
+            break;
+
+        default:
+        }
+
+        return bresult;
+    }
+
+    //================================
+    // static vars
+    //================================
+    // AdMob
+    static final int COMMAND_ADMOB_REQUEST_VIDEO = 4;
+    static final int COMMAND_ADMOB_SHOW_VIDEO    = 5;
+    static final int COMMAND_ADMOB_HIDE_VIDEO    = 6;
+    static final int COMMAND_ADMOB_DELETE_VIDEO  = 7;
+
+    static final int COMMAND_ADMOB_REQUEST_BANNER = 8;
+    static final int COMMAND_ADMOB_SHOW_BANNER    = 9;
+    static final int COMMAND_ADMOB_HIDE_BANNER    = 10;
+    static final int COMMAND_ADMOB_DELETE_BANNER  = 11;
+
+    // Licensing
+    static final int COMMAND_LICENSE_QUERY  = 12;
+    static final int COMMAND_LICENSE_RETRY  = 13;
+    static final int COMMAND_LICENSE_FAILED = 14;
+
+    // GoogleApi
+    static final int COMMAND_GOOGLEAPI_CONNECT    = 15;
+    static final int COMMAND_GOOGLEAPI_ERROR      = 16;
+    static final int COMMAND_GOOGLEAPI_DISCONNECT = 17;
+
+    // achievement
+    static final int COMMAND_ACHIEVEMENT_QUERY  = 18;
+    static final int COMMAND_ACHIEVEMENT_SUBMIT = 19;
+
+    // leaderboard
+    static final int COMMAND_LEADERBOARD_QUERY  = 20;
+    static final int COMMAND_LEADERBOARD_SUBMIT = 21;
+
+    static final int COMMAND_LEADERBOARD_SETTIME_1 = 22;
+    static final int COMMAND_LEADERBOARD_SETTIME_2 = 23;
+    static final int COMMAND_LEADERBOARD_SETTIME_3 = 24;
+    static final int COMMAND_LEADERBOARD_SETTIME_4 = 25;
+    static final int COMMAND_LEADERBOARD_SETTIME_5 = 26;
+    static final int COMMAND_LEADERBOARD_SETTIME_6 = 27;
+
+    // misc
+    static final int COMMAND_WINDOW_HAS_FOCUS   = 28;
+
+    // states
+    static final int COMMAND_ADMOB_STATE_APP    = 1000;
+    static final int COMMAND_ADMOB_STATE_VIDEO  = 1001;
+    static final int  ADMOB_STATE_VIDEO_LOADED    = 0;
+    static final int  ADMOB_STATE_VIDEO_PLAYING   = 1;
+    static final int  ADMOB_STATE_VIDEO_CLOSED    = 2;
+    static final int  ADMOB_STATE_VIDEO_DESTROYED = 3;
+    static final int  ADMOB_STATE_VIDEO_ERROR     = 4;
+    static final int COMMAND_ADMOB_STATE_BANNER = 1002;
+    static final int  ADMOB_STATE_BANNER_LOADED    = 0;
+    static final int  ADMOB_STATE_BANNER_VISIBLE   = 1;
+    static final int  ADMOB_STATE_BANNER_HIDDEN    = 2;
+    static final int  ADMOB_STATE_BANNER_DESTROYED = 3;
+    static final int  ADMOB_STATE_BANNER_ERROR     = 4;
+    
+    // size declaration
+    static final int APP_SIZE_NUM_ACHIEVEMENTS  = 9;
+    static final int APP_SIZE_NUM_LEADERBOARD   = 6; // should match COMMAND_LEADERBOARD_SETTIME_1 to last leaderboard settime
+
+    //================================
+    // googleAPI
+    //================================
+    protected void CreateGoogleAPI() {
+        // instantiate
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks( this )
+                .addOnConnectionFailedListener(this)
+                .addApi(Plus.API).addScope(Plus.SCOPE_PLUS_LOGIN)
+                .addApi(Games.API).addScope(Games.SCOPE_GAMES)
+                .build();
+    }
+
+    //================================
+    // license
+    //================================
+    private class MyLicenseCheckerCallback implements LicenseCheckerCallback {
+        // void allow()
+        public void allow(int reason) {
+            Log.v("SDL", "allow()" + reason);
+            nativeUserActivityCallback(COMMAND_LICENSE_QUERY, 0, "OK");
+            if (isFinishing()) {
+                // Don't update UI if Activity is finishing.
+                return;
+            }
+        }
+
+        // void dontAllow
+        public void dontAllow(int reason) {
+            Log.v("SDL", "dontAllow()" + reason);
+
+            if (isFinishing()) {
+                // Don't update UI if Activity is finishing.
+                return;
+            }
+
+            if (reason == Policy.RETRY) {
+                // If the reason received from the policy is RETRY, it was probably
+                // due to a loss of connection with the service, so we should give the
+                // user a chance to retry. So show a dialog to rety.
+                //showDialog(DIALOG_RETRY); COMMAND_LICENSE_RETRY
+                nativeUserActivityCallback(COMMAND_LICENSE_RETRY, 0, "OK");
+            } else {
+                // Otherwise, the user is not licensed to use this app.
+                // Your response should always inform the user that the application
+                // is not licensed, but your behavior at that point can vary. You might
+                // provide the user a limited access version of your app or you can
+                // take them to Google Play to purchase the app.
+                //showDialog(DIALOG_GOTOMARKET);
+                nativeUserActivityCallback(COMMAND_LICENSE_FAILED, reason, "OK");
+            }
+        }
+
+        // void applicationError()
+        public void applicationError(int errorCode){
+            Log.v("SDL", "MyLicenseCheckerCallback() app error" + errorCode);
+            // error 3 - not published in google play, just mark it as 'ok' for testing
+            if ( errorCode == 3 ) {
+                nativeUserActivityCallback(COMMAND_LICENSE_QUERY, 0, "OK");
+            }
+        }
+
+    }
+
+    // licensing
+    protected void CreateLicenseCheck() {
+
+        // Construct the LicenseCheckerCallback. The library calls this when done.
+        mLicenseCheckerCallback = new MyLicenseCheckerCallback();
+
+        // Construct the LicenseChecker with a Policy.
+        mChecker = new LicenseChecker(
+                this, new ServerManagedPolicy(this,
+                new AESObfuscator(SALT, getPackageName(), getResources().getString(R.string.app_id) )),
+                getResources().getString(R.string.BASE64_PUBLIC_KEY)  // Your public licensing key.
+                );
+    }
+
+    //================================
+    // AdRequest
+    //================================
+    protected void CreateAdRequest() {
+
+        if ( mAdRequest != null )
+        {
+            return;
+        }
+
+        if ( !DBG_ADMOB_TESTMODE )
+        {
+            // live mode
+            mAdRequest = new AdRequest.Builder().build();
+
+        } else {
+            // test mode
+            mAdRequest = new AdRequest.Builder()
+                                      // the string below is not populated at the beginning and you should comment it out the 
+                                      // first time you run it then grep for addTestDevice in logcat to get it
+                                      .addTestDevice( "AF9C9F5B6C6595D55D1E9A9B07011546" )  // add as many test devices as you want
+                                      .addTestDevice( AdRequest.DEVICE_ID_EMULATOR )
+                                      .build();
+        }
+    }
+
+    //================================
+    // AdView
+    //================================
+    protected void CreateAdView() {
+
+        if ( mAdView != null )
+        {
+            return;
+        }
+
+        mAdView = new AdView(this);
+        mAdView.setAdUnitId( getResources().getString(R.string.banner_ad_unit_id) );
+
+        mAdView.setAdSize(AdSize.SMART_BANNER);
+
+        // set the layer type as LAYER_TYPE_SOFTWARE to avoid getting the black screen of death (will avoid most of them, not all)
+        mAdView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+
+        // Add adView to the bottom of the screen.
+        RelativeLayout.LayoutParams adParams = new RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        //adParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+        adParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
+
+        // add it to the layout
+        mLayout.addView(mAdView, adParams);
+
+        mAdView.setAdListener( new AdListener() {
+            @Override
+            public void onAdLoaded() {
+                // Code to be executed when an ad finishes loading.
+                nativeUserActivityCallback( COMMAND_ADMOB_STATE_BANNER, ADMOB_STATE_BANNER_LOADED, " " );
+                //Log.i("SDL", "ADMOB_STATE_BANNER_LOADED" );
+            }
+
+            @Override
+            public void onAdFailedToLoad(int errorCode) {
+                // Code to be executed when an ad request fails.
+                String strError = Integer.toString( errorCode );
+                nativeUserActivityCallback( COMMAND_ADMOB_STATE_BANNER, ADMOB_STATE_BANNER_ERROR, strError );
+            }
+
+            //@Override
+            public void onAdClosed() {
+                // Code to be executed when when the user is about to return
+                // to the application after tapping on an ad.
+                nativeUserActivityCallback(COMMAND_ADMOB_STATE_BANNER, ADMOB_STATE_BANNER_HIDDEN, " ");
+                //Log.i("SDL", "-- mAdView -- onAdClosed() " );
+            }
+        });
+    }
+
+    protected void PauseAdView() {
+        if ( mAdView != null ) {
+            mAdView.pause();
+        }
+    }
+
+    protected void ResumeAdView() {
+
+        if ( mAdView != null ) {
+            mAdView.resume();
+        }
+    }
+
+    protected void DestroyAdView() {
+
+        if ( mAdView != null ) {
+            mAdView.destroy();
+            mAdView = null;
+        }
+    }
+
+    //================================
+    // interstitial
+    //================================
+    protected void CreateInterstitialAd() {
+
+        if ( mInterstitialAd != null )
+        {
+            return;
+        }
+
+        mInterstitialAd = new InterstitialAd(this);
+        mInterstitialAd.setAdUnitId(getResources().getString(R.string.interstitial_ad_unit_id));
+
+        mInterstitialAd.setAdListener(new AdListener() {
+            @Override
+            public void onAdLoaded() {
+                // Code to be executed when an ad finishes loading.
+                nativeUserActivityCallback(COMMAND_ADMOB_STATE_VIDEO, ADMOB_STATE_VIDEO_LOADED, " ");
+                Log.i("SDL", "ADMOB_STATE_VIDEO_LOADED" );
+            }
+
+            @Override
+            public void onAdFailedToLoad(int errorCode) {
+                // Code to be executed when an ad request fails.
+                Log.v(TAG, "Interstitial - onAdFailedToLoad() error=" + errorCode);
+                String strError = Integer.toString(errorCode);
+                nativeUserActivityCallback(COMMAND_ADMOB_STATE_VIDEO, ADMOB_STATE_VIDEO_ERROR, strError);
+            }
+
+            @Override
+            public void onAdClosed() {
+                // Code to be executed when when the user is about to return
+                // to the application after tapping on an ad.
+                nativeUserActivityCallback(COMMAND_ADMOB_STATE_VIDEO, ADMOB_STATE_VIDEO_CLOSED, " ");
+                Log.i("SDL", "ADMOB_STATE_VIDEO_CLOSED" );
+            }
+        });
+
+    }
+
+    //================================
+    // google api - connect 
+    //================================
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
+
+        super.onActivityResult(requestCode, resultCode, intent);
+
+        if (requestCode == RC_SIGN_IN) {
+            if (resultCode == RESULT_OK) {
+                mGoogleApiClient.connect();
+            } else {
+                nativeUserActivityCallback( COMMAND_GOOGLEAPI_ERROR, resultCode, "1" );
+            }
+        }
+    }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        //Log.d(TAG, "onConnected(): ");
+        
+        // uncomment below if you want to get the playa's name
+        //Player p = Games.Players.getCurrentPlayer(mGoogleApiClient);
+        String displayName = "playa";
+
+        //if (p == null) {
+        //    Log.w(TAG, "mGamesClient.getCurrentPlayer() is NULL!");
+        //    displayName = "???";
+        //} else {
+        //    displayName = p.getDisplayName();
+        //}
+
+        nativeUserActivityCallback(COMMAND_GOOGLEAPI_CONNECT, 1, displayName);
+    }
+
+    @Override
+    public void onConnectionSuspended(int var1) {
+        mGoogleApiClient.connect();
+        Log.d(TAG, "onConnectionSuspended():");
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+        Log.d(TAG, "onConnectionFailed(): attempting to resolve");
+
+        if ( connectionResult.hasResolution() ) {
+            try {
+                connectionResult.startResolutionForResult(this, RC_SIGN_IN);
+            } catch (IntentSender.SendIntentException e) {
+                // The intent was canceled before it was sent.  Return to the default
+                // state and attempt to connect to get an updated ConnectionResult.
+                mGoogleApiClient.connect();
+            }
+        } else {
+            // not resolvable... so show an error message
+            int errorCode = connectionResult.getErrorCode();
+            nativeUserActivityCallback( COMMAND_GOOGLEAPI_ERROR, errorCode, " " );
+        }
+
+    }
+    private boolean isSignedIn() {
+        return (mGoogleApiClient != null &amp;&amp; mGoogleApiClient.isConnected());
+    }
+
+    //================================
+    // achievement and leaderboard
+    //================================
+    public void ShowAchievementsRequested() {
+        if ( isSignedIn() ) 
+        {
+            startActivityForResult(Games.Achievements.getAchievementsIntent(mGoogleApiClient), RC_UNUSED );
+        }
+    }
+
+    public void UnlockAchievement(int _idx) {
+        if ( isSignedIn() &amp;&amp; _idx &gt;= 0 &amp;&amp; _idx &lt; APP_SIZE_NUM_ACHIEVEMENTS )
+        {
+            String[] astrAchievementNames = getResources().getStringArray(R.array.achievement_array);
+
+            //Log.v("SDL", "UnlockAchievement() idx=" + _idx + ", str='" + astrAchievementNames[_idx] + "'" );
+            Games.Achievements.unlock(mGoogleApiClient, astrAchievementNames[_idx]);
+        }
+    }
+
+    public void ShowLeaderboardsRequested() {
+        if ( isSignedIn() ) 
+        {
+            startActivityForResult(Games.Leaderboards.getAllLeaderboardsIntent(mGoogleApiClient), RC_UNUSED);
+        }
+    }
+
+    public void SubmitLeaderboardScore(int _idx, int _iTime) {
+        if ( isSignedIn() &amp;&amp; _idx &gt;= 0 &amp;&amp; _idx &lt; APP_SIZE_NUM_LEADERBOARD )
+        {
+            long lTime = _iTime;
+            String[] astrLBNames = getResources().getStringArray(R.array.leaderboard_array);
+
+            //Log.v("SDL", "SubmitLeaderboardScore() idx=" + _idx + ", str='" + astrLBNames[_idx] + "'" );
+            Games.Leaderboards.submitScore(mGoogleApiClient, astrLBNames[_idx], lTime);
+        }
+    }
+
+}</code></pre>
+<p><span class="bbcode-b">IDs, achievement, and leaderboard strings</span></p>
+<pre><code class="lang-auto">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;resources&gt;
+    &lt;string name="app_id"&gt;10XXXXXX130&lt;/string&gt;
+    &lt;string name="banner_ad_unit_id"&gt;ca-app-pub-4xxxxxxxx/1xxxxxxxx&lt;/string&gt;
+    &lt;string name="interstitial_ad_unit_id"&gt;ca-app-pub-4xxxxxx/31xxxxxxx&lt;/string&gt;
+    &lt;string name="BASE64_PUBLIC_KEY"&gt;MIIBIjAxxxxxxxxxxxxxxxxxxxxxBCgKCAQEAkF4wRG9st6jp0qqswPsk0UgzWg/hkj3yzGGxr2o+ogLYbCwrqZsk7x7mDAvC277Je+xmBiKFCXp/qnR3xyW02xp3aebIr8dOUeRovJdbNYhOaRar+5gGOkFABxzcpykftaEhalHV5XSwRJmSQIox220/P/1bRoOgCKnzo9Qm81SzvjaMmnz27joAdPkdP7MLinR7N4tuCgh4UqlrevoAx1XIYLdCziMPR2YQ5lCNOuLM5VtPMc4djAPw3RNfgpPJgD0xbRqlvpdk0DXzlVPuSo/tuqsCRtFK2GSb0cM1oU/pJzCASp66SC+VztgvLhxjcFvSXb7iQ/STRL3kP0r0gwIDAQAB&lt;/string&gt;
+&lt;/resources&gt;
+</code></pre>
+<p>You get the following tags from Google Play Developer Console when you create achievements and leaderboard for you game/app.</p>
+<pre><code class="lang-auto">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;resources&gt;
+    &lt;string name="app_name"&gt;MyGame&lt;/string&gt;
+    &lt;string-array name="achievement_array"&gt;
+        &lt;item&gt;CgkIyusYYYuIQAQ&lt;/item&gt; &lt;!-- novice    --&gt;
+        &lt;item&gt;CgkIyuYYYYeIQAg&lt;/item&gt; &lt;!-- skilled    --&gt;
+        &lt;item&gt;CgkIyuYYYYYIQAw&lt;/item&gt; &lt;!-- advanced    --&gt;
+        &lt;item&gt;CgkIyuYYseEAIQBA&lt;/item&gt; &lt;!-- expert    --&gt;
+        &lt;item&gt;CgkIsYYYYYEAIQBQ&lt;/item&gt; &lt;!-- master    --&gt;
+        &lt;item&gt;CgkIyufYYYYYeuBg&lt;/item&gt; &lt;!-- apprentice    --&gt;
+        &lt;item&gt;CgkIyufYYYYYeuw&lt;/item&gt; &lt;!-- journeyman    --&gt;
+        &lt;item&gt;CgkIyufYYYYYeuCA&lt;/item&gt; &lt;!-- master craftsman  --&gt;
+        &lt;item&gt;CgkIyufYYYYeYuCQ&lt;/item&gt; &lt;!-- gold    --&gt;
+    &lt;/string-array&gt;
+    &lt;string-array name="leaderboard_array"&gt;
+        &lt;item&gt;CgkIyYYyyyYufeuCg&lt;/item&gt; &lt;!-- stage 1    --&gt;
+        &lt;item&gt;CgkIyYYYYufeuQCw&lt;/item&gt; &lt;!-- stage 2    --&gt;
+        &lt;item&gt;CgkIyufYYYYYuQDA&lt;/item&gt; &lt;!-- stage 3    --&gt;
+        &lt;item&gt;CgkIyuYYYYYeuQDQ&lt;/item&gt; &lt;!-- stage 4    --&gt;
+        &lt;item&gt;CgkIyufYYYYYeuQDg&lt;/item&gt; &lt;!-- stage 5    --&gt;
+        &lt;item&gt;CgkIyufYYYYYeuQDw&lt;/item&gt; &lt;!-- artists    --&gt;
+    &lt;/string-array&gt;
+
+&lt;/resources&gt;
+</code></pre>
+<p><span class="bbcode-b">[size=150]4) JNI functions[/size]</span><br/>
+Java function <span class="bbcode-b">sendMessage(int, int)</span> already exists and is called from <span class="bbcode-b">Android_JNI_SendMessage(int, int)</span>.<br/>
+This part covers the Java function <span class="bbcode-b">public static native void nativeUserActivityCallback(int val, int istat, String file);</span> that we declared in SDLActiviy in section 2).  Along with a callback function that we need to hook into from game side.</p>
+<pre><code class="lang-auto">typedef void (*pfnUserActivityCallback)(int id1, int istat, const char *str, void *param);
+
+static pfnUserActivityCallback gpUserActivityCallback = NULL;
+static void *gActivityCallbackParam = NULL;
+
+void RegisterUserActivityCallback(pfnUserActivityCallback callback, void *param)
+{
+    gpUserActivityCallback = callback;
+    gActivityCallbackParam = param;
+}
+
+void Java_org_libsdl_app_SDLActivity_nativeUserActivityCallback(JNIEnv* env, jclass cls, jint id1, jint istat, jstring jstrParam)
+{
+    const char *str = (*env)-&gt;GetStringUTFChars(env, jstrParam, 0);
+
+    if ( gpUserActivityCallback )
+    {
+        (*gpUserActivityCallback)( id1, istat, str, gActivityCallbackParam );
+    }
+
+    if ( str )
+    {
+        (*env)-&gt;ReleaseStringUTFChars(env, jstrParam, str);
+    }
+
+}
+</code></pre>
+<p><span class="bbcode-b">[size=150]5) ServiceCmd singleton class[/size]</span><br/>
+This class handles messages to/from the Java class. It is designed as a singleton to allow access from main game class, classes to access achievement and leaderboard calls, and other classes.<br/>
+<span class="bbcode-b">Note:</span>This class is not thread safe, however, AdMob messages are state driven and the game side is also state driven to reduce the chance of over writing status during AdMob activities<br/>
+ServiceCmd.cpp</p>
+<pre><code class="lang-auto">//=============================================================================
+// Copyright (c) 2015 LumakSoftware
+//=============================================================================
+#include &lt;Urho3D/Urho3D.h&gt;
+#include &lt;Urho3D/Core/CoreEvents.h&gt;
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Engine/Engine.h&gt;
+#include &lt;Urho3D/Input/InputEvents.h&gt;
+#include &lt;Urho3D/Scene/Scene.h&gt;
+#include &lt;Urho3D/Core/Timer.h&gt;
+
+#include "ServiceCmd.h"
+
+#include &lt;Urho3D/DebugNew.h&gt;
+#include &lt;SDL/SDL_Log.h&gt;
+#include &lt;SDL/SDL_assert.h&gt;
+
+//=============================================================================
+//=============================================================================
+#ifdef WIN32
+typedef void (*pfnUserActivityCallback)(int id1, int istat, const char *str, void *param);
+
+static pfnUserActivityCallback gpFnUserActivityCallback = NULL;
+static void *gpActivityCallbackParam = NULL;
+
+void RegisterUserActivityCallback(pfnUserActivityCallback callback, void *param)
+{
+}
+
+int Android_JNI_SendMessage(int command, int param)
+{
+    return 0;
+}
+#endif
+
+//#define DBG_DUMP_SVCLOG
+
+//=============================================================================
+//=============================================================================
+ServiceCmd* ServiceCmd::s_pCAdMob = NULL;
+
+//=============================================================================
+//=============================================================================
+ServiceCmd::ServiceCmd(Context *_pcontext)
+    : Object( _pcontext )
+{
+    // init
+    m_TimerWindowFocus.Reset();
+    m_TimerVideo.Reset();
+    m_TimerBanner.Reset();
+    m_TimerLicense.Reset();
+
+    // focus
+    m_bWindowHasFocus = true;
+
+    // connect
+    m_bGooglePlayConnected = false; 
+    m_strGooglePlayUserName.Clear();    
+    m_iConnectErrorCode = INVALID_CONNECT_CODE;    
+
+    // admob
+    m_uAdInterval = 2 * 60 * 1000; // 2 mins
+    m_iCmdTimeout = 5;
+    m_bAdPlayedSinceStartup = false;
+
+    m_iVideoState = kAdMobVideo_Ready;
+    m_iBannerState = kAdMobBanner_NotLoaded;
+    m_HasVideoPlayedOnce = false;
+    m_bAppIsPaused = false;
+
+    // license
+    m_bContinueLicenseQuery = true;
+    m_bLicenseQueryMade = false;
+    m_bHasValidLicense = false;
+    m_bHasLicenseQueryResp = false;
+    m_iLicenseResp = -1;
+    
+    // register java callback
+    RegisterUserActivityCallback( &amp;ServiceCmd::JavaActivityCallback, this );
+}
+
+//=============================================================================
+//=============================================================================
+ServiceCmd::~ServiceCmd()
+{
+    RegisterUserActivityCallback( NULL, NULL );
+}
+
+//=============================================================================
+//=============================================================================
+void ServiceCmd::JavaActivityCallback(int _ival, int _istat, const char *_pstr, void *param)
+{
+    if ( param )
+    {
+        ((ServiceCmd*)param)-&gt;ActivityCallback( _ival, _istat, _pstr );
+    }
+}
+
+//=============================================================================
+//=============================================================================
+void ServiceCmd::ActivityCallback(int _icmd, int _istat, const char *_pstr)
+{
+    #ifdef DBG_DUMP_SVCLOG
+    if ( _icmd != COMMAND_WINDOW_HAS_FOCUS )
+    {
+        SDL_Log("ServiceCmd::ActivityCallback() icmd=%d, istat=%d, pstr='%s'\n", _icmd, _istat, _pstr?_pstr:" ");
+    }
+    #endif
+
+    switch ( _icmd )
+    {
+    case COMMAND_ADMOB_STATE_VIDEO:
+        switch ( _istat )
+        {
+        case kAdMobVideo_Stat_Loaded:    m_iVideoState = kAdMobVideo_Loaded; break;
+        case kAdMobVideo_Stat_Playing:   m_iVideoState = kAdMobVideo_Playing; break;
+        case kAdMobVideo_Stat_Closed:    m_iVideoState = kAdMobVideo_Ready; ResetVideoTimer(); break;
+        case kAdMobVideo_Stat_Destroyed: m_iVideoState = kAdMobVideo_Ready; break;
+        default: 
+            // failed to load error - retry
+            ResetVideoTimer();
+            break;
+        }
+        break;
+
+    case COMMAND_ADMOB_STATE_BANNER:
+        switch ( _istat )
+        {
+        case kAdMobBanner_Stat_Loaded:    
+            if ( m_iBannerState == kAdMobBanner_NotLoaded || m_iBannerState == kAdMobBanner_Requested )
+            {
+                m_iBannerState = kAdMobBanner_Ready;
+            }
+            // AdMob banner continuously loads new banners in the background, and any subsequent calls will automatically show itself
+            // -- prevent it from being visible if not in the visible state
+            else if ( m_iBannerState != kAdMobBanner_Visible )
+            {
+                RequestServiceCmd( COMMAND_ADMOB_HIDE_BANNER );
+            }
+            break;
+        case kAdMobBanner_Stat_Visible:   m_iBannerState = kAdMobBanner_Visible; break;
+        case kAdMobBanner_Stat_Hidden:    m_iBannerState = kAdMobBanner_Hidden; break;
+        case kAdMobBanner_Stat_Destroyed: m_iBannerState = kAdMobBanner_NotLoaded; break;
+        default:
+            // failed to load error - retry
+            ResetBannerTimer();
+            break;
+        }
+        break;
+
+    case COMMAND_GOOGLEAPI_CONNECT:
+        if ( _istat == 1 )
+        {
+            m_bGooglePlayConnected = true;
+
+            if ( _pstr )
+            {
+                m_strGooglePlayUserName = String( _pstr );
+            }
+            #ifdef DBG_DUMP_SVCLOG
+            SDL_Log("COMMAND_GOOGLEAPI_CONNECT username='%s'\n", m_strGooglePlayUserName.CString() );
+            #endif
+        }
+        else
+        {
+            m_bGooglePlayConnected = false;
+        }
+        break;
+
+    case COMMAND_GOOGLEAPI_ERROR:
+        m_iConnectErrorCode = _istat;
+        break;
+
+    case COMMAND_LICENSE_QUERY:
+    case COMMAND_LICENSE_RETRY:
+    case COMMAND_LICENSE_FAILED:
+        m_bHasLicenseQueryResp = true;
+
+        if ( _icmd == COMMAND_LICENSE_QUERY )
+        {
+            m_bHasValidLicense = true;
+            m_iLicenseResp = 0;
+        }
+        else if ( _icmd == COMMAND_LICENSE_RETRY )
+        {
+            m_iLicenseResp = COMMAND_LICENSE_RETRY;
+        }
+        else
+        {
+            m_iLicenseResp = COMMAND_LICENSE_FAILED;
+        }
+        break;
+
+    case COMMAND_WINDOW_HAS_FOCUS:
+        m_bWindowHasFocus = _istat?true:false;
+        break;
+
+    }
+}
+
+//=============================================================================
+//=============================================================================
+void ServiceCmd::RequestServiceCmd(int _iCmdType, int _iSubCmd)
+{
+    if ( _iCmdType &gt;= COMMAND_ADMOB_REQUEST_VIDEO &amp;&amp; _iCmdType &lt; COMMAND_END )
+    {
+        #ifdef DBG_DUMP_SVCLOG
+        if ( _iCmdType != COMMAND_WINDOW_HAS_FOCUS )
+        {
+            SDL_Log( "ServiceCmd::RequestServiceCmd() _iCmdType=%d, sub=%d\n", _iCmdType, _iSubCmd );
+        }
+        #endif
+
+        Android_JNI_SendMessage( _iCmdType, _iSubCmd );
+
+        switch ( _iCmdType )
+        {
+        case COMMAND_WINDOW_HAS_FOCUS:   
+            ResetWindowFocusTimer(); 
+            break;
+
+        case COMMAND_GOOGLEAPI_CONNECT:
+            m_iConnectErrorCode = INVALID_CONNECT_CODE;
+            break;
+
+        //========================
+        // admob video
+        case COMMAND_ADMOB_REQUEST_VIDEO:   
+            m_TimerVideo.Reset();
+            m_iVideoState = kAdMobVideo_Requested;
+            break;
+
+        case COMMAND_ADMOB_SHOW_VIDEO:  
+            m_HasVideoPlayedOnce = true;
+            m_TimerVideo.Reset();
+            m_TimerBanner.Reset();
+            break;
+
+        case COMMAND_ADMOB_HIDE_VIDEO:    
+            // can't really send a request to hide video  
+            break;
+
+        case COMMAND_ADMOB_DELETE_VIDEO:    
+            m_iVideoState = kAdMobVideo_Ready;
+            break;
+
+        //========================
+        // admob banner
+        case COMMAND_ADMOB_REQUEST_BANNER:  
+            m_iBannerState = kAdMobBanner_Requested;
+            m_TimerBanner.Reset();
+            break;
+
+        case COMMAND_ADMOB_SHOW_BANNER:
+            m_TimerBanner.Reset();
+            break;
+
+        case COMMAND_ADMOB_HIDE_BANNER:
+            break;
+
+        case COMMAND_ADMOB_DELETE_BANNER:     
+            break;
+
+        case COMMAND_LICENSE_QUERY:
+            m_bLicenseQueryMade = true;
+            m_bHasLicenseQueryResp = false;
+            m_iLicenseResp = -1;
+
+            m_TimerLicense.Reset();
+            break;
+        }
+    }
+    else 
+    {
+        #ifdef DBG_DUMP_SVCLOG
+        SDL_Log( "ServiceCmd::StartAd() unknown add type=%d\n", _iCmdType );
+        #endif
+    }
+}
+
+//=============================================================================
+//=============================================================================
+void ServiceCmd::SendUnlockAchievement(unsigned _idx)
+{
+    if ( _idx &lt; APP_SIZE_NUM_ACHIEVEMENTS )
+    {
+        RequestServiceCmd( COMMAND_ACHIEVEMENT_SUBMIT, _idx );
+    }
+}
+
+//=============================================================================
+//=============================================================================
+void ServiceCmd::SendLeaderboardUpdate(unsigned _idx, unsigned _uNumUnits)
+{
+    if ( _idx &lt; APP_SIZE_NUM_LEADERBOARD )
+    {
+        RequestServiceCmd( COMMAND_LEADERBOARD_SETTIME_BEG + _idx, (int)_uNumUnits );
+    }
+}</code></pre>
+<p>ServiceCmd.h</p>
+<pre><code class="lang-auto">//=============================================================================
+// Copyright (c) 2015 LumakSoftware
+//=============================================================================
+#pragma once
+
+
+
+using namespace Urho3D;
+
+//=============================================================================
+//=============================================================================
+#define INVALID_CONNECT_CODE    51123333 // arbitrary value
+
+enum APPJAVASERVICECOMMANDS
+{
+    // admob
+    COMMAND_ADMOB_REQUEST_VIDEO  = 4,
+    COMMAND_ADMOB_SHOW_VIDEO     = 5,
+    COMMAND_ADMOB_HIDE_VIDEO     = 6,
+    COMMAND_ADMOB_DELETE_VIDEO   = 7,
+
+    COMMAND_ADMOB_REQUEST_BANNER = 8,
+    COMMAND_ADMOB_SHOW_BANNER    = 9,
+    COMMAND_ADMOB_HIDE_BANNER    = 10,
+    COMMAND_ADMOB_DELETE_BANNER  = 11,
+
+    // Licensing
+    COMMAND_LICENSE_QUERY    = 12,
+    COMMAND_LICENSE_RETRY    = 13,
+    COMMAND_LICENSE_FAILED   = 14,
+
+    // GoogleApi
+    COMMAND_GOOGLEAPI_CONNECT     = 15,
+    COMMAND_GOOGLEAPI_ERROR       = 16,
+    COMMAND_GOOGLEAPI_DISCONNECT  = 17,
+
+    // achievement
+    COMMAND_ACHIEVEMENT_QUERY   = 18,
+    COMMAND_ACHIEVEMENT_SUBMIT  = 19,
+
+    // leaderboard
+    COMMAND_LEADERBOARD_QUERY      = 20,
+    COMMAND_LEADERBOARD_SUBMIT     = 21,
+
+    COMMAND_LEADERBOARD_SETTIME_BEG = COMMAND_LEADERBOARD_SUBMIT + 1,
+    COMMAND_LEADERBOARD_SETTIME_END = COMMAND_LEADERBOARD_SETTIME_BEG + 5,
+
+    // misc
+    COMMAND_WINDOW_HAS_FOCUS = 28,
+
+    // end of valid commands
+    COMMAND_END, 
+
+    // response only, not a valid command to send
+    COMMAND_ADMOB_STATE_APP    = 1000,
+    COMMAND_ADMOB_STATE_VIDEO  = 1001,
+    COMMAND_ADMOB_STATE_BANNER = 1002,
+};
+
+enum APPSIZES
+{
+    APP_SIZE_NUM_ACHIEVEMENTS  = 9,
+    APP_SIZE_NUM_LEADERBOARD   = 6,
+};
+
+enum VIDEOSTATE
+{
+    kAdMobVideo_Stat_Loaded    = 0,
+    kAdMobVideo_Stat_Playing   = 1,
+    kAdMobVideo_Stat_Closed    = 2,
+    kAdMobVideo_Stat_Destroyed = 3,
+    kAdMobVideo_Stat_Error     = 4,
+
+    kAdMobVideo_Requested,
+    kAdMobVideo_Loaded,
+    kAdMobVideo_Ready,
+    kAdMobVideo_Playing,
+    kAdMobVideo_Done,
+};
+
+enum BANNERSTATE
+{
+    kAdMobBanner_Stat_Loaded    = 0,
+    kAdMobBanner_Stat_Visible   = 1,
+    kAdMobBanner_Stat_Hidden    = 2,
+    kAdMobBanner_Stat_Destroyed = 3,
+    kAdMobBanner_Stat_Error     = 4,
+
+    kAdMobBanner_NotLoaded,
+    kAdMobBanner_Requested,
+    kAdMobBanner_Ready,
+    kAdMobBanner_Visible,
+    kAdMobBanner_Hidden,
+    kAdMobBanner_Done,
+};
+
+//=============================================================================
+//=============================================================================
+class ServiceCmd : public Object
+{
+    OBJECT(ServiceCmd);
+public:
+
+    enum RESPTYPE{ kRespType_Invalid = -9999 };
+
+    static void Create(Context *_pContext)
+    {
+        if ( s_pCAdMob == NULL )
+        {
+            s_pCAdMob = new ServiceCmd( _pContext );
+        }
+    }
+
+    static void Destroy()
+    {
+        if ( s_pCAdMob )
+        {
+            delete s_pCAdMob;
+            s_pCAdMob = NULL;
+        }
+    }
+
+    static ServiceCmd&amp; Instance()
+    { 
+        return *s_pCAdMob; 
+    }
+
+    static void JavaActivityCallback(int _ival, int _istat, const char *_pstr, void *param);
+    void RequestServiceCmd(int _iAdType, int _iSubCmd=0);
+
+    // window focus
+    bool WindowHasFocus() const             { return m_bWindowHasFocus; }
+    void ResetWindowFocusTimer()            { m_TimerWindowFocus.Reset();  }
+    unsigned GetWindowFocusTimer()          { return m_TimerWindowFocus.GetMSec( false ); }
+
+    // connection
+    bool IsConnectedToGameServices() const      { return m_bGooglePlayConnected; }
+    const String&amp; GetGooglePlayUserName() const { return m_strGooglePlayUserName; }
+    const int GetConnectErrorCode() const       { return m_iConnectErrorCode; }
+    
+    // achievement and leaderboard
+    void SendUnlockAchievement(unsigned _idx);
+    void SendLeaderboardUpdate(unsigned _idx, unsigned _uNumUnits);
+
+    // admob
+    void SetAdInterval(Uint32 _uInterval)   { m_uAdInterval = _uInterval; }
+    void SetCmdTimeout(int _iMins)          { m_iCmdTimeout = _iMins; }
+    void ResetVideoTimer()                  { m_TimerVideo.Reset();  }
+    void ResetBannerTimer()                 { m_TimerBanner.Reset(); }
+    unsigned GetVideoElapsedTime()          { return m_TimerVideo.GetMSec( false ); }
+    unsigned GetBannerElapsedTime()         { return m_TimerBanner.GetMSec( false ); }
+
+    int  GetVideoState() const              { return m_iVideoState; }
+    int  GetBannerState() const             { return m_iBannerState; }
+    bool HasVideoPlayedOnce() const         { return m_HasVideoPlayedOnce; }
+    bool IsVideoHidden() const              { return m_bVideoHidden; }
+    bool IsBannerVisible() const            { return m_bBannerVisible; }
+    bool IsAppPaused() const                { return m_bAppIsPaused; }
+
+    // license
+    bool LicenseQueryMade() const           { return m_bLicenseQueryMade; }
+    void SetContinueLicenseQuery(bool _bset){ m_bContinueLicenseQuery = _bset; }
+    bool GetContinueLicenseQuery() const    { return m_bContinueLicenseQuery; }
+    bool IsLicenseValid() const             { return m_bHasValidLicense; }
+    bool IsLicenseRespReady() const         { return m_bHasLicenseQueryResp; }
+    int GetLicenseResp() const              { return m_iLicenseResp; }
+    int GetLicenseReason() const            { return m_iLicenseReason; }
+    void ResetLicenseTimer()                { m_TimerLicense.Reset(); }
+    unsigned GetLicenseQueryElapsedTime()   { return m_TimerLicense.GetMSec( false ); }
+
+protected:
+    ServiceCmd(Context *_pContext);
+    ~ServiceCmd();
+
+    void ActivityCallback(int _ival, int _istat, const char *_pstr);
+    //void HandleUpdate(StringHash eventType, VariantMap&amp; eventData);
+
+protected:
+    static ServiceCmd               *s_pCAdMob;
+
+    Timer                           m_TimerWindowFocus;
+    Timer                           m_TimerVideo;
+    Timer                           m_TimerBanner;
+    Timer                           m_TimerLicense;
+
+    // focus
+    bool                            m_bWindowHasFocus;
+
+    // googleplay connection
+    bool                            m_bGooglePlayConnected;
+    String                          m_strGooglePlayUserName;
+    int                             m_iConnectErrorCode;
+
+    // AdMob 
+    bool                            m_bAdPlayedSinceStartup;
+
+    int                             m_iVideoState;
+    int                             m_iBannerState;
+    bool                            m_HasVideoPlayedOnce;
+    bool                            m_bVideoHidden;
+    bool                            m_bBannerVisible;
+
+    // licensing
+    bool                            m_bContinueLicenseQuery;
+    bool                            m_bLicenseQueryMade;
+    bool                            m_bHasValidLicense;
+    bool                            m_bHasLicenseQueryResp;
+    int                             m_iLicenseResp;
+    int                             m_iLicenseReason;
+
+    // misc
+    bool                            m_bAppIsPaused;
+    Uint32                          m_uAdInterval;
+    int                             m_iCmdTimeout;
+};
+
+//=============================================================================
+//=============================================================================
+extern "C"
+{
+//#ifndef pfnUserActivityCallback
+typedef void (*pfnUserActivityCallback)(int _id, int _istat, const char *_str, void *param);
+//#endif
+void RegisterUserActivityCallback(pfnUserActivityCallback callback, void *param);
+
+int Android_JNI_SendMessage(int command, int param);
+
+}
+</code></pre>
+<p><span class="bbcode-b">[size=150]6) Game side sample code[/size]</span><br/>
+Sample code</p>
+<pre><code class="lang-auto">// somewhere in your startup
+     ServiceCmd::Create( GetContext() );
+
+// some where in your shutdown process
+    ServiceCmd::Destroy();
+
+// in your handleUpdate() func
+void GameMain::ProcessAdMob()
+{
+    // only play AdMob when game is not playing
+    if ( m_pGamePlayFeature == NULL )
+    {
+        // video state
+        switch ( ServiceCmd::Instance().GetVideoState() )
+        {
+        case kAdMobVideo_Ready:
+            if ( ServiceCmd::Instance().GetVideoElapsedTime() &gt; 12 * 60 * 1000 ) // 12 min wait
+            {
+                ServiceCmd::Instance().RequestServiceCmd( COMMAND_ADMOB_REQUEST_VIDEO );
+            }
+           break;
+
+        case kAdMobVideo_Requested:
+            if ( ServiceCmd::Instance().GetVideoElapsedTime() &gt; 20 * 1000 ) // 20 sec wait
+            {
+                ServiceCmd::Instance().RequestServiceCmd( COMMAND_ADMOB_REQUEST_VIDEO );
+            }
+            break;
+
+        case kAdMobVideo_Loaded:
+            ServiceCmd::Instance().RequestServiceCmd( COMMAND_ADMOB_SHOW_VIDEO );
+            break;
+
+        case kAdMobVideo_Playing:
+            // wait for it to go back to 'Ready'
+            break;
+        }
+    }
+}</code></pre>
+<p>And I’ve run out of room for anything else.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>It might help if you had the correct permissions in your AndroidManifest.xml.</p>
+<pre><code class="lang-auto">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.mycompany.mygame"
+    android:versionCode="1"
+    android:versionName="1.0"&gt;
+
+    &lt;!-- Include required permissions for Google Mobile Ads to run--&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+    &lt;uses-permission android:name="com.android.vending.CHECK_LICENSE" /&gt;
+    &lt;uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /&gt;
+
+    &lt;application android:label="@string/app_name"
+        android:icon="@drawable/icon"
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+        android:hardwareAccelerated="true" &gt;
+        &lt;!--This meta-data tag is required to use Google Play Services.--&gt;
+        &lt;meta-data android:name="com.google.android.gms.games.APP_ID" android:value="@string/app_id"/&gt;
+        &lt;meta-data android:name="com.google.android.gms.version" android:value="@integer/google_play_services_version"/&gt;
+        &lt;activity android:name=".MyGame"
+                  android:label="@string/app_name"
+                  android:configChanges="keyboardHidden|orientation"
+                  android:screenOrientation="landscape"&gt;
+            &lt;intent-filter&gt;
+                &lt;action android:name="android.intent.action.MAIN" /&gt;
+                &lt;category android:name="android.intent.category.LAUNCHER" /&gt;
+            &lt;/intent-filter&gt;
+        &lt;/activity&gt;
+        &lt;!--Include the AdActivity configChanges and theme. --&gt;
+        &lt;activity android:name="com.google.android.gms.ads.AdActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
+            android:theme="@android:style/Theme.Translucent"/&gt;
+    &lt;/application&gt;
+
+    &lt;uses-sdk android:minSdkVersion="10" android:targetSdkVersion="19" /&gt;
+    &lt;uses-feature android:glEsVersion="0x00020000" /&gt;
+
+&lt;/manifest&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Thanks for sharing this. It would be great if you can also sight any references that you use. The provided shared lib loader logic is required when your app depends on other 3rd party libs in *.so format. You can build Urho3D lib as shared lib and depend on it in this way for example.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p><span class="bbcode-b">[size=150]Resources[/size]</span><br/>
+SDL-2.0.3/android-project/src/org/libsdl/app/SDLActivity.java</p>
+<p>This is what they have:</p>
+<pre><code class="lang-auto">    // Load the .so
+    static {
+        System.loadLibrary("SDL2");
+        //System.loadLibrary("SDL2_image");
+        //System.loadLibrary("SDL2_mixer");
+        //System.loadLibrary("SDL2_net");
+        //System.loadLibrary("SDL2_ttf");
+        System.loadLibrary("main");
+    }</code></pre>
+<p>Below links were the only ones that I had saved.  All others were searched on Google.</p>
+<p>GooglePlay:<br/>
+<a data-bbcode="true" href="https://developers.google.com/games/services/android/quickstart">https://developers.google.com/games/services/android/quickstart</a><br/>
+<a data-bbcode="true" href="http://code.tutsplus.com/tutorials/google-play-game-services-leaderboards--cms-20700">http://code.tutsplus.com/tutorials/google-play-game-services-leaderboards–cms-20700</a><br/>
+<a data-bbcode="true" href="https://github.com/playgameservices/android-basic-samples">https://github.com/playgameservices/android-basic-samples</a></p>
+<p>AdMob:<br/>
+<a data-bbcode="true" href="https://developers.google.com/ads/#apps">https://developers.google.com/ads/#apps</a><br/>
+<a data-bbcode="true" href="https://developers.google.com/admob/android/quick-start">https://developers.google.com/admob/android/quick-start</a><br/>
+<a data-bbcode="true" href="https://developers.google.com/admob/android/interstitial?hl=en">https://developers.google.com/admob/android/interstitial?hl=en</a><br/>
+<a data-bbcode="true" href="https://github.com/googleads/googleads-mobile-android-examples">https://github.com/googleads/googleads-mobile-android-examples</a></p>
+<p>AppLicensing:<br/>
+<a data-bbcode="true" href="http://developer.android.com/intl/ko/google/play/licensing/index.html">http://developer.android.com/intl/ko/google/play/licensing/index.html</a><br/>
+<a data-bbcode="true" href="https://developer.android.com/intl/ko/google/play/licensing/setting-up.html">https://developer.android.com/intl/ko/google/play/licensing/setting-up.html</a><br/>
+<a data-bbcode="true" href="https://github.com/okamstudio/godot/tree/master/platform/android/libs/play_licensing">https://github.com/okamstudio/godot/tree/master/platform/android/libs/play_licensing</a></p>
+<p>and Google <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> which will lead you to Stack Overflow.</p>
+<p>Edit: added a few more links.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>It’s not important but I meant to say references for Google Play and the ads stuff if any.</p>
+<p>If we do the *.so loading explicitly then it needs to be rewritten for every app. The one being provided by Urho3D will auto detect all the *.so list and load them in an orderly fashion automatically. It may be overkill though for a single main *.so app. I am just supplementing the rationale of the provided shared lib logic. It is perfectly fine to replace it as you have done.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>They are there now.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>I’m fully aware of how the shared object loader works and why it’s there.  That’s where I started learning about SDLAcitivity, and yes, it makes sense for that to be there if you’re loading/testing multiple .so files.  But as you already noticed, I didn’t need anything that intricate to load a single .so file.  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+<p>Perhaps, one can declare their <a href="http://gamelib.so">gamelib.so</a> in a string then do something like:</p>
+<pre><code class="lang-auto">System.loadLibrary( getResources().getString( R.string.gameapp_lib ) );</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>weitjong,</p>
+<p>I’m getting the impression that you think Urho3D.java code should be reused w/o any modifications in everyone’s project.</p>
+<p>I don’t know if you are aware of the importance of the <span class="bbcode-b">package name</span>, i.e. com.mycompany.mygame, that you declare in the AndroidManifest.xml, build.gradle, and in your primary game Java code, but it must be unique for one reason:<br/>
+when you release your game from Google Play Developer Console, the name has to be unique.  You can never load the same package name twice.  If you try, you’ll get an error saying it’s already in use.</p>
+<p>So, you can’t expect everyone to have <span class="bbcode-b">com.github.urho3d</span> in their Android game.  Nor can you create a single project folder and release multiple games from that same folder many times over.  Every project would have to have a unique package name in their Java code, in build.gradle (if using Android SDK), and in AndroidManifest.xml.</p>
+<p>If you already knew about this, then just ignore it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Thanks for sharing this Lumak  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> cheers.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>[quote=“Lumak”]weitjong,</p>
+<p>I’m getting the impression that you think Urho3D.java code should be reused w/o any modifications in everyone’s project.</p>
+<p>I don’t know if you are aware of the importance of the <span class="bbcode-b">package name</span>, i.e. com.mycompany.mygame, that you declare in the AndroidManifest.xml, build.gradle, and in your primary game Java code, but it must be unique for one reason:<br/>
+when you release your game from Google Play Developer Console, the name has to be unique.  You can never load the same package name twice.  If you try, you’ll get an error saying it’s already in use.</p>
+<p>So, you can’t expect everyone to have <span class="bbcode-b">com.github.urho3d</span> in their Android game.  Nor can you create a single project folder and release multiple games from that same folder many times over.  Every project would have to have a unique package name in their Java code, in build.gradle (if using Android SDK), and in AndroidManifest.xml.</p>
+<p>If you already knew about this, then just ignore it.[/quote]<br/>
+Yes, I am aware of that. The logic I mentioned in my previous posts come from the Urho3D modified version of SDLActivity Java class in org.libsdl.app package, which can be reused by other external projects. The Urho3D Java class which extends from the modified SDLActivity class is of course not reusable.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks for detailed instructions Lumak <img alt=":stuck_out_tongue:" class="emoji" src="../../../images2/31a2303e479834609bf5befdf8c3501a.png" title=":stuck_out_tongue:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks for the in depth instructions <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/><br/>
+Any chance for IOS one ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>[quote]posted by sabotage3d ? 08 Aug 2015, 04:22<br/>
+Thanks for the in depth instructions <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/><br/>
+Any chance for IOS one ?[/quote]</p>
+<p>I haven’t started working on iOS yet.  I’ll post it if I do it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Deveiss</div>
+          <div class="post_content">
+<p>Do you have a complete example implementation? That would be really helpful to study, as right now I’m a bit confused on how to make this all come together. I’m unclear on where to define the JNI callbacks, and what else I’d have to include or link against to compile them. Additionally, how would I add Godot’s Play Services library as a dependency for the ant build process?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Hi Deveiss,</p>
+<p>I sent you a reply to your email but I’ll also post it here.</p>
+<p>//=================================================================================================<br/>
+What I did was added the functions to \ThirdParty\SDL\src\main\android\SDL_android_main.c file<br/>
+right below  void Java_org_libsdl_app_SDLActivity_nativeInit(JNIEnv* env, jclass cls, jstring filesDir)  function, and I can’t remember why I chose that file instead of SDL_android.c.<br/>
+Below is everything I have in that file below the Java_org_libsdl_app_SDLActivity_nativeInit() function.  Copy that into the file and you should be good to go.</p>
+<p>There is no additional library that you need to get Google Play, i.e. Leaderboard and Achievement,or AdMob working. CMake files that I used was Urho’s cmake_android w/o any modification.  I think I mentioned linking a library Android Studio in my thread. I can’t remember the library name but you also don’t need that. Only time you would need it is for licensing (or testing licensing feature), and is not part of Google Play, leaderboard, achievement, or AdMob. Remove that library if you have it linked in and also remove the line<br/>
+<br/>
+from AndroidManisfest.xml, along with section of Java code related to licensing - just comment of sections that give you error.</p>
+<p>I hope this helps.</p>
+<p>// code to copy</p>
+<pre><code class="lang-auto">int Android_JNI_SendMessageStr(int command, const char *param)
+{
+    JNIEnv *mEnv = Android_JNI_GetEnv();
+    if (!mEnv) {
+        return -1;
+    }
+    jclass cActivity = Android_JNI_GetActivityClass();
+
+    jmethodID mid = (*mEnv)-&gt;GetStaticMethodID(mEnv, cActivity, "sendMessageStr", "(ILjava/lang/String;)Z");
+    if (!mid) {
+        return -1;
+    }
+
+    jstring jparam = (jstring)((*mEnv)-&gt;NewStringUTF(mEnv, param));
+    jboolean success = (*mEnv)-&gt;CallStaticBooleanMethod(mEnv, cActivity, mid, command, jparam);
+    (*mEnv)-&gt;DeleteLocalRef(mEnv, jparam);
+
+    return success ? 0 : -1;
+}
+
+//#include &lt;SDL/SDL_events.h&gt;
+
+typedef void (*pfnUserActivityCallback)(int id1, int istat, const char *str, void *param);
+
+static pfnUserActivityCallback gpUserActivityCallback = NULL;
+static void *gActivityCallbackParam = NULL;
+
+void RegisterUserActivityCallback(pfnUserActivityCallback callback, void *param)
+{
+    gpUserActivityCallback = callback;
+    gActivityCallbackParam = param;
+}
+
+void Java_org_libsdl_app_SDLActivity_nativeUserActivityCallback(JNIEnv* env, jclass cls, jint id1, jint istat, jstring jstrParam)
+{
+    const char *str = (*env)-&gt;GetStringUTFChars(env, jstrParam, 0);
+
+    if ( gpUserActivityCallback )
+    {
+        (*gpUserActivityCallback)( id1, istat, str, gActivityCallbackParam );
+    }
+
+    if ( str )
+    {
+        (*env)-&gt;ReleaseStringUTFChars(env, jstrParam, str);
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>Hi there!<br/>
+First, sorry about my english. isn’t my native language<br/>
+I’ve found that COMMAND_ADMOB_SHOW_VIDEO = 5  in ServiceCmd.h<br/>
+takes the same value that COMMAND_SET_KEEP_SCREEN_ON = 5 in SDLActivity.java<br/>
+So SDLCommandHandler go in the wrong case when show video is requested.<br/>
+I’ve change the enum in ServiceCmd.h, but i don’t know if that is correct.<br/>
+Thanks anyway for sharing this!<br/>
+cheers!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>At the time this was written, Urho3D was on 1.4 and the messages were declared as:</p>
+<blockquote>
+<pre><code>// Messages from the SDLMain thread
+static final int COMMAND_CHANGE_TITLE = 1;
+static final int COMMAND_UNUSED = 2;
+static final int COMMAND_TEXTEDIT_HIDE = 3;
+</code></pre>
+</blockquote>
+<p>and now in 1.6:</p>
+<blockquote>
+<pre><code>// Messages from the SDLMain thread
+static final int COMMAND_CHANGE_TITLE = 1;
+static final int COMMAND_UNUSED = 2;
+static final int COMMAND_TEXTEDIT_HIDE = 3;
+static final int COMMAND_SET_KEEP_SCREEN_ON = 5;
+</code></pre>
+</blockquote>
+<p>So you are correct to change the values is in ServiceCmd.h.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hey</p>
+<p>I’m trying to get some code to work. I’m at a lost. It does the OnProcessCommand() but the actual message sent to the Java side is not sent. Maybe someone has a idea???</p>
+<p>Vivienne</p>
+<pre><code>#include &lt;jni.h&gt;
+
+
+#include &lt;Urho3D/Urho3D.h&gt;
+#include &lt;Urho3D/Core/CoreEvents.h&gt;
+#include &lt;Urho3D/Core/Context.h&gt;
+#include &lt;Urho3D/Engine/Engine.h&gt;
+#include &lt;Urho3D/Input/InputEvents.h&gt;
+#include &lt;Urho3D/Scene/Scene.h&gt;
+#include &lt;Urho3D/Core/Timer.h&gt;
+
+#include "ServicesInterface_Admob.h"
+
+#include &lt;Urho3D/DebugNew.h&gt;
+
+#include &lt;CornersStd.h&gt;
+#include &lt;Urho3D/ThirdParty/SDL/SDL_system.h&gt;
+
+//=============================================================================
+//=============================================================================
+
+typedef void (*pfnUserActivityCallback)(int id1, int istat, const char *str, void *param);
+
+static pfnUserActivityCallback gpUserActivityCallback = NULL;
+static void *gActivityCallbackParam = NULL;
+
+static JavaVM *java_vm;
+static jclass activityClass = NULL;
+static JNIEnv *jenv = NULL;
+
+void RegisterUserActivityCallback(pfnUserActivityCallback callback, void *param) {
+    gpUserActivityCallback = callback;
+    gActivityCallbackParam = param;
+}
+
+
+// This is here but can only be set once so need to update
+// Maybe make this generic where command can be either both services
+// Hmmm
+
+
+int Android_JNI_SendMessage(int command, int param) {
+
+    ALPHAENGINE_LOGINFO("Android_JNI_SENDMESSAGE");
+
+
+    return 0;
+
+}
+
+//=============================================================================
+//=============================================================================
+ServicesInterface_Admob *ServicesInterface_Admob::s_pCAdMob = NULL;
+
+//=============================================================================
+//=============================================================================
+ServicesInterface_Admob::ServicesInterface_Admob(Context *_pcontext)
+        : Object(_pcontext) {
+    // init
+    m_TimerWindowFocus.Reset();
+    m_TimerVideo.Reset();
+    m_TimerBanner.Reset();
+    m_TimerLicense.Reset();
+
+    // focus
+    m_bWindowHasFocus = true;
+
+    // admob
+    m_uAdInterval = 2 * 60 * 1000; // 2 mins
+    m_iCmdTimeout = 5;
+    m_bAdPlayedSinceStartup = false;
+
+    m_iVideoState = kAdMobVideo_Ready;
+    m_iBannerState = kAdMobBanner_NotLoaded;
+    m_HasVideoPlayedOnce = false;
+    m_bAppIsPaused = false;
+
+
+    // register java callback
+    RegisterUserActivityCallback(&amp;ServicesInterface_Admob::JavaActivityCallback, this);
+}
+
+//=============================================================================
+//=============================================================================
+ServicesInterface_Admob::~ServicesInterface_Admob() {
+    RegisterUserActivityCallback(NULL, NULL);
+}
+
+//=============================================================================
+//=============================================================================
+void ServicesInterface_Admob::JavaActivityCallback(int _ival, int _istat, const char *_pstr,
+                                                   void *param) {
+    if (param) {
+        ((ServicesInterface_Admob *) param)-&gt;ActivityCallback(_ival, _istat, _pstr);
+    }
+}
+
+//=============================================================================
+//=============================================================================
+void ServicesInterface_Admob::ActivityCallback(int _icmd, int _istat, const char *_pstr) {
+#ifdef DBG_DUMP_SVCLOG
+    if ( _icmd != COMMAND_WINDOW_HAS_FOCUS )
+    {
+        SDL_Log("ServicesInterface_Admob::ActivityCallback() icmd=%d, istat=%d, pstr='%s'\n", _icmd, _istat, _pstr?_pstr:" ");
+    }
+#endif
+
+    switch (_icmd) {
+        case COMMAND_ADMOB_STATE_VIDEO:
+            switch (_istat) {
+                case kAdMobVideo_Stat_Loaded:
+                    m_iVideoState = kAdMobVideo_Loaded;
+                    break;
+                case kAdMobVideo_Stat_Playing:
+                    m_iVideoState = kAdMobVideo_Playing;
+                    break;
+                case kAdMobVideo_Stat_Closed:
+                    m_iVideoState = kAdMobVideo_Ready;
+                    ResetVideoTimer();
+                    break;
+                case kAdMobVideo_Stat_Destroyed:
+                    m_iVideoState = kAdMobVideo_Ready;
+                    break;
+                default:
+                    // failed to load error - retry
+                    ResetVideoTimer();
+                    break;
+            }
+            break;
+
+        case COMMAND_ADMOB_STATE_BANNER:
+            switch (_istat) {
+                case kAdMobBanner_Stat_Loaded:
+                    if (m_iBannerState == kAdMobBanner_NotLoaded ||
+                        m_iBannerState == kAdMobBanner_Requested) {
+                        m_iBannerState = kAdMobBanner_Ready;
+                    }
+                        // AdMob banner continuously loads new banners in the background, and any subsequent calls will automatically show itself
+                        // -- prevent it from being visible if not in the visible state
+                    else if (m_iBannerState != kAdMobBanner_Visible) {
+                        RequestServiceCmd(COMMAND_ADMOB_HIDE_BANNER);
+                    }
+                    break;
+                case kAdMobBanner_Stat_Visible:
+                    m_iBannerState = kAdMobBanner_Visible;
+                    break;
+                case kAdMobBanner_Stat_Hidden:
+                    m_iBannerState = kAdMobBanner_Hidden;
+                    break;
+                case kAdMobBanner_Stat_Destroyed:
+                    m_iBannerState = kAdMobBanner_NotLoaded;
+                    break;
+                default:
+                    // failed to load error - retry
+                    ResetBannerTimer();
+                    break;
+            }
+            break;
+
+
+        case COMMAND_WINDOW_HAS_FOCUS:
+            m_bWindowHasFocus = _istat ? true : false;
+            break;
+
+    }
+}
+
+
+//=============================================================================
+//=============================================================================
+void ServicesInterface_Admob::RequestServiceCmd(int _iCmdType, int _iSubCmd) {
+    if (_iCmdType &gt;= COMMAND_ADMOB_REQUEST_VIDEO &amp;&amp; _iCmdType &lt; COMMAND_END) {
+#ifdef DBG_DUMP_SVCLOG
+        if ( _iCmdType != COMMAND_WINDOW_HAS_FOCUS )
+        {
+            SDL_Log( "ServicesInterface_Admob::RequestServiceCmd() _iCmdType=%d, sub=%d\n", _iCmdType, _iSubCmd );
+        }
+#endif
+
+        Android_JNI_SendMessage(_iCmdType, _iSubCmd);
+
+        switch (_iCmdType) {
+            case COMMAND_WINDOW_HAS_FOCUS:
+                ResetWindowFocusTimer();
+                break;
+
+
+                //========================
+                // admob video
+            case COMMAND_ADMOB_REQUEST_VIDEO:
+                m_TimerVideo.Reset();
+                m_iVideoState = kAdMobVideo_Requested;
+                break;
+
+            case COMMAND_ADMOB_SHOW_VIDEO:
+                m_HasVideoPlayedOnce = true;
+                m_TimerVideo.Reset();
+                m_TimerBanner.Reset();
+                break;
+
+            case COMMAND_ADMOB_HIDE_VIDEO:
+                // can't really send a request to hide video
+                break;
+
+            case COMMAND_ADMOB_DELETE_VIDEO:
+                m_iVideoState = kAdMobVideo_Ready;
+                break;
+
+                //========================
+                // admob banner
+            case COMMAND_ADMOB_REQUEST_BANNER:
+                m_iBannerState = kAdMobBanner_Requested;
+                m_TimerBanner.Reset();
+                break;
+
+            case COMMAND_ADMOB_SHOW_BANNER:
+                m_TimerBanner.Reset();
+                break;
+
+            case COMMAND_ADMOB_HIDE_BANNER:
+                break;
+
+            case COMMAND_ADMOB_DELETE_BANNER:
+                break;
+        }
+    } else {
+#ifdef DBG_DUMP_SVCLOG
+        SDL_Log( "ServicesInterface_Admob::StartAd() unknown add type=%d\n", _iCmdType );
+#endif
+    }
+}
+
+// JNI EXPORT BRIDGE
+
+extern "C" {
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLActivity_nativeUserActivityCallback(JNIEnv *env, jclass cls,
+                                                           jint id1,
+                                                           jint istat, jstring jstrParam) {
+    const char *str = env-&gt;GetStringUTFChars(jstrParam, 0);
+    if (gpUserActivityCallback) {
+        (*gpUserActivityCallback)(id1, istat, str, gActivityCallbackParam);
+    }
+
+    if (str != NULL) {
+        // If used show output string
+        String s = String(str);
+        ALPHAENGINE_LOGINFO("Java_org_libsdl_app_SDLActivity_nativeUserActivityCallback():" + s);
+
+        env-&gt;ReleaseStringUTFChars(jstrParam, str);
+    }
+}
+
+}}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>This is the androidmanifest.xml</p>
+<pre><code>&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="protocolseven"
+          android:versionCode="1"
+          android:versionName="1.0"
+          android:installLocation="auto"&gt;
+
+    &lt;!-- Android 2.3.3 --&gt;
+    &lt;uses-sdk
+        android:minSdkVersion="14"
+        android:targetSdkVersion="21"/&gt;
+
+    &lt;!-- OpenGL ES 2.0 --&gt;
+    &lt;uses-feature android:glEsVersion="0x00020000"/&gt;
+
+    &lt;!-- Allow writing to external storage --&gt;
+    &lt;uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/&gt;
+
+
+    &lt;uses-permission android:name="android.permission.ACCESS_WIFI_STATE" /&gt;
+    &lt;uses-permission android:name="android.permission.CHANGE_WIFI_STATE" /&gt;
+    &lt;uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" /&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET" /&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /&gt;
+    &lt;uses-permission android:name="android.permission.READ_PHONE_STATE" /&gt;
+    &lt;uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /&gt;
+
+    &lt;!-- Google Play filtering --&gt;
+    &lt;uses-feature android:name="android.hardware.wifi.direct" android:required="true"/&gt;
+
+    &lt;application
+        android:label="@string/app_name"
+        android:icon="@drawable/icon"
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+
+        android:allowBackup="false"&gt;
+        &lt;activity android:name=".Corners"
+            android:screenOrientation="portrait"&gt;
+            &lt;intent-filter&gt;
+                &lt;action android:name="android.intent.action.MAIN" /&gt;
+                &lt;category android:name="android.intent.category.LAUNCHER" /&gt;
+            &lt;/intent-filter&gt;
+        &lt;/activity&gt;
+    &lt;/application&gt;
+
+
+
+
+&lt;/manifest&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2836_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">extobias</div>
+          <div class="post_content">
+<p>Hi there, have you added the code on SDL side as Lumak has posted?</p>
+<aside class="quote no-group" data-post="15" data-topic="1238" data-username="Lumak">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/> Lumak:</div>
+<blockquote>
+<p>\ThirdParty\SDL\src\main\android\SDL_android_main.c</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>I did. Its working. The issue i have the first ad with the adview load and show doesnt work off the bat. Subsequent test ads show. So i have to debug and two peculiar errors with that.</p>
+<p>Also it seems order was important in the code itself.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

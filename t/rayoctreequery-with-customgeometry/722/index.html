@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>RayOctreeQuery with CustomGeometry?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">RayOctreeQuery with CustomGeometry?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I generate custom geometry the following way:</p>
+<pre><code class="lang-auto">_grid-&gt;BeginGeometry(1, Urho3D::TRIANGLE_STRIP);
+
+	_grid-&gt;DefineVertex(Urho3D::Vector3(-actualGridSize.x_, 0, -actualGridSize.z_) + _gridOffset);
+	_grid-&gt;DefineColor(COLOR_GRID_MAIN_LINE);
+	_grid-&gt;DefineVertex(Urho3D::Vector3(-actualGridSize.x_, 0, actualGridSize.z_) + _gridOffset);
+	_grid-&gt;DefineColor(COLOR_GRID_MAIN_LINE);
+	_grid-&gt;DefineVertex(Urho3D::Vector3(actualGridSize.x_, 0, -actualGridSize.z_) + _gridOffset);
+	_grid-&gt;DefineColor(COLOR_GRID_MAIN_LINE);
+	_grid-&gt;DefineVertex(Urho3D::Vector3(actualGridSize.x_, 0, actualGridSize.z_) + _gridOffset);
+	_grid-&gt;DefineColor(COLOR_GRID_MAIN_LINE);
+	
+	_grid-&gt;Commit();</code></pre>
+<p>The geometry is visible. However I cannot get any results from it when performing a RayOctreeQuery:</p>
+<pre><code class="lang-auto">	Urho3D::IntVector2 mousePos = input-&gt;GetMousePosition();
+	Urho3D::PODVector&lt;Urho3D::RayQueryResult&gt; result;
+
+	Urho3D::Ray ray = _camera-&gt;GetScreenRay(mousePos.x_, mousePos.y_);
+	Urho3D::RayOctreeQuery q(result, ray, Urho3D::RAY_TRIANGLE, Urho3D::M_INFINITY, Urho3D::DRAWABLE_GEOMETRY, -1);
+	_scene-&gt;GetComponent&lt;Urho3D::Octree&gt;()-&gt;Raycast(q);
+
+	if (result.Size() &gt; 0)
+	{
+		// do stuff
+	}</code></pre>
+<p>I have also tried using Urho3D::RAY_OBB and Urho3D::DRAWABLE_ANY as well, but still no results. Eventually the mesh that I want to detect will need to be invisible.</p>
+<p>One idea I had was to instead use physics objects. Now I don’t need physics simulation in my scene, would it instead be possible to disable the actual physics simulation so that I can simply run my own custom queries against the PhysicsWorld?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I attempted to go the physics route, but cannot get it to work right. I am attempting to use indexed geometry to create a mode. I am following <a data-bbcode="true"  rel="nofollow noopener">this example</a>:</p>
+<pre><code class="lang-auto">const unsigned numVertices = 4;
+
+	float vertexData[] = {
+		// Position             Normal
+		-actualGridSize.x_, 0.f, -actualGridSize.z_, 0.0f, 0.0f, 0.0f,
+		-actualGridSize.x_, 0.f, actualGridSize.z_, 0.0f, 0.0f, 0.0f,
+		actualGridSize.x_, 0.f, -actualGridSize.z_, 0.0f, 0.0f, 0.0f,
+		actualGridSize.x_, 0.f, actualGridSize.z_, 0.0f, 0.0f, 0.0f
+	};
+
+	const unsigned short indexData[] = {
+		0, 1, 2,
+		1, 2, 3,
+	};
+
+	Urho3D::SharedPtr&lt;Urho3D::VertexBuffer&gt; vb(new Urho3D::VertexBuffer(context_));
+	Urho3D::SharedPtr&lt;Urho3D::IndexBuffer&gt; ib(new Urho3D::IndexBuffer(context_));
+	Urho3D::SharedPtr&lt;Urho3D::Geometry&gt; geom(new Urho3D::Geometry(context_));
+	Urho3D::SharedPtr&lt;Urho3D::Model&gt; fromScratchModel(new Urho3D::Model(context_));
+	
+	vb-&gt;SetSize(numVertices, Urho3D::MASK_POSITION | Urho3D::MASK_NORMAL);
+	vb-&gt;SetData(vertexData);
+
+	ib-&gt;SetSize(6, false);
+	ib-&gt;SetData(indexData);
+
+	geom-&gt;SetVertexBuffer(0, vb);
+	geom-&gt;SetIndexBuffer(ib);
+	geom-&gt;SetDrawRange(Urho3D::TRIANGLE_LIST, 0, numVertices);
+
+	fromScratchModel-&gt;SetNumGeometries(1);
+	fromScratchModel-&gt;SetGeometry(0, 0, geom);
+
+	Urho3D::CollisionShape* shape = _gridNode-&gt;GetComponent&lt;Urho3D::CollisionShape&gt;();
+	shape-&gt;SetTriangleMesh(fromScratchModel);</code></pre>
+<p>However the call to SetTriangleMesh causes a crash in btQuantizedBvh.cpp (line 144)</p>
+<pre><code class="lang-auto">btAssert(numIndices&gt;0); // error here
+
+// startIndex = 0
+// endIndex = 0</code></pre>
+<p>I also tried using the existing CustomGeometry as such:</p>
+<pre><code class="lang-auto">shape-&gt;SetCustomTriangleMesh(_grid);</code></pre>
+<p>Which doesn’t produce a crash, but also doesn’t produce any results.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i guess what you needed set Shadowing() geometry to true or/and add collision component and set your model as collision shape for it</p>
+<p>ib-&gt;SetShadowed(true) ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>If I set shadowing to true, then I get a crash in a different area. If I manually set it to false, it crashes in the same area. If you look at my existing code, I am already creating the collision component and setting the model as collision shape.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>I am already creating the collision component and setting the model as collision shape<br/>
+i see<br/>
+mb now needed to set collison mask for object ?<br/>
+that value it have by default then you try build your custom geometry, you know ? i’m don’t know</p>
+</blockquote>
+<p>try to: Node-&gt;CreateComponent() and set some collision mask / layers</p>
+<p>also in example 34:<br/>
+StaticModel* object = node-&gt;CreateComponent();<br/>
+object-&gt;SetModel(fromScratchModel);</p>
+<p>Where your static model in code ?</p>
+<p>and i’m don’t see bb setup in your code : something like: fromScratchModel-&gt;SetBoundingBox();</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Still have no idea why it’s not working with the physics stuff, however I was able to get it working with just the CustomGeometry. My issue stems from the following “features” that I’ve discovered:</p>
+<ul>
+<li>
+<p>Rays query without scaling applied, but report the position with scaling applied. Therefore when I was using my model which was scaled 10x, even though I was setting the position of another model to the position given by the ray query, it would position it further out the further I was from origin.</p>
+</li>
+<li>
+<p>Screen coordinates need to be normalized first. This was one of the first things that I corrected before my second post.</p>
+</li>
+<li>
+<p>There’s something weird when using TRIANGLE_STRIP, the first triangle was drawn just fine but the second was not (and it didn’t show up in debug geometry either).</p>
+</li>
+<li>
+<p>Using a LINE_LIST (which is how I generate my grid) actually generates full geometry that I can cast rays against. There seems to be a problem with the corners in my case, but most of the geometry worked otherwise.</p>
+</li>
+</ul>
+<p>I went ahead and used OBB due to the simple geometry used in my game example. It works for what I need it to.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

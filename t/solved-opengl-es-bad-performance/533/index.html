@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] OpenGL ES bad performance</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] OpenGL ES bad performance</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hello ,</p>
+<p>I did some OpenGL ES profiling on IOS device and I cannot get more than 22 FPS on a really simple scene.<br/>
+I took Sample 11 Physics and I disabled shadows, materials and specular. I also removed the rbd’s from the box stack, I just left them to profile the rendering.<br/>
+These are the changes I made:</p>
+<p>I added these lines and I commented the rigid bodies lines for the rbd stack.</p>
+<p><code>
+ renderer-&gt;SetDrawShadows(!renderer-&gt;GetDrawShadows());
+ renderer-&gt;SetSpecularLighting(!renderer-&gt;GetSpecularLighting());
+ renderer-&gt;SetMaterialQuality(QUALITY_LOW); </code><br/>
+When I load the sample my load is:<br/>
+CPU: 21%<br/>
+Memory: 45.4 MB<br/>
+FPS: 17-22<br/>
+If I start moving the FPS drops if I throw a box it lags super heavy for a few frames.<br/>
+I made a OpenGL ES trace this is my log: <a href="http://codepad.org/vP8Uj7G6" rel="nofollow noopener">codepad.org/vP8Uj7G6</a><br/>
+I have also uploaded the trace to github it could be replayed in Xcode: <a href="https://github.com/sabotage3d/urhotrace" rel="nofollow noopener">github.com/sabotage3d/urhotrace</a><br/>
+This is the profiling suggestions and errors:<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/bIf3qlq.png" rel="nofollow noopener" title=""><img alt="" height="487" src="../../../images2/8da55c1666e641dfcca88e743490bac8.png" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1000×706</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Hey guys any thoughts on this ? The draw calls are way too many for such a simple scene.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The amount of drawcalls in your trace seems normal. There are two passes: ambient light+environment mapping pass, and directional light pass. I assume you are looking at the box stack, as there’s a lot of draws with same state. On OpenGL ES instancing is not being used.</p>
+<p>I personally haven’t tested the performance of the more complex materials, like environment mapping, on iOS. It might be that the shader is triggering dependent texture reads, which are bad for performance. You could try making the boxes use the default (untextured) material and see whether you get better FPS.</p>
+<p>At some point (possibly today) I will have time to test the Physics sample on an iPad2 and see if I can verify the bad performance. On Android I’ve seen it perform reasonably acceptably, often reaching 60 fps with shadows on, if you’re not looking at the boxes from close up. Going close to the environment mapped boxes I noticed lowered FPS.</p>
+<p>In general, the samples have been made (and tested on) desktop systems, and we don’t make performance guarantees for them, especially for mobile platforms. Your own content will heavily determine your performance. Of course the hope is that Urho itself does not induce systematic (not depending on content) slowdown.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thank you for your input on this. I have disabled shadows, materials are set to low quality and the specular is off. The physics are off as well.<br/>
+I can see in the profiling that there is GL error: Inavlid Enum and calls from OpenGL that are not supported on the ES version, also there are some redundant calls.<br/>
+Is it currently possible to use VAO on mobile ? I have to check if the textures are not too heavy for mobile and if they have proper encoding.<br/>
+On similar scene in Ogre I am getting around 60 fps with VAO enabled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Setting materials to low quality doesn’t remove the environment mapping in case of the StoneEnvMap.xml material, so you’re still looking at 2 passes. Take a look at the material file:</p>
+<pre><code class="lang-auto">&lt;material&gt;
+    &lt;technique name="Techniques/DiffNormalPackedEnvCube.xml" quality="1" /&gt;
+    &lt;technique name="Techniques/DiffEnvCube.xml" quality="0" /&gt;
+    &lt;texture unit="diffuse" name="Textures/StoneDiffuse.dds" /&gt;
+    &lt;texture unit="normal" name="Textures/StoneNormal.dds" /&gt;
+    &lt;texture unit="environment" name="Textures/Skybox.xml" /&gt;
+    &lt;parameter name="MatSpecColor" value="0.3 0.3 0.3 16" /&gt;
+    &lt;parameter name="MatEnvMapColor" value="0.1 0.1 0.2" /&gt;
+&lt;/material&gt;</code></pre>
+<p>When comparing scenes it’s important to consider the render techniques being used, otherwise the comparison to eg. an Ogre scene can be a bit meaningless. If you use a simpler material, like diffuse or diffuse normalmapped, Urho is able to combine the ambient and first per-pixel light into one pass, in which case the rendering should be more performant. The error is something to look into, as it can potentially erode performance.</p>
+<p>Urho does not use VAO. But in this case I don’t expect it to make a lot of difference, instead the pixel shader &amp; framebuffer blending (memory bandwidth) utilization is likely dominant in the Physics scene.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I see now it makes sense I will try and remove the environment lighting to see how does it affect the performance.<br/>
+Is there a particular reason why Urho3d is not using VAO on mobile ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The reason is that Urho’s OpenGL renderer is based on OpenGL 2.0 with a few minimal extensions, and it was mapped to OpenGL ES as closely as possible. If I understand right it would be an extension on ES.</p>
+<p>Some people have been working on modern OpenGL, see for example <a href="https://github.com/boberfly/Urho3D/tree/moderngl">github.com/boberfly/Urho3D/tree/moderngl</a> but there is no specific timeline for bringing this to the mainline Urho, because in doing that we will have to ensure that things don’t break, and preferably support for old OpenGL versions should also be kept. (I believe the fork/branch in question just “overwrites” old GL support)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I think the combination of VAO with VBO are a must for optimal performance on Opengl ES . The majority of mobile devices support OpenGL ES 2.0 which supports both VAO and VBO .<br/>
+I think this is a tutorial toward OpenGL 3 but it looks similar to the ES api: <a href="https://www.opengl.org/wiki/Tutorial2:_VAOs,_VBOs,_Vertex_and_Fragment_Shaders_(C_/_SDL)" rel="nofollow noopener">opengl.org/wiki/Tutorial2:_ … s_(C_/_SDL</a><br/>
+This one might be more IOS specific: <a href="https://developer.apple.com/library/ios/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/TechniquesforWorkingwithVertexData/TechniquesforWorkingwithVertexData.html" rel="nofollow noopener">developer.apple.com/library/ios … xData.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Ok, have tested 11_Physics on iPad2. Shadow receiver rendering, which induces a dependent texture read in the “high quality” shadow mode, and environment mapping of up close boxes bring the performance down to about 20 FPS or even lower depending of how much screen space they fill (seems totally pixel shader bound.) Switching to Diff.xml technique for the boxes, and turning off shadows allows to run at 50-60 FPS, also when the rigidbodies are awake. Physics takes about 5 ms per frame when under load (when the whole stack is awake) and about 0.5 ms when objects are at rest. It’s not ideal, but not worrying either. In conclusion I don’t see any unexpected performance problems on iOS.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Nice <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/> I will able to test it as well when I get home .   Do you know if anyone is working on more specific IOS OpenglES implementation or I will have to pursue that road alone ?<br/>
+Is the Opengl ES currently unified or there is an option to be more modular like in Irrlicht drivers extensions  which are completely separated from the core engine itself ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I’m not aware of OpenGL ES specific work. The renderer code is fairly monolithic, so you would be looking at Urho core changes to the Graphics class, which manages low-level rendering and the extensions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I have set all the materials in the example to:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>My FPS went from 22 to 27. I tried even removing the materials it is was almost the same tops at around 30. If I look only at the sky it goes 50+ if I look at the ground it drops there something really weird as I just ran my Ogre example and it runs on over 55+ FPS . I am doing all my tests on Iphone 4 it is quite old but still should get the job done. I have completely disabled physics in these tests so we are looking at rendering only.<br/>
+If you can share you project I can run it on the same device and compare if I am not doing something wrong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I produce projects with unmodified CMake batch files from latest master branch so I don’t think there’s value in sharing them.</p>
+<p>There’s nothing weird I believe. It simply looks like that the rendering of the objects (stone material with Diff technique) is still too heavy for your hardware to cope with, while the sky, as it’s a very simple unlit shader, is simple enough to yield better performance. Probably the Ogre scene you compare to is rendering everything with a minimally simple shader.</p>
+<p>Even the shader used by the Diff.xml technique is quite complex, and the physics scene has a per-pixel directional light being applied to the objects. You could try switching the light to per-vertex mode. See Light::SetPerVertex().</p>
+<p>Generally, to optimize performance you will sooner or later have to dig into the shaders for yourself. In this case the poor performance has nothing to do with eg. missing VAO support, just pixel shaders being too complex for your hardware.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>As I did a test where I removed the materials from the objects is the Diff.xml still valid in this case.<br/>
+I will try to port the same shaders from Ogre3d to Urho3d and it see how it goes.<br/>
+One question though how does the OpenGL to OpenGL ES conversion happens I couldn’t figure that out.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The untextured default material uses NoTexture.xml instead of Diff.xml, which still maps to the same LitSolid shader minus one texture read for the diffuse texture. The lighting calculations are quite the same (= heavy)</p>
+<p>You’ll see things that are done differently for OpenGL ES by checking for specific defines:<br/>
+in the Urho .cpp code, <span class="hashtag">#ifdef</span> GL_ES_VERSION_2_0<br/>
+in the shader GLSL code, <span class="hashtag">#ifdef</span> GL_ES</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks is there an easy way of using custom shaders. I couldn’t find much information in the docs. I guess they have to be exposed as parameters in the material system.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>There is no concept of custom shaders, just shaders. The documentation is not the most detailed, but the idea is that you are free to define your own material techniques, which reference your own shaders. Something like the LitSolid shader is not ever referenced by hardcoded engine code. There are some conventions however that you need to follow if you want things like forward per-pixel lighting to work properly. See <a href="http://urho3d.github.io/documentation/HEAD/_rendering.html">urho3d.github.io/documentation/H … ering.html</a> page.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Maybe as a quicker test is there a shader I can set for simple textured surface without any diffuse or specular calls ? And I will remove the light from the scene might be causing issues as well.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Take a look at the DiffUnlit.xml or NoTextureUnlit.xml techniques. They should be just as cheap as the sky shader.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>Thanks a lot I removed the light and set the shaders to DiffUnlit.xml and it is a lot better it is around 50+ it is comparable to what Ogre gives.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

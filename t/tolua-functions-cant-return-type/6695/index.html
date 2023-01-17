@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Tolua++, functions can&rsquo;t return [type]*&amp;</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Tolua++, functions can&rsquo;t return [type]*&amp;</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lys0gen</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I know this isn’t directly related to Urho3D but since tolua++ has no community, information about it is sparse and is contained as a third party tool I figured maybe someone here knows how to fix my problem.</p>
+<p>So the issue is following: I am binding std::vector (Urho3D::Vector would have the same issue) with a bunch of classes. For normal types and objects this works, but for a reason I don’t understand binding pointer types is not allowed as the return value of some methods would then be [type]*&amp;.</p>
+<p>E.g. my .pkg binding file is this:</p>
+<pre><code>$using namespace std;
+typedef int					size_type;
+
+class vector
+{
+	TOLUA_TEMPLATE_BIND(T, 	int, string, double, int*)
+
+	size_type size();
+	size_type max_size();
+	size_type capacity();
+
+	bool empty();
+
+	void reserve(size_type __n);
+	void clear();
+
+	T&amp; operator[](size_type __n);
+
+	T&amp; front();
+	T&amp; back();
+
+	void push_back(T __x);
+	void pop_back();
+};
+</code></pre>
+<p>When trying to generate the bindings with tolua++ I then get the following error:</p>
+<hr/>
+<p>**<em>curr code for error is int</em>&amp; front();</p>
+<p>stack traceback:<br/>
+[string “tolua embedded: lua/basic.lua”]:57: in function ‘tolua_error’<br/>
+[string “tolua: embedded Lua code 23”]:5: in main chunk</p>
+<p>** tolua internal error: [string “tolua embedded: lua/declaration.lua”]:368: <span class="hashtag">#invalid</span> function return type: int*&amp; front.</p>
+<p>stack traceback:<br/>
+[string “tolua: embedded Lua code 23”]:6: in main chunk</p>
+<hr/>
+<p>Now I’m kind of wondering <em>why</em> that is. Returning a reference to a pointer should be perfectly valid?</p>
+<p>With a bit of digging I found the lines responsible here:</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/44220053a992aa574fa0aa6de3f47ef06b339346/Source/ThirdParty/toluapp/src/bin/lua/declaration.lua#L470</a></h4>
+<pre class="onebox"><code class="lang-lua"><ol class="start lines" start="460" style="counter-reset: li-counter 459 ;">
+<li>else</li><li>	tmpdef = ''</li><li>end</li><li>if kind == "var" then</li><li> -- check the form: void</li><li> if s == '' or s == 'void' then</li><li>  return _Declaration{type = 'void', kind = kind, is_parameter = is_parameter}</li><li> end</li><li>end</li><li></li><li class="selected">-- check the form: mod type*&amp; name</li><li>local t = split_c_tokens(s,'%*%s*&amp;')</li><li>if t.n == 2 then</li><li> if kind == 'func' then</li><li>  error("#invalid function return type: "..s)</li><li> end</li><li> --local m = split(t[1],'%s%s*')</li><li> local m = split_c_tokens(t[1],'%s+')</li><li> return _Declaration{</li><li>  name = t[2]..tmpdef,</li><li>  ptr = '*',</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Although I can’t seem to adjust anything in this file, I’ve made a fresh Urho3D repository, commented out that line and built everything but for some reason that error still keeps appearing - that part seems to be cached somewhere regardless of a fresh install?</p>
+<p>Anyone have an idea why?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

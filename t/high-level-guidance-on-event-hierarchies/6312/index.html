@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>High-level guidance on event hierarchies</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">High-level guidance on event hierarchies</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>Today I am studying the overall structure of RunFrame(). Here is what I found, i.e. more or less everything the engine will or might do.</p>
+<pre><code class="lang-auto">- RunFrame
+	- Timer::BeginFrame		//sends out the E_BEGINFRAME event, signaling the beginning of the frame
+	- E_BEGINFRAME
+		- Workqueue::HandleBeginFrame()
+		- Input::HandleBeginFrame()
+		- FileSystem::HandleBeginFrame()
+		- Network::Update()
+		- ResourceCache::HandleBeginFrame()
+		- UI::HandleBeginFrame()				//for resetting cursor each frame
+
+		note: the timer sets the event data that is passed to all 'RunFrame' updates
+			- frame number: which frame is beginning
+			- time step: how long ago did the previous frame start
+
+	- PlayAudio				//turns on audio if engine turned it off in the previous frame, or if we went from minimized-&gt;full mode
+				
+	- Update 				//sends out a series of update events that organize update workflow
+		- E_UPDATE
+			- Scene::Update()
+			- Material::HandleAttributeAnimationUpdate() 	//sometimes, not clear what situations
+		- E_POSTUPDATE
+		- E_RENDERUPDATE
+			- Audio::Update()
+			- Octree::Update()				//when in headless mode, manually update Octree
+			- Renderer::Update()
+			- Network::PostUpdate()
+			- UI::RenderUpdate()
+		- E_POSTRENDERUPDATE
+
+	- Render 				//render the application to screen
+		- Graphics::BeginFrame()
+		- Renderer -&gt; Render()
+		- UI -&gt; Render()
+		- Graphics::EndFrame()
+
+	- ApplyFrameRateLimit 	//timing magic
+		- normal: the engine has a 'FrameTimer' that times frames... at engine initialization the timer is started, and then at the end of the first frame it is reset; the recorded value is the 'time step' between frames; at the same point in each frame the timer gets reset, ensuring very minimal clock losses; the actual gap between resetting the timer and the next 'E_BEGINFRAME' event should be on the order of nanoseconds unless the E_ENDFRAME event is abused by the programmer
+		- real frame rate exceeds max frame rate: the minimum gap between frames hasn't been reached, so a real-time delay is inserted
+		- real frame rate is below min frame rate: the maximum gap between frames has been exceeded; since it isn't possible to speed up the program execution, the frame rate is artificially slowed down; in other words, the time step is lowered to the max gap between frames; for example, even though 5 seconds have passed in the world, only 4 seconds will be recorded as elapsing in the program's world; in effect, the program will enter slow motion
+
+		note: by default the time step recorded is a moving average of real timesteps, presumably as a low-pass filter on frame rates to mitigate jitter; however, I suspect when frame rates increase rapidly then the in-game physics will slow down, and vice versa
+
+	- Timer::EndFrame		//sends out the E_ENDFRAME event, signaling the end of the frame
+		- E_ENDFRAME
+			- Graphics::DebugRenderer()
+			- Input::HandleEndFrame() 		// only for 'EMSCRIPTEN' builds
+			- Log::HandleEndFrame()
+</code></pre>
+<p>From what I can tell, ‘first to subscribe is first to respond on event send; sender-specific responses all go before generic responses (objects only respond once to an event, and sender-specific responses will take precedence over general responses if the object has multiple subscriptions to the same event with different senders [or no sender])’ according to the use of <code>EventReceiverGroup</code>. This means in the main update cycle, if a scene was initialized before any application objects subscribed to <code>E_UPDATE</code>, the scene will respond to <code>E_UPDATE</code> first before those other subscribers. Of course, a scene can technically be initialized anywhere.</p>
+<p>I suppose my question is about best practices around order sequences of responses. If order matters, is it best to use different events that are sent sequentially? Should I assume all responses to an event could be randomly sequenced? Is there ever a situation where it is reasonable to use subscription order to control response order?</p>
+<p>I’d love to hear anyone’s thoughts on how to fit the structure of an application into the engine’s workflow.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6312" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<p>If order matters, is it best to use different events that are sent sequentially?</p>
+</blockquote>
+</aside>
+<p>Yes. You may need to add some intermediate events if existing are not enough.<br/>
+I wish we had something like update graph for both scene and global subsystems, but we don’t.</p>
+<aside class="quote no-group" data-post="1" data-topic="6312" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<p>Should I assume all responses to an event could be randomly sequenced?</p>
+</blockquote>
+</aside>
+<p>Yes. Order may or may not be preserved now, but it is not reliable behaviour.</p>
+<aside class="quote no-group" data-post="1" data-topic="6312" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<p>Is there ever a situation where it is reasonable to use subscription order to control response order?</p>
+</blockquote>
+</aside>
+<p>You better not.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Thanks <span class="mention">@Eugene</span>. I was also wondering, it seems some engines implement a fixed-timestep internal loop within the frame loop for more streamlined physics. Is there a reason Urho3D did not implement that internal loop? I suppose it wouldn’t be unreasonably hard to implement one locally if necessary.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Bullet physics implements fixed step loop internally and Urho reuses it via events.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Maybe this is a dumb question… it seems like most or all event handlers are implemented like this:</p>
+<pre><code class="lang-auto">void HandleEvent(StringHash eventType, VariantMap &amp;eventData);
+</code></pre>
+<p>I’m wondering why is eventData not made <code>const</code>? If order-based event handling isn’t safe, then there shouldn’t be any situation where modifying <code>eventData</code> is safe or sensical. So, it would seem to want <code>const</code> always. Except maybe to pass information back to the sender… but even so that would be a rare exception for removing <code>const</code>, not a standard practice.</p>
+<p>EDIT: Apparently <code>operator[]() const</code> for <code>HashMap</code> returns a pointer, while non-const returns a reference. Either way it is write access…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<ol>
+<li>It is <em>impossible</em> to implement safe <code>operator []</code> for constant dictionary in C++, if it returns value (=not pointer/optional/whatever). And value access via <code>[]</code> is convinient in most scenarios.</li>
+<li>If you know there is only one event recepient, it’s fine to return values via event data.</li>
+<li>Even if you know there may be multiple event recepients, it’s fine to return values via event data, as long as you know what you are doing.</li>
+<li>And (1) or (2) is basically the only way you can possibly get feedback from event if you need it.</li>
+</ol>
+<p>It pretty much forces events to accept mutable event data.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

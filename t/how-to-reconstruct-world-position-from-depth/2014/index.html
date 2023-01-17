@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to reconstruct world position from depth?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to reconstruct world position from depth?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I have rendered viewport and depth texture:</p>
+<p>I try</p>
+<pre><code class="lang-auto">void PS()
+{
+    vec4 depthInput = texture2D(sDepthBuffer, vTexCoord);
+    #ifdef HWDEPTH
+       float depth = ReconstructDepth(depthInput.r);
+    #else
+        float depth = DecodeDepth(depthInput.rgb);
+    #endif
+    
+    vec4 H = vec4(vTexCoord.x * 2 - 1, vTexCoord.y * 2 - 1, depth, 1);
+    vec4 D = H * cViewProjInv;
+    vec4 worldPos = D / D.w;
+    
+    // TEST - TRANSFORM BACK
+    vec4 clipPos = worldPos * cViewProj;
+    vec2 textureCoord = vec2(clipPos.x / clipPos.w * 0.5 + 0.5, clipPos.y / clipPos.w * 0.5 + 0.5);
+
+    gl_FragColor = vec4(texture2D(sDiffMap, textureCoord).rgb, 1);
+}</code></pre>
+<p>but it does not works. What is wrong?</p>
+<p><code>    Matrix4 viewProj = camera.projection * camera.view;
+    renderPath.shaderParameters["ViewProjInv"] = Variant(viewProj.Inverse());
+    renderPath.shaderParameters["ViewProj"] = Variant(viewProj);
+</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I’d recommend following/copying what the deferred light shaders (DeferredLight, PrepassLight) do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[code]<span class="hashtag">#include</span> “Uniforms.glsl”<br/>
+<span class="hashtag">#include</span> “Samplers.glsl”<br/>
+<span class="hashtag">#include</span> “Transform.glsl”<br/>
+<span class="hashtag">#include</span> “ScreenPos.glsl”</p>
+<p><span class="hashtag">#ifdef</span> COMPILEPS<br/>
+uniform mat4 cViewProjInv;<br/>
+uniform mat4 cPrevViewProj;<br/>
+uniform mat4 cViewProj;<br/>
+uniform float cTimeStep;<br/>
+<span class="hashtag">#endif</span></p>
+<p>varying vec3 vFarRay;<br/>
+varying vec4 vScreenPos;<br/>
+varying vec4 vGBufferOffsets;</p>
+<p>void VS()<br/>
+{<br/>
+mat4 modelMatrix = iModelMatrix;<br/>
+vec3 worldPos = GetWorldPos(modelMatrix);<br/>
+gl_Position = GetClipPos(worldPos);<br/>
+vScreenPos = GetScreenPos(gl_Position);<br/>
+vFarRay = GetFarRay(gl_Position) * gl_Position.w;<br/>
+vGBufferOffsets = cGBufferOffsets;<br/>
+}</p>
+<p><span class="hashtag">#line</span> 0<br/>
+void PS()<br/>
+{<br/>
+<span class="hashtag">#ifdef</span> HWDEPTH<br/>
+float depth = ReconstructDepth(texture2DProj(sDepthBuffer, vScreenPos).r);<br/>
+<span class="hashtag">#else</span><br/>
+float depth = DecodeDepth(texture2DProj(sDepthBuffer, vScreenPos).rgb);<br/>
+<span class="hashtag">#endif</span></p>
+<pre><code>vec3 worldPos = vFarRay * depth / vScreenPos.w;
+worldPos += cCameraPosPS;
+
+// TEST - TRANSFORM BACK
+vec4 clipPos = vec4(worldPos, 1.0) * cViewProj;
+vec4 textureCoord = vec4(clipPos.x * vGBufferOffsets.z + vGBufferOffsets.x * clipPos.w,
+                         clipPos.y * vGBufferOffsets.w + vGBufferOffsets.y * clipPos.w,
+                         0.0, clipPos.w);
+
+gl_FragColor = vec4(texture2D(sDiffMap, textureCoord.xy).rgb, 1);
+//gl_FragColor = vec4(texture2D(sDiffMap, vScreenPos.xy).rgb, 1);
+</code></pre>
+<p>}<br/>
+[/code]</p>
+<p>I copy it, but I still can not restore texture coords after calculation <img alt=":frowning:" class="emoji" src="../../../images2/c383444e3b50f1554d2f21c7c206ca52.png" title=":frowning:"/></p>
+<p><a data-bbcode="true" href="http://savepic.ru/9727912.htm"><img alt="" height="" src="../../../images2/a1f43ccf5500985e636df68dcedf5ea6.png" width=""/></a><br/>
+<a data-bbcode="true" href="http://savepic.ru/9728936.htm"><img alt="" height="" src="../../../images2/a65b5176059fac54bdae3831d6c1158d.png" width=""/></a></p>
+<p>I need it for motion blur shader <a href="http://http.developer.nvidia.com/GPUGems3/gpugems3_ch27.html">http.developer.nvidia.com/GPUGem … _ch27.html</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Maybe I incorrect declare a parameters for matrix?</p>
+<p><code>&lt;renderpath&gt;
+    &lt;command type="quad" tag="MotionBlur" vs="MotionBlur" ps="MotionBlur" output="viewport"&gt;
+        &lt;texture unit="diffuse" name="viewport" /&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+        &lt;parameter name="ViewProjInv" value="0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0" /&gt;
+        &lt;parameter name="PrevViewProj" value="0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0" /&gt;
+        &lt;parameter name="Proj" value="0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0" /&gt;
+        &lt;parameter name="ViewProj" value="0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0" /&gt;
+        &lt;parameter name="TimeStep" value="0.0" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;
+</code></p>
+<p>I think so because</p>
+<p>It works:</p>
+<pre><code class="lang-auto">    vec4 worldPos = clipPos * inverse(cViewProj);
+
+    // restore
+    vec4 prevClipPos = worldPos * cViewProj;
+    vec2 textureCoord = prevClipPos.xy * 0.5 + 0.5;</code></pre>
+<p>but it does not works</p>
+<pre><code class="lang-auto">    vec4 worldPos = clipPos * cViewProjInv;
+
+    // restore
+    vec4 prevClipPos = worldPos * cViewProj;
+    vec2 textureCoord = prevClipPos.xy * 0.5 + 0.5;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you set the renderpath command shader parameter yourself in code later, the value defined in the xml shouldn’t matter, but matrix parameter types should be supported anyway in loading.</p>
+<p>One thing to remember is that during fullscreen quad rendering in the renderpath the cViewProj uniform is set to an identity matrix, to avoid possible trouble due to transform inaccuracy, and to also allow rendering quad-only renderpaths without any camera.</p>
+<p>I’ll test this myself and report back.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>One thing to remember is that during fullscreen quad rendering in the renderpath the cViewProj uniform is set to an identity matrix, to avoid possible trouble due to transform inaccuracy, and to also allow rendering quad-only renderpaths without any camera.</p>
+</blockquote>
+</aside>
+<p>Ah, ok. I send viewProj manually and it works!</p>
+<p>[code]    vec4 worldPos = clipPos * cViewProjInv;</p>
+<pre><code>// test
+vec4 prevClipPos = worldPos * cMyViewProj;
+
+vec2 textureCoord = prevClipPos.xy * 0.5 + 0.5;
+</code></pre>
+<p>[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Could add a parameter to the quad command so that the real cViewProj can optionally be used.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

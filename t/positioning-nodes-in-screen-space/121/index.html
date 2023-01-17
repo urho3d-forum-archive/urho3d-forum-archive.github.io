@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Positioning nodes in screen space</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Positioning nodes in screen space</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kingsley</div>
+          <div class="post_content">
+<p>I’m trying to position objects in the world based on screen position. Camera’s ScreenToWorldPoint seemed like it’d do the trick, but it appears to be misbehaving.<br/>
+It claims to “Convert normalized screen coordinates (0.0 - 1.0) and depth to a world space point.”, but when I run the following code:</p>
+<pre><code class="lang-auto">    // This line should set the cube in the very top-left corner of the screen. Or not?
+    Vector3 playerPos = camera-&gt;ScreenToWorldPoint(Vector3(0, 0, 20));
+    cubeNode_-&gt;SetPosition(playerPos);</code></pre>
+<p>When screen height is 800 and width is 600:<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/m2chHaA.png" rel="nofollow noopener" title=""><img alt="" height="431" src="../../../images2/284803f254d8f5a1033d6fd587cb38c4.png" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1280×800</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>When screen height is 800 and width is 200:<br/>
+<div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/PMv2ns3.png" rel="nofollow noopener" title=""><img alt="" height="431" src="../../../images2/be597feba3421164e09309f8d8c9038a.png" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1280×800</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>Camera is orthographic, of course. Am I doin’ it right? :V</p>
+<p>Here’s the <a data-bbcode="true" href="https://dl.dropboxusercontent.com/s/vb1mtvrkh20cmbe/ScreenSpacePositioning.zip" rel="nofollow noopener">code</a> I used, for your perusal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>It’s most likely related to the fact that you never call Camera::SetOrthoSize() or camera:SetAspectRatio() after creating it, so the internal aspectRatio_ member is still 1.0. The aspect ratio is necessary to indicate the ratio between width and height, and if it is 1 then the reverse projection code thinks that the screen is square shaped.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Yeah, like JTippetts said, it’s the aspect ratio. By default cameras have the autoAspectRatio -mode set, which means they will adjust aspect ratio automatically according to the viewport they’re rendering.</p>
+<p>However, that adjustment doesn’t happen before the camera renders the viewport for the first time! So when you set the node position once on startup, the camera will still have the default square aspect ratio. You can correct this by either setting the aspect ratio manually, or waiting until the viewport has been rendered at least once. In typical cases the mouse would be used to continuously steer an object, in which case it would not be an issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kingsley</div>
+          <div class="post_content">
+<p>Thanks, delaying the initialization until the second frame solves that. However, I want to place objects relative to the screen size when the game starts, and the one-frame delay causes either pop-in or ‘teleporting’ objects, depending on which initialization frame I create the object’s model.</p>
+<p>Assuming there’s no way to force it to detect the aspect ratio before the first frame is rendered, can I at least blank out the first frame so nothing is drawn? I tried graphics-&gt;Clear(CLEAR_COLOR), but it doesn’t seem to have any effect.<br/>
+I could just overlay a black plane in front of the camera, but we’re getting into pretty hacky territory there :I</p>
+<p>Also, why is the scripting API with Start/DelayedStart not carried over to the C++ API? Considering it’s necessary to writing any sort of reusable components, leaving it to the user feels like unnecessary makework.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>It’s easiest that you set the aspect ratio manually to the camera. Get the screen width &amp; height from Graphics subsystem, convert to floats, divide width with height.</p>
+<p>In C++ there are performance considerations. The majority of existing components don’t need to subscribe to the scene update or physics update events, so doing that in the base class would be a potential large waste of CPU time. Unlike script, a base class cannot easily detect whether the derived class implements functions like Update() or FixedUpdate(). However, we could add a “game logic component” base class that would subscribe those events and call your virtual Start(), Update() etc. methods.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In the head revision (it didn’t make it to V1.31) there is now a component called LogicComponent which can be used as a base for updating C++ components. It has Start() / DelayedStart() / Stop() / Update() / PostUpdate() / FixedUpdate() / FixedPostUpdate() virtual functions. By default all update events are subscribed to (perhaps unnecessarily) but there’s a function, SetUpdateEventMask(), which can be used to optimize the subscription.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kingsley</div>
+          <div class="post_content">
+<p>…I could have sworn I tried that. <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/></p>
+<p>Thanks for LogicComponent! One thing I’m noticing though, is it requires SceneUpdate to be subscribed to for DelayedStart to work. That seems like it could be confusing if someone made a component that requires only, say, DelayedStart and FixedUpdate.</p>
+<p>Maybe a delayed initialization subsystem would be a good workaround, something like this? (LogicComponent simplified for clarity).<br/>
+<aside class="onebox githubgist">
+<header class="source">
+<a href="https://gist.github.com/Kingsquee/9401301" rel="nofollow noopener" target="_blank">gist.github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://gist.github.com/Kingsquee/9401301" rel="nofollow noopener" target="_blank">https://gist.github.com/Kingsquee/9401301</a></h4>
+<h5>InitializerQueue.cpp</h5>
+<pre><code class="C++">#include "InitializerQueue.h"
+#include "CoreEvents.h"
+
+InitializerQueue::InitializerQueue(Context *context) :
+	Object(context),
+	useQueue1_(false),
+	firstRun_(true),
+	maxCapacity_(100)
+{
+	queue1.Reserve(maxCapacity_);</code></pre>
+This file has been truncated. <a href="https://gist.github.com/Kingsquee/9401301" rel="nofollow noopener" target="_blank">show original</a>
+<h5>InitializerQueue.h</h5>
+<pre><code class="C++">#pragma once
+
+#include "LogicComponent.h"
+#include "Vector.h"
+
+using namespace Urho3D;
+
+/// Manager class to call delayed initialization functions on LogicComponent classes
+class InitializerQueue : public Object
+{</code></pre>
+This file has been truncated. <a href="https://gist.github.com/Kingsquee/9401301" rel="nofollow noopener" target="_blank">show original</a>
+<h5>LogicComponent.cpp</h5>
+<pre><code class="C++">#include "LogicComponent.h"
+#include "InitializerQueue.h"
+
+LogicComponent::LogicComponent(Context *context) :
+	Component(context)
+{
+
+}
+
+void LogicComponent::OnNodeSet(Node *node)</code></pre>
+This file has been truncated. <a href="https://gist.github.com/Kingsquee/9401301" rel="nofollow noopener" target="_blank">show original</a>
+<p>
+  There are more than three files. <a href="https://gist.github.com/Kingsquee/9401301" rel="nofollow noopener" target="_blank">show original</a>
+</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+An approach like this would also save each component instance from needlessly doing delayedStartCalled_ checks each frame, since only the subsystem does that. Not really a performance issue, but unnecessary work feels unpleasant.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The physics pre-step (before FixedUpdate call) will also call DelayedStart if necessary. I think that for now a note of this is enough.</p>
+<p>EDIT: There were other logic issues in case you would reduce the event mask in the middle of the component’s existence, now those should be fixed and DelayedStart() should be called also with a zero event mask.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Kingsley</div>
+          <div class="post_content">
+<p>Yeah…missed that comment somehow.</p>
+<p>I’m going back to bed.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

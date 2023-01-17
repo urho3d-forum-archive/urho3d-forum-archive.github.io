@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Could not get application preferences directory</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Could not get application preferences directory</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">capelenglish</div>
+          <div class="post_content">
+<p>I have written a bunch of games in C++ and use a python script (subprocess.Popen) to launch them. This has been working just fine for over a year. Just recently, I’ve begun to get the following error when launching a game:</p>
+<pre><code>[Tue Aug 13 08:49:52 2019] INFO: Initialized input
+[Tue Aug 13 08:49:52 2019] INFO: Initialized user interface
+[Tue Aug 13 08:49:52 2019] INFO: Initialized renderer
+[Tue Aug 13 08:49:52 2019] WARNING: Could not get application preferences directory
+[Tue Aug 13 08:49:52 2019] INFO: Set audio mode 44100 Hz stereo interpolated
+[Tue Aug 13 08:49:52 2019] INFO: Initialized engine
+[Tue Aug 13 08:49:52 2019] WARNING: Could not get application preferences directory
+</code></pre>
+<p>It doesn’t always happen, but when it does, my display just shows a grey screen and the game doesn’t come up. The directory</p>
+<pre><code>~/.local/share/urho3d
+</code></pre>
+<p>exits and if I run the game from the command line it works just fine. I have tried setting the userid and groupid using the Popen preexec_fn argument, but that has made no difference. The only thing I can think of is some sort of corrupt file system.</p>
+<p>Does anyone have an idea as to what is going on?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I have no idea, but did you look into the definition of <code>GetAppPreferencesDir()</code>?<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/IO/FileSystem.cpp#L742-L757</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="742" style="counter-reset: li-counter 741 ;">
+<li>String FileSystem::GetAppPreferencesDir(const String&amp; org, const String&amp; app) const
+</li>
+<li>{
+</li>
+<li>    String dir;
+</li>
+<li>#ifndef MINI_URHO
+</li>
+<li>    char* prefPath = SDL_GetPrefPath(org.CString(), app.CString());
+</li>
+<li>    if (prefPath)
+</li>
+<li>    {
+</li>
+<li>        dir = GetInternalPath(String(prefPath));
+</li>
+<li>        SDL_free(prefPath);
+</li>
+<li>    }
+</li>
+<li>    else
+</li>
+<li>#endif
+</li>
+<li>        URHO3D_LOGWARNING("Could not get application preferences directory");
+</li>
+<li>
+</li>
+<li>    return dir;
+</li>
+<li>}
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">capelenglish</div>
+          <div class="post_content">
+<p>I did. I also looked at SDL_GetPrefPath.</p>
+<pre><code>const char *envr = SDL_getenv("XDG_DATA_HOME");
+</code></pre>
+<p>so I ran</p>
+<pre><code>env | grep XDG
+</code></pre>
+<p>and got</p>
+<pre><code>XDG_SESSION_ID=2
+XDG_DATA_DIRS=/usr/local/share:/usr/share:/var/lib/snapd/desktop
+XDG_RUNTIME_DIR=/run/user/1000
+</code></pre>
+<p>obviously, I don’t have XDG_DATA_HOME defined. I’m not sure where this env should point since it has never been defined in the past…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Maybe this is useful then?<br/>
+<aside class="onebox stackexchange">
+<header class="source">
+<a href="https://askubuntu.com/questions/157722/setting-xdg-data-dirs-and-xdg-data-home" rel="nofollow noopener" target="_blank">askubuntu.com</a>
+</header>
+<article class="onebox-body">
+<a href="https://askubuntu.com/users/43484/user43484" rel="nofollow noopener" target="_blank">
+<img alt="user43484" class="thumbnail onebox-avatar" height="128" src="https://www.gravatar.com/avatar/758d6c5bb9de0604c4c2e5bce525a768?s=128&amp;d=identicon&amp;r=PG" width="128"/>
+</a>
+<h4>
+<a href="https://askubuntu.com/questions/157722/setting-xdg-data-dirs-and-xdg-data-home" rel="nofollow noopener" target="_blank">setting XDG_DATA_DIRS and XDG_DATA_HOME</a>
+</h4>
+<div class="tags">
+<strong>12.04, unity, 64-bit, environment-variables</strong>
+</div>
+<div class="date">
+  asked by
+  
+  <a href="https://askubuntu.com/users/43484/user43484" rel="nofollow noopener" target="_blank">
+    user43484
+  </a>
+  on <a href="https://askubuntu.com/questions/157722/setting-xdg-data-dirs-and-xdg-data-home" rel="nofollow noopener" target="_blank">07:03PM - 29 Jun 12 UTC</a>
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

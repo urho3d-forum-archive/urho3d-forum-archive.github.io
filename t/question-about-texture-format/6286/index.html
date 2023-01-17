@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Question about texture format</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Question about texture format</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p><strong>TL;DR:</strong><br/>
+I notice there is <code>format_</code> member for <code>Texture</code> class. This should be the value we set like <code>GL_RGB</code> texture format for OpenGL.<br/>
+Since <code>format_</code> is just <code>unsigned</code>, I was wondering the mapping relation between the <code>integer</code> and different OpenGL texture format <code>GL_XXXX</code>. I searched the Urho3D source code but could not find anything.<br/>
+I only found it’s only been set in</p>
+<pre><code class="lang-auto">bool Texture2D::SetSize(int width, int height, unsigned format, TextureUsage usage, int multiSample, bool autoResolve)
+</code></pre>
+<p>functions.</p>
+<p>I noticed the opengl <code>texture</code> function returns color as <code>float [0.0, 1.0]</code>. I wonder if there is any <code>format_</code> setting that I could directly use the raw 8 bit data, e.g. <code>integer [0, 255]</code>.</p>
+<p><strong>=====================================================</strong><br/>
+<strong>Background</strong><br/>
+I am using the default texture unit 0 for my heightmap terrain texture.</p>
+<p>When I generate the texture image, I simply do:</p>
+<pre><code class="lang-auto">const float height = GetHeightFromSource(x, y);
+const int16_t height_16bit = static_cast&lt;int16_t&gt;(height);
+const unsigned char r = height_16bit &gt;&gt; 8;
+const unsigned char g = height_16bit &amp; 0xFF;
+</code></pre>
+<p>Notice I have <strong>negative values in my heightmap</strong>. This is not a problem since we can deal with it when decode the texture. And I verified it works as expected.</p>
+<pre><code class="lang-auto">Height height = (R &lt;&lt; 8) + G;
+</code></pre>
+<p>Now when I use this texture image in opengl vertex shader for heightmap displacement.<br/>
+I noticed the opengl <code>texture</code> function returns color as <code>float [0.0, 1.0]</code>. That’s fine since we can always map back to <code>integer [0, 255]</code>.<br/>
+I can either simply do</p>
+<pre><code class="lang-auto">int height = int(r * 255) * 256 + int(g * 255);
+</code></pre>
+<p>or as someone on stackoverflow mentioned:</p>
+<pre><code class="lang-auto">int r = int(floor(r &gt;= 1.0 ? 255 : r * 256.0));
+int g = int(floor(g &gt;= 1.0 ? 255 : g * 256.0));
+</code></pre>
+<p>As for negative values, unfortunately we don’t have bit manipulation in shader but that’s not a problem.<br/>
+I can do</p>
+<pre><code class="lang-auto">vec2 heights = texture(sHeightMap0, texCoord).rg;
+if (heights.r &gt;= 0.5) {
+    return ((int(heights.r * 255) * 256  + int(heights.g * 255)) - 256 * 256) * scale;
+} else {
+    return (heights.r * 256 + heights.g) * 256 * scale;
+}
+</code></pre>
+<p>I thought this is correct.<br/>
+For example, for <code>height = -1</code>, we encode into <code>R = 1111 1111</code>, <code>G = 1111 1111</code>.<br/>
+So in shader we get: <code>heights.r = 1.0, heights.g = 1.0</code>.<br/>
+Then we should get <code>-1 * scale</code> as the final result.</p>
+<p><strong>However, there are many sharp spikes in my terrain for those negative value regions.</strong></p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="image"><img alt="image" data-base62-sha1="jf25oD0GnvKMCSGBPmbG0Rmk2B2"  height="500" src="../../../images2/acfe050d1b2293bbb86ffb7e69c0f56a.jpeg"  width="674"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">image</span><span class="informations">2046×1516 1.05 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p><strong>I verified those height raw values and calculated them using my formula, everything should be correct.</strong><br/>
+<strong>This does not make any sense to me unless I’ve made some stupid mistakes somewhere?</strong></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Ah, yes, it’s a stupid mistake!<br/>
+It’s because the default <strong><code>TextureFilterMode</code></strong>.</p>
+<p>I spent the whole afternoon debugging this and did not realize it until I clicked the <code>Create Topic</code> button.<br/>
+<img alt=":rofl:" class="emoji only-emoji" src="../../../images2/b8e55af518619a978b88eeaeaca19aa3.png" title=":rofl:"/></p>
+<p>But the original question is still valid:<br/>
+Since  <code>format_</code>  is just  <code>unsigned</code> , I was wondering the mapping relation between the  <code>integer</code>  and different OpenGL texture format  <code>GL_XXXX</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="6286" data-username="UrhoIsTheBest">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d75d27d5d93b2fc4395b4ba685be6335.png" width="20"/> UrhoIsTheBest:</div>
+<blockquote>
+<p>I was wondering the mapping relation between the <code>integer</code> and different OpenGL texture format <code>GL_XXXX</code></p>
+</blockquote>
+</aside>
+<p>It should be 1-to-1. Meaning that the <code>integer</code> <em>is</em> OpenGL texture format <code>GL_XXXX</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Right, but I was wondering the exact mapping, like which integer means GL_RGB, and 0 -&gt; GL_XXXX, 1 -&gt; GL_YYYY, 2 -&gt; GL_ZZZZ, etc.<br/>
+I briefly checked the opengl online documentation, I can only find all those GL_XXXX description, but could not related to the raw integer value (e.g. could not find the source enum definition).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>You can find OpenGL header somewhere in your system or find it online, if you need exact numbers for some reason.</p>
+<p>This one may work, even tho it’s OSX<br/>
+<a class="onebox" href="https://opensource.apple.com/source/X11server/X11server-85/libGL/AppleSGLX-57/specs/enum.spec" rel="nofollow noopener" target="_blank">https://opensource.apple.com/source/X11server/X11server-85/libGL/AppleSGLX-57/specs/enum.spec</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

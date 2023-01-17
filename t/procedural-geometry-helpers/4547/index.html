@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Procedural Geometry Helpers</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Procedural Geometry Helpers</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>I’ve dumped off a bunch of my procedural geometry helpers:</p>
+<p><a class="onebox" href="https://github.com/JSandusky/Urho3DProcGeom" rel="nofollow noopener" target="_blank">https://github.com/JSandusky/Urho3DProcGeom</a></p>
+<p>Highlights are lofts, lathes, Carve-CSG, and a bunch of miscellaneous helpers ranging from dumping UV chart images to calculating normals.</p>
+<p>Even just the basics of working with Carve should be useful for someone.</p>
+<hr/>
+<p>I use it to do stuff like this:</p>
+<p><img alt="image" height="368" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/d/d840d42d77917045da9e2b03ff6dd66ef6e39252.png" width="690"/></p>
+<p><img alt="image" height="368" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/5/55be436cf02768d9a6f1fed0d592af2003c45b83.png" width="690"/></p>
+<p>In those images I’m using <code>LoftSpine</code> and <code>Lathe</code> to take the 2d half-edge of a <a href="http://doom.wikia.com/wiki/UDMF" rel="nofollow noopener">UDMF</a> map (Doom2 Map01 here) and refine it. These are just old test shots so they’re naive (seam issues).</p>
+<hr/>
+<p>Laplace stuff is a WIP, wasn’t as easy to port over as I’d hoped (rigidly defined vs undefined vertex structure). There’s a <a href="https://cehelp.esri.com/help/index.jsp?topic=/com.procedural.cityengine.help/html/manual/cga/basics/toc.html" rel="nofollow noopener">CGA</a>-like volume grammar that I’m sorting out the license issues with which I’ll toss in there later if that goes well.</p>
+<p>The dependencies (ParShapes, Carve, LibIGL, and Eigen) aren’t included in the repo and it’s assumed you’ll know how to set them up as a litmus test. It’s really all just <em>dump-code</em> that you can lift as desired though.</p>
+<p>IGL and Eigen aren’t strictly required.</p>
+<p>If something doesn’t work, or you can’t figure out how to set it up to build, ask away.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Thanks for this. I’ve been getting an itch to do some more procedural building gen, so this’ll give me a jumping off point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p><span class="mention">@JTippetts</span>, I wouldn’t trust anything too much. I’m not sure how much I’ve hacked on what since the last time I tested any of it (a lot of my proc-gen I do in monogame and then export). Everything should be <em>close</em> when it doesn’t work though.</p>
+<p>I’m hoping to get around to making sure everything still does what it says it does this weekend.</p>
+<hr/>
+<p>Bone-weight calculation is almost finished, just need to finalize what to do with the calculated weights and then verify the port works.</p>
+<p>Can do <a href="http://www.mit.edu/~ibaran/autorig/index.html" rel="nofollow noopener">Pinnochio heat-weights</a> and <a href="https://web.cse.msu.edu/~cse872/papers_files/BoneGlowImprovedWeightAssignment.pdf" rel="nofollow noopener">Bone-Glow</a> which treats bones like a light-filament.</p>
+<p>If you’re curious how not-crazy that is:</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/JSandusky/Urho3DProcGeom/blob/master/ProcGeom/Laplace.cpp" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/JSandusky/Urho3DProcGeom/blob/master/ProcGeom/Laplace.cpp" rel="nofollow noopener" target="_blank">JSandusky/Urho3DProcGeom/blob/master/ProcGeom/Laplace.cpp</a></h4>
+<pre><code class="lang-cpp">#include &lt;Urho3D/Graphics/Geometry.h&gt;
+#include &lt;Urho3D/Graphics/IndexBuffer.h&gt;
+#include &lt;Urho3D/ProcGeom/kdTree.h&gt;
+#include &lt;Urho3D/ProcGeom/Laplace.h&gt;
+#include &lt;Urho3D/IO/Log.h&gt;
+#include &lt;Urho3D/Graphics/Skeleton.h&gt;
+#include &lt;Urho3D/Graphics/VertexBuffer.h&gt;
+
+#include &lt;ThirdParty/igl/cotmatrix.h&gt;
+#include &lt;ThirdParty/igl/massmatrix.h&gt;
+#include &lt;ThirdParty/igl/mat_min.h&gt;
+#include &lt;ThirdParty/igl/normalize_row_sums.h&gt;
+
+#define BONE_GLOW_ITERATIONS 6
+#define BONE_GLOW_ITERATION_WEIGHT (1.0f / BONE_GLOW_ITERATIONS)
+
+namespace Urho3D
+{
+    struct BoneSegment
+    {
+</code></pre>
+
+  This file has been truncated. <a href="https://github.com/JSandusky/Urho3DProcGeom/blob/master/ProcGeom/Laplace.cpp" rel="nofollow noopener" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Speed-wise, my other implementation takes ~2 seconds to compute weights for a 5k vertex mesh (includes C++/CLI overhead and converting all data from MonoGame -&gt; MathGeoLib and-back) - bone-glow is 6x slower (or more if the iteration steps are changed).</p>
+<p>No idea what anyone else would ever use it for (Spore-clones and jacked-up-character-designers I guess) but it’s a handy tool to have around, bone-weighting some voxel seaweed or something so it can sway.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Minor additions of late:</p>
+<ul>
+<li>
+<a href="https://github.com/JSandusky/Urho3DProcGeom/blob/master/ProcGeom/TexCoords.cpp" rel="nofollow noopener">DX UV-Atlas tex-coord generation and planar coords</a>
+<ul>
+<li>Requires Windows (DirectX math + a lot of the windows specific macros for usage specification and SDLC that are spread throughout the library)</li>
+</ul>
+</li>
+<li>
+<a href="https://github.com/JSandusky/Urho3DProcGeom/blob/master/ProcGeom/MarchingTriangles.h" rel="nofollow noopener">Malfunctioning marching triangles</a>
+<ul>
+<li>roughly based on Araujo: <a href="http://www.cs.toronto.edu/~brar/blobmaker/ISpoligonization.pdf" rel="nofollow noopener">http://www.cs.toronto.edu/~brar/blobmaker/ISpoligonization.pdf</a>
+</li>
+<li>Probably will replace with Delaunay, vertex instead of edge based seems to have tons of problems with folding triangles over each other … bummer because it’s so fast emitting up to 5 triangles per pass</li>
+<li>Or replace with an advancing front of voxel-like cells, some sort of manifold version of surface nets</li>
+</ul>
+</li>
+<li>More general helpers
+<ul>
+<li>general pre/UV transformation</li>
+<li>centroid / normal extraction</li>
+<li>make triangles unique</li>
+<li>conversion of vertex data formats (still manual, helpers just take out the routine)</li>
+</ul>
+</li>
+<li>
+<a href="https://zdoom.org/wiki/UDMF" rel="nofollow noopener">UDMF-like</a> loading of 2d half-edge mesh from exported data
+<ul>
+<li>Processing utilities depend on MathGeoLib for polygon and line (triangulation and <em>motorcycle shrinking</em>)</li>
+<li>intended as template data for refinement / lofting, not for use as a final form</li>
+<li>not actual UDMF yet, relies on export to XML from a fork of GZDoomBuilder</li>
+</ul>
+</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Meh, apparently I called it “<em>malfunctioning marching triangles</em>” too soon, just required a couple of tests to explicitly force it to close an angle.</p>
+<p>Marching Triangles:<br/>
+<img alt="image" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/7/71d7830c273e08494e539fe7735a6e4f627e9282.png" width="604"/></p>
+<p>Advancing Front and it’s family (marching triangles, 3D Delaunay) are basically never encountered, outside of CGAL there really aren’t any implementations available to look at (aside from a PCL version, but it walks a point-cloud not an arbitrary function) so here’s a summary for anyone not wanting to read a header file’s comments:</p>
+<ul>
+<li>Uses a surface walking algorithm to walk across an arbitrary signed-distance function, emitting vertices and edges along an advancing front-line (like a historic battle map)</li>
+<li>
+<strong>Pros over voxels:</strong>
+<ul>
+<li>All steps advance the surfacing
+<ul>
+<li>No prestorage step for filling a volume / hermite data</li>
+</ul>
+</li>
+<li>Fairly regular triangles, no marching cubes and manifold-dual method skinny triangles
+<ul>
+<li>Resulting surface is thus more suitable for bone-weighting and animation than those with skinny triangles</li>
+</ul>
+</li>
+<li>Tweakable to vary edge length based on function curvature</li>
+<li>
+<strong>Manifold</strong> provided the surface can properly mate, the single most important part, non-manifolds are hell in geometry processing
+<ul>
+<li>Naive surface nets and dual-contouring are not manifold</li>
+<li>Extended-Marching Cubes, Dual Marching Cubes, and Manifold Dual-Contouring are manifold (and expensive)</li>
+</ul>
+</li>
+<li>Shape control is more intuitive, edge length vs. cell-size
+<ul>
+<li>The exact placement in a voxel cell effects final edge length + cell configuration and thus mesh density</li>
+</ul>
+</li>
+<li>Modest memory requirements
+<ul>
+<li>Does not require storing heaps of data  like a 2048^3 voxel volume does</li>
+<li>Data storage is entirely for the <em>front lines</em> of the surface progression and the emitted geometry</li>
+<li>Voxel methods can surface walk though, just at higher SDF evaluation cost</li>
+</ul>
+</li>
+<li>Modest execution requirements
+<ul>
+<li>Compare to storing the sampling of the 8 edges of a cell for hermite voxel data</li>
+</ul>
+</li>
+<li>Vertex-sharing is trivial and natural</li>
+<li>Can mesh into arbitrary geometry, provided they have an open-loop and the SDF will approach a suitable proximity
+<ul>
+<li>Can seed from the loop of an arbitrary mesh</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<strong>Cons over voxels:</strong>
+<ul>
+<li>Not easily parallelized
+<ul>
+<li>Only really suitable for OpenMP loop parallelization</li>
+<li>Because a voxel volume is not stored you can’t split it up to evaluating the volume on the GPU and surfacing on the CPU</li>
+</ul>
+</li>
+<li>Risk of the surface never closing, extreme incoherence in the SDF function could result in a front never connecting with another-front, causing it to loop over the surface again and again until a triangle limit is hit</li>
+<li>Seeding issues
+<ul>
+<li>Independent surfaces need to be surfaced independently, <em>floating balls</em> are not a <em>one-and-done</em> because the surfaces are not connected and thus cannot be walked in a single pass</li>
+<li>Seed point selection can result in the algorithm walking the inside of a CSG-subtraction shape instead of the outside of the desired shape additive shape
+<ul>
+<li>Resolvable, but non-trivial (requires metadata about the SDF shapes to chose raycast locations)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Thrashes the heap more than voxel methods, fronts are split, merged, and destroyed at a fairly constant frequency and vertices are pretty short-lived</li>
+</ul>
+</li>
+</ul>
+<p>Sort of odd that there really isn’t much out there aside from research on the general technique. Sticking this guy in the repo under MIT-lic. makes it basically the only open one in existence.</p>
+<p>Papers referenced when I implemented:</p>
+<ul>
+<li>
+<a href="http://www.cs.toronto.edu/~brar/blobmaker/ISpoligonization.pdf" rel="nofollow noopener">Curvature Dependent Polygonization of Implicit Surfaces</a>
+<ul>
+<li>This is the core of how I approached it, vertex based rather than edge based</li>
+</ul>
+</li>
+<li><a href="http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.108.6409&amp;rep=rep1&amp;type=pdf" rel="nofollow noopener">Adaptive Implicit Surface Polygonization using Marching Triangles </a></li>
+<li><a href="http://www.dtic.mil/dtic/tr/fulltext/u2/a257277.pdf" rel="nofollow noopener">An Advancing front Delaunay Triangulation Algorithm</a></li>
+<li><a href="http://fab.cba.mit.edu/classes/S62.12/docs/Hilton_marching_triangles.pdf" rel="nofollow noopener">Marching Triangles: Delaunay Implicit Surface Triangulation</a></li>
+<li><a href="http://homepages.inf.ed.ac.uk/rbf/PAPERS/EdgeConstMT.pdf" rel="nofollow noopener">Edge-constrained Marching Triangles</a></li>
+<li><a href="https://imr.sandia.gov/papers/imr14/wild.pdf" rel="nofollow noopener"> Marching Generation of smooth structed and hybrid meshes based on metric identity</a></li>
+</ul>
+<hr/>
+<p>Omission of regular voxel methods from the repo is deliberate, you can practically copy + paste them these days.</p>
+<p>Edit: the final form won’t appear in the repo, I’m okay with the core of it being there, just not a working case given how hard I was downvoted in /r/proceduralgeneration when I presented the solution to the infinite iteration problem.</p>
+<p>Some days, I swear I’m surrounded by idiots.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

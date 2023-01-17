@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Can&rsquo;t create compound collision shapes with CustomGeometry</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Can&rsquo;t create compound collision shapes with CustomGeometry</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I’m trying to create a compound shape with SetCustomConvexHull().<br/>
+What happens is as if all the vertices are combined into a single mesh, and I get a single convex hull.</p>
+<pre><code class="lang-auto">// Create a collision shape for each shape, resulting compound collision
+for (const auto&amp; shape : shapes)
+{
+	// Get the shape's geometry
+	auto collisionGeometry = node-&gt;CreateComponent&lt;CustomGeometry&gt;(LOCAL);
+	for (const auto&amp; vertex : shape.vertices)
+	{
+		Vector3 position(vertex.x, vertex.y, vertex.z);
+		collisionGeometry-&gt;DefineVertex(position / scale);
+	}
+
+	// Create a collision shape
+	auto collisionShape = node-&gt;CreateComponent&lt;CollisionShape&gt;(LOCAL);
+	collisionShape-&gt;SetCustomConvexHull(collisionGeometry);
+}</code></pre>
+<p>If I use Set<a>Primitive</a> or SetConvexHull, it does work as expected, creating seperate shapes.<br/>
+Is it a bug with SetCustomConvexHull()?<br/>
+Does a node can have only a single CustomGeometry component?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This is related to looking up the CustomGeometry in serialization. To have an unified mechanism for both immediate use and serialization, node ID’s are used. It ends up looking up the same (first) customgeometry for each shape, regardless of the pointer you give.</p>
+<p>This should be changeble to use component ID’s instead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Ok, I looked up what you said and saw it in the source code.</p>
+<p>I want to use manually defined Urho3D::Model instead.<br/>
+I haven’t tried it yet, but when I looked in ConvexData::ConvexData I saw:</p>
+<pre><code class="lang-auto">        geom-&gt;GetRawData(vertexData, vertexSize, indexData, indexSize, elementMask);
+        if (!vertexData || !indexData)
+        {
+            LOGWARNING("Skipping geometry with no CPU-side geometry data for convex hull collision");
+            continue;
+        }</code></pre>
+<p>If only vertexData is used, why would it skip if there’s no indexData?<br/>
+I want to get away with only defining a vertex buffer for a Model which is used exclusively for physics.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Good find, that’s just the result of copypaste and can be fixed.</p>
+<p>Preferably we should be able to create VertexBuffers with no GPU side representation for these kinds of uses.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>All discussed changes are in the master branch. VertexBuffer &amp; IndexBuffer constructors take a new optional forceHeadless parameter.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Just tested it, and compound collision shapes with CustomGeometry works.  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+<p>Now I wonder if there’s even a reason to use Model instead of CustomGeometry?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>CustomGeometry is considered an easy and slower shortcut to defining geometry. If the performance when initializing your objects is acceptable, and you’re not going to use indexed geometry, and you’re not going to share the same shape between multiple objects (you can however reference the same CustomGeometry from multiple collision shapes), then I see nothing wrong in using it.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

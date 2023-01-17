@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[solved]Camera rotation and translation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[solved]Camera rotation and translation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">syjgin</div>
+          <div class="post_content">
+<p>Don’t understand, how to move camera parallel to world’s left, right, forward and backward vectors, but with camera’s y rotation component(blue arrow on the image): <img alt="" height="" src="../../../images2/91420ca3e935de77a49d0c55f30c0ab5.png" width=""/><br/>
+Now I’m trying to multiply node rotation matrix with move vector and translate it in local space. But in result camera moves to north/south etc. regardless of it’s rotation:</p>
+<p><code>if(input-&gt;GetMousePosition().y_ &lt; BORDER_OFFSET)
+    {
+        Quaternion currentRot = _cameraNode-&gt;GetRotation();
+        Vector3 rotated = currentRot.Inverse().RotationMatrix() * Vector3(0,0,CAMERA_VELOCITY);
+        _cameraNode-&gt;Translate(rotated);
+    }
+    if(input-&gt;GetMousePosition().y_ &gt;  graphics-&gt;GetHeight() - BORDER_OFFSET)
+    {
+        Quaternion currentRot = _cameraNode-&gt;GetRotation();
+        Vector3 rotated = currentRot.Inverse().RotationMatrix() * Vector3(0,0,-CAMERA_VELOCITY);
+        _cameraNode-&gt;Translate(rotated);
+    }</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">syjgin</div>
+          <div class="post_content">
+<p>Update: now camera works as expected, but there are strange slow down when yaw angle is near +/90:</p>
+<pre><code class="lang-auto">void LevelCamera::VerticalTranslate(float amount)
+{
+    Quaternion currentRot = _cameraNode-&gt;GetRotation();
+    Matrix3 rotation = currentRot.Inverse().RotationMatrix();
+
+    rotation.m00_ = 1;
+    rotation.m10_ = 0;
+    rotation.m20_ = 0;
+    rotation.m01_ = 0;
+    rotation.m02_ = 0;
+    LOGINFO(String(currentRot.YawAngle()));
+    if(currentRot.YawAngle() &lt; -90 || currentRot.YawAngle() &gt; 90)
+            amount *= -1;
+    Vector3 rotated = rotation * Vector3(0,0,amount);
+    _cameraNode-&gt;Translate(rotated);
+}
+
+void LevelCamera::HorizontalTranslate(float amount)
+{
+    Quaternion currentRot = _cameraNode-&gt;GetRotation();
+    Matrix3 rotation = currentRot.Inverse().RotationMatrix();
+    rotation.m00_ = 1;
+    rotation.m10_ = 0;
+    rotation.m20_ = 0;
+    rotation.m01_ = 0;
+    rotation.m02_ = 0;
+    Vector3 rotated = rotation * Vector3(amount,0,0);
+    _cameraNode-&gt;Translate(rotated);
+}
+
+void LevelCamera::Update()
+{
+    UI* ui = GetSubsystem&lt;UI&gt;();
+    Input* input = GetSubsystem&lt;Input&gt;();
+    Graphics *graphics = GetSubsystem&lt;Graphics&gt;();
+
+    if (ui-&gt;GetFocusElement())
+        return;
+
+    if(input-&gt;GetMousePosition().y_ &lt; BORDER_OFFSET)
+        VerticalTranslate(CAMERA_VELOCITY);
+    if(input-&gt;GetMousePosition().y_ &gt;  graphics-&gt;GetHeight() - BORDER_OFFSET)
+        VerticalTranslate(-CAMERA_VELOCITY);
+    if(input-&gt;GetMousePosition().x_ &lt; BORDER_OFFSET)
+        HorizontalTranslate(-CAMERA_VELOCITY);
+    if(input-&gt;GetMousePosition().x_ &gt;  graphics-&gt;GetWidth() - BORDER_OFFSET)
+        HorizontalTranslate(CAMERA_VELOCITY);
+    if (input-&gt;GetMouseButtonDown(MOUSEB_RIGHT))
+    {
+        IntVector2 mouseMove = input-&gt;GetMouseMove();
+        _yaw += MOUSE_SENSITIVITY * mouseMove.x_;
+        _pitch += MOUSE_SENSITIVITY * mouseMove.y_;
+        Vector3 hitPos;
+        Drawable* hitDrawable;
+        if(Raycast(250.0f, hitPos, hitDrawable, true))
+        {
+            _cameraNode-&gt;RotateAround(hitPos, Quaternion(_yaw, Vector3(0,1,0)), TS_WORLD);
+            if(abs((int)_pitch) &lt; 20 )
+            {
+                if(_cameraNode-&gt;GetRotation().PitchAngle() &lt; 45 &amp;&amp;  _pitch &lt; 0)
+                    _cameraNode-&gt;RotateAround(hitPos, Quaternion(_pitch, _cameraNode-&gt;GetDirection().CrossProduct(Vector3(0,1,0))), TS_WORLD);
+                if(_cameraNode-&gt;GetRotation().PitchAngle() &gt; 10 &amp;&amp; _pitch &gt; 0)
+                    _cameraNode-&gt;RotateAround(hitPos, Quaternion(_pitch, _cameraNode-&gt;GetDirection().CrossProduct(Vector3(0,1,0))), TS_WORLD);
+            }
+        }
+
+        _yaw = 0;
+        _pitch = 0;
+    }
+    int wheelMove = input-&gt;GetMouseMoveWheel();
+    if( wheelMove != 0 &amp;&amp; abs((int)wheelMove) &lt; 2)
+    {
+        Camera *camera = _cameraNode-&gt;GetComponent&lt;Camera&gt;();
+        float oldZoom = camera-&gt;GetZoom();
+        if(oldZoom &gt; 0.5f &amp;&amp; wheelMove &lt; 0)
+            camera-&gt;SetZoom(oldZoom + wheelMove*WHEEL_SENSITIVITY);
+        if(oldZoom &lt; 4 &amp;&amp; wheelMove &gt; 0)
+            camera-&gt;SetZoom(oldZoom + wheelMove*WHEEL_SENSITIVITY);
+    }
+}
+</code></pre>
+<p>If I have to change matrixes itself, I’m doing something wrong:(</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>mb it helps</p>
+<ol>
+<li>
+<p>in editor setup<br/>
+<img alt="" height="" src="../../../images2/211ea4e2976556d70ac4282c06007b7f.png" width=""/></p>
+</li>
+<li>
+<p>runtime setup</p>
+</li>
+</ol>
+<pre><code class="lang-auto">//application public:
+	SharedPtr&lt;Node&gt; playerNode;
+	RigidBody* playerRigidbody;
+
+	struct
+	{
+		SharedPtr&lt;Node&gt; node;
+		Camera* component;
+		Viewport* viewport;
+		float yaw_;
+		float pitch_;
+		float roll_;
+
+	} camera;</code></pre>
+<pre><code class="lang-auto">//app:Start()
+		playerNode = scene_-&gt;GetChild("player", true);
+		playerRigidbody = playerNode-&gt;GetComponent&lt;RigidBody&gt;();
+		camera.node = scene_-&gt;GetChild("camera", true);
+		camera.component = camera.node-&gt;GetComponent&lt;Camera&gt;();</code></pre>
+<ol start="3">
+<li>updates</li>
+</ol>
+<pre><code class="lang-auto">	void HandleUpdate(StringHash eventType, VariantMap&amp; eventData)
+	{
+		using namespace Update;
+		float timeStep = eventData[P_TIMESTEP].GetFloat();
+		MoveCamera(timeStep);
+
+
+		if (playerRigidbody) 
+		{
+			Input* input = GetSubsystem&lt;Input&gt;();
+			Quaternion worldRotation = camera.node-&gt;GetWorldRotation();
+			worldRotation.z_ = 0;
+
+			Vector3 dir = Vector3::ZERO;
+
+			if (input-&gt;GetKeyDown('W')) 
+			{
+				dir += Vector3::FORWARD;
+			}
+
+			if (input-&gt;GetKeyDown('S'))
+			{
+				dir += Vector3::BACK;
+			}
+
+			if (input-&gt;GetKeyDown('D'))
+			{
+				dir += Vector3::RIGHT;
+			}
+
+			if (input-&gt;GetKeyDown('A'))
+			{
+				dir += Vector3::LEFT;
+			}
+
+			if (input-&gt;GetKeyDown(KEY_SPACE))
+			{
+				dir += Vector3::UP;
+			}
+
+
+			const float speed = 1800.0f;
+
+			if (dir.Length() &gt; 0)
+				playerRigidbody-&gt;SetLinearVelocity(speed * (worldRotation * dir) * timeStep);
+		}
+	}</code></pre>
+<pre><code class="lang-auto">	void MoveCamera(float timeStep)
+	{
+		Input* input = GetSubsystem&lt;Input&gt;();
+		const float MOUSE_SENSITIVITY = 0.1f;
+		IntVector2 mouseMove = input-&gt;GetMouseMove();
+
+		camera.yaw_ += MOUSE_SENSITIVITY * mouseMove.x_;
+		camera.pitch_ += MOUSE_SENSITIVITY * mouseMove.y_;
+		camera.pitch_ = Clamp(camera.pitch_, -90.0f, 90.0f);
+		camera.node-&gt;SetWorldRotation(Quaternion(camera.pitch_, camera.yaw_, 0.0f));
+
+	}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>I can confirm that the previous approach works. I use it for my isometric like view.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">syjgin</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]mb it helps<br/>
+…[/quote]<br/>
+Thanks, now I found a right way to move camera:</p>
+<p>[code]void LevelCamera::VerticalTranslate(float amount)<br/>
+{<br/>
+float currentRot = _cameraNode-&gt;GetRotation().YawAngle();<br/>
+Quaternion distilledRot;<br/>
+distilledRot.FromAngleAxis(currentRot, Vector3(0,1,0));<br/>
+Vector3 rotated = distilledRot.RotationMatrix() * Vector3(0,0,amount);<br/>
+_cameraNode-&gt;Translate(rotated, TS_WORLD);<br/>
+}</p>
+<p>void LevelCamera::HorizontalTranslate(float amount)<br/>
+{<br/>
+float currentRot = _cameraNode-&gt;GetRotation().YawAngle();<br/>
+Quaternion distilledRot;<br/>
+distilledRot.FromAngleAxis(currentRot, Vector3(0,1,0));<br/>
+Vector3 rotated = distilledRot.RotationMatrix() * Vector3(amount,0,0);<br/>
+_cameraNode-&gt;Translate(rotated, TS_WORLD);<br/>
+}<br/>
+[/code]<br/>
+But your rotation code is about rotating camera itself, not around current screen center. I still can not understand, how to rotate camera around current viewport center projection, if camera ray can not intersect anything:</p>
+<pre><code class="lang-auto">if(Raycast(hitPos, hitDrawable))//need some fallback
+        {
+            _cameraNode-&gt;RotateAround(hitPos, Quaternion(_yaw, Vector3(0,1,0)), TS_WORLD);
+            if(abs((int)_pitch) &lt; 20 )
+            {
+                if(_cameraNode-&gt;GetRotation().PitchAngle() &lt; 45 &amp;&amp;  _pitch &lt; 0)
+                    _cameraNode-&gt;RotateAround(hitPos, Quaternion(_pitch, _cameraNode-&gt;GetDirection().CrossProduct(Vector3(0,1,0))), TS_WORLD);
+                if(_cameraNode-&gt;GetRotation().PitchAngle() &gt; 10 &amp;&amp; _pitch &gt; 0)
+                    _cameraNode-&gt;RotateAround(hitPos, Quaternion(_pitch, _cameraNode-&gt;GetDirection().CrossProduct(Vector3(0,1,0))), TS_WORLD);
+            }
+        }
+
+...
+
+bool LevelCamera::Raycast(Vector3 &amp;hitPos, Drawable *&amp;hitDrawable)
+{
+    hitDrawable = 0;
+
+    UI* ui = GetSubsystem&lt;UI&gt;();
+
+    Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+    Camera *camera = _cameraNode-&gt;GetComponent&lt;Camera&gt;();
+    Ray cameraRay = camera-&gt;GetScreenRay(0.5f, 0.5f);
+    // Pick only geometry objects, not eg. zones or lights, only get the first (closest) hit
+    PODVector&lt;RayQueryResult&gt; results;
+    RayOctreeQuery query(results, cameraRay, RAY_TRIANGLE, 1000, DRAWABLE_GEOMETRY);
+    _sceneNode-&gt;GetComponent&lt;Octree&gt;()-&gt;RaycastSingle(query);
+    if (results.Size())
+    {
+        RayQueryResult&amp; result = results[0];
+        hitPos = result.position_;
+        hitDrawable = result.drawable_;
+        return true;
+    }
+
+    return false;
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>Dont know if this helps: I use a dual node system: one node is the target, it is the one that gets rotations and displacements. The second is a child node with the camera, every time I update the first node, I use LookAt to keep the camera  facing the target node. Perhaps the target node it is not exactly at the center of the screen, but it is almost there. I see you have better math knowledge than I, maybe you can refine my method and find the correct center point.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>I still can not understand, how to rotate camera around current viewport center</p>
+</blockquote>
+<ol>
+<li>setup in editor with adding rollNode<br/>
+<img alt="" height="" src="../../../images2/965aec4734ec5d8f474733aba59f2ce9.png" width=""/>
+</li>
+</ol>
+<p>roll node has idenity transforms!</p>
+<ol start="2">
+<li>setup code</li>
+</ol>
+<pre><code class="lang-auto">		playerNode = scene_-&gt;GetChild("player", true);
+		playerRigidbody = playerNode-&gt;GetComponent&lt;RigidBody&gt;();
+		camera.node = playerNode-&gt;GetChild("camera", true);
+		camera.rollNode = playerNode-&gt;GetChild("roll", true);
+		camera.component = camera.rollNode-&gt;GetComponent&lt;Camera&gt;();
+		camera.viewport = new Viewport(context_, scene_, camera.component);</code></pre>
+<ol start="3">
+<li>mouse update fix (roll camera by middle mouse)</li>
+</ol>
+<pre><code class="lang-auto">	void MoveCamera(float timeStep)
+	{
+		Input* input = GetSubsystem&lt;Input&gt;();
+		const float MOUSE_SENSITIVITY = 0.1f;
+		IntVector2 mouseMove = input-&gt;GetMouseMove();
+
+		if (input-&gt;GetMouseButtonDown(2)) {
+			Quaternion q = camera.rollNode-&gt;GetRotation(); // get local rotation in space of parent camera node
+
+			// q_new = q_old * q_delta // quaternion angle add by multiply 
+			camera.rollNode-&gt;SetRotation(q * Quaternion(0, 0, MOUSE_SENSITIVITY * mouseMove.x_));
+		}
+		else 
+		{
+			camera.yaw_ += MOUSE_SENSITIVITY * mouseMove.x_;
+			camera.pitch_ += MOUSE_SENSITIVITY * mouseMove.y_;
+			camera.pitch_ = Clamp(camera.pitch_, -90.0f, 90.0f);
+		}
+
+		camera.node-&gt;SetWorldRotation(Quaternion(camera.pitch_, camera.yaw_, 0.0f));
+
+	}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">syjgin</div>
+          <div class="post_content">
+<p>I have created node with camera coordinates(0,20,-30) and its child roll node with coordinates (0,0,0). And added camera component to roll node.</p>
+<p>But when I activated yaw and pitch related code, camera just shakes at same place. When I disabled it and retain only roll related, camera was rotated around local Z axis.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>try to add in Start() proc</p>
+<pre><code class="lang-auto"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">syjgin</div>
+          <div class="post_content">
+<p>But you are not using roll_ variable in your code. I have removed _yaw and _pitch nullification at the end of any update cycle, camera stops shake, but simply don’t move</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Yes. i’m calculate new roll and put it directly in method, but other variables also need to setup with zero.</p>
+<blockquote>
+<p>but simply don’t move<br/>
+you mean don’t move like - walk or run, or you mean rotation move ?<br/>
+if you want somekind of walk-move you need to move or translate playerNode in case of my example.<br/>
+i’m move playerNode by set velocity for rigidbody on keys.</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">syjgin</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]Yes. i’m calculate new roll and put it directly in method, but other variables also need to setup with zero.</p>
+<blockquote>
+<p>but simply don’t move<br/>
+you mean don’t move like - walk or run, or you mean rotation move ?<br/>
+if you want somekind of walk-move you need to move or translate playerNode in case of my example.<br/>
+i’m move playerNode by set velocity for rigidbody on keys.[/quote]</p>
+</blockquote>
+<p>No rotation applied to camera. In the evening I will post my complete code. But previous version (with raycast) works well if ray can intersect some geometry. Maybe I have to just create default point on this ray if raycast fails.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">syjgin</div>
+          <div class="post_content">
+<p>Now it works well: I have created camera node with (0, 20, -30) position with camera component, and child node with reverse position: (0,20,-30) - this is local center node.</p>
+<p>[code]<span class="hashtag">#include</span> “LevelCamera.h”</p>
+<p><span class="hashtag">#include</span> “UI.h”<br/>
+<span class="hashtag">#include</span> “Input.h”<br/>
+<span class="hashtag">#include</span> “Ray.h”<br/>
+<span class="hashtag">#include</span> “Graphics.h”<br/>
+<span class="hashtag">#include</span> “OctreeQuery.h”<br/>
+<span class="hashtag">#include</span> “Octree.h”<br/>
+<span class="hashtag">#include</span> “Scene.h”<br/>
+<span class="hashtag">#include</span> “Log.h”</p>
+<p>LevelCamera::LevelCamera(Context *context) :Object(context)<br/>
+{</p>
+<p>}</p>
+<p>void LevelCamera::VerticalTranslate(float amount)<br/>
+{<br/>
+float currentRot = _cameraNode-&gt;GetRotation().YawAngle();<br/>
+Quaternion distilledRot;<br/>
+distilledRot.FromAngleAxis(currentRot, Vector3(0,1,0));<br/>
+Vector3 rotated = distilledRot.RotationMatrix() * Vector3(0,0,amount);<br/>
+_cameraNode-&gt;Translate(rotated, TS_WORLD);<br/>
+_centerPosition-&gt;Translate(rotated);<br/>
+}</p>
+<p>void LevelCamera::HorizontalTranslate(float amount)<br/>
+{<br/>
+float currentRot = _cameraNode-&gt;GetRotation().YawAngle();<br/>
+Quaternion distilledRot;<br/>
+distilledRot.FromAngleAxis(currentRot, Vector3(0,1,0));<br/>
+Vector3 rotated = distilledRot.RotationMatrix() * Vector3(amount,0,0);<br/>
+_cameraNode-&gt;Translate(rotated, TS_WORLD);<br/>
+_centerPosition-&gt;Translate(rotated);<br/>
+}</p>
+<p>void LevelCamera::Update()<br/>
+{<br/>
+UI* ui = GetSubsystem();<br/>
+Input* input = GetSubsystem();<br/>
+Graphics *graphics = GetSubsystem();</p>
+<pre><code>if (ui-&gt;GetFocusElement())
+    return;
+
+if(input-&gt;GetMousePosition().y_ &lt; BORDER_OFFSET)
+    VerticalTranslate(CAMERA_VELOCITY);
+if(input-&gt;GetMousePosition().y_ &gt;  graphics-&gt;GetHeight() - BORDER_OFFSET)
+    VerticalTranslate(-CAMERA_VELOCITY);
+if(input-&gt;GetMousePosition().x_ &lt; BORDER_OFFSET)
+    HorizontalTranslate(-CAMERA_VELOCITY);
+if(input-&gt;GetMousePosition().x_ &gt;  graphics-&gt;GetWidth() - BORDER_OFFSET)
+    HorizontalTranslate(CAMERA_VELOCITY);
+if (input-&gt;GetMouseButtonDown(MOUSEB_RIGHT))
+{
+    IntVector2 mouseMove = input-&gt;GetMouseMove();
+    _yaw += MOUSE_SENSITIVITY * mouseMove.x_;
+    _pitch += MOUSE_SENSITIVITY * mouseMove.y_;
+
+    Vector3 centerPos = _centerPosition-&gt;GetPosition();
+    _cameraNode-&gt;RotateAround(centerPos, Quaternion(_yaw, Vector3(0,1,0)), TS_WORLD);
+    if(abs((int)_pitch) &lt; 20 )
+    {
+        if(_cameraNode-&gt;GetRotation().PitchAngle() &lt; 65 &amp;&amp;  _pitch &lt; 0)
+            _cameraNode-&gt;RotateAround(centerPos, Quaternion(_pitch, _cameraNode-&gt;GetDirection().CrossProduct(Vector3(0,1,0))), TS_WORLD);
+        if(_cameraNode-&gt;GetRotation().PitchAngle() &gt; 30 &amp;&amp; _pitch &gt; 0)
+            _cameraNode-&gt;RotateAround(centerPos, Quaternion(_pitch, _cameraNode-&gt;GetDirection().CrossProduct(Vector3(0,1,0))), TS_WORLD);
+    }
+
+    _yaw = 0;
+    _pitch = 0;
+}
+int wheelMove = input-&gt;GetMouseMoveWheel();
+if( wheelMove != 0 &amp;&amp; abs((int)wheelMove) &lt; 2)
+{
+    Camera *camera = _cameraNode-&gt;GetComponent&lt;Camera&gt;();
+    float oldZoom = camera-&gt;GetZoom();
+    if(oldZoom &gt; 0.5f &amp;&amp; wheelMove &lt; 0)
+        camera-&gt;SetZoom(oldZoom + wheelMove*WHEEL_SENSITIVITY);
+    if(oldZoom &lt; 4 &amp;&amp; wheelMove &gt; 0)
+        camera-&gt;SetZoom(oldZoom + wheelMove*WHEEL_SENSITIVITY);
+}
+</code></pre>
+<p>}</p>
+<p>void LevelCamera::Setup(Node *cameraNode, Node *centerNode, Scene *scene)<br/>
+{<br/>
+_sceneNode = scene;<br/>
+_cameraNode = cameraNode;<br/>
+_centerPosition = centerNode;</p>
+<pre><code>cameraNode-&gt;LookAt(_centerPosition-&gt;GetPosition());
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to manually slightly adjust one bone during the animation</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to manually slightly adjust one bone during the animation</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>Hi,</p>
+<p>I am new to Urho3D engine and loved it very much. I spent several weeks going through the documentation and examples. I decided to start to create a game using it after that. Now I have a question and could not solve it after trying different methods for several day. I will be really appreciated if anyone could help me <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+<p><strong>Question:</strong><br/>
+How to manually slightly adjust one bone during the animation.</p>
+<p><strong>More details:</strong><br/>
+<strong>Skeleton:</strong> I have a skeleton with ~20 bones, the root bone is “abdomen”, then it’s child bone “spine” which is the root bone of all the upper body bones. The “abdomen” has another two children bones named “thigh.L” and “thigh.R”, which are root bones for all lower body bones.</p>
+<blockquote>
+<p>abdomen<br/>
+– spine<br/>
+– thigh.L<br/>
+– thigh.R</p>
+</blockquote>
+<p><strong>Animations:</strong> I have N different sword attack animations for upper body; I have 8 (eight direction) different movement animations for lower body.<br/>
+<strong>Camera:</strong> I have a camera following the character (3rd person angle), the character and camera will rotate with the mouse.</p>
+<p>We know it’s pretty straightforward to blend upper/lower body animations to create 8*N animation combinations. (I just set lower body animation with layer = 0, and upper body animations with layer = 1, start_bone = “spine”.)</p>
+<p>Now it works like this, for example:<br/>
+If the character is moving towards left. The character node is facing towards left, with the abdomen slightly up and downs during the running animation. Now If I click mouse, the upper body with attack left.<br/>
+<strong>The problem is:</strong> I would still need the character to attack the forward (as camera direction in this case). The character attack left because “spine” is a child of “abdomen” and “abdomen” direction is controlled by the running left animation.<br/>
+<em>My gameplay requires the sword attack/swing direction be exactly the same (only depends on the camera direction) no matter what direction the player is running. Similar to CS, you always aim forward during you press WASD keys.</em><br/>
+<strong>Things I tried:</strong></p>
+<ol>
+<li>Force the “spine” node to face forward using SetWorldDirection. This does not work good because the character would be very rigid for upper body. The original attack animation, running animation both gives the “abdomen” and “spine” node some up and downs which seems more realistic;</li>
+<li>Get current “spine” direction for each frame of the animation and then rotate it by 90 degrees, set the new direction. This should be the correct solution but I just could not make it work. The whole character just blink a lot, seems like the character is rotating 90 degrees every frame;</li>
+<li>Use IK. I am not very familiar with IK and struggled a lot here. I set the end node IKEffector to “spine” and attach the IKSolver to “abdomen” like this:</li>
+</ol>
+<pre><code class="lang-auto">// For IK
+  spine_node_ = node_-&gt;GetChild("spine", true);
+  spine_effector_  = spine_node_-&gt;CreateComponent&lt;IKEffector&gt;();
+  // Control 1 segment to abdomen bone.
+  spine_effector_-&gt;SetChainLength(1);
+
+  // For the effectors to work, an IKSolver needs to be attached to one of
+  // the parent nodes. Typically, you want to place the solver as close as
+  // possible to the effectors for optimal performance. Since in this case
+  // we're solving the legs only, we can place the solver at the spine.
+  abdomen_node_ = node_-&gt;GetChild("abdomen", true);
+  solver_ = abdomen_node_-&gt;CreateComponent&lt;IKSolver&gt;();
+
+  // Two-bone solver is more efficient and more stable than FABRIK (but only
+  // works for two bones, obviously).
+  solver_-&gt;SetAlgorithm(IKSolver::ONE_BONE);
+
+  // Disable auto-solving, which means we need to call Solve() manually
+  solver_-&gt;SetFeature(IKSolver::AUTO_SOLVE, false);
+//  solver_-&gt;SetFeature(IKSolver::TARGET_ROTATIONS, true);
+
+  // Only enable this so the debug draw shows us the pose before solving.
+  // This should NOT be enabled for any other reason (it does nothing and is
+  // a waste of performance).
+  solver_-&gt;SetFeature(IKSolver::UPDATE_ORIGINAL_POSE, true);
+</code></pre>
+<p>This just somehow makes my whole character changed, e.g. upside down. <strong>Should I expect the “abdomen” bone changes the position using this setting? If the root node of IK chain will change, maybe I should set “spine” as root node? Then there is  only one node, there is no chain anymore, how should I make IK change only "spine?</strong></p>
+<p>I believe solution 2 should be the correct way to solve it, but I just don’t know how to fix all the details.</p>
+<hr/>
+<p>BTW:<br/>
+I’ve been looking for a 3D game engine for a long time and finally found Urho3D. It satisfied all my requirement:</p>
+<ol>
+<li>
+<strong>Light weighted.</strong> I’ve used Unity and Unreal for a while, but could not stand those big engines. I don’t need 99% of those stuff but there is no choice. For my 2014 macbook pro, it cannot even run an empty Unreal project fluently, very disappointing.</li>
+<li>
+<strong>Programmer friendly</strong>. I don’t like those drag &amp; mouse click operations in editors. It’s very inefficient. I like to see everything including settings in code.</li>
+</ol>
+<p>The only drawback for me is the <strong>lack of documentation,</strong> which I hope will be improved in the near future.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Hello… <span class="mention">@UrhoIsTheBest</span> and welcome to the forums! <img alt=":confetti_ball:" class="emoji" src="../../../images2/8cc1133d965c492d26cc2ba425a80ea1.png" title=":confetti_ball:"/> <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/><br/>
+Did you take a look at sample 45? (located in Urho3D/Source/Samples/)<br/>
+Furthermore <a href="https://urho3d.github.io/documentation/HEAD/_i_k.html">here</a>’s the docs on IK.</p>
+<p>For updating a single animated bone, basically all you need to know is that its transform has to be modified during the <code>SceneDrawableUpdateFinished</code> event. To get it right though, you may need to do some <code>Slerp</code>ing and understand vector math concepts like the cross product and dot product.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="5796" data-username="UrhoIsTheBest">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d75d27d5d93b2fc4395b4ba685be6335.png" width="20"/> UrhoIsTheBest:</div>
+<blockquote>
+<p>How to manually slightly adjust one bone during the animation.</p>
+</blockquote>
+</aside>
+<p>Hi ! I don’t know if it will help your situation but the best and most generic way to adjust a bone transform is to subscribe to the E_SCENEDRAWABLEUPDATEFINISHED event and handle it there.<br/>
+This event is called after all your nodes transforms and updated /calcualated and are ready for rendering.<br/>
+So you can adjust a bone transform in this function and it will not be overridden by the animation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="2" data-topic="5796">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8d8b355ba34b4e347e81eaaa2cb3b7b0.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Furthermore <a href="https://urho3d.github.io/documentation/HEAD/_i_k.html" rel="nofollow noopener">here </a>’s the docs on IK.</p>
+</blockquote>
+</aside>
+<p>Yes, I did check the doc, but I could not figure out which bones are affected and how to choose the correct parameter during the IK process just from the doc.</p>
+<aside class="quote no-group" data-post="2" data-topic="5796">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8d8b355ba34b4e347e81eaaa2cb3b7b0.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Did you take a look at sample 45? (located in Urho3D/Source/Samples/)</p>
+</blockquote>
+</aside>
+<p>Yes, I did check example 45. That was much simpler though.</p>
+<p>For that example, the bone hierarchy is (from parent to children):</p>
+<blockquote>
+<p>Bip01_Spine <em>(IKSolver attached here)</em><br/>
+–&gt; Bip01_R_Thigh<br/>
+–&gt; Bip01_R_Calf<br/>
+–&gt; Bip01_R_Foot <em>(IKEffector attached here)</em></p>
+</blockquote>
+<p>Then it set:</p>
+<pre><code class="lang-auto">solver_-&gt;SetAlgorithm(IKSolver::TWO_BONE);
+rightEffector_-&gt;SetChainLength(2);
+</code></pre>
+<p>My understanding is (correct me if I am wrong):<br/>
+This means the bones 2 levels up the effector node would modify the transform, e.g. 3 bones <code>Bip01_R_Thigh</code>, <code>Bip01_R_Calf</code>, and <code>Bip01_R_Foot</code> would be modified. This seems correct according to the demo.</p>
+<p>For my case, however, I only need to change “spine” bone, which is the direct child of root bone “abdomen”.</p>
+<blockquote>
+<p>abdomen <em>(IKSolver attached here)</em><br/>
+–&gt; spine <em>(IKEffector attached here)</em><br/>
+Then I can only set:</p>
+</blockquote>
+<pre><code class="lang-auto">solver_-&gt;SetAlgorithm(IKSolver::ZERO_BONE);
+effector_-&gt;SetChainLength(0);
+</code></pre>
+<p>Which does <strong>NOT</strong> make any sense, right?</p>
+<p>I also tried to use</p>
+<pre><code class="lang-auto">solver_-&gt;SetAlgorithm(IKSolver::ONE_BONE);
+effector_-&gt;SetChainLength(1);
+</code></pre>
+<p>Then the <code>abdomen</code> bone is also modified during the test, the animation seems broken and flicker.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>That’s what I tried according to Example 45.<br/>
+You can also check my reply to <a href="/u/Modanung">Modanung</a> above, any advice?</p>
+<p>Also I have another related question about the <code>E_SCENEDRAWABLEUPDATEFINISHED</code>.</p>
+<p>If I need to do physics collision check, e.g. blade vs. enemy body. We know those calculation usually happens in the <code>FIXEDUPDATE</code>.<br/>
+If somehow I update the bone position during <code>E_SCENEDRAWABLEUPDATEFINISHED</code>, Would it mess up the physics collision?</p>
+<p>For example, in the original animation, the body faces left, the blade swing towards left. So the blade will collide objects in the left side. However, when we force the upper body face forward direction in <code>E_SCENEDRAWABLEUPDATEFINISHED</code>. There is no physics collision detection for blade swing towards forward anymore.<br/>
+The game would look like the character swing a sword in forward direction and it hits the objects in the left side?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>After days of playing around, now I have a better understanding of the engine and I believe it’s powerful enough to do most of things I wanted. I am going to close this thread with some notes which might be helpful for others.</p>
+<ol>
+<li>
+<p>I misunderstood the power of IK. It actually only does one thing: calculate the positions of all bones from root-bone to end-bone given the desired location of end-bone. It does not care much about pure rotations.<br/>
+For example, if you want <code>thorax</code> bone to face one direction and <code>abdomen</code> to face another direction. IK would not help you to find a <em>Visually Natural</em> rotation between those bones. You have to manually set that by yourself, e.g. <code>abdomen</code> bone can face left, then set <code>spine</code> bone to rotate 45 degree around axis-Y, also set <code>thorax</code> bone to rotate 45 degree around axis-Y. Thus, <code>thorax</code> faces forward (45+45=90). You could also set with 30, 60 degree respectively.</p>
+</li>
+<li>
+<p><strong>You can reconstruct the skeleton structure by inserting extra nodes.</strong><br/>
+For example, I tried to add two extra nodes, <code>lower_body_root_node</code> and <code>upper_body_root_node</code>. Then move <code>spine</code> node as child of <code>upper_body_root_node</code> (<code>abdomen</code> child to <code>lower_body_root_node</code> respectively). The original animation system still works perfectly. But I have another degree of freedom to separately control upper &amp; lower body, e.g. rotate some degree between them.</p>
+</li>
+<li>
+<p><strong>You can do almost everything you want about raw animation resource data due to the accessibility of KeyFrame data.</strong><br/>
+An example code path could be</p>
+</li>
+</ol>
+<pre><code class="lang-auto">AnimationState-&gt;GetAnimation()-&gt;GetTrack(String("abdomen"))-&gt;keyFrames_
+</code></pre>
+<p>You can directly manipulate bone <code>position</code> and <code>rotation</code> in <a href="https://urho3d.github.io/documentation/1.5/struct_urho3_d_1_1_animation_key_frame.html" rel="nofollow noopener">AnimationKeyFrame</a>.<br/>
+For example, if I want to only apply the rotation change during a bone animation while fixing the bone position (ignoring the position change). You could do something like:</p>
+<pre><code class="lang-auto">Vector3 tmp = Vector3::ZERO;
+for (AnimationKeyFrame&amp; key_frame : animation_state-&gt;GetAnimation()-&gt;GetTrack(String("abdomen"))-&gt;keyFrames_) {
+  // Set all position as the 1st frame, e.g. no position movement for additive animation.
+  if (tmp == Vector3::ZERO) {
+    tmp = key_frame.position_;
+  } else {
+    key_frame.position_ = tmp;
+  }
+}
+</code></pre>
+<p>You could do many other interesting stuff with directly manipulating the animation data.</p>
+<ol start="4">
+<li>
+<strong>Many other small things</strong> which I wish I could’ve learned in tutorials somewhere by more experienced developers.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>I had the same question and thanks, the E_SCENEDRAWABLEUPDATEFINISHED works for me.<br/>
+But is this event before or after physics update? because I need the physics collision happen to the modified bone  transform too. I check <a href="https://urho3d.github.io/documentation/1.6/_main_loop.html" rel="noopener nofollow ugc">this page</a> for the main loop order but could not find the E_SCENEDRAWABLEUPDATEFINISHED.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I find a few references to that event with regex search:<br/>
+Defined in  <a >https://github.com/urho3d/Urho3D/blob/master/Source/Urho3D/Scene/SceneEvents.h</a></p>
+<p>and docs IK section (you linked to 1.6 by the way, a very old version):<br/>
+<a href="https://urho3d.github.io/documentation/HEAD/_i_k.html#iksolverautosolve">https://urho3d.github.io/documentation/HEAD/_i_k.html#iksolverautosolve</a></p>
+<p>It appears Octree is updated by Renderer in Update…<br/>
+<a >https://github.com/urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/Renderer.cpp#L1503</a></p>
+<p>Could try a breakpoint or such to find relative order.<br/>
+HTH</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

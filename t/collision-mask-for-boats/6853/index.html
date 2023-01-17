@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Collision Mask for Boats</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Collision Mask for Boats</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I see a few threads on collision masks but I still can’t see what I need for my situation. I don’t really get how it works. Basically, I have a water plane that I want only boats to collide with. I tried setting the water to:<br/>
+Layer: 2<br/>
+and the boat to:<br/>
+Layer: 1<br/>
+Mask: 2<br/>
+but this makes other things collide with the water as well. Other combinations I tried made only the boat collide with the water, but nothing else. Do I need to make everything in my world except the water on a higher layer in this case?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6853" data-username="evolgames">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/82c7eb8a9632c056ab91d4b3d9c5a8c1.png" width="20"/> evolgames:</div>
+<blockquote>
+<p>but this makes other things collide with the water as well.</p>
+</blockquote>
+</aside>
+<p>Exclude water layer from collision masks of all other objects, maybe?<br/>
+Not sure how nice it would be to do in the editor</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>It’s a bitwise AND test. You need to provide more information as to your intentions as to what the boat should collide with for us to know what to say. The layer is ANDed with the mask to decide whether to respond or not.</p>
+<p>Boats are also an extremely special case, you’re in for rough ride. Half of your year rough life.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Well I simply want the boat to collide with everything in the world as normal. But nothing collides with the water plane except for the boat. I can easily do an event for the collision if the water’s body is a trigger but I need the forces for what I’m doing. What makes it a rough ride? You mean for collision masks or boat physics? Because the game is very rudimentary so it’ll stay simple. I have some buoyancy forces and collision shapes I set up to make it bob nicely “in” the water.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Batch</div>
+          <div class="post_content">
+<p>I have a header file I use to do this stuff (you probably saw it in another post), so I’ll take a stab at it. This is just theory (and the code behind it that <em>should</em> work), so if there’s something wrong then my apologies.</p>
+<pre><code class="lang-cpp">namespace CollisionLayer
+{
+    static const unsigned int None = 0;
+    static const unsigned int Controllable = 1 &lt;&lt; 0;
+    static const unsigned int Static = 1 &lt;&lt; 1;
+    static const unsigned int Platform = 1 &lt;&lt; 2;
+    static const unsigned int Projectile = 1 &lt;&lt; 3;
+    static const unsigned int Water = 1 &lt;&lt; 4;
+    static const unsigned int Boat = 1 &lt;&lt; 5;
+    static const unsigned int All = -1;
+}
+
+namespace CollisionMask
+{
+    static const unsigned int None = CollisionLayer::None;
+    static const unsigned int Controllable = CollisionLayer::Static | CollisionLayer::Platform | CollisionLayer::Projectile | CollisionLayer::Boat;
+    static const unsigned int Static = CollisionLayer::Controllable | CollisionLayer::Projectile | CollisionLayer::Boat;
+    static const unsigned int Platform = CollisionLayer::Controllable | CollisionLayer::Projectile | CollisionLayer::Boat;
+    static const unsigned int Projectile = CollisionLayer::Controllable | CollisionLayer::Static | CollisionLayer::Platform | CollisionLayer::Projectile | CollisionLayer::Boat;
+    static const unsigned int Water = CollisionLayer::Boat;
+    static const unsigned int Boat = CollisionLayer::Controllable | CollisionLayer::Static | CollisionLayer::Platform | CollisionLayer::Projectile | CollisionLayer::Boat | CollisionLayer::Water;
+    static const unsigned int All = CollisionLayer::All;
+}
+
+terrainBody-&gt;SetCollisionLayerAndMask(CollisionLayer::Platform, CollisionMask::Platform);
+boatBody-&gt;SetCollisionLayerAndMask(CollisionLayer::Boat, CollisionMask::Boat);
+waterBody-&gt;SetCollisionLayerAndMask(CollisionLayer::Water, CollisionMask::Water);
+playerBody-&gt;SetCollisionLayerAndMask(CollisionLayer::Controllable, CollisionMask::Controllable);
+</code></pre>
+<p>With this setup I think it should give you what you want, where the player can walk on terrain and stand on the boat, but they’ll fall through the water, as would anything else that isn’t a boat. Only boats collide with water, and water only collides with boats, but boats collide with everything including other boats.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Just throwing this out there, I don’t know how realistic you’re aiming for: You may want to make the water plane a trigger that everything moving will contact. That way you can apply drag forces and maybe buoyancy to other objects besides the boats that float on top. Though you’d probably have to calculate the forces yourself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>So that’s what I was doing today as my alternate solution actually. Since in my world the sealevel always has water, I just had it check if the boat was below sealevel. If it is, it applies certain torques and linear forces. It actually kind of works. This is about as realistic as I intended, nothing crazy.<br/>
+<img alt="ezgif.com-gif-maker" class="animated" data-base62-sha1="5kwV9sU1A0f8NaJ8CdSO2idczM1" height="313" src="../../../images2/7cac7076b5c7381f79e1579dc21c6be6.gif" width="600"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>This looks good. Although because I’m doing Lua only the bottom part makes sense to me…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Batch</div>
+          <div class="post_content">
+<p>When you think about the problem, it’s a matter of assigning labels to objects that indicate whether they bounce off each other, or pass through each other. The Layer values are the labels (just a unique integer), and the Mask values are the collide/pass through rules. The fact that the Layer value is used as bits just means there’s only 32 unique values you can use in a 4 byte integer.</p>
+<p>Lua should be the same I would think?</p>
+<p>In any event I envy your ability to make cool things.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Have you seen <span class="mention">@Lumak</span>’s work from four years ago?</p>
+<aside class="quote" data-post="1" data-topic="3001">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b3b294bc4454bf21e07a40d7aa09761d.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/buoyancy-testing/3001">Buoyancy testing</a> <a class="badge-wrapper bullet" href="/c/showcase/17"><span class="badge-category-bg" style="background-color: #F1592A;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Share things created with or for Urho3D.">Showcase</span></a>
+</div>
+<blockquote>
+    Just another one of those projects that got me curious and had to code it to see if it’d work. 
+Using the water shader from the last project - it looks pretty good <img alt="grin" class="emoji" height="20" src="../../../images2/ab418b6a2a0bf690d1ca04fff8b57495.png" title="grin" width="20"/> 
+repo: <a href="https://github.com/Lumak/Urho3D-Buoyancy" rel="noopener nofollow ugc">https://github.com/Lumak/Urho3D-Buoyancy</a>
+</blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>Somehow I missed this reply. Thanks for the explanation, that makes more sense.<br/>
+Should be the same, yeah, when I get back to working on boats in this game I’ll try it out.<br/>
+Thanks! Just a little open world project.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3169_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">evolgames</div>
+          <div class="post_content">
+<p>I haven’t, this is a really good implementation!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

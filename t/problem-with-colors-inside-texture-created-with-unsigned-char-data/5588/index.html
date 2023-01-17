@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Problem with colors inside Texture created with unsigned char * data</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Problem with colors inside Texture created with unsigned char * data</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>I obtain Data from another renderer as unsigned char * Data and I create Texture and display it. Problem is, colors are not ok, blue text is red and green is blue.</p>
+<p>Here is my code how I create texture</p>
+<pre><code>void WG::WGUI::mf_GetRender(unsigned char *&amp; data, double width, double height)
+{
+	IntPtr pdata = static_cast&lt;IntPtr&gt;(data);
+	mainWindow-&gt;UserC-&gt;mf_RenderControl(width, height, pdata);
+}
+</code></pre>
+<hr/>
+<pre><code>// Inside urho Start();
+
+        image = new Urho3D::Image(context_);
+		double width = 1024;
+		double height = 512;
+		int RGBA = 4;
+		image-&gt;SetSize((int)width, (int)height, 4);
+		
+		DATA = (unsigned char *)malloc(width * height * RGBA);
+
+		WG::WGUI::wgui-&gt;mf_GetRender(DATA, width, height);
+		image-&gt;SetData(DATA);
+		
+		texture = new Urho3D::Texture2D(context_);
+		texture-&gt;SetFilterMode(Urho3D::TextureFilterMode::FILTER_BILINEAR);
+		texture-&gt;SetNumLevels(1);
+		texture-&gt;SetSize(image-&gt;GetWidth(), image-&gt;GetHeight(), Urho3D::Graphics::GetRGBAFormat(), Urho3D::TEXTURE_DYNAMIC);
+		texture-&gt;SetData(0, 0, 0, image-&gt;GetWidth(), image-&gt;GetHeight(), image-&gt;GetData());
+
+		Urho3D::Sprite * sprite = GetSubsystem&lt;Urho3D::UI&gt;()-&gt;GetRoot()-&gt;CreateChild&lt;Urho3D::Sprite&gt;();
+		sprite-&gt;SetTexture(texture);
+		sprite-&gt;SetSize(image-&gt;GetWidth(), image-&gt;GetHeight());
+		sprite-&gt;SetBlendMode(Urho3D::BlendMode::BLEND_ALPHA);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Teknologicus</div>
+          <div class="post_content">
+<p>Just a guess, but the function mf_GetRender may be acquiring the RGB data in a different byte order for the RGB channels.  In such cases one can write code to swap the bytes to the correct order before calling image-&gt;SetData(DATA);</p>
+<p>P.S.  The fact that the data pointer in the mf_GetRender function is cast to an int pointer means it’s most likely a little-endian (<a href="https://en.wikipedia.org/wiki/Endianness" rel="nofollow noopener">https://en.wikipedia.org/wiki/Endianness</a>) issue.  If you want the code to be cross platform, you’ll need a endianess check and not run the byte swap (RGBA byte order reversal) code on big-endian architectures.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yep, this is a case of RGBA meets BGRA. Who knows, it could have been worse, ARGB. Still, you noticed a clean switching of colour channels, so the solution is simple. You know what to do, right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Thanks, I am self taught programmer, I think I know what to do from your descriptions. I search for conversion from BGRA to RGBA and now it display right colors. (btw outside renderer make Pbgra32 pixel format)</p>
+<pre><code>        unsigned char* rgba = (unsigned char *)malloc(width * height * RGBA);
+
+		int w = (int)width;
+		for (int _y = (int)height - 1; _y &gt;= 0; _y--)
+		{
+			for (int _x = 0; _x &lt; w; _x++)
+			{
+				rgba[(_x + _y * w) * 4] = DATA[((_x + _y * w) * 4) + 2];
+				rgba[((_x + _y * w) * 4) + 1] = DATA[((_x + _y * w) * 4) + 1];
+				rgba[((_x + _y * w) * 4) + 2] = DATA[(_x + _y * w) * 4];
+				rgba[((_x + _y * w) * 4) + 3] = DATA[((_x + _y * w) * 4) + 3];
+			}
+		}
+		image-&gt;SetData(rgba);
+</code></pre>
+<p>code taken from <a href="https://stackoverflow.com/questions/15262855/bgra-rgba-and-vertical-flip-optix" rel="nofollow noopener">https://stackoverflow.com/questions/15262855/bgra-rgba-and-vertical-flip-optix</a><br/>
+now the question is, can Urho provide some conversion? I found method <code>ConvertToRGBA()</code> from Image class, but this does nothing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>I have problem with conversion code. It make arond 20 - 30 FPS down if I render it realtime. (without conversion code FPS is ok)<br/>
+are there faster possibilities in conversion? If yes how?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="4" data-topic="5588" data-username="Elendil">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5bdc420841620ed3f92151be712315ad.png" width="20"/> Elendil:</div>
+<blockquote>
+<p>I found method <code>ConvertToRGBA()</code> from Image class, but this does nothing.</p>
+</blockquote>
+</aside>
+<p>Did you look into its implementation, or <code>Urho3D/Resource/</code><a  rel="noopener nofollow ugc"><code>Image.cpp</code></a> in general?</p>
+<aside class="quote no-group" data-post="5" data-topic="5588" data-username="Elendil">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/5bdc420841620ed3f92151be712315ad.png" width="20"/> Elendil:</div>
+<blockquote>
+<p>are there faster possibilities in conversion? If yes how?</p>
+</blockquote>
+</aside>
+<p>Do you see no way to avoid conversion altogether?  Does WG not have conversion capabilities or options concerning color space?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="5588">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/77868b9765b6816416ecfec89de29408.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Did you look into its implementation, or <code>Urho3D/Resource/</code> <a  rel="nofollow noopener"> <code>Image.cpp</code> </a> in general?</p>
+</blockquote>
+</aside>
+<p>Yes</p>
+<aside class="quote no-group" data-post="6" data-topic="5588">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/77868b9765b6816416ecfec89de29408.png" width="20"/> Modanung:</div>
+<blockquote>
+<p>Do you see no way to avoid conversion altogether? Does WG not have conversion capabilities or options concerning color space?</p>
+</blockquote>
+</aside>
+<p>Unforunately no. And if conversion capabilities are there, I don’t think it will be faster because it is managed code. But I wonder how fast it is without conversion, but I tested it with only simple graphics.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Teknologicus</div>
+          <div class="post_content">
+<p>With all due respect, that code from Stackoverflow looks overly computational intensive for the task with all the those variables being accessed, adds and multiplies.  One should be able to do this and achieve the same thing with much fewer machine instructions generated by the compiler and much better performance:</p>
+<pre><code>#include &lt;stdint.h&gt;
+...
+uint32_t *ptr = (uint32_t*)DATA;
+int size = width * height / sizeof(uint32_t);
+for (int i = 0; i &lt; size; ++i) {
+    uint32_t pixel = ptr[i];
+    rgba[i    ] = pixel &gt;&gt; 24;
+    rgba[i + 1] = (pixel &gt;&gt; 16) &amp; 0xFF;
+    rgba[i + 2] = (pixel &gt;&gt; 8) &amp; 0xFF;
+    rgba[i + 3] = pixel &amp; 0xFF;
+}
+...</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Thanks, but unfotunately it make this (see picture).<br/>
+And i forgot add discoverty that renderer which make pixel data, his format is Pbgra32 (<em>Each color channel is pre-multiplied by the alpha value</em>)<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="urhoArtifacts.JPG"><img alt="urhoArtifacts" data-base62-sha1="2WMQgX1T4TexjLydAXhCq7gpicT"  height="355" src="../../../images2/413b7b8210b25d8f84fac728c62b6ec6.jpeg" width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">urhoArtifacts.JPG</span><span class="informations">1103×569 59 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Teknologicus</div>
+          <div class="post_content">
+<p>Try:</p>
+<pre><code>...
+    rgba[i    ] = (pixel &gt;&gt; 16) &amp; 0xFF;
+    rgba[i + 1] = (pixel &gt;&gt; 8) &amp; 0xFF;
+    rgba[i + 2] = pixel &amp; 0xFF;
+    rgba[i + 3] = pixel &gt;&gt; 24;
+...</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Teknologicus</div>
+          <div class="post_content">
+<p>I just realized there’s a pointer arithmetic error in the code.  This should correct that:</p>
+<pre><code>#include &lt;stdint.h&gt;
+...
+uint32_t *ptr = (uint32_t*)DATA;
+int size = width * height / sizeof(uint32_t);
+for (int i = 0; i &lt; size; ++i) {
+    uint32_t pixel = ptr[i];
+    int j = i * sizeof(uint32_t);
+    rgba[j    ] = pixel &amp; 0xFF;
+    rgba[j + 1] = (pixel &gt;&gt; 16) &amp; 0xFF;
+    rgba[j + 2] = (pixel &gt;&gt; 8) &amp; 0xFF;
+    rgba[j + 3] = pixel &gt;&gt; 24;
+}
+</code></pre>
+<p>…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Unfortunately it not working, it does something but text on buttons is transparent.</p>
+<p>btw this is working after I edit it to this. But it not convert colors</p>
+<pre><code>unsigned char *ptr = (unsigned char *)DATA;
+	int size = width * height * 4; // / sizeof(uint32_t);
+	for (int i = 0; i &lt; size; ++i) {
+		uint32_t pixel = (uint32_t)ptr[i];
+		rgba[i] = pixel &gt;&gt; 32;
+		rgba[i + 1] = (pixel &gt;&gt; 16) &amp; 0xFF;
+		rgba[i + 2] = (pixel &gt;&gt; 8) &amp; 0xFF;
+		rgba[i ] = pixel &amp; 0xFF;
+	}
+</code></pre>
+<hr/>
+<p>Aha you edit code little bit. Your last code working with conversion but it not convert all image<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="urhoArtifacts2.JPG"><img alt="urhoArtifacts2" data-base62-sha1="5zMIVCm75WYppnM5vhneANV9JYY"  height="359" src="../../../images2/e30dbddc8bffe0eb59996d1ed192ebd2.jpeg" width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">urhoArtifacts2.JPG</span><span class="informations">1093×569 64.9 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>This is working</p>
+<pre><code>uint32_t *ptr = (uint32_t*)DATA;
+	int size = width * height; // / sizeof(uint32_t);
+	for (int i = 0; i &lt; size; ++i) {
+		uint32_t pixel = ptr[i];
+		int j = i * sizeof(uint32_t);
+
+		rgba[j] = (pixel &gt;&gt; 16) &amp; 0xFF;
+		rgba[j + 1] = (pixel &gt;&gt; 8) &amp; 0xFF;
+		rgba[j + 2] = pixel &amp; 0xFF;
+		rgba[j + 3] = pixel &gt;&gt; 24;
+	}
+</code></pre>
+<p>but speed is not much increased. Around + 5 or 10  FPS<br/>
+Anyway thanks for help.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="urhoNGFINISH.JPG"><img alt="urhoNGFINISH" data-base62-sha1="mxFow97muU3WIImraQ622G6xNVU"  height="362" src="../../../images2/9b38eda7adac48642f4b8d962a88fa9e.jpeg" width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">urhoNGFINISH.JPG</span><span class="informations">1082×568 93 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>It is faster if you directly copy data to your texture without swapping or allocating data when you copy.<br/>
+Asuming you are using DirectX9, you can try this:</p>
+<pre><code class="lang-auto">void SetTextureData(Texture2D* texture, int width, int height, int stride, char* data) {
+  RECT d3dRect;
+  int srcStride = stride;
+
+  d3dRect.left = 0;
+  d3dRect.top = 0;
+  d3dRect.right = width;
+  d3dRect.bottom = height;
+
+  int level = 0;
+  DWORD flags = D3DLOCK_DISCARD;
+
+  D3DLOCKED_RECT d3dLockedRect;
+  IDirect3DTexture9* object = (IDirect3DTexture9*)texture-&gt;GetGPUObject();
+
+  if (!object || FAILED(object-&gt;LockRect(level, &amp;d3dLockedRect, (flags &amp; D3DLOCK_DISCARD) ? 0 : &amp;d3dRect, flags)))
+    return;
+
+  for (int j = 0; j &lt; height; ++j) {
+    unsigned char* dst = (unsigned char*)d3dLockedRect.pBits + j * d3dLockedRect.Pitch;
+    memcpy(dst, data, stride);
+    data += stride;
+  }
+
+  object-&gt;UnlockRect(level);
+}</code></pre>
+<p><strong>NOTE</strong>: Don’t forget to set the correct stride (usually width * 4).<br/>
+I use this for rendering video and CEF browser, there are also versions for OpenGL and DirectX11.</p>
+<p>Other technique you can use is reorder colors in the pixel shader, it will be faster than conversion in CPU.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Thanks, this looks interesting, unfortunately I use DX11 and I have no experience in it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/259_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pencheff</div>
+          <div class="post_content">
+<p>In DirectX11 with Urho3D:</p>
+<pre><code class="lang-auto">void SetTextureData(Texture2D* texture, int width, int height, int stride, char* data) {
+  D3D11_BOX box;
+  box.left = 0;
+  box.right = width;
+  box.top = 0;
+  box.bottom = height;
+  box.front = 0;
+  box.back = 1;
+
+  graphics_-&gt;GetImpl()-&gt;GetDeviceContext()-&gt;UpdateSubresource((ID3D11Resource*)texture_-&gt;GetGPUObject(), 0, &amp;box, data, stride, 0);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Thanks, but this is not working for me. Maybe I don’t know how to use this function, because when I check Urho source, it looks like virtual function wait for declaration (I am not able find declaration of this function UpdateSubresource( … )).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Maybe try this:</p>
+<pre><code class="lang-auto">#include &lt;d3d11.h&gt;
+</code></pre>
+<p>Somewhat of a wild guess.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Elendil</div>
+          <div class="post_content">
+<p>Without that I am unable compile a project. Therefore this is most basic thing.<br/>
+When I use this function it does nothing. It means if I use it, it doesnt set data in to texture and it doesnt convert DATA to RGBA.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

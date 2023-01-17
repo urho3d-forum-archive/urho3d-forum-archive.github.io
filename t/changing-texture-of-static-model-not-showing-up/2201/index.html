@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Changing texture of static model not showing up</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Changing texture of static model not showing up</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bbm</div>
+          <div class="post_content">
+<p>I have a opencv mat and a StaticModel loaded from a file which I converted a collada to mdl. StaticModel loads good with it’s original texture. but I want to change it dynamically.</p>
+<pre><code class="lang-auto">        assert(!cvWraper.mat.empty());
+        // I get the model
+        StaticModel *staticModel = mNode-&gt;GetComponent&lt;StaticModel&gt;();
+        assert(staticModel != nullptr);
+        // then I get the texture from it's material
+        Texture *textureBase = staticModel-&gt;GetMaterial(0)-&gt;GetTexture(TU_DIFFUSE);
+        assert(textureBase != nullptr);
+        Texture2D *texture = dynamic_cast&lt;Texture2D*&gt;(textureBase);
+        assert(texture != nullptr);
+        bool success = true;
+        // And I update the texture
+        if(texture-&gt;GetWidth() != cvWraper.mat.cols ||
+            texture-&gt;GetHeight() != cvWraper.mat.rows ||
+            texture-&gt;GetFormat() != GL_RGBA) {
+            texture-&gt;SetNumLevels(0);
+            success = texture-&gt;SetSize(cvWraper.mat.cols, cvWraper.mat.rows, GL_RGBA, TEXTURE_DYNAMIC);
+            assert(success);
+        }
+        success = texture-&gt;SetData(0, 0, 0, cvWraper.mat.cols, cvWraper.mat.rows, cvWraper.mat.data);</code></pre>
+<p>After the update I see no changes.  Am I missing something? Is there a “Texture did update” function? I’m using OpenGL. If I force calling SetSize function above then I see black where the texture is supposed to be. Texture contains alpha components.</p>
+<p>Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>At least for testing, I suggest creating a new texture from scratch and setting its format/size explicitly, instead of modifying the one loaded by the material. That way you can be sure any settings in the original texture aren’t interfering.</p>
+<p>If texture-&gt;SetData() returns success true, the data has already been pushed to OpenGL.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bbm</div>
+          <div class="post_content">
+<p>I’ve been playing around and keep getting black. I tried creating a new texture and I’m still getting black.</p>
+<pre><code class="lang-auto">        //Texture2D *texture = dynamic_cast&lt;Texture2D*&gt;(textureBase);
+        Texture2D *texture = new Texture2D(mNode-&gt;GetContext());
+        texture-&gt;SetNumLevels(0);
+
+       // ....
+        Material *material = staticModel-&gt;GetMaterial(0);
+        material-&gt;SetTexture(TU_DIFFUSE, texture);</code></pre>
+<p>I don’t know, what the issue can be.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">bbm</div>
+          <div class="post_content">
+<p>omg I see the issue</p>
+<pre><code class="lang-auto">// this 
+texture-&gt;SetNumLevels(0);
+// should be
+texture-&gt;SetNumLevels(1);</code></pre>
+<p>Setting numlevels to 1 makes sense too. Thank you it’s working now <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/>, love your game engine great work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Number of levels 0 means “use as many as necessary to reach 1x1 mip level” in which case you indeed have to fill them all to not get black, depending on the sampling distance. Good that you figured it out!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Sry to wake up this old thread but i can’t get it working at all.</p>
+<p>I wanted to display a simple cube with the Jack_face.jpg and tried creating a new material and a new corresponding texture but the cube remains simply white. Here my code from scene creation:</p>
+<blockquote>
+<p>texture = new Texture2D(context_);<br/>
+texture-&gt;SetNumLevels(1);<br/>
+texture-&gt;SetSize(1024, 1024, GL_RGB);<br/>
+texture-&gt;SetData(0, 0, 0,1024, 1024, cache-&gt;GetResource(“Textures/Jack_face.jpg”));</p>
+</blockquote>
+<pre><code>material = new Material(context_);
+material-&gt;SetTexture(TU_DIFFUSE,texture);
+
+cubeNode = scene_-&gt;CreateChild("cube");
+cubeNode-&gt;SetPosition(Vector3(0, 0, 7));
+cubeNode-&gt;SetScale(Vector3(5.0f, 5.0f, 5.0f));
+
+cubeObject = cubeNode-&gt;CreateComponent&lt;StaticModel&gt;();
+cubeObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+
+cubeObject-&gt;SetMaterial(material);
+</code></pre>
+<p>When i use one of the provided materials like the skybox, the cube is textured with it.</p>
+<blockquote>
+<p>cubeObject-&gt;SetMaterial(cache-&gt;GetResource(“Materials/Skybox.xml”));</p>
+</blockquote>
+<p>I really don’t understand how to create a Texture from image and create a correspoding material as well applying it onto a 3D Model via c++, i wish there was a tutorial for this kind of stuff.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

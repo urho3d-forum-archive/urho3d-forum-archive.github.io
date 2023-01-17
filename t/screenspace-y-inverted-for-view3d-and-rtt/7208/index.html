@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ScreenSpace Y - Inverted for View3D and RTT</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ScreenSpace Y - Inverted for View3D and RTT</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>I am seeing this now in two different Urho-based apps that I’m working on.   I see it in <a href="http://Urho.NET" rel="noopener nofollow ugc">Urho.NET</a> which uses the latest Urho3D source code.</p>
+<p>I have a shader which scales Text in Screenspace to control size (keeping it readable at all ranges - we increase/decrease size slowly as you get closer/further away).</p>
+<p>However, in the View3D and also when we use Render-To-Texture to capture a Screenshot, the result is that the Y-Axis in ScreenSpace is inverted, and our Text ends up Upside-Down.   Everything else about the rendering is correct; the only defect is Y-Axis ScreenSpace is inverted.</p>
+<p>Here is a screenshot from our GPS App:  (TOP = Correct;   BOTTOM = Y-Inverted)</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="bt783sNAsnafIA5hV8DijJ5oS3V"  height="500" src="../../../images2/c3e08ae2d30bce25bac966d7e1aa8e59.png"  width="402"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">image</span><span class="informations">847×1053 198 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>And from our Game, still with crude graphics, but the Font, rendered inside a View3D, the ScreenSpace is inverted:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="y5KnLf3siZJoKmVuiafdYAfi6Wb"  height="500" src="../../../images2/1eda341063e4ae249d5c4b70f41cba5e.png" width="570"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">image</span><span class="informations">687×602 17.5 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>===<br/>
+This seems like an Urho3D bug, somehow.  I can file this as an issue, if it turns out to be the case.</p>
+<p>Our current/kludged workaround is to modify the Y-scalar when inside V3D or doing RTT.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>So, to clarify, you are observing different results when rendering to texture vs when rendering to the screen directly? And are you sure the texture is not just upside down?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoldenThumbs</div>
+          <div class="post_content">
+<p>OpenGL and DirectX have different standards for which way the Y axis should go (whether it has to be inverted or not), and I don’t think Urho abstracts this away. There could be a function that handles this in one of the accompanying shader include files, I’m not sure.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p><span class="mention">@SirNate0</span> - this happens on both Android and Windows WPF the same (HLSL and GLSL).</p>
+<p>The texture is right side up, because EVERYTHING ELSE in the scene is in the correct locations, including the “base location for the text”.   For our text, we send the Text shader 4 vertices per letter, all at the same World Location, and use the TexCoord2 to indicate “screenoffset from center” and so the quad gets sized in Screen space.</p>
+<p>Here is the vertex shader GLSL:</p>
+<pre><code class="lang-auto">#ifdef COMPILEVS
+    uniform mediump vec2 cScale;
+    uniform mediump vec3 cWorldPos;
+#endif
+
+varying vec2 vTexCoord;
+
+void VS()
+{
+    vec4 clipPos = GetClipPos(cWorldPos);
+
+    // Now offset the vertex position
+    vec2 posOffset = iTexCoord1 * clipPos.w;
+    posOffset.x *= cScale.x;
+    posOffset.y *= cScale.y;   //  CHANGE TO "*= -cScale.y"  fixes the issue
+    clipPos.xy += posOffset;
+    gl_Position = clipPos;
+    vTexCoord = iTexCoord;
+}
+</code></pre>
+<p>When we use this for “screen-capture” we have a kludge, to simply toggle polarity shader parameter “Scale.y” for one frame – capture it, and be done.</p>
+<p>However, this is also happening inside the “View3D” windows as well, for which the problem isn’t as simple.  We’re going to need to have different shaders working in this context.</p>
+<p>Sure seems to us like an Urho3D core bug.</p>
+<p>You should be able to validate it yourself, with a simple screen-space vertex shader, running in both normal mode, and the View3D, on both Android and WPF alike.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoldenThumbs</div>
+          <div class="post_content">
+<p>If I am understanding this code right, why are you using a custom shader for this? Isn’t this basically just a billboard? Urho has billboards already. Just like, use a billboard and set the texture to the render texture. Well, that could probably result in an inverted y axis too, not sure. Gonna have to test that. I’ll get back to you with my results.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We have two contexts where this is happening, neither of which is resolved by a billboard (which as you indicated, though, likely suffers the same defect):</p>
+<ol>
+<li>
+<p>GameEditor inside Avalonia Toolset – accomplished the View3D UI component which has been wrapped to behave as an Avalonia Render Surface.   The basics for this will be released to the public when we’re done.</p>
+</li>
+<li>
+<p>Setting up an offscreen camera to capture a scene shot, rendering it to a Texture, then exporting that image via “Texture.GetData()”.</p>
+</li>
+</ol>
+<p>When I saw it happen twice for two entirely different contexts, that lead to my belief that this is likely an Urho bug.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoldenThumbs</div>
+          <div class="post_content">
+<p>Are you using render textures in both cases or just the one? Sorry if my questions seem a bit redundant, I’ve got to admit I find what you are trying to do a bit confusing. Maybe if I recreate one or both of these cases myself I’ll understand better</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We are using <a href="http://Urho.NET" rel="noopener nofollow ugc">Urho.NET</a> (<span class="mention">@elix22</span> invention).   And we just Create the View3D and then call “SetView(scene, camera)” and it starts rendering just like any other view port.   In this mode, we’re not dealing directly with Textures/etc… it just works  (except for screenspace Y being inverted).</p>
+<p>For the other app (which uses UrhoSharp) - here we are doing a RTT.</p>
+<p>In both cases, everything else is right-side-up – just not the screen-spaced fonts, which are upside-down in both cases.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p><span class="mention">@GoldenThumbs</span> - Any luck reproducing this yet?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1669_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GoldenThumbs</div>
+          <div class="post_content">
+<p>I wasn’t able to get Urho to build. <img alt=":confused:" class="emoji" height="20" loading="lazy" src="../../../images2/4baf8336eeb79aa3a8b3e07029659c08.png" title=":confused:" width="20"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="7208" data-username="najak3d">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/767fb084bb13664b1de3b2e66227eb5f.png" width="20"/> najak3d:</div>
+<blockquote>
+<p>amera to capture a scene sho</p>
+</blockquote>
+</aside>
+<p>Did you change any matrix calculation or inverted any axis?<br/>
+I think you should attach a small example here.  So some experts can help you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>No axes or matrices manipulated.  This is just plain vanilla rendering in View3D in one app, and RTT in the other.   Two different apps; two different techniques, but produced the same inversion on screen space only.    World space is just fine; just not screen space.</p>
+<p>I currently don’t even know how to manipulate any matrices/etc.</p>
+<p>If an expert simply tried vanilla techniques for either of those, and applied a Screen Space shader to something where you can tell if it’s upside down – they’d see it right away.</p>
+<p>Our workaround is working fine, since in our app, we are not rendering to both at the same time.  The RTT is for a quick scene capture to image, and the View3D is used for Urholonia only when in the Game Editor mode.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">justanotherdev</div>
+          <div class="post_content">
+<p>I believe this may be expected behavior for the OpenGL backend to achieve consistent UV space between OpenGL/DirectX. When the renderer detects that the viewport target is a texture it will flip the camera’s Y axis so that the produced texture can be addressed in the same UV space regardless of whether DirectX or OpenGL is being used, <a  rel="noopener nofollow ugc">see here</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I’m thinking the solution to the problem may just be exposing whether the view has been flipped as some uniform in the shader like Unity does so that the shader can make the appropriate changes (i.e. multiply by -1).</p>
+<aside class="onebox allowlistedgeneric" data-onebox-src="https://docs.unity3d.com/2018.4/Documentation/Manual/SL-PlatformDifferences.html">
+<header class="source">
+<img class="site-icon" height="48" src="../../../images2/422034f4fc4836fad9916dcd86b1e3e4.ico" width="48"/>
+<a href="https://docs.unity3d.com/2018.4/Documentation/Manual/SL-PlatformDifferences.html" rel="noopener" target="_blank">docs.unity3d.com</a>
+</header>
+<article class="onebox-body">
+<div class="aspect-image" style="--aspect-ratio:690/362;"><img class="thumbnail" height="362" src="../../../images2/ee6d54e487e4d2b8b0bb55b57e44058d.jpg" width="690"/></div>
+<h3><a href="https://docs.unity3d.com/2018.4/Documentation/Manual/SL-PlatformDifferences.html" rel="noopener" target="_blank">Unity - Manual: Platform-specific rendering differences</a></h3>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

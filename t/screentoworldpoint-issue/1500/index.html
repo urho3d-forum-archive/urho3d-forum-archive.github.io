@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ScreenToWorldPoint issue</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ScreenToWorldPoint issue</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codder</div>
+          <div class="post_content">
+<p>Hello again,</p>
+<p>I have a perspective camera and I want to use the mouse to move some 3D elements in the scene.<br/>
+The problem I have is ScreenToWorldPoint() which return a Vector3 considering also Z coord.<br/>
+What I want is to move the object only on X and Y axis according to mouse movement and keeping Z as is.</p>
+<p>How to deal with that?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Jens</div>
+          <div class="post_content">
+<p>If your object is at z==0, then you need to use the negative distance of the camera. So, if the camera z pos == -10, then depth==10 in the ScreenToWorldPoint().  If the object is placed at z==-5, then the depth is 5.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<pre><code class="lang-auto">Vector3 ScreenToPlanePos(Camera* camera, const Vector2&amp; screenPos, const Plane&amp; plane)
+{
+    const Vector3 camPos{ camera-&gt;GetNode()-&gt;GetWorldPosition() };
+    const float signedDistance{ plane.Distance(camPos) };
+    const float distance{ Abs(signedDistance) };
+    const Vector3 normal{ signedDistance &gt; 0.f ? -plane.normal_ : plane.normal_ };
+    const Vector3 direction{ camera-&gt;GetScreenRay(screenPos).direction_ };
+    const float angle{ direction.Angle(normal) };
+    const float cos{ Cos(angle) };
+
+    return camPos + direction * distance / (cos == 0.f ? M_EPSILON : cos);
+}
+</code></pre>
+<p><code>(result - camPosition).DotProduct(camDirection) &gt; 0.f</code></p>
+<p>or</p>
+<p><code>Plane{ camDirection, camPosition }.Distance(result) &gt; 0.f</code></p>
+<p>…should return <code>true</code> for positions in front of the camera and <code>false</code> for values you’d want to ignore.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Also, I forgot about <code>Ray::HitDistance</code>, which makes all this a lot more elegant and concise:</p>
+<p><a href="https://gitlab.com/luckeyproductions/dry/-/blob/832b1d35d3cd7a7e81bd2329df615fb609599464/Source/Dry/Graphics/Camera.cpp#L441-450" rel="noopener nofollow ugc"><strong><code>Vector3 Camera::ScreenToPlanePos</code></strong></a></p>
+<pre><code class="lang-auto">(const Vector2&amp; screenPos, const Plane&amp; plane) const
+{
+    const Ray ray{ GetScreenRay(screenPos) };
+    const float distance{ ray.HitDistance(plane) };
+
+    if (distance == M_INFINITY)
+        return Vector3::ONE * M_INFINITY;
+
+    return ray.origin_ + ray.direction_ * distance;
+}
+</code></pre>
+<p>Making of course <code>result.x_ != M_INFINITY</code> your new filter.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

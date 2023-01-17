@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Odd behavior with Scrollview</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Odd behavior with Scrollview</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>I want to confirm if this is a bug or if I’m just doing something wrong. There’s two issues here actually.</p>
+<p>Here’s how I’m setting up my ScrollView:</p>
+<pre><code class="lang-auto">_scrollview_chat = chatContainer-&gt;CreateChild&lt;Urho3D::ScrollView&gt;();
+_scrollview_chat-&gt;SetStyleAuto();
+_scrollview_chat-&gt;SetFocusMode(Urho3D::FM_NOTFOCUSABLE);
+_scrollview_chat-&gt;SetEditable(false);
+_scrollview_chat-&gt;SetSize(chatContainer-&gt;GetWidth(), chatContainer-&gt;GetHeight() - 24);
+_scrollview_chat-&gt;SetPosition(0, 0);
+
+Urho3D::UIElement* chatContentElement = _scrollview_chat-&gt;CreateChild&lt;Urho3D::UIElement&gt;();
+_scrollview_chat-&gt;SetContentElement(chatContentElement);
+chatContentElement-&gt;SetLayoutMode(Urho3D::LM_VERTICAL);
+chatContentElement-&gt;SetStyleAuto();
+chatContentElement-&gt;SetPosition(0, -12);
+chatContentElement-&gt;SetAlignment(Urho3D::HA_LEFT, Urho3D::VA_BOTTOM);</code></pre>
+<p>Here’s how I add a message:</p>
+<pre><code class="lang-auto">Urho3D::Text* text = _scrollview_chat-&gt;GetContentElement()-&gt;CreateChild&lt;Urho3D::Text&gt;();
+//text-&gt;SetWordwrap(true);
+text-&gt;SetFont(font, 12);
+text-&gt;SetText(sender + ": " +message);</code></pre>
+<p>The first issue that I’m experiencing is that the scrollbar doesn’t properly work with the alignment VA_BOTTOM. Elements populate bottom-to-top as they should, but the scrollbar still expands from the top instead of the bottom.</p>
+<p>I’ve included some screenshots showing the behavior here: <a href="http://imgur.com/a/ywDZn" rel="nofollow noopener">imgur.com/a/ywDZn</a></p>
+<p>My second issue is that word wrap does not work properly. In the above code, I’ve uncommented the following:</p>
+<pre><code class="lang-auto">text-&gt;SetWordwrap(true);</code></pre>
+<p>However what this does is cause the text not to appear entirely. The length of the text causes the height of the scrollview content element to become very tall, indicating that it is likely wrapping the text to be 1 character wide.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The ScrollView’s content element should be left at 0,0, alignment HA_LEFT, VA_TOP; think of it as a canvas extending from the top-left edge of the ScrollView.</p>
+<p>You can also use ListView which allows you to add child items directly (it handles the content container for you). Two examples of adding chat-like text elements to a list are Console.cpp and the Chat sample application.</p>
+<p>However everything doable with ListView should also be doable with ScrollView, it just takes more effort. I’ll try to cook up a basic code example below.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Here is a minimal example. It’s in AngelScript but should be quite easily translatable to C++. While writing it I uncovered something weird related to use of wordwrap and vertical layout: the content element should resize itself to the children’s combined height, but is instead left too large if I don’t call UpdateLayout manually in the end. I’ll make an issue of that.</p>
+<pre><code class="lang-auto">UIElement@ content;
+
+void CreateUI()
+{
+    XMLFile@ uiStyle = cache.GetResource("XMLFile", "UI/DefaultStyle.xml");
+    // Set style to the UI root so that elements will inherit it
+    ui.root.defaultStyle = uiStyle;
+
+    Window@ window = ui.root.CreateChild("Window");
+    window.size = IntVector2(400, 300);
+    window.position = IntVector2(100, 100);
+    window.movable = true;
+    window.SetStyleAuto();
+    
+    ScrollView@ view = window.CreateChild("ScrollView");
+    view.position = IntVector2(10, 10);
+    view.size = IntVector2(380, 280);
+    view.SetStyleAuto();
+    
+    content = UIElement();
+    view.contentElement = content;
+    content.SetLayout(LM_VERTICAL);
+    content.SetFixedWidth(376); // Scrollview has a small border around the edges, account for that
+
+    for (int i = 0; i &lt; 10; ++i)
+    {
+        Text@ text = content.CreateChild("Text");
+        text.SetStyleAuto();
+        text.wordwrap = true;
+        text.text = "Longcat and Tacgnol fought the battle of Catnarok. No-one survived";
+    }
+    // There is currently a bug which requires calling this manually after manipulating children.
+    // It shouldn't be necessary. Otherwise content element is left too big. This has to do with
+    // wordwrap, as the bug doesn't appear if wordwrap in the children is left false
+    content.UpdateLayout();
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Another example doing the same with ListView, this time with a resizable window. ListView actually behaves more robustly when used with wordwrap text elements and dynamic resizing, and is easier to use when all you need is to just stack the items vertically:</p>
+<pre><code class="lang-auto">void CreateUI()
+{
+    XMLFile@ uiStyle = cache.GetResource("XMLFile", "UI/DefaultStyle.xml");
+    // Set style to the UI root so that elements will inherit it
+    ui.root.defaultStyle = uiStyle;
+
+    Window@ window = ui.root.CreateChild("Window");
+    window.size = IntVector2(400, 300);
+    window.position = IntVector2(100, 100);
+    window.movable = true;
+    window.SetStyleAuto();
+    window.resizable = true;
+    window.SetLayout(LM_VERTICAL);
+    window.layoutBorder = IntRect(20,20,20,20);
+
+    ListView@ view = window.CreateChild("ListView");
+    view.minSize = IntVector2(300, 200);
+    view.SetStyleAuto();
+
+    for (int i = 0; i &lt; 10; ++i)
+    {
+        Text@ text = Text();
+        text.defaultStyle = uiStyle;
+        text.SetStyleAuto();
+        text.text = "Longcat and Tacgnol fought the battle of Catnarok. No-one survived";
+        text.wordwrap = true;
+        view.AddItem(text);
+    }
+    SubscribeToEvent("Update", "HandleUpdate");
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>For the chat box bit I went ahead with a ListView since that is probably better in this case. I did figure out that there is some odd behavior with the scrollbar when I created my items as a child of the listbox (scrollview has same odd behavior) and then add it to the listview items. However as in your examples, creating it separately then adding it does just fine. I think that’s a big part of where my confusion came from as well. However it is all working good for now, thanks again.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

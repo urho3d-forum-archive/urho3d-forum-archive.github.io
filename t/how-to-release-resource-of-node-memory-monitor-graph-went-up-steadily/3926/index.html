@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How to release resource of Node? Memory monitor graph went up steadily</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How to release resource of Node? Memory monitor graph went up steadily</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>Sorry for the basic question… but I cannot figure out.</p>
+<p>In 1.7 release source code sample 20_HugeObjectCount, I add following code in HugeObjectCount::HandleUpdate() to remove and add nodes every 3 seconds at runtime.<br/>
+My environment is win7+vs 2017 community +x64</p>
+<pre><code>{//test
+	static float accTime = 0.0f;
+	accTime += timeStep;
+	if (accTime &gt;= 3.0f)
+	{
+		accTime = 0.0f;
+		ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+		if (!useGroups_)
+		{
+			/*remove boxes*/
+			while( boxNodes_.Size())
+			{
+				SharedPtr&lt;Node&gt; n = boxNodes_.Back();
+				boxNodes_.Pop();
+				n-&gt;Remove();
+			}
+
+			/*add back boxes*/
+			// Create individual box StaticModels in the scene
+			for (int y = -125; y &lt; 125; ++y)
+			{
+				for (int x = -125; x &lt; 125; ++x)
+				{
+					Node* boxNode = scene_-&gt;CreateChild("Box");
+					boxNode-&gt;SetPosition(Vector3(x * 0.3f, 0.0f, y * 0.3f));
+					boxNode-&gt;SetScale(0.25f);
+					StaticModel* boxObject = boxNode-&gt;CreateComponent&lt;StaticModel&gt;();
+					boxObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Box.mdl"));
+					boxNodes_.Push(SharedPtr&lt;Node&gt;(boxNode));
+				}
+			}
+		}
+		else
+		{
+			/*remove boxes*/
+			const Vector&lt;SharedPtr&lt;Node&gt; &gt;&amp; boxgrp = scene_-&gt;GetChildren();
+			for (unsigned ii = 0; ii &lt; boxgrp.Size(); ii++)
+			{
+				StaticModelGroup * lastGroup = boxgrp[ii]-&gt;GetComponent&lt;StaticModelGroup&gt;();
+				if (lastGroup != NULL)
+					lastGroup-&gt;RemoveAllInstanceNodes();
+			}
+			while( boxNodes_.Size())
+			{
+				SharedPtr&lt;Node&gt; n = boxNodes_.Back();
+				n-&gt;Remove();
+				boxNodes_.Pop();
+			}
+
+			/*add back boxes*/
+			unsigned ii = 0;
+			StaticModelGroup * lastGroup = boxgrp[ii]-&gt;GetComponent&lt;StaticModelGroup&gt;();
+			for (int y = -125; y &lt; 125; ++y)
+			{
+				for (int x = -125; x &lt; 125; ++x)
+				{
+					if (lastGroup == 0 || lastGroup-&gt;GetNumInstanceNodes() &gt;= 25 * 25)
+					{
+						for (ii = ii + 1;; ii++)
+						{
+							StaticModelGroup * next = boxgrp[ii]-&gt;GetComponent&lt;StaticModelGroup&gt;();
+							if (next != NULL)
+							{
+								lastGroup = next;
+								break;
+							}
+						}
+					}
+					Node* boxNode = scene_-&gt;CreateChild("Box");
+					boxNode-&gt;SetPosition(Vector3(x * 0.3f, 0.0f, y * 0.3f));
+					boxNode-&gt;SetScale(0.25f);
+					boxNodes_.Push(SharedPtr&lt;Node&gt;(boxNode));
+					lastGroup-&gt;AddInstanceNode(boxNode);
+				}
+			}
+		}
+	}
+}</code></pre>
+<p>Basically it uses node-&gt;remove() to remove node.<br/>
+But I saw memory usage monitor in visual studio 2017 just went larger and larger no matter use of staticModelGroup or not.<br/>
+<img alt="mem_usage" height="82" src="../../../images2/5cc489d26ab4be1bda172d96cd3a6b53.png" width="288"/><br/>
+Do I write something wrong?<br/>
+Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="3926" data-username="ab4daa">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/7111b5a967052d488cae9d3b93b34ae4.png" width="20"/> ab4daa:</div>
+<blockquote>
+<p>But I saw memory usage monitor in visual studio 2017 just went larger and larger</p>
+</blockquote>
+</aside>
+<p>Memory monitor doesn’t show how much memory your application <em>use</em>. It only shows how much memory the OS <em>allocates</em> for your application. It may allocate whole RAM, actually, I never care.</p>
+<p>If you want to confirm memory leak, crash your app or use leak detection tools.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>Thanks, I feel a burden released.<img alt=":grinning:" class="emoji" src="../../../images2/993cdd6d5aba3f941b7389fd0b3a1ba1.png" title=":grinning:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

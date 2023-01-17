@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Achieving SSAA anti-aliasing</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Achieving SSAA anti-aliasing</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>Im looking to add SSAA anti aliasing technique in my game which consist to render the screen (GBuffer since i am using deffered rendering) at for example 2 times the normal display resolution and then then put it back in normal size.<br/>
+Just like the Nvidia DSR technology.</p>
+<p>I would like to know where the GBuffer is created / defined in Urho3D source code so i can try to add this feature (DirectX 11 desktop). It is a quite common feature in game engines now.</p>
+<p>The deferred renderer in Urho3D need some anti-aliasing love i think <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>Thank you !</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>G-buffer setup in deferred rendering is not defined in source code, but in renderpath files</p>
+<p>CoreData/RenderPaths/Deferred.xml</p>
+<p>Though you can also define renderpaths programmatically.</p>
+<p>With luck what you’re aiming to do may even be supported without code changes, you need to create an extra buffer (double size like the albedo/normal/depth) and use it as the output index 0 in all renderpath commands that render the scene and lights. Then, as a final step you blit that into the “viewport” output (backbuffer) with a quad command.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Thank you for the answer Cadaver <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>Is it possible to set float sizes for render targets like 0.5 instead of just 1, 2, 4… ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Yes, you can use “size”, “sizedivisor” or “sizemultiplier” when defining a target’s size in the renderpath, and the last two accept floats.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Alright i think i will need some help here since i am not familiar at all with renderpath handling at the moment <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>I have just created the SSAA render target with a size multiplier of two.</p>
+<p>What do i need to do next ? Can you provide me the code if you can please ? <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>[code]</p>
+<pre><code>&lt;rendertarget name="albedo" sizedivisor="1 1" format="rgba" /&gt;
+&lt;rendertarget name="normal" sizedivisor="1 1" format="rgba" /&gt;
+&lt;rendertarget name="depth" sizedivisor="1 1" format="lineardepth" /&gt;
+&lt;rendertarget name="SSAA" sizemultiplier="2 2" format="rgba" /&gt;	
+
+&lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+&lt;command type="clear" color="0 0 0 0" output="depth" /&gt; &lt;!-- Fill depth inside skybox area  --&gt;
+
+&lt;command type="scenepass" pass="deferred" marktostencil="true" vertexlights="true" metadata="gbuffer"&gt;
+    &lt;output index="0" name="viewport" /&gt;
+    &lt;output index="1" name="albedo" /&gt;
+    &lt;output index="2" name="normal" /&gt;
+    &lt;output index="3" name="depth" /&gt;
+&lt;/command&gt;
+
+&lt;command type="lightvolumes" vs="DeferredLight" ps="DeferredLight"&gt;
+    &lt;texture unit="albedo" name="albedo" /&gt;
+    &lt;texture unit="normal" name="normal" /&gt;
+    &lt;texture unit="depth" name="depth" /&gt;
+&lt;/command&gt;
+
+&lt;command type="scenepass" pass="postopaque" /&gt;
+
+&lt;command type="scenepass" pass="refract"&gt;
+    &lt;texture unit="environment" name="viewport" /&gt;
+&lt;/command&gt;
+
+&lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" /&gt;
+&lt;command type="scenepass" pass="postalpha" sort="backtofront" /&gt;
+</code></pre>
+<p>[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>This renderpath should work. Note how every command except the final copy is routed to the “ssaa” rendertarget, and both it and the other G-buffer targets are resized to 2x size. The “ssaa” target also needs bilinear filtering enabled so that the CopyFramebuffer shader is able to read it nicely.</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;rendertarget name="ssaa" sizemultiplier="2 2" format="rgba" filter="true" /&gt;
+    &lt;rendertarget name="albedo" sizemultiplier="2 2" format="rgba" /&gt;
+    &lt;rendertarget name="normal" sizemultiplier="2 2" format="rgba" /&gt;
+    &lt;rendertarget name="depth" sizemultiplier="2 2" format="lineardepth" /&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" output="ssaa" /&gt;
+    &lt;command type="scenepass" pass="deferred" marktostencil="true" vertexlights="true" metadata="gbuffer"&gt;
+        &lt;output index="0" name="ssaa" /&gt;
+        &lt;output index="1" name="albedo" /&gt;
+        &lt;output index="2" name="normal" /&gt;
+        &lt;output index="3" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="lightvolumes" vs="DeferredLight" ps="DeferredLight" output="ssaa"&gt;
+        &lt;texture unit="albedo" name="albedo" /&gt;
+        &lt;texture unit="normal" name="normal" /&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+    &lt;command type="scenepass" pass="postopaque" output="ssaa" /&gt;
+    &lt;command type="scenepass" pass="alpha" vertexlights="true" sort="backtofront" metadata="alpha" output="ssaa" /&gt;
+    &lt;command type="scenepass" pass="postalpha" sort="backtofront" output="ssaa" /&gt;
+    &lt;command type="quad" vs="CopyFramebuffer" ps="CopyFramebuffer" output="viewport"&gt;
+        &lt;texture unit="diffuse" name="ssaa" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;</code></pre>
+<p>Be prepared for quite a hefty framerate drop, since it’s pushing 4x the amount of pixels during rendering.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">franck22000</div>
+          <div class="post_content">
+<p>Thanks a lot ! I really like your support !</p>
+<p>Of course there is a performance hit. But not so much worse compared to regular MSAA for example. And the SSAA quality is awesome.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

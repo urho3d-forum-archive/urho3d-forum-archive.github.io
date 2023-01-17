@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Bounding box frustum culling</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Bounding box frustum culling</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>Shadow flickering is occurring whenever the camera is looking exactly 90 degrees down at a shadow of an out of view object.</p>
+<p>Which led me to this function:</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Math/Frustum.h#L154</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="144" style="counter-reset: li-counter 143 ;">
+<li>Intersection IsInsideFast(const BoundingBox&amp; box) const
+</li>
+<li>{
+</li>
+<li>    Vector3 center = box.Center();
+</li>
+<li>    Vector3 edge = center - box.min_;
+</li>
+<li>
+</li>
+<li>    for (const auto&amp; plane : planes_)
+</li>
+<li>    {
+</li>
+<li>        float dist = plane.normal_.DotProduct(center) + plane.d_;
+</li>
+<li>        float absDist = plane.absNormal_.DotProduct(edge);
+</li>
+<li>
+</li>
+<li class="selected">        if (dist &lt; -absDist)
+</li>
+<li>            return OUTSIDE;
+</li>
+<li>    }
+</li>
+<li>
+</li>
+<li>    return INSIDE;
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>/// Return distance of a point to the frustum, or 0 if inside.
+</li>
+<li>float Distance(const Vector3&amp; point) const
+</li>
+<li>{
+</li>
+<li>    float distance = 0.0f;
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Adding a break statement after the highlighted condition solved the problem.</p>
+<p>But why there isn’t a break statement after the condition there ? I mean if one plane is not outside, then it must be at least intersecting, right?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>I assume what you did is:</p>
+<pre><code class="lang-auto">if (dist &lt; -absDist)
+    return OUTSIDE;
+break; // this doesn't end up doing what you think it will
+
+// and not something super terrible like:
+
+if (dist &lt; -absDist)
+    break; // if did this, slap yourself
+</code></pre>
+<aside class="quote no-group" data-post="1" data-topic="6747" data-username="Athos">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/46d3cfc3222db4363bd7d540132e0680.png" width="20"/> Athos:</div>
+<blockquote>
+<p>I mean if one plane is not outside, then it must be at least intersecting, right?</p>
+</blockquote>
+</aside>
+<p>No. Because the entire box could be on the backside of 1 plane without any other corners on the backside of any other plane.</p>
+<p>In that case the box would be out of view off to one side, or behind the nearplane, etc. Your change <em>fixes your problem</em> because you’ve broken the test to return false-positives very liberally, so virtually everything will pass containment tests.</p>
+<hr/>
+<p>Which type of light is having the shadow flicker? For instance directional light’s have an extrusion (<code>GetShadowMaxExtrusion</code> <code>SetShadowMaxExtrusion</code>) move back the light from it’s bounded fit so that offscreen things cast shadows. Default for that is 1000, if you’re using a tiny unit (like 1.0 == 1cm) then you only have 10m of peeling back.</p>
+<p>If other lights are doing it then there’s a containment test problem somewhere either in selecting the light or selecting the shadowcasters to render (more likely the former). You’ll have to step through passing and failing frames. I’d use Renderdoc to capture both cases to see what the shadowmap passes are doing (ie. are the shadowmaps differing between the two) first to make some determinations of where to go next.</p>
+<hr/>
+<p>If you need more help then post scene files or at least pictures so we can see what’s going on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<blockquote>
+<p>I assume what you did is:</p>
+<pre><code class="lang-auto">if (dist &lt; -absDist)
+    return OUTSIDE;
+break; // this doesn't end up doing what you think it will
+</code></pre>
+</blockquote>
+<p>Yes.</p>
+<blockquote>
+<p>Which type of light is having the shadow flicker?</p>
+</blockquote>
+<p>All light types.</p>
+<blockquote>
+<p>If other lights are doing it then there’s a containment test problem somewhere either in selecting the light or selecting the shadowcasters to render (more likely the former). You’ll have to step through passing and failing frames.</p>
+</blockquote>
+<p>I’ve checked the frames and it seems the model is being culled.</p>
+<blockquote>
+<p>If you need more help then post scene files or at least pictures so we can see what’s going on.</p>
+</blockquote>
+<p>Uploaded a short video:<br/>
+<a href="https://youtu.be/U9XF9XFV2TY" rel="noopener nofollow ugc">https://youtu.be/U9XF9XFV2TY</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Can you reproduce this bug on <em>unmodified</em> Urho samples?<br/>
+I’m 90% certain you messed up with scene setup.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<blockquote>
+<p>Can you reproduce this bug on <em>unmodified</em> Urho samples?</p>
+</blockquote>
+<p>Yes, sample 15-Navigation:<br/>
+<a href="https://youtu.be/Xv1-ghnCOm8" rel="noopener nofollow ugc">https://youtu.be/Xv1-ghnCOm8</a></p>
+<p>I used the 1.8 Alpha.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Oh shit. Thank you. I <em>think</em> I saw this bug before and I investigated it. Lemme re-check.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Okay, I have good news.<br/>
+This bug happens <em>only</em> if you literally have just flat plane perpendicular to the look direction and nothing else.<br/>
+The difference between minZ_ and maxZ_ is too small and something breaks.</p>
+<p>Just do something like maxZ_ += 1 if minZ_ and maxZ_ are too close around here:</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/View.cpp#L952</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="942" style="counter-reset: li-counter 941 ;">
+<li>        // If just 1 thread, copy the results directly
+</li>
+<li>        PerThreadSceneResult&amp; result = sceneResults_[0];
+</li>
+<li>        minZ_ = result.minZ_;
+</li>
+<li>        maxZ_ = result.maxZ_;
+</li>
+<li>        Swap(geometries_, result.geometries_);
+</li>
+<li>        Swap(lights_, result.lights_);
+</li>
+<li>    }
+</li>
+<li>
+</li>
+<li>    if (minZ_ == M_INFINITY)
+</li>
+<li>        minZ_ = 0.0f;
+</li>
+<li class="selected">
+</li>
+<li>    // Sort the lights to brightest/closest first, and per-vertex lights first so that per-vertex base pass can be evaluated first
+</li>
+<li>    for (unsigned i = 0; i &lt; lights_.Size(); ++i)
+</li>
+<li>    {
+</li>
+<li>        Light* light = lights_[i];
+</li>
+<li>        light-&gt;SetIntensitySortValue(cullCamera_-&gt;GetDistance(light-&gt;GetNode()-&gt;GetWorldPosition()));
+</li>
+<li>        light-&gt;SetLightQueue(nullptr);
+</li>
+<li>    }
+</li>
+<li>
+</li>
+<li>    Sort(lights_.Begin(), lights_.End(), CompareLights);
+</li>
+<li>}
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>The bad news is that I’m too lazy to commit this fix upstream. DIY if you wish.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Something like this?</p>
+<pre><code class="lang-css">    if (Equals(minZ_, maxZ_))
+        maxZ_ += 1.0f;
+</code></pre>
+<p>Seems to work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Athos</div>
+          <div class="post_content">
+<p>Flickering is gone.<br/>
+Thank you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<p>Floor it or use a large epsilon. The numeric_limits epsilon used in <code>Equals</code> is really tiny. I was still able to reproduce the flicker (less atrociously) using just <code>Equals</code>. Flooring or using <code>M_LARGE_EPSILON</code> both worked for me in the case where you nail your look angle to the floor and spin around until you get the flicker.</p>
+<pre><code>if (Equals(Floor(minZ_), Floor(maxZ_)))
+    maxZ_ += 1.0f;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="10" data-topic="6747" data-username="JSandusky">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/21d4babb39f9f7d59fc4987dd1566385.png" width="20"/> JSandusky:</div>
+<blockquote>
+<p>The numeric_limits epsilon used in <code>Equals</code> is really tiny</p>
+</blockquote>
+</aside>
+<p>It amazes me how many people use numeric_limits epsilon. Whereas I believe that if you use numeric_limits epsilon, you are doing something wrong. So far I have <em>never</em> encountered legitimate use of this constant, only mis-uses. Have you ever seen legitimate use?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>How’s this then?</p>
+<pre><code class="lang-auto">if (Equals(minZ_, maxZ_, M_LARGE_EPSILON))
+    maxZ_ += 1.0f;
+</code></pre>
+<pre><code class="lang-auto">template &lt;class T&gt; inline bool Equals(T lhs, T rhs, T margin = std::numeric_limits&lt;T&gt;::epsilon())
+{ return lhs + margin &gt;= rhs &amp;&amp; lhs - margin &lt;= rhs; }
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3220_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JSandusky</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="11" data-topic="6747" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Have you ever seen legitimate use?</p>
+</blockquote>
+</aside>
+<p>Complete integration over every single possible value in a floating point range.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

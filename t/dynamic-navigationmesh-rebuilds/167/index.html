@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Dynamic NavigationMesh rebuilds</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Dynamic NavigationMesh rebuilds</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>The 3 basic indicative frameworks for partial rebuilds of the NavigationMesh when dealing with dynamic/moving objects are:</p>
+<ol>
+<li>realtime continuous rebuild at each Update timeStep (caveat is heavy performance cost, not suitable for mobiles and often unnecessary on desktop)</li>
+<li>infrequent rebuilds that can be triggered by fixed elapsed time (for example every other 2 seconds) / velocity of the moving object / distance travelled since last update / proximity of an object or anything else that makes sense in your game logic</li>
+<li>one unic rebuild when the object comes to rest or when any other custom event occurs</li>
+</ol>
+<p>When you call NavigationMesh::Build with a bounding box parameter, you’re providing the total area you want updated. The NavigationMesh will then proceed to take a snapshot of the scene inside that box, and update all tiles that fall within it.</p>
+<p>If you’re using 2) or 3) then your object might move outside of its original tile. You will then need to merge the before-and-after bounding boxes of the object if you want the NavigationMesh to update correctly. Two solutions are provided to achieve this:</p>
+<p>A) Merge the 2 BoundingBoxes (origin and destination) and then rebuid this merged BoundingBox. Merge is achieved using origin-&gt;Merge(destination) in C++, origin.Merge(destination) in AngelScript, BoundingBox(origin):Merge(destination) in lua (we need to make a copy of the original BoundingBox in lua because Drawable:GetWorldBoundingBox() returns a reference, not the BoundingBox itself).</p>
+<p>B) Rebuild the 2 BoundingBoxes (navMesh:Build(origin) navMesh:Build(destination)). Use this solution if its faster than the previous one.</p>
+<p>You can experiment with this by modifying AddOrRemoveObject() function in example 15_Navigation this way:</p>
+<p>In AngelsScript:</p>
+<pre><code class="lang-auto">    if (hitNode.name == "Mushroom")
+    {
+        updateBox = hitDrawable.worldBoundingBox;
+        hitNode.position = hitNode.position + Vector3(10.0f, 0.0f, 0.0f); //Move mushroom to the right
+        //updateBox.Merge(hitDrawable.worldBoundingBox); //Uncomment this line to check its impact
+    }</code></pre>
+<p>In lua:</p>
+<pre><code class="lang-auto">    if hitNode.name == "Mushroom" then
+        updateBox = BoundingBox(hitDrawable.worldBoundingBox)
+        hitNode.position = hitNode.position + Vector3(10, 0, 0) -- Move mushroom to the right
+        --updateBox:Merge(hitDrawable.worldBoundingBox) -- Uncomment this line to check its impact
+    else</code></pre>
+<p>Clicking middle mouse button on a mushroom will move it to the right. Try to move it inside its tile and outside of its tile, and comment/uncomment the Merge() function to see the difference.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

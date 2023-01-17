@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>A plan to support static batching</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">A plan to support static batching</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sunc</div>
+          <div class="post_content">
+<p>I see this is an absence feature of Urho3D, but it really helps the rendering overhead. So I intend to do the implementation by my self, however suggestions is needed by you experts. What would I do is the static batch like what Unity have done, I read its’ manual page about this feature and thought about it deeper and… Wow, it’s not so easy like my first thought about it. There apears much rendering mechanism details in my head such about what should the quantity limitation of VBO and IBO be, how about the semi-transparent objects, what about LOD, in which way to produce the merged mesh(pre or runtime), and blablabla… At first I thought may be the StaticModelGroup component would be a good place to dig in, but I found it’s just a way to speed up GPU intancing. So, now I am lost in thought,<br/>
+looking forward you guys suggestions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I’m certainly not an expert (and I’ve not read about Unity’s implementation, so you probably know more than me), but here are my thoughts:</p>
+<ul>
+<li>quantity limitation of VBO and IBO: You’ll need to test on several machines to determine an optimal size.</li>
+<li>semi-transparent objects: Forbidden except for ALPHAMASK objects, as it would probably be more of a pain to deal with than it’s worth, and you’d probably need the depth sorting for each object anyways.</li>
+<li>LOD: provided per batch only. So a room might be a good example of a batch, as when the player is in it it would have the highest LOD, and when they are in a distant room looking in through a door a lower LOD may be acceptable.</li>
+<li>way to produce the merged mesh(pre or runtime): beforehand since it’s static. You’re choice whether it’s completely separate with another tool (e.g. added to the editor or something) or whether it’s done at startup and cached to the disk (could also be done at level load, but as a player I’d prefer a one-time several minute setup when installing and first running the game over a several second longer load every level. Unless it is really short to do (&lt;0.5 seconds per level or so), in which case truly doing it at runtime may be acceptable.</li>
+</ul>
+<p>And I have a question: How does the method handle different textures/materials? Do the textures need to be combined into an atlas and the materials need to be the same other than the textures?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>This is one of many features that suffer from fully dynamic nature of Urho3D as engine.<br/>
+Urho does not have the concept of “compilation”, therefore “editor-time logic” and “run-time logic” are the same thing, therefore there’s no such thing as “static object” and, consequently, “static batching”.</p>
+<p>Urho has <em>some</em> things that are 100% editor-time, and they are always explicitly invoked by user, e.g. <code>NavigationMesh</code> build.<br/>
+Your best bet would be to make something similar. Utility class that:</p>
+<ol>
+<li>Iterates over Drawables in Scene or Node</li>
+<li>Checks whether to batch each specific Drawable</li>
+<li>Disable and/or remove such drawables</li>
+<li>Generates new Drawables somewhere else</li>
+</ol>
+<p>The exact algorithm is almost pure heuristics, but you can <em>tecnhically</em> accumulate arbitrary amount of <code>StaticModel</code>s in one <code>StaticModel</code>, and you can pack multiple Materials in one Material if they use same shader and same parameters.</p>
+<p>It’s probably going to be an offline tool expicitly used by the user.<br/>
+If you want Unity-like static batching which is almost hidden from user… I am not sure you can.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sunc</div>
+          <div class="post_content">
+<p>Thanks for reply.<br/>
+Last few days, I thought more about the subjects above.</p>
+<p>● quantity limitation of VBO and IBO: There are different limitations on different platforms which determined by either hardware or software, according to the unity manual it says “Batch limits are 64k vertices and 64k indices on most platforms (48k indices on OpenGLES, 32k indices on macOS)”.<br/>
+● semi-transparent objects: The sorting job is needed by arrange objects from far to near at runtime, but it makes extra CPU cost.<br/>
+● LOD: An object may group up with several LOD meshs which differs at number of triangles but represents the same stuff. I would batch all the LOD type geometries into N groups which N stands for the maximum LOD level among them, the downside is it costs more memory but suitable level mesh could be chosen to display.<br/>
+● way to produce the merged mesh(pre or runtime): I tend to preprocess(or “bake”) much more, cause it saves the overhead of merging vertices. The job should be done at editor side.</p>
+<p>And about your question: I didn’t mean to merge objects with different materials, only objects with same materials is concerned. But try best to let more objects share the same material is a good advise to modelers, such as make the use of atlas textures.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sunc</div>
+          <div class="post_content">
+<p>Thanks for reply.<br/>
+I would take your suggestions into considering, and later I would try to make the design(maybe after a few days, start by a simple scratch). And now, allow me to think more about it, I would make a reply to you later.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

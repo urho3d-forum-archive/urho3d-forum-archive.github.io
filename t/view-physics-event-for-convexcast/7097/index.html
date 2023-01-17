@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>View Physics event for ConvexCast</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">View Physics event for ConvexCast</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So I use ConvexCast for my AI melee event and damage. How can I visualize what’s going on so I can improve their melee attacks.</p>
+<pre><code>debug = scene_-&gt;GetComponent&lt;DebugRenderer&gt;();
+
+CollisionShape* shape_ = handboneNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+shape_-&gt;SetBox(Vector3(2.0f,2.0f,2.0f), Vector3::ZERO, Quaternion::IDENTITY);
+
+PhysicsRaycastResult raycResult;
+auto* physicsWorld = scene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+
+const Vector3 start = handboneNode-&gt;GetWorldPosition();
+const Vector3 end = start + (Vector3::FORWARD * 1.0f);
+
+physicsWorld-&gt;ConvexCast(raycResult, shape_, start, Quaternion::IDENTITY, end, Quaternion::IDENTITY);
+
+RigidBody* resultBody{ raycResult.body_ };
+Player* _Node;
+int damage = 10;
+
+if (resultBody)
+{
+
+	Node* resultNode{ resultBody-&gt;GetNode() };
+	Node* resulttestNode{ resultBody-&gt;GetNode() };
+
+	if (_Node = resultNode-&gt;GetDerivedComponent&lt;Player&gt;())
+	{
+		_Node-&gt;setHealth(_Node-&gt;getHealth() - damage);
+	}
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I don’t think there’s a direct simple way to visualize the collision shape unfortunately. If there is I’d also like to know it, as I also just had a convex cast I wanted to visualize.</p>
+<p>That said, I just wanted to ask whether convex cast works for you? For my game I had to write (mainly copy from the bullet library) a bit of code to allow multiple results to be returned as I think the default implementation only returns the first collision. If you’d like, I’ll share that later when I’m back at my computer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Well this works for me as my ai only attack the player. Sometimes though if I’m directly in front of the ai and they swipe at the player they miss, but off to the side of them and they never miss. I just wanted to try and visualize what’s going on and improve it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>During <code>PostRenderUpdate</code> call:</p>
+<pre><code class="lang-auto">shape_-&gt;DrawDebugGeometry(scene_-&gt;GetComponent&lt;DebugRenderer&gt;(), true);
+</code></pre>
+<p>You could also tell the <code>DebugRenderer</code> to <code>AddBoundingBox</code> or <code>AddTriangleMesh</code>, with the advantage of being able to draw both ends of the cast.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>I was waiting for <span class="mention">@Modanung</span> to pop in with some code. Thanks man.<br/>
+I will try this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<blockquote>
+<p>You could also tell the <code>DebugRenderer</code> to <code>AddBoundingBox</code> or <code>AddTriangleMesh</code> , with the advantage of being able to draw both ends of the cast.</p>
+</blockquote>
+<p><span class="mention">@Modanung</span>  Do you have an example of what you mean?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Something like this:</p>
+<pre><code class="lang-auto">struct MovingBox
+{
+    Vector3 size_{ 2.0f, 2.0f, 2.0f };
+    Vector3 startPos_{};
+    Vector3 endPos_{};
+    Quaternion startRot_{};
+    Quaternion endRot_{};
+
+    void DrawDebug(DebugRenderer* debug, bool depthTest = true)
+    {
+        const BoundingBox bounds{ -size * .5f, size * .5f };
+        debug-&gt;AddBoundingBox(bounds, { startPos_, startRot_, 1.f }, Color::Green, depthTest);
+        debug-&gt;AddBoundingBox(bounds, {   endPos_,   endRot_, 1.f }, Color::Red,   depthTest);
+        debug-&gt;AddLine(startPos_, endPos_, Color::Yellow, depthTest);
+    }
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>So I modified the code some. I may not be using it as you intended. This is what I am seeing. The Green and Red boxes seem to be the actual area where the collision events occur. I could be wrong though.</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="Screenshot_Fri_Dec_10_19_47_54_2021"><img alt="Screenshot_Fri_Dec_10_19_47_54_2021" data-base62-sha1="7j8BEKVgtKtQFvzxiRJqJ6GI59u"  height="291" src="../../../images2/8d6e0a856f34db9a72808db547bb3072.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">Screenshot_Fri_Dec_10_19_47_54_2021</span><span class="informations">1920×810 145 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>The code I mentioned before for multiple convex cast results, in case someone wants it. And I realize now the reason I thought it wasn’t possible to draw the collision shapes directly was because my code created the convex bullet collision shapes directly rather than using <code>Urho3D::CollisionShape</code>.</p>
+<pre><code class="lang-auto">#include &lt;BulletCollision/CollisionShapes/btSphereShape.h&gt;
+#include &lt;Urho3D/Physics/PhysicsWorld.h&gt;
+#include &lt;Urho3D/Physics/CollisionShape.h&gt;
+#include &lt;Urho3D/ThirdParty/Bullet/BulletCollision/CollisionShapes/btCollisionShape.h&gt;
+#include &lt;Urho3D/ThirdParty/Bullet/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h&gt;
+#include &lt;Urho3D/ThirdParty/Bullet/btBulletDynamicsCommon.h&gt;
+
+
+
+#include &lt;Urho3D/ThirdParty/Bullet/btBulletCollisionCommon.h&gt;
+#include &lt;Urho3D/ThirdParty/Bullet/btBulletDynamicsCommon.h&gt;
+#include &lt;Urho3D/Physics/PhysicsUtils.h&gt;
+
+
+struct AllHitsConvexResultCallback : public btCollisionWorld::ConvexResultCallback
+{
+    AllHitsConvexResultCallback(const btVector3&amp; rayFromWorld, const btVector3&amp; rayToWorld)
+        : m_convexFromWorld(rayFromWorld),
+          m_convexToWorld(rayToWorld)
+    {
+    }
+
+    btAlignedObjectArray&lt;const btCollisionObject*&gt; m_collisionObjects;
+
+    btVector3 m_convexFromWorld;  //used to calculate hitPointWorld from hitFraction
+    btVector3 m_convexToWorld;
+
+    btAlignedObjectArray&lt;btVector3&gt; m_hitNormalWorld;
+    btAlignedObjectArray&lt;btVector3&gt; m_hitPointWorld;
+    btAlignedObjectArray&lt;btScalar&gt; m_hitFractions;
+
+
+    virtual btScalar addSingleResult(btCollisionWorld::LocalConvexResult&amp; rayResult, bool normalInWorldSpace)
+    {
+        m_collisionObjects.push_back(rayResult.m_hitCollisionObject);
+        btVector3 hitNormalWorld;
+        if (normalInWorldSpace)
+        {
+            hitNormalWorld = rayResult.m_hitNormalLocal;
+        }
+        else
+        {
+            ///need to transform normal into worldspace
+            hitNormalWorld = rayResult.m_hitCollisionObject-&gt;getWorldTransform().getBasis() * rayResult.m_hitNormalLocal;
+        }
+        m_hitNormalWorld.push_back(hitNormalWorld);
+        btVector3 hitPointWorld;
+//        hitPointWorld.setInterpolate3(m_rayFromWorld, m_rayToWorld, rayResult.m_hitFraction);
+//        m_hitPointWorld.push_back(hitPointWorld);
+        m_hitPointWorld.push_back(rayResult.m_hitPointLocal);
+        m_hitFractions.push_back(rayResult.m_hitFraction);
+        return m_closestHitFraction; // i.e. 1.0
+    }
+};
+
+namespace Urho3D {
+
+void SphereCastMultiple(PhysicsWorld* pw, Vector&lt;PhysicsRaycastResult&gt;&amp; results, const Ray&amp; ray, float radius, float maxDistance, unsigned collisionMask)
+{
+
+    if (maxDistance &gt;= M_INFINITY)
+        URHO3D_LOGWARNING("Infinite maxDistance in physics sphere cast is not supported");
+
+    btSphereShape shape(radius);
+    Vector3 endPos = ray.origin_ + maxDistance * ray.direction_;
+
+    AllHitsConvexResultCallback
+            convexCallback(ToBtVector3(ray.origin_), ToBtVector3(endPos));
+    convexCallback.m_collisionFilterGroup = (short)0xffff;
+    convexCallback.m_collisionFilterMask = (short)collisionMask;
+
+
+    pw-&gt;GetWorld()-&gt;convexSweepTest(&amp;shape, btTransform(btQuaternion::getIdentity(), convexCallback.m_convexFromWorld),
+                                    btTransform(btQuaternion::getIdentity(), convexCallback.m_convexToWorld), convexCallback);
+
+    for (unsigned i = 0; (int)i &lt; convexCallback.m_hitFractions.size(); ++i)
+    {
+        PhysicsRaycastResult result;
+        result.body_ = static_cast&lt;RigidBody*&gt;(convexCallback.m_collisionObjects[i]-&gt;getUserPointer());
+        result.position_ = ToVector3(convexCallback.m_hitPointWorld[i]);
+        result.normal_ = ToVector3(convexCallback.m_hitNormalWorld[i]);
+        result.distance_ = convexCallback.m_hitFractions[i] * (endPos - ray.origin_).Length();
+        result.hitFraction_ = convexCallback.m_hitFractions[i];
+
+        results.Push(result);
+    }
+}
+void ConvexCastMultiple(PhysicsWorld* pw, Vector&lt;PhysicsRaycastResult&gt;&amp; results, const Ray&amp; ray, CollisionShape* shape, float maxDistance, unsigned collisionMask)
+{
+    if (!pw || !shape)
+        return;
+
+    const auto&amp; btShape = shape-&gt;GetCollisionShape();
+    if (!btShape || !btShape-&gt;isConvex())
+        return;
+
+    const btConvexShape* btConvex = static_cast&lt;const btConvexShape*&gt;(btShape);
+    ConvexCastMultiple(pw,results,ray,btConvex,maxDistance,collisionMask);
+}
+
+void ConvexCastMultiple(PhysicsWorld* pw, Vector&lt;PhysicsRaycastResult&gt;&amp; results, const Ray&amp; ray, const btConvexShape* shape, float maxDistance, unsigned collisionMask)
+{
+    if (!pw || !shape)
+        return;
+
+    if (maxDistance &gt;= M_INFINITY)
+        URHO3D_LOGWARNING("Infinite maxDistance in physics convex cast is not supported");
+
+    Vector3 endPos = ray.origin_ + maxDistance * ray.direction_;
+
+    AllHitsConvexResultCallback
+            convexCallback(ToBtVector3(ray.origin_), ToBtVector3(endPos));
+    convexCallback.m_collisionFilterGroup = (short)0xffff;
+    convexCallback.m_collisionFilterMask = (short)collisionMask;
+
+
+    pw-&gt;GetWorld()-&gt;convexSweepTest(shape, btTransform(btQuaternion::getIdentity(), convexCallback.m_convexFromWorld),
+                                    btTransform(btQuaternion::getIdentity(), convexCallback.m_convexToWorld), convexCallback);
+
+    for (unsigned i = 0; (int)i &lt; convexCallback.m_hitFractions.size(); ++i)
+    {
+        PhysicsRaycastResult result;
+        result.body_ = static_cast&lt;RigidBody*&gt;(convexCallback.m_collisionObjects[i]-&gt;getUserPointer());
+        result.position_ = ToVector3(convexCallback.m_hitPointWorld[i]);
+        result.normal_ = ToVector3(convexCallback.m_hitNormalWorld[i]);
+        result.distance_ = convexCallback.m_hitFractions[i] * (endPos - ray.origin_).Length();
+        result.hitFraction_ = convexCallback.m_hitFractions[i];
+
+        results.Push(result);
+    }
+}
+
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="9" data-topic="7097" data-username="SirNate0">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/fb52f23a6782e890737d90432eac55f2.png" width="20"/> SirNate0:</div>
+<blockquote>
+<p>And I realize now the reason I thought it wasn’t possible to draw the collision shapes directly was because my code created the convex bullet collision shapes directly rather than using <code>Urho3D::CollisionShape</code> .</p>
+</blockquote>
+</aside>
+<p>You should be able to pour those into a <code>Polyhedron</code>, which the <code>DebugRenderer</code> can draw.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">GodMan</div>
+          <div class="post_content">
+<p>Man I suck with the physics API of Urho3d. LOL.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

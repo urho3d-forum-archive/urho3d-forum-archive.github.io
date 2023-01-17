@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Can I &ldquo;templatize&rdquo; MathDefs?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Can I &ldquo;templatize&rdquo; MathDefs?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I’m getting these errors when using Urho3D’s math functions because there exist no overloads of Clamp() (or any of the other math functions) that use double.</p>
+<pre><code class="lang-auto"></code></pre>
+<p>I took a look at MathDefs.h and I feel like there are two big improvements that can be made.</p>
+<p><span class="bbcode-b">1) Use templates</span></p>
+<p>This:</p>
+<p><code>inline float Clamp(float value, float min, float max)
+{
+    if (value &lt; min)
+        return min;
+    else if (value &gt; max)
+        return max;
+    else
+        return value;
+}</code></p>
+<p>should be this:</p>
+<p><code>template &lt;class T&gt;
+inline T Clamp(T value, T min, T max)
+{
+    if (value &lt; min)
+        return min;
+    else if (value &gt; max)
+        return max;
+    return value;
+}</code></p>
+<p><span class="bbcode-b">2) We should be using std::numeric_limits instead of trying to define our own epsilon, our own infinity etc.</span></p>
+<p>This:</p>
+<pre><code class="lang-auto"></code></pre>
+<p>would be much better as:</p>
+<p><code>template &lt;class T&gt;
+bool Equals(T lhs, T rhs) { return lhs + std::numeric_limits&lt;T&gt;::epsilon &gt;= rhs &amp;&amp; lhs - std::numeric_limits&lt;T&gt;::epsilon &lt;= rhs; }</code></p>
+<p>that way these defines can be eliminated:</p>
+<p>[code]static const int M_MIN_INT = 0x80000000;<br/>
+static const int M_MAX_INT = 0x7fffffff;<br/>
+static const unsigned M_MIN_UNSIGNED = 0x00000000;<br/>
+static const unsigned M_MAX_UNSIGNED = 0xffffffff;</p>
+<p>static const float M_EPSILON = 0.000001f;<br/>
+static const float M_LARGE_EPSILON = 0.00005f;<br/>
+static const float M_LARGE_VALUE = 100000000.0f;<br/>
+static const float M_INFINITY = (float)HUGE_VAL;[/code]</p>
+<p>Can I apply these changes and make a PR, or are there objections?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Scripting doesn’t generally support templates, so if you ensure scripting and platform and compiler compatibility there shouldn’t be a problem.</p>
+<p>Urho should still compile on VS2008, though it’s becoming fairly ancient, but naturally it’s better if this PR doesn’t become the straw that breaks the camel’s back.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I created a PR for the changes I mentioned above. The exact changes are detailed in the message there: <a data-bbcode="true"  rel="nofollow noopener">https://github.com/urho3d/Urho3D/pull/1220</a></p>
+<p>Please let me know if you disagree with anything.</p>
+<p>Shall I go ahead and also templatize the other math classes?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>I realized it’s probably not a good idea to have std::numeric_limits spread everywhere, so I created a template M_LIMITS that wraps std::numeric_limits in MathDefs.h. Using it looks like this:</p>
+<p><code>float infinity = M_LIMITS&lt;float&gt;::Infinity;
+double largeEpsilon = M_LIMITS&lt;double&gt;::LargeEpsilon;
+int maxInt = M_LIMITS&lt;signed&gt;::Max;</code></p>
+<p>This also makes the AngelScript bindings much better.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Thanks, will look at the PR. I don’t recommend templatizing the math classes overall, as the engine is still bound to support only a specific kind of them (e.g. float vectors / matrices), as well as data that is being fed to shaders, Variant to/from serialization, and possibly other things I forgot.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Yeah, I noticed how heavily dependent everything is on floats. Would it be worth considering the introduction of a URHO3D_FLOAT that’s typedef’d to double/float depending on the build configuration?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Not convinced that’s a good idea, because usually the reason to do that would be large world support, on the other hand there is a lot of data that is fine being float (double would be a waste of memory), and doubles would need conversion before feeding to the GPU, which would complicate the code.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>For my own purposes i turned Vector3 into a template class because i needed Vector3 with 64bit integers that seamlessly integrate with rest of engine parts. It certainly isnt the best or complete implementation but it does what i need. I was wondering if there was interest to have it in engine. Check it out at <a href="https://github.com/***/Urho3D/commit/5686901df53804910c4ab32c77f42503dcc81a85" rel="nofollow noopener">github.com/***/Urho3D/commit … 03dcc81a85</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Shameless bump.</p>
+<p>I fixed link in my previous post. It getting broken was probably why noone replied here <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/> So please read my previous post if you havent.</p>
+<p>All in all i would love to see all vector classes turned into templates. Now we have IntVector2 and Vector2. However Vector2 has more utility functions than IntVector2 but those functions are valid for both int and float types. I doubt copying them does any good to the codebase. And we all could benefit for vector classes of other data types. So what do you people think?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/45_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Stinkfist</div>
+          <div class="post_content">
+<p>Templatized vector and matrix classes would be tricky for script bindings.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Practically how it could work, and how I’d accept it would be to have template classes which you can alternatively use for your own purposes, while the engine is locked to Vector3. And to not break the existing API it would be preferable that Vector3 was still called Vector3, while the template type would be called something else. Getting rid of separate IntVector2 would be smart if it worked without trouble in practice (though again, to not break API it could still be called IntVector2 through a typedef)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/35467f1e20e2ee4ed364fac74cf46809.png" width="20"/> Stinkfist:</div>
+<blockquote>
+<p>Templatized vector and matrix classes would be tricky for script bindings.</p>
+</blockquote>
+</aside>
+<p>Yeah I noticed that too when I tried.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

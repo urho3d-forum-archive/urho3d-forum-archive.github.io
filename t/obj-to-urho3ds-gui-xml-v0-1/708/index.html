@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>.obj to urho3d&rsquo;s gui .xml (v0.1)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">.obj to urho3d&rsquo;s gui .xml (v0.1)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lexx</div>
+          <div class="post_content">
+<p>Made little converter which converts .obj file to .xml (gui).<br/>
+One can create gui in blender, using Planes and naming them<br/>
+BTN_text  (button)<br/>
+LST_blah  (list)<br/>
+CHK_blah (checkbox)<br/>
+IMG_image.png  (sprite)</p>
+<p>Save (do not convert to triangles, materials not needed), convert , then open xml in urho3d’s Editor, make needed modifications.</p>
+<p>TODO:<br/>
+checkbox text etc.</p>
+<p>Sourcecode, compiled exe: <a href="https://www.dropbox.com/s/4sim00ca4bcx8qr/Obj2GUI.7z?dl=0" rel="nofollow noopener">dropbox.com/s/4sim00ca4bcx8 … UI.7z?dl=0</a><br/>
+Test .blend file:                 <a href="https://www.dropbox.com/s/illl9mo8qsf02sm/gui1_blend.7z?dl=0" rel="nofollow noopener">dropbox.com/s/illl9mo8qsf02 … nd.7z?dl=0</a></p>
+<p>obj2gui.cs</p>
+<pre><code class="lang-auto">/* Obj to Urho3D GUI converter
+ * by mjt, 2014
+ * 
+ * Usage:
+ *  obj2gui mygui.obj
+ *  
+ * Takes obj file as parameter.
+ * One can make GUI in ie Blender:
+ *  create Planes (do not convert them to triangles).
+ *  name them ie
+ *     WND                (creates window)
+ *     BTN_OK           (creates button and OK text on it)
+ *     LST_text          (list)
+ *     CHK_text          (checkbox)
+ *     IMG_back.png   (sprite  back.png)
+ *     
+ * 
+ * 
+ * 
+ */
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Collections;
+using System.Globalization;
+
+namespace Obj2GUI
+{
+    class Program
+    {
+        static ArrayList components = new ArrayList();
+
+        static void Main(string[] args)
+        {
+            if (args.Length == 0)
+            {
+                Console.WriteLine("Usage:\n  obj2gui [mygui.obj]");
+                return;
+            }
+            string[] lines;
+            try
+            {
+                lines = File.ReadAllLines(args[0]);
+
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+                return;
+            }
+
+            // parse components
+            Boolean window = false;
+            Component tmp = null;
+            String[] str;
+            float minX = 10000, minY = 10000, maxX = -10000, maxY = -10000;
+            foreach (String line in lines)
+            {
+                str = line.Split(' ', '_');
+                if (str.Length == 0) continue;
+
+                // new component
+                if (str[0].Equals("o"))
+                {
+                    // add component if we have one
+                    if (tmp != null)
+                    {
+                        tmp.X = minX;
+                        tmp.Y = minY;
+                        tmp.W = maxX - minX;
+                        tmp.H = maxY - minY;
+
+                        components.Add(tmp);
+                        tmp = null;
+
+                        minX = 10000;
+                        minY = 10000;
+                        maxX = -10000;
+                        maxY = -10000;
+                    }
+
+                    tmp = new Component();
+                    if (str.Length &gt;= 1)
+                    {
+                        tmp.Type = str[1];
+                    }
+                    if (str.Length &gt;= 2)
+                    {
+                        tmp.Text = str[2];
+                    }
+
+                    continue;
+                }
+
+                if (str[0].Equals("v"))
+                {
+                    float x = Single.Parse(str[1], CultureInfo.InvariantCulture);
+                    float y = Single.Parse(str[3], CultureInfo.InvariantCulture);
+                    if (x &lt; minX) minX = x;
+                    if (x &gt; maxX) maxX = x;
+                    if (y &lt; minY) minY = y;
+                    if (y &gt; maxY) maxY = y;
+
+                    continue;
+                }
+
+            }
+
+            // add last one
+            if (tmp != null)
+            {
+                tmp.X = minX;
+                tmp.Y = minY;
+                tmp.W = maxX - minX;
+                tmp.H = maxY - minY;
+
+                components.Add(tmp);
+            }
+
+            str = null;
+            tmp = null;
+
+            Component wnd = new Component();
+            wnd.X = 0;
+            wnd.Y = 0;
+            wnd.W = 1024;
+            wnd.H = 768;
+            float XX = 400, YY = 200;
+            String xml = "&lt;?xml version='1.0'?&gt;\n";
+            // first find window 
+            foreach (Component comp in components)
+            {
+                if (comp.Type.Equals("WND"))
+                {
+                    window = true;
+                    wnd.X = comp.X;
+                    wnd.Y = comp.Y;
+                    wnd.W = comp.W;
+                    wnd.H = comp.H;
+                    break;
+                }
+            }
+
+            // calculate components' pos &amp; size
+            foreach (Component comp in components)
+            {
+                comp.X -= wnd.X;
+                comp.Y -= wnd.Y;
+                comp.X /= wnd.W;
+                comp.Y /= wnd.H;
+                comp.X *= 1024;
+                comp.Y *= 768;
+
+                comp.W /= wnd.W;
+                comp.H /= wnd.H;
+                comp.W *= 1024;
+                comp.H *= 768;
+
+                comp.X = (int)comp.X;
+                comp.Y = (int)comp.Y;
+                comp.W = (int)comp.W;
+                comp.H = (int)comp.H;
+
+                if (comp.Type.Equals("WND"))
+                {
+                    xml += "&lt;element type='Window'&gt;\n";
+                    xml += "\t" + "&lt;attribute name='Position' value='" + XX + " " + YY + "' /&gt;\n";
+                    xml += "\t" + "&lt;attribute name='Size' value='" + comp.W + " " + comp.H + "' /&gt;\n";
+                }
+            }
+
+            // other components (children of window)
+            foreach (Component comp in components)
+            {
+                if (comp.Type.Equals("BTN")) // button
+                {
+                    xml += "\t&lt;element type='Button'&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Name' value='Button_" + comp.Text + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Position' value='" + comp.X + " " + comp.Y + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Size' value='" + comp.W + " " + comp.H + "' /&gt;\n";
+
+
+                    xml += "\t\t&lt;element type='Text'&gt;\n";
+                    //xml += "\t\t\t" + "&lt;attribute name='Text' value='" + comp.5 + " " + comp.Y + "' /&gt;\n";
+                    // TODO aseta teksti keskelle nappia
+                    xml += "\t\t\t" + "&lt;attribute name='Position' value='5 5' /&gt;\n";
+                    xml += "\t\t\t" + "&lt;attribute name='Font Size' value='10' /&gt;\n";
+                    xml += "\t\t\t" + "&lt;attribute name='Text' value='" + comp.Text + "' /&gt;\n";
+
+                    xml += "\t\t&lt;/element&gt;\n";
+                    xml += "\t&lt;/element&gt;\n";
+
+                    continue;
+                }
+
+                if (comp.Type.Equals("LST")) // list
+                {
+                    xml += "\t&lt;element type='ListView'&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Name' value='List_" + comp.Text + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Position' value='" + comp.X + " " + comp.Y + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Size' value='" + comp.W + " " + comp.H + "' /&gt;\n";
+
+                    // TODO  scrollbar
+
+                    xml += "\t&lt;/element&gt;\n";
+
+                    continue;
+                }
+
+                if (comp.Type.Equals("CHK")) // checkbox
+                {
+                    xml += "\t&lt;element type='CheckBox'&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Name' value='CheckBox_" + comp.Text + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Position' value='" + comp.X + " " + comp.Y + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Size' value='" + comp.W + " " + comp.H + "' /&gt;\n";
+
+                    // TODO  teksti
+
+                    xml += "\t&lt;/element&gt;\n";
+
+                    continue;
+                }
+
+                if (comp.Type.Equals("IMG")) // image / sprite
+                {
+                    xml += "\t&lt;element type='Sprite'&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Position' value='" + comp.X + " " + comp.Y + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Size' value='" + comp.W + " " + comp.H + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Texture' value='Texture2D;Urho3D/Bin/Data/Textures/" + comp.Text + "' /&gt;\n";
+                    xml += "\t\t" + "&lt;attribute name='Image Rect' value='0 0 512 512' /&gt;\n";
+
+                    // TODO fix
+
+                    xml += "\t&lt;/element&gt;\n";
+
+                    continue;
+                }
+
+            }
+
+            if (window) xml += "&lt;/element&gt;\n";
+            xml = xml.Replace('\'', '"');
+            xml = xml.Replace(',', '.');
+            Console.Out.WriteLine(xml);
+
+            try
+            {
+                System.IO.File.WriteAllText(args[0] + ".xml", xml);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+                return;
+            }
+
+        }
+
+    }
+
+    class Component
+    {
+        public String Type = "";
+        public String Text = "";
+        public float X, Y, W, H;
+
+    }
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I’m having a hard time seeing a use case for this, to be honest. I can’t test your code, but a quick skim doesn’t reveal how to construct hierarchical relationships between the various elements. It seems to me like it just creates a list of non-associated element definitions, which doesn’t seem all that useful to me. Unless I am missing something? Is this an attempt to solve a problem with the existing UI editing functionality in the editor?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lexx</div>
+          <div class="post_content">
+<p>Yeah maybe it isnt useful (to others), I just like to create in blender almost everything, gui as well. Hierarchy can be created in urho editor (obj doesnt support hierarchies), as well other things, in blender just create quick ‘layout’.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/87_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sabotage3d</div>
+          <div class="post_content">
+<p>I think it is cool can it be used for 3d sprites as well ? Let say in-game power-up or a health-bar ?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

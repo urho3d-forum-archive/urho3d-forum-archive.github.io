@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Toon Shader (GLSL)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Toon Shader (GLSL)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>This is the version that I have originally discussed and posted a while back in this <a href="http://discourse.urho3d.io/t/toon-shader-wip/1564/1">thread</a> and appreciate all the versions that you have came up with guys! awesome <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p><aside class="onebox githubgist">
+<header class="source">
+<a href="https://gist.github.com/rasteron/291babc3700a57f3777c" rel="nofollow noopener" target="_blank">gist.github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://gist.github.com/rasteron/291babc3700a57f3777c" rel="nofollow noopener" target="_blank">https://gist.github.com/rasteron/291babc3700a57f3777c</a></h4>
+<p>
+</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+<aside class="onebox githubgist">
+<header class="source">
+<a href="https://gist.github.com/rasteron/e69f642970b78d413811" rel="nofollow noopener" target="_blank">gist.github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://gist.github.com/rasteron/e69f642970b78d413811" rel="nofollow noopener" target="_blank">https://gist.github.com/rasteron/e69f642970b78d413811</a></h4>
+<p>
+</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>Demo video below also includes Urho3D’s LOD feature.</p>
+<div class="lazyYT" data-height="270" data-parameters="feature=oembed&amp;wmode=opaque" data-width="480" data-youtube-id="B6TJJs33d4A" data-youtube-title="Urho3D - Toon Shader"></div>
+<p>…rough version so just tweak the parameters in the shader for variation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Awesome! Thank you for sharing this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">STeeL</div>
+          <div class="post_content">
+<p>Thanks for posting this shader.<br/>
+HLSL:</p>
+<pre><code class="lang-auto">#include "Uniforms.hlsl"
+#include "Samplers.hlsl"
+#include "Transform.hlsl"
+#include "ScreenPos.hlsl"
+#include "Lighting.hlsl"
+
+void VS(float4 iPos : POSITION,
+    out float2 oScreenPos : TEXCOORD0,
+    out float4 oPos : OUTPOSITION) {	
+  float4x3 modelMatrix = iModelMatrix;
+  float3 worldPos = GetWorldPos(modelMatrix);
+  oPos = GetClipPos(worldPos);
+  oScreenPos = GetScreenPosPreDiv(oPos);
+}
+
+void PS(float2 iScreenPos: TEXCOORD0, out float4 oColor : OUTCOLOR0) {
+  float ResS = 720.;
+  float ResT = 720.;
+  float MagTol = .5;
+  float Quantize = 10.;
+	
+  float3 irgb = Sample2D(DiffMap, iScreenPos).rgb;
+  float2 stp0 = float2(1./ResS, 0.);
+  float2 st0p = float2(0., 1./ResT);
+  float2 stpp = float2(1./ResS, 1./ResT);
+  float2 stpm = float2(1./ResS, -1./ResT);
+	
+  float3 W = float3(0.2125, 0.7154, 0.0721);
+  float i00 =   dot(Sample2D(DiffMap, iScreenPos).rgb, W);
+  float im1m1 =	dot(Sample2D(DiffMap, iScreenPos-stpp).rgb, W);
+  float ip1p1 = dot(Sample2D(DiffMap, iScreenPos+stpp).rgb, W);
+  float im1p1 = dot(Sample2D(DiffMap, iScreenPos-stpm).rgb, W);
+  float ip1m1 = dot(Sample2D(DiffMap, iScreenPos+stpm).rgb, W);
+  float im10 = 	dot(Sample2D(DiffMap, iScreenPos-stp0).rgb, W);
+  float ip10 = 	dot(Sample2D(DiffMap, iScreenPos+stp0).rgb, W);
+  float i0m1 = 	dot(Sample2D(DiffMap, iScreenPos-st0p).rgb, W);
+  float i0p1 = 	dot(Sample2D(DiffMap, iScreenPos+st0p).rgb, W);
+	
+  //H and V sobel filters
+  float h = -1.*im1p1 - 2.*i0p1 - 1.*ip1p1 + 1.*im1m1 + 2.*i0m1 + 1.*ip1m1;
+  float v = -1.*im1m1 - 2.*im10 - 1.*im1p1 + 1.*ip1m1 + 2.*ip10 + 1.*ip1p1;
+  float mag = length(float2(h, v));
+	
+  if(mag &gt; MagTol){
+    oColor = float4(0., 0., 0., 1.);
+  }else{
+    irgb.rgb *= Quantize;
+    irgb.rgb += float3(.5,.5,.5);
+    int3 intrgb = int3(irgb.rgb);
+    irgb.rgb = float3(intrgb)/Quantize;
+    oColor = float4(irgb, 1.);
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Sure thing STeel. Awesome work with the HLSL version, thanks for sharing.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2547_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Miegamicis</div>
+          <div class="post_content">
+<p>You guys are awesome! Will try this out myself!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>Great, hope you find it useful! <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

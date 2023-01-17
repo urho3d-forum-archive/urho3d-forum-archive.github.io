@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Info: using Urho3d with old Mac OSX (10.11)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Info: using Urho3d with old Mac OSX (10.11)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Here is some information on getting started with building and using Urho3D for Mac OSX users running 10.11 El Capitan.</p>
+<ol>
+<li>When trying to build Urho3D I ran into a bug with one of the dependencies. Apply <a href="https://gist.githubusercontent.com/illume/ac2eb4daa1bd805255d5355806acf822/raw/7e3c83f760fe5bf61a9f6bcc196ed9be6f6e22da/sdl2-mac-10-11.patch">this patch</a> to fix <a href="https://discourse.libsdl.org/t/sdl-2-0-10-old-mac-os-el-capitan-10-11-and-xcode7-3/26554/11">this issue</a> in file Urho3D/Source/ThirdParty/SDL/src/video/cocoa/SDL_cocoavideo.h. It should look like</li>
+</ol>
+<pre><code class="lang-auto">/* Fix build with the 10.10 SDK */
+#if MAC_OS_X_VERSION_MAX_ALLOWED &lt; 101100
+#define NSEventSubtypeTouch NSTouchEventSubtype
+#endif
+/* Fix build with the 10.11 SDK */
+#if MAC_OS_X_VERSION_MAX_ALLOWED &lt; 101200
+#define NSEventSubtypeMouseEvent NSMouseEventSubtype
+#endif
+</code></pre>
+<ol start="2">
+<li>When building, I found that the precompiled header isn’t supported. See <a href="https://discourse.urho3d.io/t/build-failed-in-mac-osx-no-suitable-precompiled-header/3794">this thread</a> (it’s a common problem for Mac users). Go into CMakeCache.txt and set “URHO3D_PCH:BOOL=OFF”, or pass <code>-DURHO3D_PCH=OFF</code> to cmake when building the library.</li>
+<li>Move the Urho3D folder to a location where it can live for the rest of its life. I have a folder called ‘Libs’.</li>
+<li>Whenever you make a new project that will pull in the built Urho3D as a library (e.g. by adapting <a href="https://github.com/ArnisLielturks/Urho3D-Project-Template">this</a> or following <a href="https://www.youtube.com/playlist?list=PL9AoJQ0JIIKpOI4p_W02C9wRGIYB3n1RM">this tutorial</a>) you have to add the library’s location to the ‘URHO3D_HOME’ environment variable. I went to my sample project’s CMakeCache.txt and set ‘URHO3D_HOME:PATH=/Users/vmost/Libs/Urho3D’. A more reliable way is to add <code>export URHO3D_HOME=~/Libs/Urho3D</code> to your <code>cmake_etc.sh</code> script file, or bake it into your CMakeLists.txt file with <code>set (ENV{URHO3D_HOME} "~/Libs/Urho3D")</code>.</li>
+<li>When I built my sample project for a little ‘hello world’, the console spit out a bunch of garbage, which you can silence with <a href="https://github.com/Microsoft/vcpkg/issues/4497">this patch</a>. Dive into the sample project’s CMakeLists.txt file and add these lines:</li>
+</ol>
+<pre><code class="lang-auto">set(other_flags "${other_flags} -frtti -fvisibility-inlines-hidden")
+set(other_flags "${other_flags} -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++ ${other_flags}")
+</code></pre>
+<p>With those issues out of the way, here is how to actually build the library (you need git and cmake installed, which can be done with homebrew).</p>
+<ol>
+<li><code>git clone https://github.com/urho3d/Urho3D</code></li>
+<li><code>cd Urho3D</code></li>
+<li><code>cmake .</code></li>
+<li><code>make</code></li>
+<li>oh, it’s done (after 30mins and assuming nothing else crops up); in Urho3D/bin are a bunch of samples that have been automatically built. You can also use the ‘Urho3DPlayer’ found in that same folder to run a script. It can run any of the samples<br/>
+a. <code>cd Urho3D/bin</code><br/>
+b. <code>./Urho3DPlayer Scripts/sample_name.as [options]</code><br/>
+c. example option (see <a href="https://urho3d.github.io/documentation/1.7/_running.html">the docs</a>): <code>-v</code> turns on vertical sync, which is <a href="https://www.digitaltrends.com/computing/what-is-vsync/">interesting</a>
+</li>
+</ol>
+<p>And some hints on setting up a sample project. Keep <a href="https://urho3d.github.io/documentation/1.7.1/index.html">this page</a> in mind, as it has a lot of information!</p>
+<ol>
+<li>
+<a href="https://www.youtube.com/watch?v=B8fhIqGFyEU&amp;list=PL9AoJQ0JIIKpOI4p_W02C9wRGIYB3n1RM&amp;index=2">This tutorial</a> is a good starting spot.</li>
+<li>Rather than try and put together everything from scratch, it’s best to just copy several things and run the cmake script to do the rest of the work. Here are the essential parts of an infant project.<br/>
+a. Folder: bin; contains [CoreData] and [Data] folders (can copy them out of Urho3D/bin)<br/>
+b. Folder: CMake; contains [Modules] and [Toolchains] folders (can copy Urho3D/CMake folder directly)<br/>
+c. Folder: script; contains [cmake_generic.sh] (can copy out of Urho3D/script), and [cmake_projectname.sh] which contains the line <code>$(dirname $0)/cmake_generic.sh</code>. Use the second one for adding stuff instead of editing the generic script.<br/>
+d. Folder: Source; put C++ source files in here (code files, header files, etc). Need at least one file e.g. ‘app_main.cpp’ which creates an Application derived class and calls <code>URHO3D_DEFINE_APPLICATION_MAIN(MyApp)</code><br/>
+e. File: CMakeLists.txt; paste in the stuff from <a href="https://urho3d.github.io/documentation/1.7.1/_using_library.html">this link</a>. Have to change ‘project name’ and ‘target name’, and add these lines since I prefer putting source files in their own folder:</li>
+</ol>
+<pre><code class="lang-auto"># Define source files
+file (GLOB SRC_CPP_FILES Source/*.cpp)
+file (GLOB SRC_H_FILES Source/*.h)
+define_source_files (GROUP EXTRA_CPP_FILES ${SRC_CPP_FILES} EXTRA_H_FILES ${SRC_H_FILES})
+</code></pre>
+<ol start="3">
+<li>The happy moment is when you hit <code>script/cmake_projectname.sh ./</code> and <code>make</code>, and then your executable shows up in <code>project_folder/bin</code>.</li>
+</ol>
+<p>note: There are so many things to learn here, I hope these resources are helpful pointers.</p>
+<p>Anyway, that’s the first step on this journey.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>A few months back I managed to compile and run the engine on an (~15 year) old machine - my first laptop - after enabling “stub ARB_occlusion_query support on 915/945” in <code>driconf</code> and reducing the minimum required CMake version, which also required the following modification:</p>
+<pre><code class="lang-diff">- source_group (TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX "Source Files" FILES ${SOURCE_FILES})
++ source_group ("Source Files" FILES ${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE_FILES})
+</code></pre>
+<p><img alt="" height="417" src="../../../images2/6b315ffd22c23d188a72be26f82ec1b3.jpg" width="600"/></p>
+<div class="md-table">
+<table>
+<thead>
+<tr>
+<th>Spec</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Manufacturer</td>
+<td>Medion</td>
+</tr>
+<tr>
+<td>Model name</td>
+<td>Akoya Mini</td>
+</tr>
+<tr>
+<td>Model id</td>
+<td>E1210</td>
+</tr>
+<tr>
+<td>CPU</td>
+<td>Intel Atom (Diamondville)</td>
+</tr>
+<tr>
+<td>CPU speed</td>
+<td>1600 Mhz</td>
+</tr>
+<tr>
+<td>Graphics</td>
+<td>Intel 945GME</td>
+</tr>
+<tr>
+<td>OS</td>
+<td>Linux Mint</td>
+</tr>
+<tr>
+<td>Display Size</td>
+<td>10.2" 1024x600</td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>1024 MB</td>
+</tr>
+<tr>
+<td>Hard Disk</td>
+<td>160 GB</td>
+</tr>
+<tr>
+<td>Weight</td>
+<td>1191 g</td>
+</tr>
+<tr>
+<td>Size</td>
+<td>259x180x31.0 mm</td>
+</tr>
+</tbody>
+</table>
+</div><p>Using a bluetooth dongle it even supports wireless PS3 controllers. <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+<p>Obviously there’s features it does not like at all; shadows, normal maps and many lights make it hog.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

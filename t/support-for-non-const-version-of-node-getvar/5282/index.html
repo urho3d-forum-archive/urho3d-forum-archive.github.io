@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Support for non-const version of Node::GetVar</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Support for non-const version of Node::GetVar</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>In the following example (a guard stack for a recursive and potentially re-entrant method), I’m looking to use Node User Variables to store a VariantVector. Node::vars_ is a protected member, so we have to use accessors (GetVar/SetVar)<br/>
+Since Node::GetVar and its counterpart Node::GetVars both only provide const (read-only) access, this means that any non-trivial types such as vectors and maps need to be completely copied every time we want to perform read-write access to a node user variable.</p>
+<pre><code class="lang-auto">    BTNodeState BehaviorTree::Process(float timeStep, Urho3D::ScriptInstance* callerAgent)
+    {
+        if (isActive_)
+        {
+            this-&gt;callingAgent = callerAgent;
+            timeStep_=timeStep;
+
+            /// We assume that the scriptinstance's parent node has a "subtree stack" variable...
+            Variant v=callingAgent-&gt;GetNode()-&gt;GetVar("SubtreeStack_");
+            if(v.GetType()==VAR_NONE)
+            {
+                /// Agent does not yet have a Subtree Stack variable: add one now
+                VariantVector vv {this};
+                callingAgent-&gt;GetNode()-&gt;SetVar("SubtreeStack_", vv);
+            }else{
+
+                /// Obtain a pointer to the stack object within variant v
+                VariantVector* pv=v.GetVariantVectorPtr();
+
+                /// Check if this behaviortree exists in the execution guard stack
+                if(pv &amp;&amp; pv-&gt;Contains(this))
+                {
+                    URHO3D_LOGERROR("Behavior Subtree Recursion was prevented!");
+                    return NS_ERROR;
+                }
+                /// Push this behaviortree onto the guard stack
+                pv-&gt;Push(this);
+
+                /// Write modified variant back to node variable
+                callingAgent-&gt;GetNode()-&gt;SetVar("SubtreeStack_",v);
+            }
+
+            /// Push sentinal nullptr onto list of active nodes
+            activeNodes_.Push(nullptr);
+
+            /// Execute behaviortree
+            while(Step(timeStep))
+                continue;
+
+            /// Pop this behaviortree from the guard stack
+            v=callingAgent-&gt;GetNode()-&gt;GetVar("SubtreeStack_"); /// Probably not necessary: local variant v should still be valid?
+            v.GetVariantVectorPtr()-&gt;Pop();
+            callingAgent-&gt;GetNode()-&gt;SetVar("SubtreeStack_",v);
+
+        }
+        return currentState_;
+    }</code></pre>
+<p>Take note of the last few lines, where we need to “pop” a value from the stack, then write the variant back to the node variable container…<br/>
+Am I overlooking something?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I suggest Node::GetVarPtr, and/or Node::GetVarWriteable</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I don’t really object to the idea of adding a new method to improve the functionality, but why not overload the method based on const-ness (or the GetVars() method, perhaps) instead of adding one with a new name? If we use a new babe, I propose GetModifiableVar following the pattern of the VectorBuffer GetModifiableData.<br/>
+Also, if you just want a solution to not having to copy it, you can probably just const_cast away the problem (if I had to guess, I’m pretty sure it would work).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>It had never occurred to me that I could cast away the const-ness for direct access to subvariants, I will sure test that out, thanks!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>First person shooter weapon and render order</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">First person shooter weapon and render order</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sand2710</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I followed the discussion about the rendering order</p>
+<aside class="quote quote-modified" data-post="20" data-topic="1240">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/2c165096ad375255e0c52a6a81137cd8.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/how-to-control-render-order/1240/20">How to control render order?</a> <a class="badge-wrapper bullet" href="/c/discussions/support/10"><span class="badge-category-parent-bg" style="background-color: #25AAE2;"></span><span class="badge-category-bg" style="background-color: #92278F;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Someone can help you.">Support</span></a>
+</div>
+<blockquote>
+    I rather have the possibility of shadows on the weapon when clipping, than not being able to use shadows at all. I noticed Battlefield 3 has this behavior too. 
+Z-offset seems like the way to achieve this behavior. I want to know and specify how much offset is needed (perhaps the total bounding box of all the viewport models). 
+I wonder if codingmonkey’s method can work with urho, and what it takes to implement it? 
+
+How does it compare to depth offset? It would make z-fighting more likely? 
+Is …
+  </blockquote>
+</aside>
+<p>but it is not clear to me how it was solved (enhex’s hellbreaker is fantastic).</p>
+<p>My first attempt was to replicate the code proposed by enhex (I used actionscript) but SetRenderOrder still doesn’t work or I’m doing something wrong, in 18_CharacterDemo.as:CreateCharacter ()</p>
+<pre><code>    Node @ xNode = characterNode.CreateChild ("test");
+    xNode.scale = Vector3 (0.25f, 0.25f, 1.0f);
+    xNode.position = Vector3 (0.5f, 0.9f, 1.5f);
+    StaticModel @ xobject = xNode.CreateComponent ("StaticModel");
+    xobject.model = cache.GetResource ("Model", "Models / Box.mdl");
+    xobject.castShadows = true;
+    // (is there a way in actionscript to use clone () without declaring two variables?)
+    Material @ mat = cache.GetResource ("Material", "Materials / Jack2.xml");
+    Material @ mat2 = mat.Clone ();
+    mat2.renderOrder = 200;
+    Technique @ tec = mat2.techniqueEntries [0] .technique;
+    Technique @ tec2 = tec.Clone ();
+    Pass @ pass = tec2.GetPass (tec2.passNames [0]);
+    pass.depthTestMode = CMP_ALWAYS;
+    xobject.material = mat2;
+</code></pre>
+<p>As a second attempt I duplicated the Material and the Technique, but I am not yet confident with the urho render pipeline and materials, I enabled DumpResources on exit and I see that the updated material and technique are used:</p>
+<pre><code>Materials / Jack2.xml
+Techniques / NoTexture2.xml
+</code></pre>
+<p>I see the shaders that are used:</p>
+<pre><code>Shaders / GLSL / Shadow.glsl
+Shaders / GLSL / LitSolid.glsl
+Shaders / GLSL / Basic.glsl
+</code></pre>
+<p>it is not clear to me where to intervene to associate a custom shader to the Jack2 material (notexture has the attribute vs only for depth and shadow and depth is not even used ??)</p>
+<p>I think the weapon is a fairly common requirement for a FPS, it would be nice to have a working example.</p>
+<p><strong>edit</strong></p>
+<p>Somehow I missed the fact that the notexture technique element has the vs attribute, I modified it and I see that the specified shader is loaded (Shaders / GLSL / LitSolid2.glsl)</p>
+<p>I tried modifying VS with gl_Position.z * = 0.999 or gl_Position.z * = 0.01 but I don’t see changes, do I have to change anything else?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Hello, welcome to the forum!</p>
+<p>Don’t use box model. Take any concave model and you will see the effect of CMP_ALWAYS, and why it is bad idea for this case, because the different parts of gun model will have totally broken z order.</p>
+<p>gl_Position hacking works surprisingly fine. But I would expect some problems down the line with z-precision, lighting or particle effects for example.</p>
+<p>Make sure you change z value before this line in LitSolid.glsl:</p>
+<pre><code>vWorldPos = vec4(worldPos, GetDepth(gl_Position));
+</code></pre>
+<p>Because that’s the depth value that gets passed into pixel shader and then used for depth testing.</p>
+<blockquote>
+<p>I think the weapon is a fairly common requirement for a FPS, it would be nice to have a working example.</p>
+</blockquote>
+<p>Best solution depends on exact renderpath and even post-effects you are using.</p>
+<p>Good luck and have fun.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sand2710</div>
+          <div class="post_content">
+<p>Hi Bananaft, thanks!</p>
+<p>I’ve been following Urho3D for some time, I think it’s a fantastic engine and I finally found some free time to play with it. The documentation is good, I just wish there was a little more material about it (video tutorials, books?).</p>
+<p>Back to the render order question, I didn’t edit the post but I made some progress by following the directions of cadaver, adding basefps to renderpath, adding renderorder to the materials and CMP_ALWAYS in some pass. The box behaved quite well in the FP cam, the only oddity I noticed was some flicker in the shadow it receives, I imagined it depended on the fact that I resized the box.</p>
+<p>Thank you very much for confirming that instead the shader is the way to go and for the valuable advice, I will try with a decent model with multiple parts, and a shader with z value parameterized as suggested by gawag.</p>
+<blockquote>
+<p>I think the weapon is a fairly common requirement for FPS, it would be nice to have a working example.</p>
+<p>Best solution depends on exact renderingpath and even post-effects you are using.</p>
+</blockquote>
+<p>To be honest, what I’ve been thinking about for some time and I’d like to see is a FPS multiplayer SDK made with Urho, simple to mod, I’m a Bad Company 2 fan, I often wonder if Urho can achieve a similar result (I think so ).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2367_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jmiller</div>
+          <div class="post_content">
+<p>Hello and welcome!</p>
+<p>I recall this depth hack by <span class="mention">@1vank</span> and more info from <span class="mention">@cadaver</span>.</p><aside class="quote quote-modified" data-post="1" data-topic="2202">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/8e14485e10e801cd7ee7668b4f98a5bf.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/depthhack-for-weapon-rendering/2202">DepthHack for weapon rendering</a> <a class="badge-wrapper bullet" href="/c/showcase/code-exchange/13"><span class="badge-category-parent-bg" style="background-color: #F1592A;"></span><span class="badge-category-bg" style="background-color: #231F20;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Share your helpful Urho3D code snippets, samples and tutorials here.">Code Exchange</span></a>
+</div>
+<blockquote>
+    Looking through the source code <a href="https://github.com/id-Software/DOOM-3-BFG/tree/master/neo">github.com/id-Software/DOOM-3-B … master/neo</a> I noticed that they use a strange method for rendering weapons that it does not permeate through the wall. I do not fully understand how it works, but it modifies the projection matrix. DepthHack also used for particles. 
+renderEntity_s
+{
+    ...
+    float					modelDepthHack;			// squash depth range so particle effects don't clip into walls 
+    bool					weaponDepthHack;		// squash depth range so view weapons don't poke…
+  </blockquote>
+</aside>
+<aside class="quote no-group" data-full="true" data-post="2" data-topic="2202" data-username="cadaver">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/><a href="https://discourse.urho3d.io/t/depthhack-for-weapon-rendering/2202/2">DepthHack for weapon rendering</a>
+</div>
+<blockquote>
+<p>Camera custom projection matrix should go in to master shortly, however this would require a per-object custom projection matrix (if we want to use shadows from the existing scene render) which can be somewhat unclean to get in. Ideas / PRs are welcome.</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sand2710</div>
+          <div class="post_content">
+<p>Thanks <span class="mention">@jmiller</span></p>
+<p>I had seen the DepthHack mentioned in the other thread but I hadn’t seen this specific thread nor the video, very interesting, thanks again.</p>
+<p>Incredibly I had never seen this video on youtube even though I often searched for Urho3D video and having already found some 1vank videos (some time ago I created a <a href="https://www.youtube.com/playlist?list=PLHl6zjcEAbLOGMbFb46-RZcWf-LOXXKii" rel="nofollow noopener">Urho3D playlist</a>)</p>
+<p>Today in the evening I should be able to proceed with my tests</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2369_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Dave82</div>
+          <div class="post_content">
+<p>Just an idea. What would happen if we render the hands and weapon to a texture and then draw this texture on top of everything using a fullscreen shader ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">sand2710</div>
+          <div class="post_content">
+<p><span class="mention">@Dave82</span>, some old FPS I saw used animated images, for the weapon in first person, but you still need a mask / alpha, at that point instead of a texture it would be enough to render it last. Personally at the moment I don’t know enough about Urho3D’s render pipeline for such an implementation, I don’t know if the challenge is to get the mask/alpha together with the light and shadows of the main scene.</p>
+<p>I had to push the test of the weapon in the stack but I expect to go back to it soon and post some results.</p>
+<p>P.S. : I have a series of stupid questions like “how could I do this …” or “would it be possible to do …”, what would be the best place to post them?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="7" data-topic="5267" data-username="sand2710">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6726b6b920dff2a2b44e8beecdff01d8.png" width="20"/> sand2710:</div>
+<blockquote>
+<p>P.S. : I have a series of stupid questions like “how could I do this …” or “would it be possible to do …”, what would be the best place to post them?</p>
+</blockquote>
+</aside>
+<p>These forums will do, related followup questions can be asked in the same thread, but don’t hesitate to start a new one either. There’s also <a  rel="noopener nofollow ugc">Gitter</a>, and if you’re question is <em>really</em> stupid, just try formulating it more intelligently until it contains the answer (and then trim). Have you found your way into the <a href="https://urho3d.github.io/documentation/HEAD/" rel="noopener nofollow ugc">documentation</a>?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

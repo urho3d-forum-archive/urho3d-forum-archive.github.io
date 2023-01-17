@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Modify children of a Node</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Modify children of a Node</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SteveU3D</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I wrote a function to create a 3D arrow made of one cylinder an two cones :</p>
+<pre><code>void create3DArrow(Node** inArrowNode, float inSize)
+{
+  ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+
+  //create a 3D arrow with one cylinder and two cones
+  SharedPtr&lt;Node&gt; mArrowCylinderNode;
+  SharedPtr&lt;StaticModel&gt; mArrowCylinderObject;
+  SharedPtr&lt;Node&gt; mArrowCone1Node;
+  SharedPtr&lt;StaticModel&gt; mArrowCone1Object;
+  SharedPtr&lt;Node&gt; mArrowCone2Node;
+  SharedPtr&lt;StaticModel&gt; mArrowCone2Object;
+
+  float coneSize = 1.5;
+  float coneThickness = 1.0;
+  float coneZ = inSize/2.0 - coneSize/2.0;
+  float cylinderSize = inSize - 2*coneSize;
+  float cylinderThickness = 0.5;
+
+  mArrowCylinderNode = scene_-&gt;CreateChild("ArrowCylinder");
+  mArrowCylinderObject = mArrowCylinderNode-&gt;CreateComponent&lt;StaticModel&gt;();
+  mArrowCylinderObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Cylinder.mdl"));
+  mArrowCylinderNode-&gt;SetScale(Vector3(cylinderThickness, cylinderSize, cylinderThickness));
+  mArrowCylinderNode-&gt;SetPosition(Vector3(0, 0, 0));
+
+  mArrowCone1Node = scene_-&gt;CreateChild("ArrowCone1");
+  mArrowCone1Object = mArrowCone1Node-&gt;CreateComponent&lt;StaticModel&gt;();
+  mArrowCone1Object-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Cone.mdl"));
+  mArrowCone1Node-&gt;SetScale(Vector3(coneThickness, coneSize, coneThickness));
+  mArrowCone1Node-&gt;SetPosition(Vector3(0, coneZ, 0));
+
+  mArrowCone2Node = scene_-&gt;CreateChild("ArrowCone2");
+  mArrowCone2Object = mArrowCone2Node-&gt;CreateComponent&lt;StaticModel&gt;();
+  mArrowCone2Object-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Cone.mdl"));
+  mArrowCone2Node-&gt;SetScale(Vector3(coneThickness, coneSize, coneThickness));
+  mArrowCone2Node-&gt;SetRotation(Quaternion(180, 0, 0));
+  mArrowCone2Node-&gt;SetPosition(Vector3(0, -coneZ, 0));
+
+  *inArrowNode = scene_-&gt;CreateChild("Arrow");
+  (*inArrowNode)-&gt;AddChild(mArrowCylinderNode, 0);
+  (*inArrowNode)-&gt;AddChild(mArrowCone1Node, 1);
+  (*inArrowNode)-&gt;AddChild(mArrowCone2Node, 2);
+
+}
+</code></pre>
+<p>So I do :</p>
+<pre><code>Node* myArrow;
+float arrowSize = 10;
+create3DArrow(&amp;myArrow, arrowSize );
+</code></pre>
+<p>And then I can do :</p>
+<pre><code>myArrow-&gt;SetPosition(...); //the center is the center of the cylinder
+myArrow-&gt;SetRotation(...);
+</code></pre>
+<p>which gives me for example :</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"  rel="nofollow noopener" title="3DArrow.jpg"><img alt="3DArrow"  height="500" src="../../../images2/555a2fdf7b35f86c45dc6b7c09f76609.jpg" width="205"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">3DArrow.jpg</span><span class="informations">205×562 6.75 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>My question is how to modify the size of the cylinder in the arrow to make it longer or smaller once it is created. I don’t want to have class members for the cylinder and the cones as I create several arrows. So how to access the cylinder and the cones in the parent node myArrow to change their scale and position / rotation?<br/>
+Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>What you could do is create a new component. Something like this? (untested)</p>
+<pre><code>class Arrow3D : public Urho3D::Component
+{
+    URHO3D_OBJECT(Arrow3D, Urho3D::Component);
+public:
+    Arrow3D(Urho3D::Context* context);
+    static void RegisterObject(Urho3D::Context* context);
+
+    void SetSize(float size);
+
+protected:
+    virtual void OnNodeSet(Urho3D::Node* node) override;
+    
+private:
+    void CreateObjects();
+    void DestroyObjects();
+    
+private:
+    float size_;
+    Urho3D::SharedPtr&lt;Urho3D::Node&gt; mArrowCylinderNode;
+    Urho3D::SharedPtr&lt;Urho3D::Node&gt; mArrowCone1Node;
+    Urho3D::SharedPtr&lt;Urho3D::Node&gt; mArrowCone2Node;
+};
+
+Arrow3D::Arrow3D(Urho3D::Context* context) :
+    Component(context),
+    size_ = (1.0f) // Default size of arrow
+{
+}
+
+void Arrow3D::RegisterObject(Urho3D::Context* context)
+{
+    context-&gt;RegisterFactory&lt;Arrow3D&gt;("Custom Objects");
+}
+
+void Arrow3D::SetSize(float size)
+{
+    size_ = size;
+    if (node_ == NULL)
+        return;
+    
+    float coneSize = 1.5;
+    float coneThickness = 1.0;
+    float coneZ = size_/2.0 - coneSize/2.0;
+    float cylinderSize = size_ - 2*coneSize;
+    float cylinderThickness = 0.5;
+    
+    mArrowCylinderNode-&gt;SetScale(Vector3(cylinderThickness, cylinderSize, cylinderThickness));
+    
+    mArrowCone1Node-&gt;SetScale(Vector3(coneThickness, coneSize, coneThickness));
+    mArrowCone1Node-&gt;SetPosition(Vector3(0, coneZ, 0));
+    
+    mArrowCone2Node-&gt;SetScale(Vector3(coneThickness, coneSize, coneThickness));
+    mArrowCone2Node-&gt;SetRotation(Quaternion(180, 0, 0));
+    mArrowCone2Node-&gt;SetPosition(Vector3(0, -coneZ, 0));
+}
+
+void Arrow3D::OnNodeSet(Urho3D::Node* node)
+{
+    if (node == NULL)
+        DestroyObjects();
+    else
+        CreateObjects();
+}
+
+void Arrow3D::CreateObjects()
+{
+    Urho3D::ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+    Urho3D::Model* model;
+
+    mArrowCylinderNode = node_-&gt;CreateChild("ArrowCylinder");
+    model = mArrowCylinderNode-&gt;CreateComponent&lt;StaticModel&gt;();
+    model-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Cylinder.mdl"));
+    
+    mArrowCone1Node = scene_-&gt;CreateChild("ArrowCone1");
+    model = mArrowCone1Node-&gt;CreateComponent&lt;StaticModel&gt;();
+    model-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Cone.mdl"));
+  
+    mArrowCone2Node = scene_-&gt;CreateChild("ArrowCone2");
+    model = mArrowCone2Node-&gt;CreateComponent&lt;StaticModel&gt;();
+    model-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/Cone.mdl"));
+    
+    SetSize(size_);
+}
+
+void Arrow3D::DestroyObjects()
+{
+    if (mArrowCylinderNode == NULL)
+        return;
+        
+    mArrowCylinderNode-&gt;Remove();
+    mArrowCone1Node-&gt;Remove();
+    mArrowCone2Node-&gt;Remove();
+    
+    mArrowCylinderNode = NULL;
+    mArrowCone1Node = NULL;
+    mArrowCone2Node = NULL;
+}
+</code></pre>
+<p>Then, during engine Start(), you register it:</p>
+<pre><code>void Application::Start()
+{
+    Arrow3D::RegisterObject(context_);
+}
+</code></pre>
+<p>And finally, you can just create the arrow like so:</p>
+<pre><code>Node* arrowNode = scene_-&gt;CreateChild("Arrow");
+Arrow3D* arrow = arrowNode-&gt;CreateComponent&lt;Arrow3D&gt;();
+arrow-&gt;SetSize(5);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I’m not sure I fully understood the question. May be <code>arrow-&gt;GetChild()</code> will help you</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">slapin</div>
+          <div class="post_content">
+<p>You can always GetChild(“name”) and then SetScale() the child.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SteveU3D</div>
+          <div class="post_content">
+<p>Thanks! I do C++ and I didn’t think of OOP and creating a special object for my arrow, shame on me <img alt=":expressionless:" class="emoji" src="../../../images2/63b2a3c5feceb8ebe4e0b9a965fe97d5.png" title=":expressionless:"/><br/>
+The GetChild(“name”) is good too but I think that the Arrow class will be better for what I need to do.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

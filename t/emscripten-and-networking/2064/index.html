@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Emscripten and networking?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Emscripten and networking?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">xalinou</div>
+          <div class="post_content">
+<p>I’ve noticed that Urho has pretty good Emscripten support and i was curious if anyone tested networking. Is it supported without any changes? Or it hasn’t been tested yet?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I’ve been looking into this topic.</p>
+<p>AFAIK the libraries that urho uses for networking don’t compile with emscripten out of the box.</p>
+<p>Emscripten provides libc networking (Brekeley socket API), which it uses JavaScript networking to emulate, which means only asynchronous operations should be used (<a href="https://kripken.github.io/emscripten-site/docs/porting/guidelines/api_limitations.html#networking" rel="nofollow noopener">kripken.github.io/emscripten-si … networking</a>).<br/>
+This is low level work, and I wouldn’t recommend it.</p>
+<p>There’s a better approach. Emscripten lets you execute JS code directly, so you could use that to use JS networking directly which is so much simpler and elegant.<br/>
+<a href="https://kripken.github.io/emscripten-site/docs/api_reference/emscripten.h.html?highlight=asm#inline-assembly-javascript" rel="nofollow noopener">kripken.github.io/emscripten-si … javascript</a></p>
+<p>AFAIK JS only has 2 networking systems: HTTP requests and websockets.<br/>
+There are C++ libraries for both.<br/>
+It should be possible to make a library that conditionally uses a JS or C++ implementation so there’ll be a single API for both regular and emscripten builds, similar to how Urho uses Direct3D/OpenGL.<br/>
+It makes sense because if you’re using JS networking directly you’ll need HTTP/websocket servers, so you need to use the same networking system for the regular build.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>There’s WebRTC and it’s also P2P. Checking the changelog, I’m not sure about the status of this feature, but I think they already fixed it with v1.34.</p>
+<h2>[quote]v1.34.2: 7/14/2015</h2>
+<ul>
+<li>Upgrade to new SIMD.js polyfill version and improved SIMD support.</li>
+<li>Improved WebGL support in --proxy-to-worker mode (<span class="hashtag">#3569</span>)</li>
+<li>Removed warning on unimplemented JS library functions</li>
+<li>Fix WebGL 2 support with closure compiler<br/>
+<span class="bbcode-b"> - Fixed an issue with WebRTC support (<span class="hashtag">#3574</span>)</span>
+</li>
+<li>Fixed emcc to return a correct error process exit code when invoked with no input files</li>
+<li>Fixed a compiler problem where global data might not get aligned correctly for SIMD.</li>
+<li>Fixed a LLVM backend problem which caused recursive stack behavior when linking large codebases, which was seen to cause a stack overflow crash on Windows.</li>
+<li>Full list of changes:
+<ul>
+<li>Emscripten: <a href="https://github.com/kripken/emscripten/compare/1.34.1...1.34.2" rel="nofollow noopener">github.com/kripken/emscripten/c … 1…1.34.2</a>
+</li>
+<li>Emscripten-LLVM: <a href="https://github.com/kripken/emscripten-fastcomp/compare/1.34.1...1.34.2" rel="nofollow noopener">github.com/kripken/emscripten-f … 1…1.34.2</a>
+</li>
+<li>Emscripten-Clang: no changes.<br/>
+[/quote]</li>
+</ul>
+</li>
+</ul>
+<p><a href="https://webrtc.github.io/samples/" rel="nofollow noopener">webrtc.github.io/samples/</a></p>
+<p>Check also with BananaBread project (Cube2 port)<br/>
+<a href="https://github.com/kripken/bananabread" rel="nofollow noopener">github.com/kripken/bananabread</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">xalinou</div>
+          <div class="post_content">
+<p>BananaBread used to have WebRTC support, but that has been broken for a long time. There’s a PR with fixes, but apparently, it’s heaavily outdated and wasn’t merged by the authors: <a href="https://github.com/kripken/BananaBread/pull/38" rel="nofollow noopener">github.com/kripken/BananaBread/pull/38</a></p>
+<p>The way they used to do networking was by relaying websocket connections: <a href="https://github.com/kripken/BananaBread/blob/master/cube2/server.py" rel="nofollow noopener">github.com/kripken/BananaBread/ … /server.py</a></p>
+<p>Very crappy.  <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sir_Nate</div>
+          <div class="post_content">
+<p>There are a couple of paragraphs about some people’s experience porting Networking code here if anyone’s interested:<br/>
+<a data-bbcode="true" href="https://hacks.mozilla.org/2013/12/monster-madness-creating-games-on-the-web-with-emscripten/" rel="nofollow noopener">https://hacks.mozilla.org/2013/12/monster-madness-creating-games-on-the-web-with-emscripten/</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/55_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rasteron</div>
+          <div class="post_content">
+<p>[quote=“xalinou”]BananaBread used to have WebRTC support, but that has been broken for a long time. There’s a PR with fixes, but apparently, it’s heaavily outdated and wasn’t merged by the authors: <a href="https://github.com/kripken/BananaBread/pull/38" rel="nofollow noopener">github.com/kripken/BananaBread/pull/38</a></p>
+<p>The way they used to do networking was by relaying websocket connections: <a href="https://github.com/kripken/BananaBread/blob/master/cube2/server.py" rel="nofollow noopener">github.com/kripken/BananaBread/ … /server.py</a></p>
+<p>Very crappy.  <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/>[/quote]</p>
+<p>You can check <span class="bbcode-b">luser</span>’s activity and fork branch here ‘webrtc-sockets’. I think he got this working again at some point and the possible support again…</p>
+<p><a href="https://github.com/luser/emscripten/commits/webrtc-sockets" rel="nofollow noopener">github.com/luser/emscripten/com … tc-sockets</a><br/>
+<a href="https://github.com/kripken/emscripten/issues/3773#issuecomment-184876966" rel="nofollow noopener">github.com/kripken/emscripten/i … -184876966</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1400_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dprandle</div>
+          <div class="post_content">
+<p>Hi - I know this thread is way old…</p>
+<p>I’m trying to build a UI for a ROS robot control - using urho cause part of the UI is a visualization of mapping data and I am comfortable with both urho UI and renderer, and well I hate JavaScript/typescript</p>
+<p>Before I invest time figuring it out myself - was wondering if anyone knew if it’s still the case that socket connections and the networking system don’t directly work in emscripten build</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Yes, but it is way worse than that. There is an experimental unfinished <a  rel="noopener nofollow ugc">branch</a> by <span class="mention">@Miegamicis</span> which uses websockets. However scene synchronization is so bad that anything beyond simplest game will not scale. <span class="mention">@Eugene</span> reworked networking system to eliminate scaling limitations and i am working on implementing networking using webrtc (in *** of course).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1400_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">dprandle</div>
+          <div class="post_content">
+<p>Thanks for the reply</p>
+<p>Luckily for me, I don’t need replication using emscripten - my use case is very simple.</p>
+<p>For anyone else wondering about this - if you use posix sockets and compile with emscripten, they will be converted to web sockets in the browser, but, they seem to work.</p>
+<p>Keep in mind on your server, if you plan to support desktop and web build, it works more smoothly (at least for me using nodejs server) to open separate servers - one for the web socket connections and one for the bare system posix socket connections.</p>
+<p>Also, since the web sockets must be created on top of http connection, some handshaking is involved which means you need to use your posix sockets (which will be converted to web sockets in the browser) in non-blocking mode and poll the socket for read/write ready state on the fd before use.</p>
+<p>I could see this not being a viable way to do replication, as requiring all data to go through http protocol could be high in overhead. But, for people like me who are just sending/receiving fairly simple command/info packets, the emscripten compiler conversion to web sockets for posix sockets works. Also, I use linux for this - I would imagine mac would be the same deal but windows totally different.</p>
+<p>Thanks</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

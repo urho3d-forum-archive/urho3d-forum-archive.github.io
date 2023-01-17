@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] AS bindings. Member values are not initialized</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] AS bindings. Member values are not initialized</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<p>A couple of days I try to understand why It does not to work. So i have class two simple classes : PlanetInfo and StarSystem, which i want to use in AS scripts.</p>
+<p><span class="bbcode-b">There is PlanetInfo class declaration.</span></p>
+<pre><code class="lang-auto">class PlanetInfo 
+{
+public:
+	PlanetInfo();
+	PlanetInfo(const PlanetInfo&amp; info);
+	~PlanetInfo() { }
+	PlanetInfo operator=(const PlanetInfo&amp; info) { return PlanetInfo(info); }
+
+	bool Initialize(const XMLElement&amp; planetNode);
+
+	static void RegisterScript(asIScriptEngine* engine);
+private:
+	int m_Id;
+	float m_DistanceFromPrimaryStar;
+	float m_Mass;
+}</code></pre>
+<p><span class="bbcode-b">There is PlanetInfo class implementation:</span></p>
+<pre><code class="lang-auto">PlanetInfo::PlanetInfo() :
+	m_DistanceFromPrimaryStar(0.0f),
+	m_Mass(0.0f)
+{ }
+
+PlanetInfo::PlanetInfo(const PlanetInfo&amp; info) :
+	m_DistanceFromPrimaryStar(info.m_DistanceFromPrimaryStar),
+	m_Mass(info.m_Mass)
+{ }
+
+bool PlanetInfo::Initialize(const XMLElement&amp; planetNode)
+{
+	m_DistanceFromPrimaryStar = planetCharacteristics.GetFloat("DistanceFPS");
+	m_Mass = planetCharacteristics.GetFloat("Mass");
+	return true;
+}
+
+void PlanetInfo::RegisterScript(asIScriptEngine* engine)
+{
+	engine-&gt;RegisterObjectType("PlanetInfo", sizeof(PlanetInfo), asOBJ_VALUE | asOBJ_APP_CLASS_CDAK);
+	engine-&gt;RegisterObjectBehaviour("PlanetInfo", asBEHAVE_CONSTRUCT, "void f()", asFUNCTION(ConstructPlanetInfo), asCALL_CDECL_OBJLAST);
+	engine-&gt;RegisterObjectBehaviour("PlanetInfo", asBEHAVE_CONSTRUCT, "void f(const PlanetInfo&amp;in)", asFUNCTION(ConstructPlanetInfoCopy), asCALL_CDECL_OBJLAST);
+	engine-&gt;RegisterObjectBehaviour("PlanetInfo", asBEHAVE_DESTRUCT, "void f()", asFUNCTION(DestructPlanetInfo), asCALL_CDECL_OBJLAST);
+	engine-&gt;RegisterObjectMethod("PlanetInfo", "PlanetInfo opAssign(const PlanetInfo&amp;in)", asMETHODPR(PlanetInfo, operator =, (const PlanetInfo&amp;), PlanetInfo), asCALL_THISCALL);
+	engine-&gt;RegisterObjectProperty("PlanetInfo", "int id", offsetof(PlanetInfo, m_Id));
+	engine-&gt;RegisterObjectProperty("PlanetInfo", "float m_DistanceFromPrimaryStar", offsetof(PlanetInfo, m_DistanceFromPrimaryStar));
+	engine-&gt;RegisterObjectProperty("PlanetInfo", "float m_Mass", offsetof(PlanetInfo, m_Mass));
+}
+
+static void ConstructPlanetInfo(PlanetInfo* ptr)
+{
+	new(ptr) PlanetInfo();
+}
+
+static void DestructPlanetInfo(PlanetInfo* ptr)
+{
+	ptr-&gt;~PlanetInfo();
+}
+
+static void ConstructPlanetInfoCopy(const PlanetInfo&amp; planetInfo, PlanetInfo* ptr)
+{
+	new(ptr)PlanetInfo(planetInfo);
+}
+</code></pre>
+<p><span class="bbcode-b">There is StarSystem class declaration.</span></p>
+<pre><code class="lang-auto">class StarSystem : public Serializable
+{
+	URHO3D_OBJECT(StarSystem, Serializable)
+
+public:
+	StarSystem(Context* context);
+	~StarSystem();
+	virtual bool LoadXML(const XMLElement&amp; source, bool setInstanceDefault = false);
+
+	const Vector&lt;PlanetInfo&gt;&amp; GetPlanets() const { return m_Planets; }
+
+	static void RegisterScript(asIScriptEngine* engine);
+private:
+	Vector&lt;PlanetInfo&gt; m_Planets;
+};</code></pre>
+<p><span class="bbcode-b">There is StarSystem class implementation.</span></p>
+<p>[code]StarSystem::StarSystem(Context* context) : Serializable(context)<br/>
+{<br/>
+Script* pScriptSystem = GetSubsystem();<br/>
+if (pScriptSystem)<br/>
+{<br/>
+RegisterScript(pScriptSystem-&gt;GetScriptEngine());<br/>
+}<br/>
+}</p>
+<p>StarSystem::~StarSystem()<br/>
+{</p>
+<p>}</p>
+<p>bool StarSystem::LoadXML(const XMLElement&amp; source, bool setInstanceDefault)<br/>
+{<br/>
+XMLElement systemCharacteristics = root.GetChild(“SystemCharacteristics”);	<br/>
+XMLElement planets = systemCharacteristics.GetChild(“Planets”);<br/>
+for (XMLElement it = planets.GetChild(); it; it = it.GetNext())<br/>
+{<br/>
+PlanetInfo newPlanet = PlanetInfo();<br/>
+if (newPlanet.Initialize(it))<br/>
+{<br/>
+m_Planets.Push(newPlanet);<br/>
+}<br/>
+}<br/>
+return true;<br/>
+}</p>
+<p>void StarSystem::RegisterScript(asIScriptEngine* engine)<br/>
+{<br/>
+PlanetInfo::RegisterScript(engine);</p>
+<pre><code>RegisterSerializable&lt;StarSystem&gt;(engine, "StarSystem");
+engine-&gt;RegisterObjectMethod("StarSystem", "Array&lt;PlanetInfo&gt;@ GetPlanets() const", asFUNCTION(StarSystemGetPlanets), asCALL_CDECL_OBJLAST);
+engine-&gt;RegisterGlobalFunction("StarSystem@+ GetStarSystem()", asFUNCTION(GetStarSystem), asCALL_CDECL);
+</code></pre>
+<p>}</p>
+<p>static StarSystem* GetStarSystem()<br/>
+{<br/>
+return GetScriptContext()-&gt;GetSubsystem();<br/>
+}</p>
+<p>static CScriptArray* StarSystemGetPlanets(StarSystem* ptr)<br/>
+{<br/>
+Vector planets = ptr-&gt;GetPlanets();</p>
+<pre><code>for (int i = 0; i != planets.Size(); i++)
+{
+	URHO3D_LOGINFO("m_Mass = " + String(planets[i].m_Mass));
+}
+
+return VectorToArray&lt;PlanetInfo&gt;(planets, "Array&lt;PlanetInfo&gt;");
+</code></pre>
+<p>}<br/>
+[/code]</p>
+<p>Generally StarSystem holds info about all planets in Vector structure.<br/>
+I create StarSystem::RegisterScript(asIScriptEngine* engine) and PlanetInfo::RegisterScript(asIScriptEngine* engine) functions based on Urho3D AS bindings.</p>
+<p>The problem is the following -<br/>
+when in script i try to get all planets as <span class="bbcode-b">Array planets</span>, then in each PlanetInfo object all member variables are not initialized. (i just loop for each planet and print each object member values in order to see value). But when is called method <code>static CScriptArray* StarSystemGetPlanets(StarSystem* ptr) {
+ ... 
+	for (int i = 0; i != planets.Size(); i++)
+	{
+		URHO3D_LOGINFO("m_Mass = " + String(planets[i].m_Mass));
+....
+	}</code></p>
+<p>then i have noticed that in Vector planets all values are initialized correctly. Therefore there is mistake in my AS bindings or somewhere else.</p>
+<p>There is script file where i print each PlanetInfo’s member values.</p>
+<p><code>class StarSystemController : ScriptObject
+{
+	void DelayedStart()
+	{
+		XMLFile@ starSystemXML = cache.GetResource("XMLFile", "StarSystem.xml");
+		if(starSystem.LoadXML(starSystemXML.GetRoot()))
+		{
+			// GET ALL PLANETS
+			Array&lt;PlanetInfo&gt; planets = starSystem.GetPlanets();
+			for(uint i = 0; i &lt; planets.length; i++)
+			{
+                                // IN CONSOLE I GET ZERO FOR EACH VARIABLE, WHAT IS ABSOLUTELY WRONG
+				Print("m_Id= " + String(planets[i].m_Id));
+				Print("m_Mass= " + String(planets[i].m_Mass));
+				Print("m_DistanceFromPrimaryStar= " + String(planets[i].m_DistanceFromPrimaryStar)); 
+			}
+         }
+	}
+}</code></p>
+<p>Someone can explain why in scripts i get incorrect values ?</p>
+<p>Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">itisscan</div>
+          <div class="post_content">
+<p>I have solved it.</p>
+<p>In the code i have <code> PlanetInfo operator=(const PlanetInfo&amp; info) { return PlanetInfo(info); }</code>, but what i really need is next</p>
+<pre><code class="lang-auto">PlanetInfo&amp; operator=(const PlanetInfo&amp; info)
+{
+	m_Id = info.m_Id;
+	m_DistanceFromPrimaryStar = info.m_DistanceFromPrimaryStar;
+	m_Mass = info.m_Mass;
+	return *this;
+}</code></pre>
+<p>Never dealt with operator overloading before. It was good lesson for me.  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

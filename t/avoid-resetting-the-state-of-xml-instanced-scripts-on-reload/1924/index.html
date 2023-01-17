@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Avoid resetting the state of XML instanced scripts on reload</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Avoid resetting the state of XML instanced scripts on reload</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>When changing a script, a hot-reload will happen.<br/>
+If the value of attributes are part of the scripts, then it will work fine.<br/>
+But if they’re defined in an XML which was used to create the script object, they won’t be reloaded.</p>
+<p>Is there a way to reload a script instance with the values used to instance it from XML?</p>
+<p>Having default values in the script is a partial solution to make sure the script will work even if not as intended.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>In the editor, there is specialized support code for restoring script attributes. This is somewhat of a hack and should be removed in favor of ScriptInstance restoring the attributes properly.</p>
+<p>According to my testing it seemed that after a hot reload in the editor, at Start() / DelayedStart() attributes would be at their initial values as set in the script, however during the next Update() they would be restored to the values shown in the XML or in the attribute editor. This is naturally not ideal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>I wonder if it’s possible to make a system that keeps track of which XML attributes were used to instance which ScriptInstance, and when scripts are reloaded reset their attributes.</p>
+<p>Perhaps a class derived from ScriptInstance could keep a copy for the starting attributes, and re-apply them when getting reloaded?</p>
+<p>…I looked up a bit and Serializable::LoadXML() has “setInstanceDefault” option, which Node::LoadXML() doesn’t use. Would the default attributes apply or can be applied after reloading a ScriptInstance?<br/>
+If so maybe Scene:InstanceXML() and Node::LoadXML() could use it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I suppose it’s possible, at the moment Urho doesn’t have a proper concept of a prefab, meaning instantiate from XML is a fire and forget operation and no record of the “source” is kept. Note that nothing says that instantiate must happen from a XML file, it could be a binary VectorBuffer somewhere in memory and not available later, so in practice there would need to be different code paths to handle the differing kinds of sources. It wouldn’t be very straightforward or clean code, especially if you were to take into account the possibility of hot-reloading a structurally changing prefab (e.g. childs are added or destroyed)</p>
+<p>I’m planning on implementing a general storage of attributes for the time the “old” script object is destroyed and the “new” is instantiated, but it won’t necessarily use the original XML attributes - if the script already changed a value, then the changed value is restored.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>If you check master branch now, there is an enhanced ScriptInstance hot reload which no longer relies on support code in the editor, but would also work e.g. inside a game with resource reload enabled. Script attributes are simply stored when reload begins and restored when reload ends, or later if the object recreation failed due to error in reloaded script.</p>
+<p>Note that as the Start() function is called immediately after object creation and before the script attributes are even found out, during that the attributes will have their default values. During DelayedStart() the values should already be correct.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>Just tested it and it works, even with my monster AI code which is split between AS and C++.<br/>
+Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

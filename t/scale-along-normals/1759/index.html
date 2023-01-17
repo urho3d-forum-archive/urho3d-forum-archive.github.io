@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Scale along normals</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Scale along normals</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I’m trying to create shell for mesh</p>
+<pre><code class="lang-auto">void VS()
+{
+    float offset = 0.1;
+    mat4 modelMatrix = iModelMatrix;
+    vec4 pos = iPos + vec4(iNormal * offset, 0.0);
+    vec3 worldPos = (pos * modelMatrix).xyz;
+    gl_Position = GetClipPos(worldPos);</code></pre>
+<p>but it works incorrect for sharp angles</p>
+<p><a data-bbcode="true" href="http://savepic.ru/8545904.htm"><img alt="" height="" src="../../../images2/48cdcb9e0d9204be2b79c0f1c7712f36.jpg" width=""/></a></p>
+<p>(red mesh - scaled shell, white - original mesh)</p>
+<p>How to fix it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TikariSakari</div>
+          <div class="post_content">
+<p>This is my “outline” code, and it should scale things along normal, but I am not 100% sure if it works with sharp edges either. It inverts normals to give outline though</p>
+<pre><code class="lang-auto">#include "Uniforms.glsl"
+#include "Transform.glsl"
+
+varying vec3 vNormal;
+
+uniform vec4 cOutlineColor;
+uniform float cOutLineThickness;
+
+
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+
+    worldPos += GetWorldNormal( modelMatrix ) * cOutLineThickness;
+    vNormal = GetWorldNormal(modelMatrix) * - 1.0;
+    
+    gl_Position = GetClipPos(worldPos);
+ 
+}
+
+void PS()
+{
+    gl_FragColor = cOutlineColor;
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>This is an inherent limitation of that technique. So before we go into potential solutions, let’s look at our potential X/Y problem. What are you trying to accomplish?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>[quote=“TikariSakari”]This is my “outline” code, and it should scale things along normal, but I am not 100% sure if it works with sharp edges either. It inverts normals to give outline though</p>
+<p>[code]<br/>
+<span class="hashtag">#include</span> “Uniforms.glsl”<br/>
+<span class="hashtag">#include</span> “Transform.glsl”</p>
+<p>varying vec3 vNormal;</p>
+<p>uniform vec4 cOutlineColor;<br/>
+uniform float cOutLineThickness;</p>
+<p>void VS()<br/>
+{<br/>
+mat4 modelMatrix = iModelMatrix;<br/>
+vec3 worldPos = GetWorldPos(modelMatrix);</p>
+<pre><code>worldPos += GetWorldNormal( modelMatrix ) * cOutLineThickness;
+vNormal = GetWorldNormal(modelMatrix) * - 1.0;
+
+gl_Position = GetClipPos(worldPos);
+</code></pre>
+<p>}</p>
+<p>void PS()<br/>
+{<br/>
+gl_FragColor = cOutlineColor;<br/>
+}<br/>
+[/code][/quote]</p>
+<p>and where inverned vNormal is used?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">OvermindDL1</div>
+          <div class="post_content">
+<p>Are you actually trying to encase it with something, or are you just trying to colorize it or render it differently without necessarily increasing the size?  If so then you could just apply a shader on the original.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="thebluefish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bf1ad5330f9831ec6d82214e91751e5d.png" width="20"/> thebluefish:</div>
+<blockquote>
+<p>This is an inherent limitation of that technique. So before we go into potential solutions, let’s look at our potential X/Y problem. What are you trying to accomplish?</p>
+</blockquote>
+</aside>
+<p><a href="http://gamedev.stackexchange.com/questions/34652/outline-object-effect">gamedev.stackexchange.com/questi … ect-effect</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Previously, I created<br/>
+<a href="https://github.com/1vanK/Urho3DOutline">github.com/1vanK/Urho3DOutline</a><br/>
+but bluring is slow, so i try to using another method</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

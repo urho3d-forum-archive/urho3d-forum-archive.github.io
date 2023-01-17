@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Rotating a model around an axis</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Rotating a model around an axis</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/750_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">crisx</div>
+          <div class="post_content">
+<p>Hello</p>
+<p>I’m trying to rotate a model around an axis (windmill wings), here’s the model as imported without any change, the rotation works perfectly fine I define an angular velocity:<br/>
+<img alt="Image2" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/c2a4e8ca46a16c0fc24f5004b9d052c983e6fb79.jpg" width="666"/></p>
+<p>I defined a second node with the same height and used LookAt, it effectively turns the wings in the desired direction:<br/>
+<img alt="Image3" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/19b4db0e547edc1c32107ae548d051e8e9d664d9.jpg" width="669"/></p>
+<p>But then when I apply an angular velocity, the wings rotate around a point, going up and down. I tried to define a constraint but it move the second node, and if I make the second node body static (no mass), the model doesn’t move at all<br/>
+<img alt="Image5" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/0d1563f491a47a2facfc4b21a48ff4dcd862f397.jpg" width="666"/></p>
+<p>Here’s the code I used:</p>
+<pre><code>                AnimatedModel* wheelObject = tileNode-&gt;CreateComponent&lt;AnimatedModel&gt;();
+				wheelObject-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Models/WindMillWings.mdl"));
+				wheelObject-&gt;SetCastShadows(true);
+				wheelObject-&gt;SetMaterial(0, cache-&gt;GetResource&lt;Material&gt;("Materials/Windmill/Wood.xml"));
+				wheelObject-&gt;SetMaterial(1, cache-&gt;GetResource&lt;Material&gt;("Materials/Windmill/Cloth.xml"));
+
+				RigidBody * Body = tileNode-&gt;CreateComponent&lt;RigidBody&gt;();
+				CollisionShape * Shape = tileNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+				//Shape-&gt;SetCylinder(0.25, 1.6,Vector3(0.5,0.0,0.0),Quaternion(90.0));
+				Shape-&gt;SetSphere(1.0);
+				Body-&gt;SetMass(0.1f);
+				Body-&gt;SetGravityOverride(Vector3(0.0, 0.0, 0.0));
+				Body-&gt;SetUseGravity(false);
+				Body-&gt;SetLinearDamping(0.0f);
+				Body-&gt;SetAngularDamping(0.0f);
+				Body-&gt;SetAngularVelocity(Vector3(2.0, 0.0, 0.0));
+				Body-&gt;SetCollisionLayer(1);
+
+				Node * anchorNode = sceneGame_-&gt;CreateChild();
+				anchorNode-&gt;SetPosition(Vector3(tileNode-&gt;GetPosition().x_ + 2.0, tileNode-&gt;GetPosition().y_, tileNode-&gt;GetPosition().z_ +5.0));
+				RigidBody * anchorBody = anchorNode-&gt;CreateComponent&lt;RigidBody&gt;();
+				CollisionShape * anchorShape = anchorNode-&gt;CreateComponent&lt;CollisionShape&gt;();
+				anchorShape-&gt;SetSphere(1.0);
+				anchorBody-&gt;SetMass(0.1f);
+				anchorBody-&gt;SetUseGravity(false);
+				tileNode-&gt;LookAt(anchorNode-&gt;GetPosition());
+				
+				Constraint* wingsConstraint = tileNode-&gt;CreateComponent&lt;Constraint&gt;();
+				wingsConstraint-&gt;SetConstraintType(CONSTRAINT_HINGE);
+				wingsConstraint-&gt;SetOtherBody(anchorBody);
+				wingsConstraint-&gt;SetWorldPosition(tileNode-&gt;GetPosition());
+				wingsConstraint-&gt;SetAxis(Vector3::UP);
+				wingsConstraint-&gt;SetDisableCollision(true);
+</code></pre>
+<p>And the model:<br/>
+<a class="onebox" href="https://ufile.io/s6hhx" rel="nofollow noopener" target="_blank">https://ufile.io/s6hhx</a></p>
+<p>I tried used a rotation attribute animation but I’ve got the same problem<br/>
+It’s probably not that complicated but I’ve been trying to fix that for almost one day <img alt=":sunglasses:" class="emoji" src="/images/emoji/twitter/sunglasses.png?v=9" title=":sunglasses:"/><br/>
+thanks</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/762_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">hicup_82017</div>
+          <div class="post_content">
+<p>I found the following from Urho Samples and Documentation.</p>
+<p><strong>To Set rigid body rotation with rotation of speed 20, in world space.</strong><br/>
+Rigid Body-&gt;SetRotation(Quaternion(0.0f, 20* timeStep, 0.0f))<br/>
+I could not see how to put the rotation in parent space from bullet.</p>
+<p><strong>To set rotation of node, with speed 20,</strong><br/>
+from billboards Sample line 302,<br/>
+for world rotation,<br/>
+lightNodes[i]-&gt;Rotate(Quaternion(0.0f, 20 * timeStep, 0.0f), TS_WORLD);<br/>
+for local rotation,<br/>
+lightNodes[i]-&gt;Rotate(Quaternion(0.0f, 20 * timeStep, 0.0f), TS_LOCAL);</p>
+<p><strong>Note:</strong> All these target only Y axis.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Try:</p>
+<pre><code class="lang-auto">Body-&gt;ApplyTorqueImpulse(tileNode-&gt;GetRight() * smallFloat);
+</code></pre>
+<p>Instead of setting the angular velocity.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/750_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">crisx</div>
+          <div class="post_content">
+<p>I tried, but I’ve got the same behavior</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Like <span class="mention">@Eugene</span> <a href="https://discourse.urho3d.io/t/how-to-limit-rotation-on-a-specific-axis/3544/4?u=modanung">said</a>, using a RigidBody for this purpose could be considered overkill. As long as there needn’t be any interaction with other objects.<br/>
+I made a component using the same windmill model:<br/>
+<aside class="onebox whitelistedgeneric">
+<header class="source">
+<img class="site-icon" height="32" src="../../../images2/25ecd8dd3459b5cab7d3b9e1dfc2e6c0.ico" width="32"/>
+<a href="https://github.com/Modanung/WindmillComponent" rel="nofollow noopener" target="_blank">GitHub</a>
+</header>
+<article class="onebox-body">
+<img class="thumbnail onebox-avatar" height="400" src="https://avatars2.githubusercontent.com/u/7316241?s=400&amp;v=4" width="400"/>
+<h3><a href="https://github.com/Modanung/WindmillComponent" rel="nofollow noopener" target="_blank">Modanung/WindmillComponent</a></h3>
+<p>WindmillComponent - An example component</p>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>Because of the windmill model’s orientation, LookAt() behaves illogical. I think it would make more sense for it to spin around its Z axis (in Urho).</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

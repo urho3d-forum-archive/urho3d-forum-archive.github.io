@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] Animation has lag when i turn away from it</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] Animation has lag when i turn away from it</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi, folks!)<br/>
+I create some like a boom fx, and when i turn away from it, and i turn to it again - boom fx have something like a lag or phase shift in animation.<br/>
+Why is this happening? and how to solve this?</p>
+<p>[video]<a href="http://youtu.be/vrf38AYw1qM%5B/video%5D">http://youtu.be/vrf38AYw1qM[/video]</a></p>
+<p>this my code for animation if it needed</p>
+<pre><code class="lang-auto">void ScriptBoom::Start()
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;(); 
+	material_ = cache-&gt;GetResource&lt;Material&gt;("Materials/MT_Boom.xml");
+	
+	ringNode_ = GetNode()-&gt;GetChild("boomRing",true);
+	
+	// AlphaMask Factor
+	factorAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+	
+	//srand(0);
+	float noise = Random(0.1f, 0.5f);
+	float lag = Random(-0.5f, 0.5f);
+
+	factorAnim_-&gt;SetKeyFrame(0.0f, 0.5f);
+	factorAnim_-&gt;SetKeyFrame(0.5f, 1.3f);
+	factorAnim_-&gt;SetKeyFrame(1.0f, 2.0f);
+	
+	material_-&gt;SetShaderParameterAnimation("Factor", factorAnim_);
+	
+	// Scale
+	scaleAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+	
+
+	float startSize = 0.1f;
+	float endSize = 8.0f;
+	
+	scaleAnim_-&gt;SetKeyFrame(0.0f, Vector3(startSize, startSize, startSize));
+	scaleAnim_-&gt;SetKeyFrame(0.5f, Vector3(endSize, endSize, endSize));
+	scaleAnim_-&gt;SetKeyFrame(1.0f, Vector3(startSize, startSize, startSize));
+	
+	GetNode()-&gt;SetScale(startSize);
+
+	GetNode()-&gt;SetAttributeAnimation("Scale", scaleAnim_, WM_LOOP);
+	
+
+
+	//light
+	light_ = GetNode()-&gt;GetComponent&lt;Light&gt;();
+	lightAnim_ =  SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+	
+	lightAnim_-&gt;SetKeyFrame(0.0f, 0.0f);
+	lightAnim_-&gt;SetKeyFrame(0.5f, 10.0f);
+	lightAnim_-&gt;SetKeyFrame(1.0f, 0.0f);
+
+	light_-&gt;SetAttributeAnimation("Brightness Multiplier", lightAnim_);
+
+	// ring
+	ringMaterial_ =  cache-&gt;GetResource&lt;Material&gt;("Materials/MT_BoomRing.xml");
+	ringAlphaAnim_ =  SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+
+	ringAlphaAnim_-&gt;SetKeyFrame(0.0f, Vector4(1.0f,1.0f,1.0f,0.0f));
+	ringAlphaAnim_-&gt;SetKeyFrame(0.5f, Vector4(1.0f,1.0f,1.0f,2.0f));
+	ringAlphaAnim_-&gt;SetKeyFrame(0.7f, Vector4(1.0f,1.0f,1.0f,0.5f));
+	ringAlphaAnim_-&gt;SetKeyFrame(1.0f, Vector4(1.0f,1.0f,1.0f,0.0f));
+
+	ringMaterial_-&gt;SetShaderParameterAnimation("MatDiffColor", ringAlphaAnim_);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The problem may be the following: ValueAnimations update always, regardless of visibility. But AnimatedModel and ParticleSystem animations by default do not update (I don’t know from your post which one you are using for the effect’s main geometry) when not visible, to optimize CPU usage.</p>
+<p>You should be able to call SetUpdateInvisible(true) in the geometry component and hopefully this fixes the phase shift issue.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<aside class="quote no-group">
+<blockquote>
+<p>I don’t know from your post which one you are using for the effect’s main geometry</p>
+</blockquote>
+</aside>
+<p>Boom Fx has only two StaticModel, first is an - isosphere ( with my custom render tech: DiffAlphaMaskWithFactor for mask animation ) and second model have bit of planes for white alpha rings (with std tech: DiffUnlitAlpha).<br/>
+<a data-bbcode="true" href="http://savepic.ru/6296021.htm"><img alt="" height="" src="../../../images2/59fb7c5fe7e1b87064105b89a43305a5.png" width=""/></a><br/>
+<a data-bbcode="true" href="http://savepic.org/6473439.htm"><img alt="" height="" src="../../../images2/5d8ae5ab1d079ee9f506d7cb1107f414.png" width=""/></a><br/>
+<a data-bbcode="true" href="http://savepic.org/6473436.htm"><img alt="" height="" src="../../../images2/da6bcb10480831e01bf89d52b5abbc98.png" width=""/></a></p>
+<p>And root node of this boomfx only change his scale on time by valueAnimation.<br/>
+GetNode()-&gt;SetScale(startSize);</p>
+<p>Two materials have own valueAnimations;</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Looked at the code more precisely and turned out that material shader parameter animations are only being updated when they have visible batches on the screen, while component attribute animations are being updated whenever the scene is being updated. So I was being wrong.</p>
+<p>This is a bit nasty issue to solve properly, because materials do not belong to a scene, while components do. And we’d want the animation update to be dependant on the scene update timestep, and not just the whole engine’s frame update.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Do I understand correctly that this is a problem of materials which are constantly animated and do not depend on visibility.<br/>
+While the animation model(node) depends on visibility. Therefore, there is an offset between these animations.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The other way around: material shader parameter animations currently depend on visibility. Attribute animations (in nodes and components) don’t depend on visibility, but update always.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The dependency on visibility should now be fixed in master branch. You can optionally assign a scene to the material to make it follow the scene’s update events (respecting the timescale) instead of global updates.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Thanks, I’ll try this.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Yeah, now it’s work better )<br/>
+[video]<a href="http://youtu.be/xIOyBnPS9Pw%5B/video%5D">http://youtu.be/xIOyBnPS9Pw[/video]</a><br/>
+Thanks, <span class="bbcode-b">cadaver</span>.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

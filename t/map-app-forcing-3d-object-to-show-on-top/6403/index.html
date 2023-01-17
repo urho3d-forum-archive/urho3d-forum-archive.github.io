@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Map App - Forcing 3D object to show on top</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Map App - Forcing 3D object to show on top</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>We have a 2D map app, that is being rendered by a non-orthographic camera, which means we can’t just move things closer to the camera to make it appear ‘on top’… because with the perspective projection, if you move things closer, then it’s going to make their 2D position skew as you move the camera (to anywhere except directly over top them).  So all objects in our map view will be positioned at Y=0.</p>
+<p>For 2D objects, we have them all positioned exactly at Y=0, to avoid the Skew, and then are using “RenderOrder” to set the Z-order.  This is working just great.</p>
+<p>However, now we want to employ some 3D models into the mix, but we need the be able to control the Z-Order alongside those 2D graphics.  Since the 3D models have “height”, half of the model will be above ground, and half below ground… and it shows.   This is bad.  Instead we want to make sure the entire 3D model shows, and is not occluded by other objects… it needs to appear “fully on top”, despite it having parts of the model actually be further from camera that other layers.</p>
+<p>What is the easiest way in Urho to do this? (i.e. I <em>think</em> this means ignoring the DepthCheck with other objects, but not itself)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>If you don’t need the depth information for the 2d objects set them to not write to the depth buffer. You may be able to do it through the material, but if not I know you can do it by modifying the techniques and setting depthwrite=“false” (see <a href="https://urho3d.github.io/documentation/HEAD/_materials.html" rel="noopener nofollow ugc">https://urho3d.github.io/documentation/HEAD/_materials.html</a>).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Thank you SirNate0.  I think that sounds like a great solution.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>Hmmm, Looks like we already had the Plane’s DepthWrite set to False for the technique.</p>
+<p>Here’s the Plane_Image.xml, Techhnique:</p>
+<p>Yet here’s a close-up of the X-wing rolling - and you can see that it’s right wing is behind the Yellow Plane.</p>
+<p><img alt="image" data-base62-sha1="ghQuFgoEO9ELUyAdxNzbho78BWo" height="260" src="../../../images2/b13460f79dc8e2bdce999acae1489794.jpeg" width="224"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>So I resorted to setting the “depthbias” and now it shows the X-wing always above everything else:</p>
+<pre><code>		BiasParameters bp = new BiasParameters() { ConstantBias = -0.9f };
+		mat.DepthBias = bp;
+</code></pre>
+<p>I’m not sure why the “depthwrite” set to false isn’t working.</p>
+<p>I even set the X-Wing RenderOrder to 255, to make it last to render, just to see if that might help.    This technique of altering “RenderOrder” works great for determining the Z-order for various object on my 2D icon’s layer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>You mentioned using render order earlier - is the yellow down thing rendered after the X-wing, and/or does it use an alpha pass with the same render order? I think either of those could give you the result shown.</p>
+<p>I think the default render order is in the middle.</p>
+<p>Though if you have it working already maybe don’t bother trying to change it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">najak3d</div>
+          <div class="post_content">
+<p>The Yellow image/plane is rendered BEFORE the X-Wing model.   X-Wing Model uses the “NoTexture” material (built-in) and I’ve set RenderOrder to 255, so that it’ll be last.</p>
+<p>I would have thought that if the Yellow Image were rendered with “DepthWrite FALSE” that nothing rendered after it would appear behind it.   Maybe the “pass name” is messing it up.  I’m new to Urho, so might just need to figure that part out.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

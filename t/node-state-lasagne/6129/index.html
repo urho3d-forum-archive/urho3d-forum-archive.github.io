@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Node state lasagne</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Node state lasagne</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>Hello<br/>
+Currently I am aware of the following functions that affect the state of the node:<br/>
+SetEnabled<br/>
+SetDeepEnabled<br/>
+ResetDeepEnabled<br/>
+SetEnabledRecursive</p>
+<p>Is there a reason why there needs to be 4 of them?<br/>
+I found it very tricky to use it and keep a mental note on whats deep enabled or not.</p>
+<p>In my own fork of urho3d I have modified SetEnabled to act recursively such that nodes beneath it preserve their state as “enabled” but their components are disabled following a recursive check performed on each SetEnabled call.</p>
+<p>I noticed that after applying this change I didn’t have to use any other functions besides SetEnabled to control node state. I would want to consider providing this for other people to use however I am worried this might not go down well in terms of expected usage as old code would need to be adjusted.  Personally I only had to adjust my own project code to reflect the changes ( removal of SetDeepEnabled and SetEnabledRecursive for SetEnabled ).</p>
+<p><strong>Is there any significant reason why accessible Deep state is preferred over a recursive SetEnabled?</strong><br/>
+By recursive I mean child nodes maintaining their Enabled state but the parent node sends a event down the chain updating the state of all its child nodes creating a “deep” state but this state is never accessible to the programmer and only adjusted by its parent node. This deep state is then used to determine if components are enabled or not.</p>
+<p>so when you have a node tree like this:<br/>
+Key:<br/>
+“+” visible<br/>
+“-” hidden<br/>
+E enabled<br/>
+D disabled</p>
+<h2>Start</h2>
+<p>E + NodeParent<br/>
+_E + NodeChildA<br/>
+_E + NodeChildB</p>
+<h2>NodeParent:SetEnabled(false)</h2>
+<p>D - NodeParent<br/>
+_E - NodeChildA<br/>
+_E - NodeChildB</p>
+<h2>NodeChildA:SetEnabled(false)</h2>
+<p>D - NodeParent<br/>
+_D - NodeChildA<br/>
+_E - NodeChildB</p>
+<h2>NodeParent:SetEnabled(true)</h2>
+<p>E + NodeParent<br/>
+_D - NodeChildA<br/>
+_E + NodeChildB</p>
+<p>Similarly if you have a node tree with many parents:</p>
+<h2>NodeParentA:SetEnabled(false)</h2>
+<p>D - NodeParentA<br/>
+_E - NodeParentB<br/>
+__E - NodeBChildA<br/>
+_E - NodeChildB</p>
+<h2>NodeParentA:SetEnabled(true)</h2>
+<p>E + NodeParentA<br/>
+_E + NodeParentB<br/>
+___E + NodeBChildA<br/>
+_E + NodeChildB</p>
+<h2>NodeParentB:SetEnabled(false)</h2>
+<p>D + NodeParentA<br/>
+_D - NodeParentB<br/>
+___E - NodeBChildA<br/>
+_E + NodeChildB</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><code>SetDeepEnabled</code> is always recursive, but - unlike <code>SetEnabled</code> and <code>SetEnabledRecursive</code> - it does not modify <code>enabledPrev_</code>. <code>ResetDeepEnabled</code>  recursively sets the enabled state back to <code>enabledPrev_</code>. So <code>SetDeepEnabled</code> can be used to <em>store</em> the enabled state of an <em>entire branch</em> of nodes so the state of each can node be easily <em>restored</em> with a single call to <code>ResetDeepEnabled</code>.</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Scene/Node.cpp#L1992-L2003</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="1992" style="counter-reset: li-counter 1991 ;">
+<li>void Node::SetEnabled(bool enable, bool recursive, bool storeSelf)
+</li>
+<li>{
+</li>
+<li>    // The enabled state of the whole scene can not be changed. SetUpdateEnabled() is used instead to start/stop updates.
+</li>
+<li>    if (GetType() == Scene::GetTypeStatic())
+</li>
+<li>    {
+</li>
+<li>        URHO3D_LOGERROR("Can not change enabled state of the Scene");
+</li>
+<li>        return;
+</li>
+<li>    }
+</li>
+<li>
+</li>
+<li>    if (storeSelf)
+</li>
+<li>        enabledPrev_ = enable;
+</li>
+<li>
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<aside class="onebox githubblob">
+<header class="source">
+<a  target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Scene/Node.cpp#L718-L734</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="718" style="counter-reset: li-counter 717 ;">
+<li>void Node::SetDeepEnabled(bool enable)
+</li>
+<li>{
+</li>
+<li>    SetEnabled(enable, true, false);
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>void Node::ResetDeepEnabled()
+</li>
+<li>{
+</li>
+<li>    SetEnabled(enabledPrev_, false, false);
+</li>
+<li>
+</li>
+<li>    for (Vector&lt;SharedPtr&lt;Node&gt; &gt;::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+</li>
+<li>        (*i)-&gt;ResetDeepEnabled();
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>void Node::SetEnabledRecursive(bool enable)
+</li>
+<li>{
+</li>
+<li>    SetEnabled(enable, true, true);
+</li>
+<li>}
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>I understand how these work I am mainly concerned with the fact that I have to call SetEnabledRecursive or SetDeepEnabled on child nodes when I want to disable the tree. I have to then take care of two states: deep and actual enabled state. It might be fine in small case scenarios but for example when I switched my general purpose UI to use Nodes it became very difficult to keep track of the states.</p>
+<p>In my fork I modify it so that I can retrieve the deep enabled state whenever I want from a calculation not something the user decides, this is used internally only.<br/>
+The point of this is to reduce the need to use either SetEnabledRecursive or SetDeepEnabled because I think they are not actually all that useful and instead create undue stress as I am forced to keep track of the Deep state.  My question is fundamentally why this is done? is there a practical reason for this which is vital to other components such as improved efficiency or net code etc</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/Polynominal/Urho3D/blob/test/Source/Urho3D/Scene/Node.cpp#L1987-L1998" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/Polynominal/Urho3D/blob/test/Source/Urho3D/Scene/Node.cpp#L1987-L1998" rel="nofollow noopener" target="_blank">Polynominal/Urho3D/blob/test/Source/Urho3D/Scene/Node.cpp#L1987-L1998</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="1987" style="counter-reset: li-counter 1986 ;">
+<li>bool Node::IsEnabledExclusive()
+</li>
+<li>{
+</li>
+<li>    if (parent_ == scene_ || !parent_)
+</li>
+<li>    {
+</li>
+<li>        return enabled_;
+</li>
+<li>    }
+</li>
+<li>    else
+</li>
+<li>    {
+</li>
+<li>        return enabled_ and parent_-&gt;IsEnabledExclusive();
+</li>
+<li>    }
+</li>
+<li>}
+</li>
+<li>
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Then in my components I check if the component is active using the criteria.<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/Polynominal/Urho3D/blob/test/Source/Urho3D/Scene/Component.cpp#L270-L273" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/Polynominal/Urho3D/blob/test/Source/Urho3D/Scene/Component.cpp#L270-L273" rel="nofollow noopener" target="_blank">Polynominal/Urho3D/blob/test/Source/Urho3D/Scene/Component.cpp#L270-L273</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="270" style="counter-reset: li-counter 269 ;">
+<li>bool Component::IsEnabledEffective() const
+</li>
+<li>{
+</li>
+<li>    return enabled_ &amp;&amp; node_ &amp;&amp; node_-&gt;IsEnabledExclusive();
+</li>
+<li>}
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Is it possible with your changes to disable a node but keep it’s children enabled?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>Yes.</p>
+<p>It will never change the enabled state without the explicit use of SetEnabled. However it will check if its parent node is enabled to see if it should enable its components or not.</p>
+<p>so If you disable the parent note using SetEnable on any of the children this will have no immediate effect as the components will remain disabled. However if you then enable the parent node your previous changes using SetEnabled will still remain.</p>
+<p>This is useful because you don’t need to decide if you should be using SetDeepEnabled or SetEnabled for any one scenario. Additionally you don’t need to use ResetDeepEnabled.<br/>
+This was particularly useful in my own UI system as I didn’t have to do conditional checks to see which one I should use and when I should reset the deep state.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6129" data-username="Avagrande">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/4b5ee9a397199168aa0012943d28b8ef.png" width="20"/> Avagrande:</div>
+<blockquote>
+<p>Is there a reason why there needs to be 4 of them?</p>
+</blockquote>
+</aside>
+<p>Yes there is. I remember being confused about these functions myself when I first started trying them out, but eventually I ended up using all the variations in my game “Planetoid Escape” (not in the UI though, in the game world itself) and cannot do without them all. I’m sorry I cannot give you concrete examples as this situation was over a year ago (I think), and I forgot the details, but trust me there are cases where they are all needed.<br/>
+So, yes the code has more complexity to allow more flexibility. I do remember that, once I figured out how they work and what they are useful for, I still thought the function names and/or comments/explanations were confusing (at least to me).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/646_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">QBkGames</div>
+          <div class="post_content">
+<p>I’m starting to remember a use case. Hypothetically speaking, say you have an UI Panel that contains a number of child elements. While the panel is enabled, you want to be able to enable/disable some of the children. Then, you may want to disable and re-enable the whole panel, but when the panel is re-enabled, the state of the children should stay the same as it was when the panel was disabled. To achieve this functionality, I believe (as far as I can vaguely remember), you need the entire variation of all those functions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>Yep thats exactly the situation I was in. I found it very clumsy to use all the different variations so I just modified how the SetEnabled worked as I previously described. such that SetEnabled alone worked to replace all the deep state related functions.</p>
+<p>The point of this thread is to ask if that change could potentially brake things because if possible I would like to share my change with everyone else as it would make the manual management of the deep state not necessary. I wanted to know why that decision has been made to include so many variations just in case there is something I am not aware of.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Your changes, as I understand them, would make it impossible to have functionally enabled children (i.e. related to the components, which actually do things like show up on screen). If I’m mistaken feel free to correct me.</p>
+<p>Granted, I’d probably be fine with this sort of behavior in general, but I think it would break the present behavior of the engine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2686_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Avagrande</div>
+          <div class="post_content">
+<p>I am not sure what you mean by functionally enabled children?</p>
+<p>Do you mean that if the parent node is not enabled it is not possible at any point to make the children nodes visible ( enabled components ) unless the parent is enabled? if so what parts of the engine make use of this?</p>
+<p>Thanks for letting me know btw. Its true that there needs to be a few changes within game scripts but so far I have not really noticed any core engine features that have been broken as a result of this change. I am a bit concerned if I will trip on one or not, but I use the engine quite a lot and so far It hasn’t caused problems with how the core of the engine works.</p>
+<p>I think for now I will just keep this change for myself.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Toon Shader (HLSL)</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Toon Shader (HLSL)</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Loosely inspired by the Unity-chan shaders with a few extra niceties like MSDF <em>ink lines</em> and geometry-shader outline emission.</p>
+<p><img alt="Blocks_2019-02-05_16-40-15" height="349" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/4/4414709fc432634a44aac8b8d76a419eab0021cf.jpeg" width="406"/><br/>
+Above: MSDF for the black lines inside, 3 step tone-map, white rim-highlight, and GS-emitted outline.</p>
+<p><strong>Requirements</strong></p>
+<ul>
+<li>Colormap (texture 0)</li>
+<li>ToneMap (texture 7)
+<ul>
+<li>controls the shade falloff</li>
+<li>leftmost is perpendicular, rightmost is aligned to the light direction</li>
+</ul>
+</li>
+</ul>
+<p><strong>Options</strong></p>
+<ul>
+<li>Hair highlight ring (cylindrical matcap basically)
+<ul>
+<li>tex 4</li>
+</ul>
+</li>
+<li>Matcap / Spherical environment map
+<ul>
+<li>tex 4</li>
+</ul>
+</li>
+<li>Rim highlight (TOON_RIMLIGHT)</li>
+<li>MSDF Linework map for sharp sketch lines (TOON_LINE_MAP)
+<ul>
+<li>tex 5</li>
+</ul>
+</li>
+<li>Control map (force light/dark)
+<ul>
+<li>tex 3</li>
+<li>
+<strong>R</strong>: min allowed shade, <strong>G</strong>: max allowed shade, <strong>B</strong>: unused, <strong>A</strong>: matcap mask</li>
+</ul>
+</li>
+<li>Vertical shade map
+<ul>
+<li>Clips maximum possible lighting, like the control map can
+<ul>
+<li>Nx1 texture is silly quick to update at runtime for changes (hat shadow, etc)</li>
+</ul>
+</li>
+<li>provide size coordinates for normalization to <code>VerticalRampShift</code> parameter</li>
+</ul>
+</li>
+<li>Specular is used as per legacy pipeline
+<ul>
+<li>not toon clipped in any way, it’s <em>special</em>
+</li>
+</ul>
+</li>
+</ul>
+<p><code>Toon.hlsl</code> contains documentation at the top.</p>
+<p><strong>Outlines</strong></p>
+<ul>
+<li>Geometry shader outlines included (if you have GS support)
+<ul>
+<li>emits flipped winding triangles</li>
+</ul>
+</li>
+<li>
+<code>Toon_Outline.hlsl</code> can be used in an additional render-path pass (with the culling flipped) to do outlines with the same config
+<ul>
+<li>
+<code>OutlinePower</code>: <strong>x</strong> = offset along normal, <strong>y</strong> = offset along view-vector</li>
+</ul>
+</li>
+</ul>
+<p><a class="onebox" href="https://gist.github.com/JSandusky/4f9a4f00110691eb45104f69abd32f75" rel="nofollow noopener" target="_blank">https://gist.github.com/JSandusky/4f9a4f00110691eb45104f69abd32f75</a></p>
+<p>Shouldn’t be too much cruft in there. Tessellation (lots of code no one can use) and light-prepass stripped out (not for stock prepass, would be confusing to look at).</p>
+<p>I’ll probably port to GLES3 and GL3.1 (interface blocks)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>Do you have a material that uses this you could share?</p>
+<p>Or a simple working sample.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Sinoid</div>
+          <div class="post_content">
+<p>Here’s the technique I start with when fiddling with it:</p>
+<pre><code class="lang-auto">&lt;technique vs="Toon" ps="Toon" psdefines="TOON_LINE_MAP" vsdefines=""&gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="outline" vs="Toon_Outline" ps="Toon_Outline" cull="cw" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+    &lt;pass name="depth" vs="Depth" ps="Depth" /&gt;
+    &lt;pass name="shadow" vs="Shadow" ps="Shadow" /&gt;
+    
+    &lt;alias unit="0" name="Color" /&gt;
+    &lt;alias unit="1" name="Normal Map" /&gt;
+    &lt;alias unit="2" name="Specular Map" /&gt;
+    &lt;alias unit="3" name="Control Map" /&gt;
+    &lt;alias unit="4" name="MatCap / Hair-Ring" /&gt;
+    &lt;alias unit="5" name="Linework" /&gt;
+    &lt;alias unit="6" name="Vertical Shade" /&gt;
+    &lt;alias unit="7" name="Tone Map" /&gt;
+&lt;/technique&gt;
+</code></pre>
+<p>I plan to put together a sample scene but I need to write an appropriate environment toon-shader to go with all of this. This shader isn’t particularly great for anything that isn’t a first-class object (ie. saturation and extinction/inscattering for that cartoon background fade, etc). Probably have one ready by the weekend.</p>
+<p>The alias tags up there are for my editor, left them there though because they do a good job of indicating what different samplers do.</p>
+<p>MSDFs for the line maps have been generated with <a href="https://github.com/Chlumsky/msdfgen" rel="nofollow noopener">https://github.com/Chlumsky/msdfgen</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

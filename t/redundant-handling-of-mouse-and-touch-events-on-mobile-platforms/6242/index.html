@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Redundant handling of mouse and touch events on mobile platforms</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Redundant handling of mouse and touch events on mobile platforms</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jzpekarek</div>
+          <div class="post_content">
+<p>Not a support question, but wanted to make sure what I found was easy for others to find if they have the same problem. After spending a lot of time trying to figure out why my touch events stopped working on iOS after I upgraded from Urho3D 1.5 to Urho3D 1.8 alpha, I found out that is was related to my code being setup to run on both desktop and touch platforms. Apparently in SDL2.0.4, iOS (and presumably Android), generate mouse messages for touch events by default (I don’t think that was true in the earlier version of SDL that Urho3D 1.5 used). In my application, I run the same code on Windows and iOS, so I had both mouse and touch event handlers, and they started both getting called on iOS, which caused a lot of bad behavior. I found this link that talks about the problem.</p>
+<aside class="onebox stackexchange">
+<header class="source">
+<a href="https://stackoverflow.com/questions/34465681/sdl2-events-on-mobile" rel="nofollow noopener" target="_blank">stackoverflow.com</a>
+</header>
+<article class="onebox-body">
+<a href="https://stackoverflow.com/users/4987285/skypjack" rel="nofollow noopener" target="_blank">
+<img alt="skypjack" class="thumbnail onebox-avatar" height="60" src="https://www.gravatar.com/avatar/7063d966c8dfa84aefbd06786824090e?s=128&amp;d=identicon&amp;r=PG" width="60"/>
+</a>
+<h4>
+<a href="https://stackoverflow.com/questions/34465681/sdl2-events-on-mobile" rel="nofollow noopener" target="_blank">SDL2 events on mobile</a>
+</h4>
+<div class="tags">
+<strong>c++, mobile, sdl, sdl-2</strong>
+</div>
+<div class="date">
+  asked by
+  
+  <a href="https://stackoverflow.com/users/4987285/skypjack" rel="nofollow noopener" target="_blank">
+    skypjack
+  </a>
+  on <a href="https://stackoverflow.com/questions/34465681/sdl2-events-on-mobile" rel="nofollow noopener" target="_blank">07:21PM - 25 Dec 15 UTC</a>
+</div>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>So for me, the fix was to call the following in my initialization code. Even though the hint appears to be specific to Android, it fixed my problem on iOS as well.</p>
+<p><span class="hashtag">#include</span> &lt;SDL/SDL_hints.h&gt;</p>
+<p>//In initialization code<br/>
+SDL_SetHint(SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH,“1”);</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>That hint has been removed since SDL 2.0.10 and replaced by two new hints. See SDL 2.0.10 release notes and also below changes in Urho3D code base.</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a  target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  target="_blank">urho3d/Urho3D/blob/66095e0e0d9d201e1dc910e2dab47e6b429f7b9e/Source/Urho3D/Input/Input.cpp#L389-L395</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="389" style="counter-reset: li-counter 388 ;">
+<li>#if defined(__ANDROID__)
+</li>
+<li>    // Prevent mouse events from being registered as synthetic touch events and vice versa
+</li>
+<li>    SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
+</li>
+<li>    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+</li>
+<li>#elif defined(__EMSCRIPTEN__)
+</li>
+<li>    emscriptenInput_ = new EmscriptenInput(this);
+</li>
+<li>#endif
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>Are you suggesting we need the same hints to be applied for iOS and tvOS?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Don’t bother with the releases. They’re old and buggy and master has more features. 1.8 is fine I think. Also don’t forget that android can use a mouse via usb-otg. I like this feature, but you don’t have to support it</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jzpekarek</div>
+          <div class="post_content">
+<p>I’m assuming that it is needed for iOS, but not sure about tvOS (does tvOS support touch?). I added an extra defined(IOS) as shown below, and it fixed the problems I was seeing.</p>
+<pre><code>#if defined(__ANDROID__) || defined(IOS)
+    // Prevent mouse events from being registered as synthetic touch events and vice versa
+    SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+#elif defined(__EMSCRIPTEN__)
+    emscriptenInput_ = new EmscriptenInput(this);
+#endif
+</code></pre>
+<p>As the next poster pointed out, I think setting these values to zero might not always be what you want, but it is probably a reasonable default (and matches the old behavior of Urho3D, so should avoid breaking apps like it did for me). In my application, I handle mouse events and touch events separately, which I thought I needed to do to handle multi-touch when it is available, but maybe if you set SDL_HINT_MOUSE_TOUCH_EVENTS to 1, then the mouse works like a single touch? In any case, I’m assuming that you could override these hints anywhere in the setup code that is called after the code above.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Yeah, after making that comment, I also realized I might have made mistake by putting tvOS in the same line but then again I have not been following Apple closely recently.</p>
+<p>Care to submit your one line change above as PR?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jzpekarek</div>
+          <div class="post_content">
+<p>It might take me a few days, but I’ll try to submit a PR. I need to learn Git first, my total knowledge to date on it was just enough to clone the repository.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

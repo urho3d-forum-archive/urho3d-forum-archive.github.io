@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>More Detailed Type Querying Using the Reflection System</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">More Detailed Type Querying Using the Reflection System</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pyromancer</div>
+          <div class="post_content">
+<p>Heyo! Gotta say, I’ve been tinkering with this engine and I really love how it is set up! The code is very straightforward and simple to understand, and leaves the user with the same level of fine-grained control that I am used to working with at my day job. However, one of the best features of any reflection system, I feel, is the ability to query the system and discover if one type inherits from another and (or implements, in the case of interfaces) traverse the inheritance hierarchy. Unfortunately, I did not see any obvious way of being able to do this through reading the documentation and was wondering if anyone could provide some insight. I noticed that there is a way to query for the base type of an object, but that only gets me so far for what I have in mind. I modified the Context to provide this sort of functionality easily enough (among other things, including some expansions to the OBJECT macro to make use of a helper class I wrote that makes the definition of classes much nicer to look at… And maaaaaybe I added user-definable properties to the AttributeInfo class <img alt=":laughing:" class="emoji" src="../../../images2/f1b3f4dd9f845d1069864c322071dffe.png" title=":laughing:"/>), but I was wondering if there was perhaps a built-in way to check these sorts of things.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>No, there isn’t built support apart from what you have already seen. Dynamic casts are sometimes used in the engine code itself to detect base/derived connections.</p>
+<p>If your improvements don’t impact memory use or performance overly negatively, they could be useful for everyone as a pull request.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Pyromancer</div>
+          <div class="post_content">
+<p>EDITED!</p>
+<p>Alright, so I lied. I decided to try applying the class definition helper to everything that leverages the reflection system, and so far it’s been working beautifully.</p>
+<p>An example of what I’m working on that would be exposed to the end user. The RegisterObject static function is being abstracted away from the user and wrapped into the existing OBJECT macro as well as being implemented through what is basically a DSL for the engine.</p>
+<p>[code] // Audio/SoundSource.h<br/>
+// Nothing to change except removing the outward facing definition of RegisterObject. The OBJECT macro is modified to do that for you.</p>
+<p>// Audio/SoundSource.cpp<br/>
+REGISTER_OBJECT(SoundSource) // Defines SoundSource::RegisterObject under the hood, though there’s a bit more than that going on.<br/>
+{<br/>
+// Couldn’t avoid this, otherwise we wouldn’t have our snazzy curly braces.<br/>
+// Also, since we are technically in a function block here, we could do logical inclusions and exclusions of certain attributes.<br/>
+Definition<br/>
+.Base() // Added to a helper structure under the hood.<br/>
+.Attribute(“Is Enabled”,         &amp;SoundSource::IsEnabled,       &amp;SoundSource::SetEnabled, true)// AM_DEFAULT set as the default for calls that don’t have any modes set.<br/>
+.Attribute(“Sound”,       &amp;SoundSource::GetSoundAttr,    &amp;SoundSource::SetSoundAttr, ResourceRef(Sound::GetTypeStatic()))<br/>
+.Attribute(“Type”,             &amp;SoundSource::GetSoundType,    &amp;SoundSource::SetSoundType, SOUND_EFFECT) // Mixed call attributes? Mixed call attributes.<br/>
+.Attribute(“Frequency”,         &amp;SoundSource::GetFrequency,    &amp;SoundSource::SetFrequency, 0.0f)<br/>
+.Attribute(“Gain”,              &amp;SoundSource::GetGain,         &amp;SoundSource::SetGain, 1.0f)<br/>
+.Attribute(“Attenuation”,       &amp;SoundSource::GetAttenuation,  &amp;SoundSource::SetAttenuation, 1.0f)<br/>
+.Attribute(“Panning”,           &amp;SoundSource::GetPanning,      &amp;SoundSource::SetPanning, 0.0f)<br/>
+.Attribute(“Is Playing”,         &amp;SoundSource::IsPlaying,       &amp;SoundSource::SetPlayingAttr, false)<br/>
+.Attribute(“Autoremove on Stop”, &amp;SoundSource::GetAutoRemove,   &amp;SoundSource::SetAutoRemove, false, AM_FILE)<br/>
+.Attribute(“Play Position”,       &amp;SoundSource::GetPositionAttr, &amp;SoundSource::SetPositionAttr, 0, AM_FILE)<br/>
+;<br/>
+}[/code]</p>
+<p>Personally, I think this is much nicer to look at than the collections of macros that currently exist. The helpers I am writing also take the liberty of calling Context::RegisterFactory for you so that it’s one less thing to forget.</p>
+<p>The one downside is that I haven’t yet implemented support for memory offset based attributes. Since the Urho3D reflection system uses offsetof under the hood rather than pointers to member fields, it might require a bit more work. I’ll also be adding a REGISTER_OBJECT_NO_FACTORY macro for objects that you didn’t tell the context to make a factory for (such as what seems to be the case with Drawable).</p>
+<p>I will update when I have more done.  :mrgreen:</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

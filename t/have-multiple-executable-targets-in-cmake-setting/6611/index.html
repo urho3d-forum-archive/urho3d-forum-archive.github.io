@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Have multiple executable targets in cmake setting?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Have multiple executable targets in cmake setting?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>I have many different scenes for my game, eventually they will be merged into the single final application. But during development, I decoupled them as much as possible so I can work independently on each of them.<br/>
+For testing reason, I have separate derived Application class to setup each scene. So I can use</p>
+<pre><code class="lang-auto">URHO3D_DEFINE_APPLICATION_MAIN(XXXXSceneTestApplication)
+</code></pre>
+<p>and CMakeList</p>
+<pre><code class="lang-auto"># Setup target with resource copying
+setup_main_executable ()
+</code></pre>
+<p>would make any one to be run as the main entry point.</p>
+<p>The problem is: I have to uncomment the <code>URHO3D_DEFINE_APPLICATION_MAIN</code> line in the TestApplication I want to test and also comment <code>URHO3D_DEFINE_APPLICATION_MAIN</code> in all other xxxxApplication file.</p>
+<p>I know we can use multiple <code>add_executable(target_xxx {src})</code> in CMakeList to have multiple targets build at the same time, and run whichever we want.<br/>
+I wonder if I can do similar thing easily with Urho3D cmake setting?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>If your executables are all in the same folder I suspect your could just call <code>setup_main_executable</code> for of them and use <code>add_executable</code> for the rest. I could be wrong about that, though, I’ve not delved too deeply into the build system.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>My understanding is there could be only one <code>URHO3D_DEFINE_APPLICATION_MAIN</code> macro through out the whole project and <code>setup_main_executable()</code> just find that one automatically. If there are more than one <code>URHO3D_DEFINE_APPLICATION_MAIN</code>, the build just fail since there are duplicate main symbols.<br/>
+I guess I need to have separate CMakeList files for each target? each file only include one <code>URHO3D_DEFINE_APPLICATION_MAIN</code> class and setup_main_executable there. But that would be tedious since actually all the other source cpp are shared.</p>
+<p>Also, if I want to use <code>add_executable</code> for my main entry point for Urho3D, it might not work given all those links. it might not be that trivial since the <code>setup_main_executable</code> does a lot of extra things beside that?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">CE184</div>
+          <div class="post_content">
+<p>After looking through the cmake macro, I figured out a way to do this.</p>
+<p>Example CMakeList.txt</p>
+<pre><code class="lang-auto"># All the same settings
+# ...
+
+# Define source files
+file (GLOB_RECURSE SRC_CPP_FILES src/*.cpp)
+# Remove all main target application files
+list (FILTER SRC_CPP_FILES EXCLUDE REGEX "&lt;your custom root application regex path&gt;")
+file (GLOB_RECURSE SRC_H_FILES src/*.h)
+
+# repeat this for each target
+set(TARGET_NAME your_first_target)
+define_source_files (GROUP EXTRA_CPP_FILES ${SRC_CPP_FILES} &lt;your first root application file that has the main macro&gt; EXTRA_H_FILES ${SRC_H_FILES})
+setup_main_executable()  # this will setup your_first_target
+
+# repeat this for each target
+set(TARGET_NAME your_second_target)
+define_source_files (GROUP EXTRA_CPP_FILES ${SRC_CPP_FILES} &lt;your second root application file that has the main macro&gt; EXTRA_H_FILES ${SRC_H_FILES})
+setup_main_executable()  # this will setup your_second_target
+
+# repeat or you can write a for loop to add all root application that has the main macro
+...
+</code></pre>
+<p>At least this one works, not sure if it’s a hack or standard way to do it.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

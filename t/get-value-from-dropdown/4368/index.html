@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Get value from Dropdown</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Get value from Dropdown</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1462_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">arpo</div>
+          <div class="post_content">
+<p>My code looks like this.</p>
+<pre><code>SubscribeToEvent(E_ITEMSELECTED, URHO3D_HANDLER(HelloGUI, HandleControlSelected));
+</code></pre>
+<hr/>
+<pre><code>void HelloGUI::HandleControlSelected(StringHash eventType, VariantMap &amp;eventData)
+{
+
+		auto *el = static_cast&lt;DropDownList *&gt;(eventData[UIMouseClick::P_ELEMENT].GetPtr());
+		
+		if (el) {
+				
+				
+				TypeInfo info = *el-&gt;GetTypeInfo();
+				String type = info.GetTypeName();
+				Log::Write(LOG_INFO, type);
+				
+		}
+}
+</code></pre>
+<p>Where do I go from here?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1462_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">arpo</div>
+          <div class="post_content">
+<p>I did solve it. For anyone else looking for the same answer. Here’s my solution to watch UI elements and how to fetch their info.</p>
+<p>First setup some event listeners</p>
+<pre><code>SubscribeToEvent(E_UIMOUSECLICK, URHO3D_HANDLER(HelloGUI, eventManager));
+SubscribeToEvent(E_SLIDERCHANGED, URHO3D_HANDLER(HelloGUI, eventManager));
+SubscribeToEvent(E_ITEMSELECTED, URHO3D_HANDLER(HelloGUI, eventManager));
+SubscribeToEvent(E_FOCUSED, URHO3D_HANDLER(HelloGUI, eventManager));
+SubscribeToEvent(E_DEFOCUSED, URHO3D_HANDLER(HelloGUI, eventManager));
+</code></pre>
+<p>Then add the eventManager</p>
+<pre><code>void HelloGUI::eventManager(StringHash eventType, VariantMap &amp;eventData)
+{
+		auto *el = static_cast&lt;UIElement *&gt;(eventData[UIMouseClick::P_ELEMENT].GetPtr());
+		
+
+		if (el) {
+				
+				String name = el-&gt;GetName();
+				String evName = "";
+				String value = "";
+				TypeInfo info = *el-&gt;GetTypeInfo();
+				String type = info.GetTypeName();
+				bool fireEvent = false;
+				
+				if(E_FOCUSED == eventType) {
+						evName = "FOCUS";
+				} else if(E_DEFOCUSED == eventType) {
+						evName = "BLUR";
+				} else if(E_UIMOUSECLICK == eventType) {
+						evName = "CLICK";
+				} else if(E_SLIDERCHANGED == eventType) {
+						evName = "SLIDE";
+				} else if(E_ITEMSELECTED == eventType) {
+						evName = "ITEMSELECTED";
+				}
+				
+				if(type == "LineEdit" &amp;&amp; (evName == "BLUR" || evName == "FOCUS")) {
+						LineEdit *lineEl = static_cast&lt;LineEdit *&gt;(el);
+						value = lineEl-&gt;GetText();
+						fireEvent = true;
+				} else if(type == "Slider" &amp;&amp; evName == "SLIDE") {
+						using namespace SliderChanged;
+						float valueFloat = eventData[P_VALUE].GetFloat();
+						value = String(valueFloat);
+						fireEvent = true;
+				} else if(type == "Button" &amp;&amp; evName == "CLICK") {
+						fireEvent = true;
+				} else if(type == "DropDownList" &amp;&amp; evName == "ITEMSELECTED") {
+						
+						DropDownList *ddEl = static_cast&lt;DropDownList *&gt;(el);
+						unsigned ddIndex = ddEl-&gt;GetSelection();
+						value = String(ddIndex);
+						fireEvent = true;
+						
+				} else if(type == "CheckBox" &amp;&amp; evName == "CLICK") {
+						auto* box = static_cast&lt;CheckBox*&gt;(eventData[Toggled::P_ELEMENT].GetPtr());
+						bool checked = box-&gt;IsChecked();
+						value = String(checked);
+						fireEvent = true;
+				}
+				
+				if(fireEvent) {
+						Log::Write(LOG_INFO, evName + ": " + name + " " + type + " " + value);
+				}
+
+				
+		}
+		
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

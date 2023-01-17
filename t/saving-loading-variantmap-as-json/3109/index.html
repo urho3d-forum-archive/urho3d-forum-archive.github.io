@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Saving/Loading VariantMap as JSON</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Saving/Loading VariantMap as JSON</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>I’m trying to figure out how to save and load a standalone VariantMap as JSON.</p>
+<p>Currently, I implement the functions:</p>
+<pre><code class="lang-auto">void SaveVariantMapJSON(String &amp;fname, VariantMap &amp;vm)
+{
+	JSONFile jf(GetScriptContext());
+	File f(GetScriptContext());
+	f.Open(fname, FILE_WRITE);
+	
+	JSONValue &amp;root=jf.GetRoot();
+	root.SetVariantMap(vm);
+	jf.Save(f);
+}
+
+VariantMap LoadVariantMapJSON(String &amp;fname)
+{
+	JSONFile jf(GetScriptContext());
+	File f(GetScriptContext());
+	f.Open(fname, FILE_READ);
+	
+	jf.BeginLoad(f);
+	JSONValue &amp;root=jf.GetRoot();
+	
+	return root.GetVariantMap();
+}
+</code></pre>
+<p>Then I bind these functions to global functions in AngelScript. It seems to work on the face of it:</p>
+<pre><code class="lang-auto">VariantMap vm;
+vm["test"]="test";
+vm["testmap"]=VariantMap();
+SaveVariantMapJSON("testvm.json", vm);
+</code></pre>
+<p>This results in saving the json file:</p>
+<pre><code class="lang-auto">{
+	"4745D132": {
+		"type": "String",
+		"value": "test"
+	},
+	"9949668A": {
+		"type": "VariantMap",
+		"value": {}
+	}
+}
+</code></pre>
+<p>However, if I then try to load it in:</p>
+<pre><code class="lang-auto">VariantMap nvm=LoadVariantMapJSON("testvm.json");
+</code></pre>
+<p>It doesn’t seem to work. It loads the file, it populates the VariantMap, and the values of the entries seem to be correct. I can iterate the values of the map and it shows two values, of type String and type Variant map, in the structure. However, the keys are not correct. Attempt to acess nvm[“test”] results in an empty Variant. Iterating the loaded variant map shows the following for key/valuetype:</p>
+<pre><code class="lang-auto">00001289 : String
+0097D1E4 : VariantMap
+</code></pre>
+<p>As you can see the hash keys are different from what was saved to the JSON file. It looks to me like it’s probably re-hashing the already hashed key or something to that effect.</p>
+<p>Is there something I’m missing here? Is there a better way of doing this? I’m trying to store a sort of ad-hoc settings/configurations type of file which typically I would just save as a Lua table, but I’m trying to learn AngelScript which is requiring some different methods.</p>
+<p>Edit: It seems like it might be a confusing of bases. In JSONValue::SetVariantMap, the VariantMap key is converted to a string via StringHash::ToString, which converts the hashed value to hexadecimal format. In JSONValue::GetVariantMap, the hash string is read and converted using GetUInt() using the default base (Base 10).</p>
+<p>Edit2: Looks like that’s what is going on. By writing a helper function:</p>
+<pre><code class="lang-auto">VariantMap GetVariantMap(JSONValue &amp;v)
+{
+    VariantMap variantMap;
+    if (!v.IsObject())
+    {
+        URHO3D_LOGERROR("JSONValue is not a object");
+        return variantMap;
+    }
+
+    for (ConstJSONObjectIterator i = v.Begin(); i != v.End(); ++i)
+    {
+        StringHash key(ToUInt(i-&gt;first_, 16));
+        Variant variant = i-&gt;second_.GetVariant();
+        variantMap[key] = variant;
+    }
+
+    return variantMap;
+}
+</code></pre>
+<p>which converts the hash string from base 16 instead, it works as expected. Of course, any nested maps will still use the built-in GetVariantMap function, so the full solution in this way would need to be writing external helpers for all the various GetVariant* functions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Should be fixed in the engine to at least include your base16 fix. Ideally it should work with any keys in the JSON map, but that’s a hash reverse mapping problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Base16 fix is in master branch.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

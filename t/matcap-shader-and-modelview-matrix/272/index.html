@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Matcap shader and modelview matrix</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Matcap shader and modelview matrix</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/66_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">szamq</div>
+          <div class="post_content">
+<p>I’m trying to implement matcap shader from this reference <a href="http://www.clicktorelease.com/blog/creating-spherical-environment-mapping-shader" rel="nofollow noopener">clicktorelease.com/blog/crea … ing-shader</a><br/>
+I copied and modified litSolid shader and changed the cubemap, so it map to the sphere on emissive texture( because env unit is cube). Here is modification of fragment shader:</p>
+<pre><code class="lang-auto">#ifdef ENVCUBEMAP
+    vec3 r =reflect(vReflectionVec, normal);
+    float m = 2. * sqrt( pow( r.x, 2. ) + pow( r.y, 2. ) + pow( r.z + 1., 2. ) );
+    vec2 vN = r.xy / m + .5;
+    finalColor += cMatEnvMapColor * texture2D( sEmissiveMap, vN ).rgb;
+#endif</code></pre>
+<p>I got some nice results but it isn’t still what it should be - the matcap’s reflections are distorted. I suppose this is this because</p>
+<pre><code class="lang-auto">vReflectionVec =  worldPos-cCameraPos;</code></pre>
+<p>isn’t equivalent to</p>
+<pre><code class="lang-auto">e = normalize( vec3( modelViewMatrix * vec4( position, 1.0 ) ) );</code></pre>
+<p>in Urho’s shader defines I can see cViewProj and cModel matrixes, but how can I get modelViewMatrix?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/66_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">szamq</div>
+          <div class="post_content">
+<p>Ok, it’s working, I forgot to normalize from eye vector  <img alt=":blush:" class="emoji" src="../../../images2/4aa2fc1b9179a94cbcf3e2e00e0d95ba.png" title=":blush:"/></p>
+<div class="spoiler">
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/BrLVd0u.jpg" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/e6cc6c4d1aa9a954329a423ec9b6989f.jpg" width="655"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1086×828</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“szamq”]Ok, it’s working, I forgot to normalize from eye vector  <img alt=":blush:" class="emoji" src="../../../images2/4aa2fc1b9179a94cbcf3e2e00e0d95ba.png" title=":blush:"/></p>
+<div class="spoiler">
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/BrLVd0u.jpg" rel="nofollow noopener" title=""><img alt="" height="500" src="../../../images2/e6cc6c4d1aa9a954329a423ec9b6989f.jpg" width="655"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1086×828</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+</div>
+<p>Very nice.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Well done  <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/><br/>
+Do you plan to disclose full code or send a pull request?<br/>
+I think we need more shaders.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/66_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">szamq</div>
+          <div class="post_content">
+<p>I’m not sure how to integrate this. Because the environment sphere can’t be set to env texture unit because it is cubemap, so I used emissive texture for that.<br/>
+Just modify  ENVCUBEMAP defines in LitSolid shader like below and set your matcap texture <a href="https://www.google.pl/search?q=matcap" rel="nofollow noopener">google.pl/search?q=matcap</a>  to emmisive texture unit. Then you can use DiffEnvCube.xml technique in editor to see the effect.</p>
+<p>Here are modifications.<br/>
+vertex shader</p>
+<p><code>
+#ifdef ENVCUBEMAP
+vReflectionVec =  normalize(worldPos-cCameraPos);
+#endif</code><br/>
+fragment shader</p>
+<pre><code class="lang-auto">      #ifdef ENVCUBEMAP
+            vec3 r =reflect(vReflectionVec, normal);
+            float m = 2. * sqrt( pow( r.x, 2. ) + pow( r.y, 2. ) + pow( r.z + 1., 2. ) );
+            vec2 vN = r.xy / m + .5;
+            finalColor += cMatEnvMapColor * texture2D( sEmissiveMap, vN ).rgb;
+        #endif</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Thanks a lot, will try this today.  <img alt=":wink:" class="emoji" src="../../../images2/95940790c23d98635b2a6d3f22657158.png" title=":wink:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>Yeah it works alright.  Thanks for sharing szamq.  I spent a few hours trying to figure out to get this into its own technique.  The exercise was just what I needed to starting to understanding how the render passes work.  I think I can package it up so its easier to use.    It will take me quite a while longer to get all of the useful permutations figured out.</p>
+<div class="spoiler">
+<p><div class="lightbox-wrapper"><a class="lightbox" href="http://i.imgur.com/rgkz9u2.png" rel="nofollow noopener" title=""><img alt="" height="457" src="../../../images2/a16b58f06ee839ee499cfbebd9e72dc0.png" width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename"></span><span class="informations">1525×1011</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+</div>
+<p>That is a glossy green ninja alright…</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

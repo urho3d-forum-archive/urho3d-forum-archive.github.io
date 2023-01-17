@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] How to get count of used materials in scene?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] How to get count of used materials in scene?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>hi folks!</p>
+<p>I’am create some hit fx with flare fx and after that smoke fx.<br/>
+[video]<a href="https://www.youtube.com/watch?v=cruJQ8F-1Ik%5B/video%5D">https://www.youtube.com/watch?v=cruJQ8F-1Ik[/video]</a></p>
+<p>then flare fx end’s his life it produce smoke fx.<br/>
+and in this smoke fx i’am do - StaticModel.GetMaterial(0).Clone() base material of smoke prefab for private animation state for each instant of smoke fx in scene.<br/>
+in this case i’m curious how it manages with temporarily cloned material, they also deleted then smoke deleted? ( SmokeNode.Remove() )</p>
+<p>for test this i’m want count of all materials in scene then i’m fire(create a lot instances of hit fx)</p>
+<p>some code of that</p>
+<p>Flare</p>
+<pre><code class="lang-auto">void ScriptHitFx::Start()
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+	maxLifeTime = 0.25f; // ???????
+	currentLifeTime_ = 0.0f;
+
+	scaleAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+
+	float startSize = 0.5f;
+	float endSize = 1.0f;
+
+	scaleAnim_-&gt;SetKeyFrame(0.0f, Vector3(startSize, startSize, startSize));
+	scaleAnim_-&gt;SetKeyFrame(0.25f, Vector3(endSize, endSize*2, endSize));
+	
+	GetNode()-&gt;SetScale(startSize);
+	GetNode()-&gt;SetAttributeAnimation("Scale", scaleAnim_, WM_LOOP);
+
+	prefabSmokeFx_ = cache-&gt;GetResource&lt;XMLFile&gt;("Objects/SmokeFx.xml");
+	
+
+}
+
+void ScriptHitFx::Update(float timeStep) 
+{
+	
+}
+
+void ScriptHitFx::FixedUpdate(float timeStep)
+{
+	if (currentLifeTime_ &gt; maxLifeTime) 
+	{
+		//Node* player = GetScene()-&gt;GetChild("playerNode", true);
+		
+		
+
+		Vector3 pos = GetNode()-&gt;GetWorldPosition();
+		Vector3 playerPos = player-&gt;GetWorldPosition();
+
+		Quaternion quat;
+		quat = GetNode()-&gt;GetRotation();
+		
+		
+		smokeFX_= SharedPtr&lt;Node&gt;(GetNode()-&gt;GetScene()-&gt;InstantiateXML(prefabSmokeFx_-&gt;GetRoot(), pos, quat, LOCAL));
+		smokeFX_-&gt;CreateComponent&lt;ScriptSmokeFx&gt;();
+
+		GetNode()-&gt;Remove();
+	}
+
+	currentLifeTime_ += timeStep;
+}</code></pre>
+<p>Smoke Start Script</p>
+<pre><code class="lang-auto">
+class ScriptSmokeFx : public LogicComponent 
+{
+	OBJECT(ScriptSmokeFx);
+public:
+	/// Construct.
+	ScriptSmokeFx(Context* context);
+
+	/// Register object factory and attributes.
+	static void RegisterObject(Context* context);
+	virtual void Start();
+	void Update(float timeStep);
+	virtual void FixedUpdate(float timeStep);
+
+	float maxLifeTime;
+
+private:
+	float currentLifeTime_;
+	SharedPtr&lt;ValueAnimation&gt; scaleAnim_;
+	SharedPtr&lt;ValueAnimation&gt; factorAnim_;
+	SharedPtr&lt;ValueAnimation&gt; colorAnim_;
+
+	SharedPtr&lt;Material&gt; mat_;
+};
+
+void ScriptSmokeFx::Start()
+{
+	ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+	maxLifeTime = 1.0f; // ???????
+	currentLifeTime_ = 0.0f;
+
+	scaleAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+
+	float startSize = 1.0f;
+	float endSize = 3.0f;
+
+	scaleAnim_-&gt;SetKeyFrame(0.0f, Vector3(startSize, startSize, startSize));
+	scaleAnim_-&gt;SetKeyFrame(maxLifeTime, Vector3(endSize, endSize, endSize));
+
+	GetNode()-&gt;SetScale(startSize);
+	GetNode()-&gt;SetAttributeAnimation("Scale", scaleAnim_, WM_LOOP);
+
+	StaticModel* model = GetComponent&lt;StaticModel&gt;();
+
+#if 1
+	mat_ = model-&gt;GetMaterial(0)-&gt;Clone("");
+#else
+	mat_ = model-&gt;GetMaterial(0);
+#endif
+
+	// alpha factor
+	factorAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+	factorAnim_-&gt;SetKeyFrame(0.0f, 0.0f);
+	factorAnim_-&gt;SetKeyFrame(maxLifeTime / 5.0f, 0.2f);
+	factorAnim_-&gt;SetKeyFrame(maxLifeTime, 1.0f);
+	mat_-&gt;SetShaderParameterAnimation("Factor", factorAnim_);
+	mat_-&gt;SetScene(GetScene());
+
+	// color fade
+	colorAnim_ = SharedPtr&lt;ValueAnimation&gt;(new ValueAnimation(context_));
+	colorAnim_-&gt;SetKeyFrame(0.0f, Vector3(1.0f,1.0f,1.0f));
+	colorAnim_-&gt;SetKeyFrame((maxLifeTime / 3.0f), Vector3(1.0f,1.0f,1.0f));
+	colorAnim_-&gt;SetKeyFrame(maxLifeTime, Vector3(0.2f,0.2f,0.2f));
+	mat_-&gt;SetShaderParameterAnimation("MatDiffColor", colorAnim_);
+	mat_-&gt;SetScene(GetScene());
+
+	model-&gt;SetMaterial(0,mat_);
+
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i get count of material like that</p>
+<pre><code class="lang-auto">void GameMain::HandleMouseDown(StringHash eventType, VariantMap&amp; eventData)
+{
+	// ??????? ?????? )
+	using namespace MouseButtonDown;
+	int key = eventData[P_BUTTON].GetInt();
+
+	if (key == MOUSEB_LEFT) 
+	{
+		ResourceCache* cache = GetSubsystem&lt;ResourceCache&gt;();
+		PODVector&lt;Material*&gt; matVec;
+		cache-&gt;GetResources&lt;Material&gt;(matVec);
+		int i = matVec.Size();
+		t-&gt;SetText("material count: " + Urho3D::String(i)); // = 26 
+	}
+}</code></pre>
+<p>but count of materials does not increase then i’m shuting (create instances of hit fx). it everytime = 26<br/>
+why? cloned material with metod - material.Clone(“new name”) does not added to pool of all materials ?</p>
+<p>at last, if new cloned material like a ghost for ResourceCache, how i may delete or free this cloned material at the end of life of my hitfx ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Cloned materials don’t automatically go to ResourceCache. In this case they will be destroyed when the object using them is destroyed. If you want, you can set a name to the clone and add it to the cache by calling ResourceCache::AddManualResource().</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>??, i’m understand.<br/>
+is this right way to remove the node with components from it’s own script ?</p>
+<p>i have fx.node with  component and other components.<br/>
+onUpdate event I check lifetime of fx.node in his  component,<br/>
+and if it alredy old  remove self parent object.<br/>
+you know it’s like a broken logic style or something like that.</p>
+<aside class="quote">
+<blockquote>
+<p>If you want, you can set a name to the clone and add it to the cache by calling ResourceCache::AddManualResource().</p>
+</blockquote>
+</aside>
+<p>No, this is not necessary.<br/>
+cloned material needed only for the time until the effect exists. it’s very short time 1-2 sec.<br/>
+I was afraid that there might be a memory leak, because i’m clone base mat very often.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/e5061c7629059aca42f3242b52d42e88.png" width="20"/> codingmonkey:</div>
+<blockquote>
+<p>is this right way to remove the node with components from it’s own script ?</p>
+</blockquote>
+</aside>
+<p>When you call Remove() it should in normal case (if there are no strong refs to the node elsewhere) destroy the node and its components immediately, so that’s the way to do it, but make sure you exit the function immediately after. After the ScriptSmokeFx component has been destroyed, executing currentLifeTime_ += timeStep is undefined behavior.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Thank <span class="bbcode-b">cadaver</span>, I think now the issue is resolved.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Discontinuity glitch between neighboring terrains</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Discontinuity glitch between neighboring terrains</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>There are very few posts discussing about multiple terrains neighboring each other (e.g. a very old <a href="https://discourse.urho3d.io/t/terrain-stitching/2191">post</a>).</p>
+<h1>Problem</h1>
+<p>Now I am trying to make two terrains adjacent to each other.<br/>
+I found there are very small glitches (narrow gaps) at the boundary.<br/>
+For example:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screen Shot 2020-05-31 at 00.22.13"><img alt="Screen Shot 2020-05-31 at 00.22.13" data-base62-sha1="a70dlHokMNaWqIuTHHoOCYTVsdS"  height="500" src="../../../images2/c8aa5f510a1894cb3004b1efed1d03a7.jpeg"  width="629"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2020-05-31 at 00.22.13</span><span class="informations">2272×1804 944 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+and<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screen Shot 2020-05-31 at 00.25.30"><img alt="Screen Shot 2020-05-31 at 00.25.30" data-base62-sha1="2htdnRL7iyquXnnxT1yyl6qtK8I"  height="500" src="../../../images2/43df5389533d81595a6cb0f326887666.jpeg"  width="629"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2020-05-31 at 00.25.30</span><span class="informations">2272×1804 866 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>I don’t think it’s a simple shift due to wrong coordinates.<br/>
+If set camera to FILL_WIREFRAME mode</p>
+<pre><code class="lang-auto">  camera-&gt;SetFillMode(FILL_WIREFRAME);
+</code></pre>
+<p>I also noticed the mesh seems not continuous.<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screen Shot 2020-05-31 at 00.27.14"><img alt="Screen Shot 2020-05-31 at 00.27.14" data-base62-sha1="dXhJDo3bXjuAuGbNDGVRnvev7Lw"  height="500" src="../../../images2/c0cb633ab5268beab8b27dfec2159f81.png"  width="629"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2020-05-31 at 00.27.14</span><span class="informations">2272×1804 1.24 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<h1>Code</h1>
+<p>My sample code:</p>
+<pre><code class="lang-auto"> Node* terrain_node_center = scene_-&gt;CreateChild("TerrainCenter");
+  Terrain* terrain_center = terrain_node_center-&gt;CreateComponent&lt;Terrain&gt;();
+
+  const float size = 204.8;
+  Node* terrain_node_east = scene_-&gt;CreateChild("TerrainEast");
+  terrain_node_east-&gt;SetPosition(Vector3(size, 0, 0));
+  Terrain* terrain_east = terrain_node_east-&gt;CreateComponent&lt;Terrain&gt;();
+
+  Node* terrain_node_west = scene_-&gt;CreateChild("TerrainWest");
+  terrain_node_west-&gt;SetPosition(Vector3(-size, 0, 0));
+  Terrain* terrain_west = terrain_node_west-&gt;CreateComponent&lt;Terrain&gt;();
+
+  Node* terrain_node_north = scene_-&gt;CreateChild("TerrainNorth");
+  terrain_node_north-&gt;SetPosition(Vector3(0, 0, size));
+  Terrain* terrain_north = terrain_node_north-&gt;CreateComponent&lt;Terrain&gt;();
+
+  Node* terrain_node_south = scene_-&gt;CreateChild("TerrainSouth");
+  terrain_node_south-&gt;SetPosition(Vector3(0, 0, -size));
+  Terrain* terrain_south = terrain_node_south-&gt;CreateComponent&lt;Terrain&gt;();
+
+  std::vector&lt;Terrain*&gt; terrains{terrain_center, terrain_east, terrain_west, terrain_north, terrain_south};
+  for (auto* terrain : terrains) {
+    terrain-&gt;SetSpacing(Vector3(0.1, 0.2, 0.1));
+    terrain-&gt;SetSmoothing(true);
+
+//    terrain-&gt;SetMaterial(cache-&gt;GetResource&lt;Material&gt;("Materials/Terrain.xml"));
+    terrain-&gt;SetCastShadows(true);
+    terrain-&gt;SetOccluder(true);
+  }
+
+  terrain_center-&gt;SetHeightMap(cache-&gt;GetResource&lt;Image&gt;("Textures/TestTerrainCenter.png"));
+  terrain_east-&gt;SetHeightMap(cache-&gt;GetResource&lt;Image&gt;("Textures/TestTerrainEast.png"));
+  terrain_west-&gt;SetHeightMap(cache-&gt;GetResource&lt;Image&gt;("Textures/TestTerrainWest.png"));
+  terrain_north-&gt;SetHeightMap(cache-&gt;GetResource&lt;Image&gt;("Textures/TestTerrainNorth.png"));
+  terrain_south-&gt;SetHeightMap(cache-&gt;GetResource&lt;Image&gt;("Textures/TestTerrainSouth.png"));
+
+ // I tried both setting and not setting neighbor, no difference.
+  terrain_center-&gt;SetEastNeighbor(terrain_east);
+  terrain_east-&gt;SetWestNeighbor(terrain_center);
+
+  terrain_center-&gt;SetNorthNeighbor(terrain_north);
+  terrain_north-&gt;SetSouthNeighbor(terrain_center);
+</code></pre>
+<h1>Heightmap</h1>
+<p>My heightmap is 2049*2049 (2^n + 1).<br/>
+I also made sure the edge pixels of two images are the same (e.g. 2049 pixel for 2048 size).<br/>
+Also attached example heightmaps:<br/>
+TestTerrainCenter.png<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="TestTerrainCenter"><img alt="TestTerrainCenter" data-base62-sha1="3zp6gqTCHu6OeV0QhZTARPVlzli"  height="500" src="../../../images2/a4bc583ece39e60b174a83bf1eb542ab.jpeg"  width="500"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">TestTerrainCenter</span><span class="informations">2049×2049 483 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+TestTerrainNorth.png<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="TestTerrainNorth"><img alt="TestTerrainNorth" data-base62-sha1="jjRIhEJsLF0SIEJY3ysou7ZJ4Dj"  height="500" src="../../../images2/4de1f1f0777c228127f90be2781a7d47.jpeg"  width="500"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">TestTerrainNorth</span><span class="informations">2049×2049 217 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<h1>Any help?</h1>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I’m not sure that “smoothing” was ever tested with neighbor terrains. Use it at your own risk.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>hmm… that explains it.<br/>
+No glitch when I disable the smoothing.<br/>
+Any plan to support that?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/357_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts</div>
+          <div class="post_content">
+<p>Terrain supports heightmaps that encode height in the Red and Green channels (whole part in red, fractional in green). If you use this type of heightmap, smoothing is not necessary and it should work with neighbor terrains. Otherwise, you would need to write your own smoothing code that is ‘aware’ of the neighboring terrains, in order to correctly smooth across boundaries.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2811_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lebrewer</div>
+          <div class="post_content">
+<p>How do you export those channels with stuff like WorldMachine?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>Not sure since I dont use World Machine, but I suspect it can export 16 bit PNGs. While Urho can’t import 16 bit PNG, you could maybe write a converter to take the R channel and split it into 8bit R and G channels.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">UrhoIsTheBest</div>
+          <div class="post_content">
+<p>I played with 16 bit heightmap a little bit, somehow I found the smoothing is still valuable given my original heightmap data has 1 meter resolution with 0 ~ 7k meter range. I could use 3rd party tools to refine that heightmap but that would be another topic.</p>
+<p>Anyway, I was thinking to write a custom Terrain class for my own use. For example, I need the terrain on a spherical surface, but not the whole planet. So it’s easier, I can just map from 2D coordinates into curved surface if I only need a small part on that spherical surface.</p>
+<p>The best plan for me is: keep the whole Urho folder untouched, so I can check in newest repo easily. Then have a folder for all my own custom classes.</p>
+<p><strong>Now my question is: what is the best practice to write our own custom components?</strong></p>
+<ul>
+<li>I could directly inherent from <code>Component</code> can duplicate most code from <code>Terrain</code> class, which I don’t like.</li>
+<li>Or I can inherent from <code>Terrain</code> class but I need to change the <code>private</code> section into <code>protected</code>. By the way, why most classes in Urho are using <code>private</code> instead of <code>protected</code>, to avoid inherent?</li>
+</ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I can’t answer for “best practice”, but I can say that this is what I would do:</p>
+<aside class="quote no-group" data-post="7" data-topic="6186" data-username="UrhoIsTheBest">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/d75d27d5d93b2fc4395b4ba685be6335.png" width="20"/> UrhoIsTheBest:</div>
+<blockquote>
+<p>directly inherent from <code>Component</code> can duplicate most code from <code>Terrain</code> class</p>
+</blockquote>
+</aside>
+<p>Specifically, I’d copy the Terrain.{cpp,h} files, then refactor (or just find and replace) all Terrain references to SphereTerrain, then modify the class as needed. This was the route I took when I needed some extra features for particle effects, but I’ll probably switch to Spark or Effekseer rather than finishing what I was working on.</p>
+<p>If you want to go the other route, remember that you’d also probably need to make some additional methods virtual. And if there was no particular reason for forbidding such inheritance (I can’t tell you either way), then I’d add that a PR would always be welcome!</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

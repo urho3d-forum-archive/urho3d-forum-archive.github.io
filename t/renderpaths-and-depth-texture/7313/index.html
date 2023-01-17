@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>RenderPaths and depth texture</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">RenderPaths and depth texture</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3250_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">shifttab</div>
+          <div class="post_content">
+<p>I’m trying to show the depth. Am I doing this correctly?</p>
+<pre><code class="lang-auto">SharedPtr&lt;Viewport&gt; viewport(new Viewport(context_, m_scene, camera));
+viewport-&gt;SetRenderPath(cache-&gt;GetResource&lt;XMLFile&gt;("RenderPaths/DeferredHWDepth.xml"));
+viewport-&gt;GetRenderPath()-&gt;Append(cache-&gt;GetResource&lt;XMLFile&gt;("Post/ShowDepth.xml"));
+
+auto renderer = context_-&gt;GetSubsystem&lt;Renderer&gt;();
+renderer-&gt;SetViewport(0, viewport);
+</code></pre>
+<p>ShowDepth.xml</p>
+<pre><code class="lang-auto">&lt;renderpath&gt;
+    &lt;command type="quad" vs="MyDepthTexture" ps="MyDepthTexture" output="viewport"&gt;
+        &lt;texture unit="depth" name="depth" /&gt;
+    &lt;/command&gt;
+&lt;/renderpath&gt;
+</code></pre>
+<pre><code class="lang-auto">// MyDepthTexture.glsl
+void VS()
+{
+    mat4 modelMatrix = iModelMatrix;
+    vec3 worldPos = GetWorldPos(modelMatrix);
+    gl_Position = GetClipPos(worldPos);
+    vScreenPos = GetScreenPosPreDiv(gl_Position);
+}
+
+void PS()
+{
+    float depth = ReconstructDepth(texture2D(sDepthBuffer, vScreenPos).r);
+    vec3 color = vec3(depth, depth, depth);
+    gl_FragColor = vec4(color, 1.0);
+}
+</code></pre>
+<p>Result:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="urho"><img alt="urho" data-base62-sha1="9hKtk5lWXYsWaNM3Q7kjd4z1yTH"  height="204" src="../../../images2/35552d4d56ddc03fe3bfd4eb5b6eeeb2.png"  width="345"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">urho</span><span class="informations">970×574 5.24 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>This is correct depth texture with different depth values</p>
+<p><div class="lightbox-wrapper"><a class="lightbox"   title="4115352ee634066092d24dcacacc24d2ec90206d"><img alt="4115352ee634066092d24dcacacc24d2ec90206d" data-base62-sha1="eI0Gv9X3wSij0b067evESbrT4Z"  height="414" src="../../../images2/e64e4c5579f1c4734cb4d3adf35b103a.png" width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">4115352ee634066092d24dcacacc24d2ec90206d</span><span class="informations">770×463 18.9 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>Yep, looks like depth after some curve tweaking<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="noopener nofollow ugc" title="image"><img alt="image" data-base62-sha1="yLJ0hoZ5MU2j5lMSEfFQalpultH"  height="271" src="../../../images2/69a27012af6ef97f83c909eacef07987.png"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use href="#far-image"></use></svg><span class="filename">image</span><span class="informations">1515×596 27.8 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use href="#discourse-expand"></use></svg>
+</div></a></div></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3250_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">shifttab</div>
+          <div class="post_content">
+<p>I just solved this a while ago. It was because the default camera far clip, at least in the editor where I created the scene, was 1000. It was too high for the different values to be visible.</p>
+<p>I cant believe it took me days <img alt=":angry:" class="emoji" height="20" loading="lazy" src="../../../images2/a91c86421de29e8b28d6f098dc0f63b9.png" title=":angry:" width="20"/></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

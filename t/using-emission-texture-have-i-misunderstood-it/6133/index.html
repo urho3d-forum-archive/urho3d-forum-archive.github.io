@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Using emission texture - have I misunderstood it?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Using emission texture - have I misunderstood it?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Hi all,<br/>
+I’m trying to use emission texture to make parts of a texture fully lit at all times. I noticed in shader code that since sample from emission map is multiplied by emission color, I should probably set emission color to white:</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/xamarin/urho/blob/master/Urho3D/CoreData/Shaders/HLSL/LitSolid.hlsl#L312" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/xamarin/urho/blob/master/Urho3D/CoreData/Shaders/HLSL/LitSolid.hlsl#L312" rel="nofollow noopener" target="_blank">xamarin/urho/blob/master/Urho3D/CoreData/Shaders/HLSL/LitSolid.hlsl#L312</a></h4>
+<pre class="onebox"><code class="lang-hlsl"><ol class="start lines" start="302" style="counter-reset: li-counter 301 ;">
+<li>            finalColor += lightInput.rgb * diffColor.rgb + lightSpecColor * specColor;</li>
+<li>        #endif</li>
+<li>
+</li>
+<li>        #ifdef ENVCUBEMAP</li>
+<li>            finalColor += cMatEnvMapColor * SampleCube(EnvCubeMap, reflect(iReflectionVec, normal)).rgb;</li>
+<li>        #endif</li>
+<li>        #ifdef LIGHTMAP</li>
+<li>            finalColor += Sample2D(EmissiveMap, iTexCoord2).rgb * diffColor.rgb;</li>
+<li>        #endif</li>
+<li>        #ifdef EMISSIVEMAP</li>
+<li class="selected">            finalColor += cMatEmissiveColor * Sample2D(EmissiveMap, iTexCoord.xy).rgb;</li>
+<li>        #else</li>
+<li>            finalColor += cMatEmissiveColor;</li>
+<li>        #endif</li>
+<li>
+</li>
+<li>        oColor = float4(GetFog(finalColor, fogFactor), diffColor.a);</li>
+<li>    #endif</li>
+<li>}</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>So I did, and it looks great when in full darkness. But when scene is lit, suddenly these areas turn too bright. So I looked at the technuique:</p>
+<aside class="onebox githubblob">
+<header class="source">
+<a href="https://github.com/xamarin/urho/blob/master/Urho3D/CoreData/Techniques/DiffEmissiveAlpha.xml#L2" rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a href="https://github.com/xamarin/urho/blob/master/Urho3D/CoreData/Techniques/DiffEmissiveAlpha.xml#L2" rel="nofollow noopener" target="_blank">xamarin/urho/blob/master/Urho3D/CoreData/Techniques/DiffEmissiveAlpha.xml#L2</a></h4>
+<pre class="onebox"><code class="lang-xml"><ol class="start lines" start="1" style="counter-reset: li-counter 0 ;">
+<li>&lt;technique vs="LitSolid" ps="LitSolid" psdefines="DIFFMAP"&gt;</li>
+<li class="selected">    &lt;pass name="alpha" psdefines="EMISSIVEMAP" depthwrite="false" blend="alpha" /&gt;</li>
+<li>    &lt;pass name="litalpha" depthwrite="false" blend="addalpha" /&gt;</li>
+<li>    &lt;pass name="shadow" vs="Shadow" ps="Shadow" /&gt;</li>
+<li>&lt;/technique&gt;</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<p>And it looks like emission is just additive render on top of the diffuse map? As a workaround, I made the parts that are fully lit in the emission map completely black in the diffuse map, and now it looks great in any light. But this doesn’t sound right.</p>
+<p>Am I misusing the emission map, or is it really expected to have lit areas darken in diffuse map in order to work in all lights?</p>
+<p>Thanks,</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6133" data-username="NessEngine">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1ee4d2db23bbdbf0aadc63b895cf87b5.png" width="20"/> NessEngine:</div>
+<blockquote>
+<p>And it looks like emission is just additive render on top of the diffuse map?</p>
+</blockquote>
+</aside>
+<p>Yes, this is correct.<br/>
+What kind of behavior you expected/wanted/find appropriate?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Didn’t mean to sound like criticism <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/><br/>
+But what I expected is that emission would go into lighting calculation, meaning that emission of 1,1,1 will just be the color in the diffuse map, and not actually white.</p>
+<p>So if its additive, that means that if I create emission map with fully lit parts I’m expected to black them out in the diffuse texture?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>You could try multiplying by it or adding it to the lighting or something, or you could try replacing the <code>+=</code> with an <code>= Max(finalColor, cMatEmissiveColor * Sample2D(EmissiveMap, iTexCoord.xy).rgb);</code> and see if one of those gets you more desirable results. (I may have the function name for Max wrong)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>As you can see, light maps multiply emission with diffuse (they have to).<br/>
+It cannot be default behavior because it will limit use cases of emission maps.<br/>
+E.g. one will be unable to create emissive black (i.e. not reflecting light) object.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Thanks <span class="mention">@SirNate0</span>, if I’d be too bothered by it ill change the shader, right now I’m ok with darkening diffuse I just wanted to make sure I’m not misusing it.</p>
+<p><span class="mention">@Eugene</span>  yeah I understand the extra use case additive gives (making areas brighter due to environmental lights + emission),  but imo its not very usable for natural surfaces and specular is more suitable for this purpose anyway. And I don’t think it worth the price of having counter intuitive textures (now instead of normal diffuse texture I need to darken areas which are lit to avoid over brightness). Also I may be wrong here because its been long since I used one of the big commercial engines, but if I recall at least in unity emission would go 0 to diffuse, not above that.</p>
+<p>But as I said I’m not really bothered by it, just my two cents on this matter <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="6" data-topic="6133" data-username="NessEngine">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1ee4d2db23bbdbf0aadc63b895cf87b5.png" width="20"/> NessEngine:</div>
+<blockquote>
+<p>And I don’t think it worth the price of having counter intuitive textures</p>
+</blockquote>
+</aside>
+<p>Diffuse light is the light reflected by the object.<br/>
+Emission light is the light emitted by the object itself.<br/>
+These types of light are completely unrelated to each other (by definition), therefore there’s no reason to have them entangled.</p>
+<p>Although I admit I have made the same mistake as you, a while ago.</p>
+<aside class="quote no-group" data-post="6" data-topic="6133" data-username="NessEngine">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1ee4d2db23bbdbf0aadc63b895cf87b5.png" width="20"/> NessEngine:</div>
+<blockquote>
+<p>but imo its not very usable for natural surfaces and specular is more suitable for this purpose anyway</p>
+</blockquote>
+</aside>
+<p>Heated metal or lava is quite natural phenomena and I can imagine games wanting to render it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Edit: never-mind I checked with other engines and it seems to be the standard so no reason for Urho to do differently. I still think emission tied with diffuse makes more sense (and doesn’t prevent heated metal or lava in any way),  but that’s just me I guess.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="8" data-topic="6133" data-username="NessEngine">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1ee4d2db23bbdbf0aadc63b895cf87b5.png" width="20"/> NessEngine:</div>
+<blockquote>
+<p>and doesn’t prevent heated metal or lava in any way</p>
+</blockquote>
+</aside>
+<p>I’m now curious. How would it work?</p>
+<p>Assume user wants animated heated metal (from almost black when cold to glowing red when heated).<br/>
+User sets diffuse (which is black), emissive (grayscale mask), and emissive color multiplier.<br/>
+So the metal goes from dark gray to red/orange/white when user tweaks color multiplier.</p>
+<p>On the other hand, if you have emissive multiplied with diffuse, you won’t get anything because black stays black no matter what you multiply it with.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Something like this:<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Untitled-1"><img alt="Untitled-1" data-base62-sha1="44TDETIQpUuxegDHQLkNb8uSBQD"  height="243" src="../../../images2/b141d9c0a641b080b60f3b1f360297c5.jpeg"  width="690"/><div class="meta">
+<svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Untitled-1</span><span class="informations">1400×494 735 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg>
+</div></a></div></p>
+<p>Or maybe I didn’t understand what you mean exactly?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>I mean that diffuse texture (without any emission applied) should correspond to cold dark metal.<br/>
+It’s not the case in your example. I cannot render cold metal with such texture. Moreover, such diffuse texture will result in incorrect lighting: if I change the intensity of the incoming light, the brightness of the object will change too, which is physically incorrect for black body.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Sorry forgot to reply.</p>
+<aside class="quote no-group" data-post="11" data-topic="6133" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>I cannot render cold metal with such texture.</p>
+</blockquote>
+</aside>
+<p>Yeah I agree with this point, it is a limitation.</p>
+<aside class="quote no-group" data-post="11" data-topic="6133" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Moreover, such diffuse texture will result in incorrect lighting: if I change the intensity of the incoming light, the brightness of the object will change too, which is physically incorrect for black body.</p>
+</blockquote>
+</aside>
+<p>Not sure I understand this point, I meant in my example that black bodies will also have black emission, so lighting won’t make them brighter?</p>
+<p>Anyway I’m convinced, you were right (+ checking other engines and seeing this is the standard behavior had its impact), so feel free to explain further if you want, or not <img alt=":slight_smile:" class="emoji" src="../../../images2/7bdd5ab4d67675d002d99e4b948c8cdb.png" title=":slight_smile:"/> Anyway it was interesting and eye opening.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="12" data-topic="6133" data-username="NessEngine">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1ee4d2db23bbdbf0aadc63b895cf87b5.png" width="20"/> NessEngine:</div>
+<blockquote>
+<p>Not sure I understand this point, I meant in my example that black bodies will also have black emission, so lighting won’t make them brighter?</p>
+</blockquote>
+</aside>
+<p>“Black body” is physical term for the body that doesn’t reflect incoming light and is illuminated only by internal heat radiation.<br/>
+Things like lava and heated metal are quite close to theoretical black bodies.</p>
+<p>To render them properly you should use black (or nearly black) diffuse texture so the lighting of the object is not affected by the incoming light.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<p>Thanks for the clarification, but that’s not the part I didn’t understand. If the black parts of my bodies are black in both diffuse and emission, that would not be a problem (which is what I tried to show with the screenshots earlier - the darker parts which are not glowing have darker / black emission) .</p>
+<p>So in this case I don’t see how multiplying the emission with diffuse, which would only reduce it, would make black bodies less black? Edit: plus in the end it all multiplied by diffuse.</p>
+<p>Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>If you have both black diffuse and black emission, then the object will stay black, sure.</p>
+<p>But if you want to have non-zero emission somewhere and you multiply emission with diffuse, you must have non-zero diffuse in the same place of the texture.</p>
+<p>And as soon as you have non-zero diffuse, the body is no longer black body. Therefore, you cannot render black body with non-zero emission, if you multiply diffuse and emission during rendering. Meaning that you cannot render physically realistic lava/metal/whatever.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="15" data-topic="6133" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>And as soon as you have non-zero diffuse, the body is no longer black body. Therefore, you cannot render black body with non-zero emission, if you multiply diffuse and emission during rendering. Meaning that you cannot render physically realistic lava/metal/whatever.</p>
+</blockquote>
+</aside>
+<p>Ah yes, I understand what you mean now, but that’s a problem we face anyway when emission is additive like in Urho. As soon as emission is &gt; 0, result pixel will never be black. That’s sort of the problem that made me investigate in the first place (not exactly black body, but something that went brighter than it should).</p>
+<p>Thanks for the info</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="16" data-topic="6133" data-username="NessEngine">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/1ee4d2db23bbdbf0aadc63b895cf87b5.png" width="20"/> NessEngine:</div>
+<blockquote>
+<p>but that’s a problem we face anyway when emission is additive like in Urho. As soon as emission is &gt; 0, result pixel will never be black</p>
+</blockquote>
+</aside>
+<p>I’m talking about how the pixel reacts to the change of lighting, not the exact color itself.</p>
+<p>Additive emission let you make glowing material that has the same appearance regardless of the incoming light (black body).<br/>
+Multiplicative emission forbids it.</p>
+<p>Regarding your initial problem—I think it stems from the fact that the textures you use were made without considering physical meaning of the diffuse/emission. Light emitted by the heated body is by definition emission, so the physically sane diffuse texture must never have any red/yellow “glowing” parts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2060_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NessEngine</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="17" data-topic="6133" data-username="Eugene">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ae663b3d37eca5ee603f9e0610f8f829.png" width="20"/> Eugene:</div>
+<blockquote>
+<p>Regarding your initial problem—I think it stems from the fact that the textures you use were made without considering physical meaning of the diffuse/emission.</p>
+</blockquote>
+</aside>
+<p>That is a very true conclusions, the textures in questions are actually more of a cartoonish sprites than realistic materials. The discussion was hypothetical, but my use case is far from being realistic.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

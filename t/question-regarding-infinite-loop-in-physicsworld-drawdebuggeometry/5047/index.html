@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Question regarding infinite loop in PhysicsWorld::DrawDebugGeometry</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Question regarding infinite loop in PhysicsWorld::DrawDebugGeometry</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Recently, my frame update has become a little more complex, and I have started to notice a problem that happens randomly, but consistently.<br/>
+At (or near) the first frame, Debug Drawing of physics geometry enters into an infinite loop, and though I can break the loop in my debugger, it tells me every time that this loop is all about physics debug drawing.<img alt="debugdrawbug" height="144" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/8/821983b33dd5aec4ef9c932be2f386a3bb0db68b.png" width="690"/></p>
+<p>When the issue occurs, its like the cpu is spinning its wheels - I get a graphical output, but time stands still on the first frame, with debugging still working - its very odd, and seems to be narrowed down to debugdraw of (definitely disabled) constraints. I sense a threading issue. Something is not happening at a convenient moment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I wish I could say that turning on debug drawing at runtime was the answer, but this issue also sometimes happens when I do that, plus it gets tiresome to hit an extra key when debugging.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>What does your <code>HandlePosterRenderUpdate</code> (or equivalent) function look like?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<pre><code class="lang-auto">void Character::HandlePostRenderUpdate(StringHash eventType, VariantMap&amp; eventData)
+{
+   // if (drawDebug_)
+   if(solver_!=nullptr)
+        solver_-&gt;DrawDebugGeometry(false);
+}</code></pre>
+<p>looks pretty safe to me - that part is just for ik debugging</p>
+<p>I am sorry, here is the rest.</p>
+<pre><code class="lang-auto">
+        void GamePlayState::HandlePostRenderUpdate(StringHash eventType, VariantMap&amp; eventData)
+        {
+            // If draw debug mode is enabled, draw physics debug geometry. Use depth test to make the result easier to interpret
+            if (drawDebug_)
+                gamescene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;DrawDebugGeometry(false);
+        }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I definitely feel this issue is not directly caused by my disabling of constraints, although I was suprised that Bullet does not check whether a constraint is disabled before attempting to debug-draw it.<br/>
+The process seems to be spending an inordinate amount of time trying to draw some lines (probably arcs) for constraints that are effectively disabled. The implication of disabling constraints is that they are not updated in Bullet, and so they are very likely to be violated by me teleporting connected bodies prior to debugdraw. This might cause problems when drawing the arcs that represent angular limits.</p>
+<p>In one execution, I was able to break into a worker thread that appears to be waiting for a mutex that is never unlocked. I will try to reproduce this result in order to capture the call stack.<br/>
+It really does smell like a threading issue, since the problem does not occur on every execution, it happens more or less randomly, but always during the debug-drawing of constraints on the first frame.<img alt="debug_threading" height="166" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/a/aca2722e395e10335432516f5230423236fbeff9.png" width="690"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>When this bug occurs, the following call is never returning to the caller.</p>
+<pre><code class="lang-auto">gamescene_-&gt;GetComponent&lt;PhysicsWorld&gt;()-&gt;DrawDebugGeometry(false);</code></pre>
+<p>Ultimately, the issue seems to be that I screw around with constrained rigidbodies after the physics tick but before the debug-drawing : despite the fact that my constraints are disabled, Bullet attempts to draw them, and since they are disabled, and the bodies have been moved, constraint state is no longer assured to be valid (I create constraints on the model in its bindpose, but we’ve animated the model, and its rigidbodies, and not corrected the constraint transforms).</p>
+<p>The error appears to be related to drawing limit arcs on violated constraints:</p>
+<aside class="quote no-group">
+<blockquote>
+<div class="md-table">
+<table>
+<thead>
+<tr>
+<th>
+<span class="hashtag">#0</span> ??</th>
+<th>__sincosf_fma (x=-nan(0x7fffff), sinx=0x7fffffffd7bc, cosx=0x7fffffffd7b8) (…/sysdeps/x86_64/fpu/multiarch/s_sincosf-fma.c:161)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<span class="hashtag">#1</span> 0x555555bef83b</td>
+<td>btDiscreteDynamicsWorld::debugDrawConstraint(btTypedConstraint*) () (??:??)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#2</span> 0x555555bf8ce4</td>
+<td>btDiscreteDynamicsWorld::debugDrawWorld() () (??:??)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#3</span> 0x5555557d9597</td>
+<td>Urho3D::PhysicsWorld::DrawDebugGeometry(bool) () (??:??)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#4</span> 0x55555563d6f3</td>
+<td>GameState::GamePlayState::HandlePostRenderUpdate(this=0x55555708ed20, eventType=…, eventData=…) (/home/leith/Desktop/NewFolder/UrhoTest/source/GameStates.cpp:832)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#5</span> 0x555555643dd9</td>
+<td>Urho3D::EventHandlerImpl<a>GameState::GamePlayState</a>::Invoke(this=0x5555584222e0, eventData=…) (…/URHO_BUILD/include/Urho3D/Core/…/Core/Object.h:315)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#6</span> 0x5555559abd12</td>
+<td>Urho3D::Object::OnEvent(Urho3D::Object*, Urho3D::StringHash, Urho3D::HashMap&lt;Urho3D::StringHash, Urho3D::Variant&gt;&amp;) () (??:??)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#7</span> 0x5555559ad5e8</td>
+<td>Urho3D::Object::SendEvent(Urho3D::StringHash, Urho3D::HashMap&lt;Urho3D::StringHash, Urho3D::Variant&gt;&amp;) () (??:??)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#8</span> 0x555555977ed2</td>
+<td>Urho3D::Engine::Update() () (??:??)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#9</span> 0x555555979456</td>
+<td>Urho3D::Engine::RunFrame() () (??:??)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#10</span> 0x555555990cf5</td>
+<td>Urho3D::Application::Run() () (??:??)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#11</span> 0x55555561d942</td>
+<td>RunApplication() (/home/leith/Desktop/NewFolder/UrhoTest/main.cpp:146)</td>
+</tr>
+<tr>
+<td>
+<span class="hashtag">#12</span> 0x55555561d9fd</td>
+<td>main(argc=1, argv=0x7fffffffe648) (/home/leith/Desktop/NewFolder/UrhoTest/main.cpp:146)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</blockquote>
+</aside>
+<p>If we check the current stackframe in the callstack, we can see that “sincosf_fma” has been called with an invalid argument, now we could probably deal with that in Urho’s debugdrawer implementation, but I truly feel that Bullet should be checking whether a constraint is disabled before trying to draw it.</p>
+<p>I do not feel that removing and re-adding constraints to the simulation is an acceptable solution, given that we can disable them - the question I keep asking myself is “Why is Bullet trying to operate on disabled objects?” I feel this was merely an oversight in the default debugdrawer, a shortcoming which Urho has inherited - I am certain that Erwin would, if asked about this, state clearly that the default debugdrawer is meant only to act as an example, or at most as a base interface, and that end-users can adapt it to their requirements.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I’ve narrowed this issue down to drawing of angular limits on constraints.<br/>
+If I disable that, then the bug is never triggered.<br/>
+This is a workaround, and not really a solution as such, but at least we now know that the issue is located in btDiscreteDynamicsWorld::debugDrawWorld(), where constraints are iterated for debug drawing, irrespective of their enabled or disabled state, or whether the constraint is otherwise in a valid state for rendering. Unfortunately, this makes it unlikely that we can deal with the problem in Urho, since we don’t derive or redefine that class (and the offending method is non-virtual), and really, this is more of a Bullet issue than any problem in Urho. Therefore, I’ll likely bring this issue to Erwin - but before I do, can anyone tell me precisely what version of Bullet we’re using in the Master branch?</p>
+<pre><code class="lang-auto">            auto* phys = gamescene_-&gt;GetComponent&lt;PhysicsWorld&gt;();
+            phys-&gt;setDebugMode(phys-&gt;getDebugMode() &amp;  ~btIDebugDraw::DBG_DrawConstraintLimits);</code></pre>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

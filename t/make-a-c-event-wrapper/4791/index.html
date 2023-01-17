@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Make a C++ event wrapper</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Make a C++ event wrapper</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Hey, i need to wrap an event handler into another one, but without success.</p>
+<pre><code>void ContextMenu::addItem(String name, String text, EventHandler* handler)
+{
+    ButtonText* item = CreateChild&lt;ButtonText&gt;(name);
+    item-&gt;SetStyle("ActionItem");
+    item-&gt;SetFixedHeight(20);
+    item-&gt;setLabel(text);
+    //item-&gt;SetVar(VAR_ITEM_HANDLER, handler);
+
+    SubscribeToEvent(item, "Released", [&amp;](StringHash, VariantMap&amp; eventData)
+    {
+        handler-&gt;Invoke(eventData); // crash at this point !
+        close();
+    });
+}
+</code></pre>
+<p>The function call :<br/>
+<code>contextMenu_-&gt;addItem("open", "Open file", URHO3D_HANDLER(LocalWorldEditorState, handleOpenFile));</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Of course it crashes. You capture a reference to <code>handler</code> which is a variable (parameter) on the stack that dies at the end of that function. By the time that lambda gets called. That memory in the stack could be something else. And you still reference it and expect it to be a pointer to an <code>EventHandler</code>. Since a reference is a pointer and <code>handler</code> is a pointer they occupy the same memory so there’s no benefit.</p>
+<p>Drop the <code>&amp;</code> from <code>[&amp;]</code> and capture <code>handler</code> by value. Or simply use <code>[=]</code> if you want to be a bit more verbose.</p>
+<p>And I believe you’re supposed to use <code>E_RELEASED</code> instead of <code>"Released"</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Ho i see, i was misunderstood lambda capture symbol. thanks you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>Be aware of what you are doing. <code>String name</code> and <code>String text</code> copy strings for no good reason. You should use <code>const String&amp; text</code> to take a string reference.</p>
+<p>As for lambdas - they easily can cause memory allocation. <code>std::function&lt;&gt;</code> has enough storage for two pointers. If you capture more pointers or use <code>[=]</code> - that will definitely allocate memory which depending on where you use this may snowball into something very slow.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">AntiLoxy</div>
+          <div class="post_content">
+<p>Ok !</p>
+<blockquote>
+<p>std::function  is guaranteed to not allocate if constructed from a function pointer, which is also one word in size - Stackoverflow</p>
+</blockquote>
+<p>So, i will use the classic way URHO3D_HANDLER(Class, method).<br/>
+Thank you for enlightening me about the dangerous objects that are lambdas.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3200_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rku</div>
+          <div class="post_content">
+<p>You can safely use lambdas for events, just be aware of these things. <code>[this](StringHash, VariantMap&amp;) { }</code> is a good bet. Wont allocate as <code>this</code> is one pointer and it is enough most of the time. <code>URHO3D_HANDLER(Class, method)</code> is essentially the same.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CustomGeometry - DefineWeights</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CustomGeometry - DefineWeights</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Hello Community it is me again with a problem related to CustomGeometry.</p>
+<p>I have a vertexBuffer which consists out of<br/>
+MASK_POSITION | MASK_NORMAL | MASK_BLENDWEIGHTS | MASK_BLENDINDICES</p>
+<p>Because of a specific reason i have to lock this vertexBuffer, read its vertex data and write it through an CustomGeometry. The point is i see no way for CustomGeometry to define MASK_BLENDWEIGHTS and MASK_BLENDINDICES.</p>
+<p>Like with the functions DefinePosition(), DefineNormal(), DefineTangent(), DefineColor(), any help would be great.</p>
+<p>As always if you need more information on the topic feel free to ask.</p>
+<p>Best Regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The ideal should be that you never need to go back from a VertexBuffer (which is already the optimal storage format) to CustomGeometry, which is limited in its use cases and only intended for easy programmatic geometry generation for beginners.</p>
+<p>Is the reason in the application or in Urho3D API itself? If in Urho3D, it sounds like worth fixing.</p>
+<p>There are also other limits in CustomGeometry, like no second texture coords.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>The issue is much deeper than just absence of few functions.<br/>
+For sane usage of blend weights and indices you have to prepare and pass skeletal matrices into shader.<br/>
+And <code>CustomGeometry</code> doesn’t have such routines.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Thank you for the answer i assumed something like this, the problem is that i have a urho scene with an mdl, the scene contains joint information. For this model i want to define vertexcolor information, but the current vertex buffer has now color mask integrated.</p>
+<p>My first attempt was to create a new vertex buffer pass in the old position, normal data and add color on a per vertex base. But then replacing the old vertex buffer didn’t work and gave me weird render issues. With CustomGeometry i was able to do this except applying the weights.</p>
+<p>Simple said i want a 1 to 1 copy of my node with its AnimatedModel component just with some self defined vertex colors.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Hi, thank you for your answer. Yeah i also wondered where the skeletal data is read from my scene then. For details see above post.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Replacing the vertexbuffer is exactly what you should do, and I can’t think of any reason of why it should fail (except if there’s a bug in Urho3D, in which case you can open an issue), if you interleave the new data with the old data correctly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Okay then i will share some code</p>
+<pre><code>    // Clone root node to get joint information
+    Node *bufNode = scene_a_-&gt;GetChild("RootNode")-&gt;Clone();
+
+    // Extract the model components which store the needed vbo for redrawing
+    PODVector&lt;Model *&gt; models{};
+    PODVector&lt;StaticModel *&gt; modelComponents{};
+    bufNode-&gt;GetDerivedComponents&lt;StaticModel&gt;(modelComponents, true);
+    for (StaticModel *modelComponent : modelComponents) {
+        models.Push(modelComponent-&gt;GetModel());
+    }
+    Skeleton skeletonBuffer = models[0]-&gt;GetSkeleton();
+
+    // Get old vbo and ibo
+    SharedPtr&lt;VertexBuffer&gt; oldVertexBuffer = models[0]-&gt;GetVertexBuffers()[0];
+    SharedPtr&lt;IndexBuffer&gt; oldIndicesBuffer = models[0]-&gt;GetIndexBuffers()[0];
+
+    unsigned indexSize = oldIndicesBuffer-&gt;GetIndexSize();
+    unsigned numIndices = oldIndicesBuffer-&gt;GetIndexCount();
+    unsigned oldVertexSize = oldVertexBuffer-&gt;GetVertexSize();
+    unsigned numVertices = oldVertexBuffer-&gt;GetVertexCount();
+
+    // Define a new child node for drawing
+    Node *newNode = bufNode-&gt;CreateChild("result");
+    // Little offset so both models don't totally overlap
+    newNode-&gt;SetPosition(Vector3(0.01,0.0,0.0));
+    SharedPtr&lt;AnimatedModel&gt; newAnimatedModel(
+            newNode-&gt;CreateComponent&lt;AnimatedModel&gt;());
+    SharedPtr&lt;Model&gt; newModel(new Model(context_));
+    SharedPtr&lt;VertexBuffer&gt; newVertexBuffer(new VertexBuffer(context_));
+    SharedPtr&lt;Geometry&gt; newGeometry(new Geometry(context_));
+    newVertexBuffer-&gt;SetSize(numVertices, MASK_POSITION | MASK_NORMAL | MASK_TEXCOORD1 | MASK_BLENDWEIGHTS | MASK_BLENDINDICES);
+    unsigned newVertexSize = newVertexBuffer-&gt;GetVertexSize();
+
+
+    // LOCK old and new vbo for editing reading vertex data
+    unsigned char *oldVertexData = (unsigned char *) oldVertexBuffer-&gt;Lock(0, numVertices);
+    unsigned char *newVertexData = (unsigned char *) newVertexBuffer-&gt;Lock(0, numVertices);
+    if (oldVertexData) {
+            unsigned oldMask = oldVertexBuffer-&gt;GetElementMask();
+            unsigned oldPositionOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_POSITION);
+            unsigned oldNormalOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_NORMAL);
+            unsigned oldColorOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_COLOR);
+            unsigned oldBlendWeightOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_BLENDWEIGHTS);
+            unsigned oldBlendIndicesOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_BLENDINDICES);
+            unsigned newMask = newVertexBuffer-&gt;GetElementMask();
+            unsigned newPositionOffset = newVertexBuffer-&gt;GetElementOffset(SEM_POSITION);
+            unsigned newNormalOffset = newVertexBuffer-&gt;GetElementOffset(SEM_NORMAL);
+            unsigned newColorOffset = newVertexBuffer-&gt;GetElementOffset(SEM_COLOR);
+            unsigned newBlendWeightOffset = newVertexBuffer-&gt;GetElementOffset(SEM_BLENDWEIGHTS);
+            unsigned newBlendIndicesOffset = newVertexBuffer-&gt;GetElementOffset(SEM_BLENDINDICES);
+
+            for (int i = 0; i &lt; numVertices; i++) {
+                // Old vertex buffer data
+                unsigned char *oldVertexPos = (oldVertexData + i * oldVertexSize + oldPositionOffset);
+                unsigned char *oldVertexNormal = (oldVertexData + i * oldVertexSize + oldNormalOffset);
+                unsigned char *oldVertexWeights = (oldVertexData + i * oldVertexSize +
+                        oldBlendWeightOffset);
+                unsigned char *oldVertexWeightIndices = (oldVertexData + i * oldVertexSize +
+                        oldBlendIndicesOffset);
+                // New vertex buffer data
+                unsigned char *newVertexPos = (newVertexData + i * newVertexSize + newPositionOffset);
+                unsigned char *newVertexNormal = (newVertexData + i * newVertexSize + newNormalOffset);
+                unsigned char *newVertexWeights = (newVertexData + i * newVertexSize +
+                        newBlendWeightOffset);
+                unsigned char *newVertexWeightIndices = (newVertexData + i * newVertexSize +
+                        newBlendIndicesOffset);
+                if (oldMask &amp; MASK_POSITION) {
+                    Vector3 &amp;src_pos = *reinterpret_cast&lt;Vector3 *&gt;( oldVertexPos );
+                    Vector3 &amp;target_pos = *reinterpret_cast&lt;Vector3 *&gt;( newVertexPos );
+                    target_pos = src_pos;
+                }
+                if (oldMask &amp; MASK_NORMAL) {
+                    Vector3 &amp;src_normal = *reinterpret_cast&lt;Vector3 *&gt;( oldVertexNormal );
+                    Vector3 &amp;target_normal = *reinterpret_cast&lt;Vector3 *&gt;( newVertexNormal );
+                    target_normal = src_normal;
+                }
+                if (oldMask &amp; MASK_BLENDWEIGHTS) {
+                    newVertexWeights = oldVertexWeights;
+                }
+                if (oldMask &amp; MASK_BLENDINDICES) {
+                    newVertexWeightIndices = oldVertexWeightIndices;
+                }
+
+            oldVertexBuffer-&gt;Unlock();
+            newVertexBuffer-&gt;Unlock();
+        }
+    }
+    newGeometry-&gt;SetVertexBuffer(0, newVertexBuffer);
+    newGeometry-&gt;SetIndexBuffer(oldIndicesBuffer);
+    newGeometry-&gt;SetDrawRange(TRIANGLE_LIST, 0, 0, 0,numVertices);
+    newModel-&gt;SetSkeleton(skeletonBuffer);
+    newModel-&gt;SetNumGeometries(1);
+    newModel-&gt;SetGeometry(0, 0, newGeometry);
+    newAnimatedModel-&gt;SetModel(newModel);
+    newAnimatedModel-&gt;SetMaterial(vcolmat);
+    scene_-&gt;AddChild(bufNode);
+</code></pre>
+<ol>
+<li>
+<p>This shows only the original model not the new node. This was another try not to replace the vbo but instead creating a copy of the node with a new vbo.</p>
+</li>
+<li>
+<p>Additionally, i should also mention that i don’t know which structure weights and indices have in the vbo the offset tells me<br/>
+Blend weight Offset 32<br/>
+Blend indices Offset 48<br/>
+But what are those data? I assume those indices are ints?<br/>
+For the normals e.g. i can get the stride like<br/>
+unsigned char *oldVertexNormal = (oldVertexData + i * oldVertexSize + oldNormalOffset);<br/>
+and cast it<br/>
+Vector3 &amp;src_normal = *reinterpret_cast&lt;Vector3 *&gt;( oldVertexNormal );<br/>
+But what if i want the indices and weights as values? How many are in one stride? Which type they are? Sry if this is obvious.</p>
+</li>
+<li>
+<p>And now the problem after the problem (yep it goes on). I need the absolute vertex position for some calculation which should give me those vertex colors, i want to display. Is there an easy way reading joint information from scene.xml, using weights, indices from vbo and applying those to our vertex positions? Or do i need to calculate it all via hand? If so i really need help with 2.</p>
+</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>The hardcoded vertex elements (referred to with mask bits) are defined in GraphicsDefs.cpp. You’ll see that a blendweights element is a Vector4, and blendindices is 4 bytes (so practically an unsigned int).</p>
+<p>So it looks in your code you’re not copying enough data for the weights &amp; indices.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Sry was still editing my post <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/>. So it is possible you missed part 3.</p>
+<p>That helps a lot! So both include 4 values? 4 indices with 4 weights.<br/>
+I will try fix that, but at least i should see something when copy the position to the vbo. The loop is iterated correct but after replacing the vbo<br/>
+models[0]-&gt;GetGeometry(0,0)-&gt;SetVertexBuffer(0,newVertexBuffer);<br/>
+Nothing is rendering.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Urho doesn’t offer software skinning, so your best bet would be to run your calculation in vertex shader, where you have the skinned world positions.</p>
+<p>In skeletal animation, nothing will render correctly without correct blend weights / indices, as the vertex position is multiplied by matrices selected by the index.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Hm</p>
+<pre><code>    // Clone root node to get joint information
+    Node *bufNode = scene_a_-&gt;GetChild("RootNode")-&gt;Clone();
+
+    // Extract the model components which store the needed vbo for redrawing
+    PODVector&lt;Model *&gt; models{};
+    PODVector&lt;StaticModel *&gt; modelComponents{};
+    bufNode-&gt;GetDerivedComponents&lt;StaticModel&gt;(modelComponents, true);
+    for (StaticModel *modelComponent : modelComponents) {
+        models.Push(modelComponent-&gt;GetModel());
+    }
+    Skeleton skeletonBuffer = models[0]-&gt;GetSkeleton();
+
+    // Get old vbo and ibo
+    SharedPtr&lt;VertexBuffer&gt; oldVertexBuffer = models[0]-&gt;GetVertexBuffers()[0];
+    SharedPtr&lt;IndexBuffer&gt; oldIndicesBuffer = models[0]-&gt;GetIndexBuffers()[0];
+
+    unsigned indexSize = oldIndicesBuffer-&gt;GetIndexSize();
+    unsigned numIndices = oldIndicesBuffer-&gt;GetIndexCount();
+    unsigned oldVertexSize = oldVertexBuffer-&gt;GetVertexSize();
+    unsigned numVertices = oldVertexBuffer-&gt;GetVertexCount();
+
+    // Define a new child node for drawing
+    Node *newNode = bufNode-&gt;CreateChild("result");
+    // Little offset so both models don't totally overlap
+    newNode-&gt;SetPosition(Vector3(0.01,0.0,0.0));
+    SharedPtr&lt;AnimatedModel&gt; newAnimatedModel(
+            newNode-&gt;CreateComponent&lt;AnimatedModel&gt;());
+    SharedPtr&lt;Model&gt; newModel(new Model(context_));
+    SharedPtr&lt;VertexBuffer&gt; newVertexBuffer(new VertexBuffer(context_));
+    SharedPtr&lt;Geometry&gt; newGeometry(new Geometry(context_));
+    newVertexBuffer-&gt;SetSize(numVertices, MASK_POSITION | MASK_NORMAL | MASK_TEXCOORD1 | MASK_BLENDWEIGHTS | MASK_BLENDINDICES);
+    unsigned newVertexSize = newVertexBuffer-&gt;GetVertexSize();
+
+
+    // LOCK old and new vbo for editing reading vertex data
+    unsigned char *oldVertexData = (unsigned char *) oldVertexBuffer-&gt;Lock(0, numVertices);
+    unsigned char *newVertexData = (unsigned char *) newVertexBuffer-&gt;Lock(0, numVertices);
+    if (oldVertexData) {
+            unsigned oldMask = oldVertexBuffer-&gt;GetElementMask();
+            unsigned oldPositionOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_POSITION);
+            unsigned oldNormalOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_NORMAL);
+            unsigned oldColorOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_COLOR);
+            unsigned oldBlendWeightOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_BLENDWEIGHTS);
+            unsigned oldBlendIndicesOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_BLENDINDICES);
+
+            unsigned newMask = newVertexBuffer-&gt;GetElementMask();
+            unsigned newPositionOffset = newVertexBuffer-&gt;GetElementOffset(SEM_POSITION);
+            unsigned newNormalOffset = newVertexBuffer-&gt;GetElementOffset(SEM_NORMAL);
+            unsigned newColorOffset = newVertexBuffer-&gt;GetElementOffset(SEM_COLOR);
+            unsigned newBlendWeightOffset = newVertexBuffer-&gt;GetElementOffset(SEM_BLENDWEIGHTS);
+            unsigned newBlendIndicesOffset = newVertexBuffer-&gt;GetElementOffset(SEM_BLENDINDICES);
+    
+                     for (int i = 0; i &lt; numVertices; i++) {
+                         // Old vertex buffer data
+                         unsigned char *oldVertexPos = (oldVertexData + i * oldVertexSize + oldPositionOffset);
+                         unsigned char *oldVertexNormal = (oldVertexData + i * oldVertexSize + oldNormalOffset);
+                         unsigned char *oldVertexWeights = (oldVertexData + i * oldVertexSize +
+                                 oldBlendWeightOffset);
+                         unsigned char *oldVertexWeightIndices = (oldVertexData + i * oldVertexSize +
+                                 oldBlendIndicesOffset);
+                         // New vertex buffer data
+                         unsigned char *newVertexPos = (newVertexData + i * newVertexSize + newPositionOffset);
+                         unsigned char *newVertexNormal = (newVertexData + i * newVertexSize + newNormalOffset);
+                         unsigned char *newVertexWeights = (newVertexData + i * newVertexSize +
+                                 newBlendWeightOffset);
+                         unsigned char *newVertexWeightIndices = (newVertexData + i * newVertexSize +
+                                 newBlendIndicesOffset);
+                         if (oldMask &amp; MASK_POSITION) {
+                             Vector3 &amp;src_pos = *reinterpret_cast&lt;Vector3 *&gt;( oldVertexPos );
+                             Vector3 &amp;target_pos = *reinterpret_cast&lt;Vector3 *&gt;( newVertexPos );
+                             target_pos.x_ = src_pos.x_;
+                             target_pos.y_ = src_pos.y_;
+                             target_pos.z_ = src_pos.z_;
+                         }
+                         if (oldMask &amp; MASK_NORMAL) {
+                             Vector3 &amp;src_normal = *reinterpret_cast&lt;Vector3 *&gt;( oldVertexNormal );
+                             Vector3 &amp;target_normal = *reinterpret_cast&lt;Vector3 *&gt;( newVertexNormal );
+                             target_normal.x_ = src_normal.x_;
+                             target_normal.y_ = src_normal.y_;
+                             target_normal.z_ = src_normal.z_;
+                         }
+                         if (oldMask &amp; MASK_BLENDWEIGHTS) {
+                             Vector4 &amp;src_weights = *reinterpret_cast&lt;Vector4 *&gt;( oldVertexWeights );
+                             Vector4 &amp;target_weights = *reinterpret_cast&lt;Vector4 *&gt;( newVertexWeights );
+
+                             target_weights.x_ = src_weights.x_;
+                             target_weights.y_ = src_weights.y_;
+                             target_weights.z_ = src_weights.z_;
+                             target_weights.w_ = src_weights.w_;
+                         }
+                         if (oldMask &amp; MASK_BLENDINDICES) {
+                             unsigned int &amp;src_weights = *reinterpret_cast&lt;unsigned int  *&gt;( oldVertexWeightIndices );
+                             unsigned int &amp;target_weights = *reinterpret_cast&lt;unsigned int  *&gt;( newVertexWeightIndices );
+
+                             target_weights = src_weights;
+                         }
+
+                     oldVertexBuffer-&gt;Unlock();
+                     newVertexBuffer-&gt;Unlock();
+                 }
+             }
+    models[0]-&gt;GetGeometry(0,0)-&gt;SetVertexBuffer(0,newVertexBuffer);
+    scene_-&gt;AddChild(bufNode);
+</code></pre>
+<p>Still not rendering anything.</p>
+<p>Yeah for a single model that would make sense but i want to compare those values to another model, think i will try doing it on the cpu. It is only done once at scene creation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>I am stupid had some mutex lock issues on my vbo caused by incorrect brackets. It renders ‘something’ now. Will update the status asap.</p>
+<p>UPDATE:<br/>
+So finally it works i can replace the vertex buffer of the model with another vertex buffer where i add vertex colors. (For now) only red, here is the working code:</p>
+<pre><code>    // Clone root node to get joint information
+    Node *bufNode = scene_a_-&gt;GetChild("RootNode")-&gt;Clone();
+
+    // Extract the model components which store the needed vbo for redrawing
+    PODVector&lt;StaticModel *&gt; modelComponents{};
+    bufNode-&gt;GetDerivedComponents&lt;StaticModel&gt;(modelComponents, true);
+    
+    // Get old vbo and ibo
+    SharedPtr&lt;VertexBuffer&gt; oldVertexBuffer = modelComponents[0]-&gt;GetModel()-&gt;GetVertexBuffers()[0];
+    SharedPtr&lt;IndexBuffer&gt; oldIndicesBuffer = modelComponents[0]-&gt;GetModel()-&gt;GetIndexBuffers()[0];
+
+    unsigned indexSize = oldIndicesBuffer-&gt;GetIndexSize();
+    unsigned numIndices = oldIndicesBuffer-&gt;GetIndexCount();
+    unsigned oldVertexSize = oldVertexBuffer-&gt;GetVertexSize();
+    unsigned numVertices = oldVertexBuffer-&gt;GetVertexCount();
+
+    // Define a new child node for drawing
+    Node *newNode = bufNode-&gt;GetChild("output.obj");
+    // Little offset so both models don't totally overlap
+    newNode-&gt;SetPosition(Vector3(0.0, 0.0, 0.0));
+    SharedPtr&lt;Model&gt; newModel(new Model(context_));
+    SharedPtr&lt;VertexBuffer&gt; newVertexBuffer(new VertexBuffer(context_));
+    SharedPtr&lt;Geometry&gt; newGeometry(new Geometry(context_));
+    newVertexBuffer-&gt;SetSize(numVertices,
+                             MASK_POSITION | MASK_NORMAL | MASK_COLOR | MASK_BLENDWEIGHTS |
+                             MASK_BLENDINDICES);
+    unsigned newVertexSize = newVertexBuffer-&gt;GetVertexSize();
+
+    // LOCK old and new vbo for editing reading vertex data
+    unsigned char *oldVertexData = (unsigned char *) oldVertexBuffer-&gt;Lock(0, numVertices);
+    unsigned char *newVertexData = (unsigned char *) newVertexBuffer-&gt;Lock(0, numVertices);
+    if (oldVertexData) {
+        unsigned oldMask = oldVertexBuffer-&gt;GetElementMask();
+        unsigned oldPositionOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_POSITION);
+        unsigned oldNormalOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_NORMAL);
+        unsigned oldColorOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_COLOR);
+        unsigned oldBlendWeightOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_BLENDWEIGHTS);
+        unsigned oldBlendIndicesOffset = oldVertexBuffer-&gt;GetElementOffset(SEM_BLENDINDICES);
+
+        unsigned newMask = newVertexBuffer-&gt;GetElementMask();
+        unsigned newPositionOffset = newVertexBuffer-&gt;GetElementOffset(SEM_POSITION);
+        unsigned newNormalOffset = newVertexBuffer-&gt;GetElementOffset(SEM_NORMAL);
+        unsigned newColorOffset = newVertexBuffer-&gt;GetElementOffset(SEM_COLOR);
+        unsigned newBlendWeightOffset = newVertexBuffer-&gt;GetElementOffset(SEM_BLENDWEIGHTS);
+        unsigned newBlendIndicesOffset = newVertexBuffer-&gt;GetElementOffset(SEM_BLENDINDICES);
+
+        for (int i = 0; i &lt; numVertices; i++) {
+            // Old vertex buffer data
+            unsigned char *oldVertexPos = (oldVertexData + i * oldVertexSize +
+                                           oldPositionOffset);
+            unsigned char *oldVertexNormal = (oldVertexData + i * oldVertexSize +
+                                              oldNormalOffset);
+            unsigned char *oldVertexWeights = (oldVertexData + i * oldVertexSize +
+                                               oldBlendWeightOffset);
+            unsigned char *oldVertexWeightIndices = (oldVertexData + i * oldVertexSize +
+                                                     oldBlendIndicesOffset);
+            // New vertex buffer data
+            unsigned char *newVertexPos = (newVertexData + i * newVertexSize +
+                                           newPositionOffset);
+            unsigned char *newVertexColor = (newVertexData + i * newVertexSize +
+                                           newColorOffset);
+            unsigned char *newVertexNormal = (newVertexData + i * newVertexSize +
+                                              newNormalOffset);
+            unsigned char *newVertexWeights = (newVertexData + i * newVertexSize +
+                                               newBlendWeightOffset);
+            unsigned char *newVertexWeightIndices = (newVertexData + i * newVertexSize +
+                                                     newBlendIndicesOffset);
+            if (oldMask &amp; MASK_POSITION) {
+                Vector3 &amp;src_pos = *reinterpret_cast&lt;Vector3 *&gt;( oldVertexPos );
+                Vector3 &amp;target_pos = *reinterpret_cast&lt;Vector3 *&gt;( newVertexPos );
+                target_pos.x_ = src_pos.x_;
+                target_pos.y_ = src_pos.y_;
+                target_pos.z_ = src_pos.z_;
+            }
+            if (oldMask &amp; MASK_NORMAL) {
+                Vector3 &amp;src_normal = *reinterpret_cast&lt;Vector3 *&gt;( oldVertexNormal );
+                Vector3 &amp;target_normal = *reinterpret_cast&lt;Vector3 *&gt;( newVertexNormal );
+                target_normal.x_ = src_normal.x_;
+                target_normal.y_ = src_normal.y_;
+                target_normal.z_ = src_normal.z_;
+            }
+            if (oldMask &amp; MASK_BLENDWEIGHTS) {
+                Vector4 &amp;src_weights = *reinterpret_cast&lt;Vector4 *&gt;( oldVertexWeights );
+                Vector4 &amp;target_weights = *reinterpret_cast&lt;Vector4 *&gt;( newVertexWeights );
+
+                target_weights.x_ = src_weights.x_;
+                target_weights.y_ = src_weights.y_;
+                target_weights.z_ = src_weights.z_;
+                target_weights.w_ = src_weights.w_;
+            }
+            if (oldMask &amp; MASK_BLENDINDICES) {
+                unsigned int &amp;src_weights = *reinterpret_cast&lt;unsigned int *&gt;( oldVertexWeightIndices );
+                unsigned int &amp;target_weights = *reinterpret_cast&lt;unsigned int *&gt;( newVertexWeightIndices );
+                target_weights = src_weights;
+
+            }
+            unsigned int &amp;target_color = *reinterpret_cast&lt;unsigned int *&gt;( newVertexColor );
+            target_color = Color(1.0,0.0,0.0,1.0).ToUInt();
+        }
+    }
+    oldVertexBuffer-&gt;Unlock();
+    newVertexBuffer-&gt;Unlock();
+    modelComponents[0]-&gt;GetModel()-&gt;GetGeometry(0,0)-&gt;SetVertexBuffer(0,newVertexBuffer);
+    modelComponents[0]-&gt;SetMaterial(vcolmat);
+
+    scene_-&gt;AddChild(scene_a_);
+    scene_-&gt;AddChild(bufNode);
+</code></pre>
+<p>So let us talk about weights again. I have 4 for weights and an uint for weight indices, are those indices corresponding to the models skeleton and its bones? How does the uint split into 4 indices for the for weights?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Check skinning code (UpdateSkinning function) in AnimatedModel.cpp + the skinning shader transformation (GetSkinMatrix) in Transform.glsl / hlsl. In the easy case, where skeleton as a whole doesn’t go over skinning bone limit, the 8-bit indices are directly the skeleton bone indices. Otherwise they go through a per-submodel mapping.</p>
+<p>The lowest 8 bits (or the first byte) of the index correspond to the weight stored in the x component of the weight Vector4, the next correspond to y and so on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>Just if someone wants to know how to extract the 4 bytes from the unsigned int extracted from vbo.</p>
+<pre><code>unsigned int i1 = target_indices &amp; 0x000000FF;
+unsigned int i2 = (target_indices &gt;&gt; 8) &amp; 0x000000FF;
+unsigned int i3 = (target_indices &gt;&gt; 16) &amp; 0x000000FF;
+unsigned int i4 = (target_indices &gt;&gt; 24) &amp; 0x000000FF;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1319_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">simonsch</div>
+          <div class="post_content">
+<p>I need to bother you and the community again ;).</p>
+<p>I have the weights and their indices, now i am trying to get the bone information from the scene. Here is the Root Node:</p>
+<pre><code class="lang-auto">    &lt;node id="4"&gt;
+		&lt;attribute name="Is Enabled" value="true" /&gt;
+		&lt;attribute name="Name" value="RootNode" /&gt;
+		&lt;attribute name="Tags" /&gt;
+		&lt;attribute name="Position" value="0 0 -0" /&gt;
+		&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+		&lt;attribute name="Scale" value="0.01 0.01 0.01" /&gt;
+		&lt;attribute name="Variables" /&gt;
+		&lt;node id="5"&gt;
+			&lt;attribute name="Is Enabled" value="true" /&gt;
+			&lt;attribute name="Name" value="world_offset" /&gt;
+			&lt;attribute name="Tags" /&gt;
+			&lt;attribute name="Position" value="0 0 -0" /&gt;
+			&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+			&lt;attribute name="Scale" value="1 1 1" /&gt;
+			&lt;attribute name="Variables" /&gt;
+			&lt;node id="6"&gt;
+				&lt;attribute name="Is Enabled" value="true" /&gt;
+				&lt;attribute name="Name" value="base" /&gt;
+				&lt;attribute name="Tags" /&gt;
+				&lt;attribute name="Position" value="0.010468 0.883459 -0.008136" /&gt;
+				&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+				&lt;attribute name="Scale" value="1 1 1" /&gt;
+				&lt;attribute name="Variables" /&gt;
+				&lt;node id="7"&gt;
+					&lt;attribute name="Is Enabled" value="true" /&gt;
+					&lt;attribute name="Name" value="spine1" /&gt;
+					&lt;attribute name="Tags" /&gt;
+					&lt;attribute name="Position" value="-0.000507 0.179195 0.015135" /&gt;
+					&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+					&lt;attribute name="Scale" value="1 1 1" /&gt;
+					&lt;attribute name="Variables" /&gt;
+					&lt;node id="8"&gt;
+						&lt;attribute name="Is Enabled" value="true" /&gt;
+						&lt;attribute name="Name" value="spine2" /&gt;
+						&lt;attribute name="Tags" /&gt;
+						&lt;attribute name="Position" value="-6.3e-05 0.144263 0.002484" /&gt;
+						&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+						&lt;attribute name="Scale" value="1 1 1" /&gt;
+						&lt;attribute name="Variables" /&gt;
+						&lt;node id="9"&gt;
+							&lt;attribute name="Is Enabled" value="true" /&gt;
+							&lt;attribute name="Name" value="spine3" /&gt;
+							&lt;attribute name="Tags" /&gt;
+							&lt;attribute name="Position" value="-0.003294 0.206917 0.022406" /&gt;
+							&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+							&lt;attribute name="Scale" value="1 1 1" /&gt;
+							&lt;attribute name="Variables" /&gt;
+							&lt;node id="10"&gt;
+								&lt;attribute name="Is Enabled" value="true" /&gt;
+								&lt;attribute name="Name" value="spine4" /&gt;
+								&lt;attribute name="Tags" /&gt;
+								&lt;attribute name="Position" value="-0.010595 0.112027 -0.018882" /&gt;
+								&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+								&lt;attribute name="Scale" value="1 1 1" /&gt;
+								&lt;attribute name="Variables" /&gt;
+								&lt;node id="11"&gt;
+									&lt;attribute name="Is Enabled" value="true" /&gt;
+									&lt;attribute name="Name" value="spine5" /&gt;
+									&lt;attribute name="Tags" /&gt;
+									&lt;attribute name="Position" value="-0.000212 0.034025 -0.001683" /&gt;
+									&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+									&lt;attribute name="Scale" value="1 1 1" /&gt;
+									&lt;attribute name="Variables" /&gt;
+									&lt;node id="12"&gt;
+										&lt;attribute name="Is Enabled" value="true" /&gt;
+										&lt;attribute name="Name" value="skullbase" /&gt;
+										&lt;attribute name="Tags" /&gt;
+										&lt;attribute name="Position" value="-0.005587 0.065566 -0.009266" /&gt;
+										&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+										&lt;attribute name="Scale" value="1 1 1" /&gt;
+										&lt;attribute name="Variables" /&gt;
+										&lt;node id="13"&gt;
+											&lt;attribute name="Is Enabled" value="true" /&gt;
+											&lt;attribute name="Name" value="head" /&gt;
+											&lt;attribute name="Tags" /&gt;
+											&lt;attribute name="Position" value="-0.003432 0.063759 -0.005846" /&gt;
+											&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+											&lt;attribute name="Scale" value="1 1 1" /&gt;
+											&lt;attribute name="Variables" /&gt;
+										&lt;/node&gt;
+									&lt;/node&gt;
+								&lt;/node&gt;
+							&lt;/node&gt;
+							&lt;node id="14"&gt;
+								&lt;attribute name="Is Enabled" value="true" /&gt;
+								&lt;attribute name="Name" value="r_shoulder" /&gt;
+								&lt;attribute name="Tags" /&gt;
+								&lt;attribute name="Position" value="-0.1955 -0.047464 0.045533" /&gt;
+								&lt;attribute name="Rotation" value="0.998081 0.0525232 -0.0219416 0.0243751" /&gt;
+								&lt;attribute name="Scale" value="1 1 1" /&gt;
+								&lt;attribute name="Variables" /&gt;
+								&lt;node id="15"&gt;
+									&lt;attribute name="Is Enabled" value="true" /&gt;
+									&lt;attribute name="Name" value="r_elbow" /&gt;
+									&lt;attribute name="Tags" /&gt;
+									&lt;attribute name="Position" value="-0.117085 -0.24122 0.035155" /&gt;
+									&lt;attribute name="Rotation" value="0.996067 0.0461258 -0.0196229 0.0730643" /&gt;
+									&lt;attribute name="Scale" value="1 1 1" /&gt;
+									&lt;attribute name="Variables" /&gt;
+									&lt;node id="16"&gt;
+										&lt;attribute name="Is Enabled" value="true" /&gt;
+										&lt;attribute name="Name" value="r_wrist" /&gt;
+										&lt;attribute name="Tags" /&gt;
+										&lt;attribute name="Position" value="-0.173698 -0.228774 0.048215" /&gt;
+										&lt;attribute name="Rotation" value="0.986227 -0.154335 0.0435345 0.0405159" /&gt;
+										&lt;attribute name="Scale" value="1 1 1" /&gt;
+										&lt;attribute name="Variables" /&gt;
+										&lt;node id="17"&gt;
+											&lt;attribute name="Is Enabled" value="true" /&gt;
+											&lt;attribute name="Name" value="r_hand" /&gt;
+											&lt;attribute name="Tags" /&gt;
+											&lt;attribute name="Position" value="-0.019034 -0.021876 -0.048998" /&gt;
+											&lt;attribute name="Rotation" value="1 -0.00034527 0 0" /&gt;
+											&lt;attribute name="Scale" value="1 1 1" /&gt;
+											&lt;attribute name="Variables" /&gt;
+										&lt;/node&gt;
+									&lt;/node&gt;
+								&lt;/node&gt;
+							&lt;/node&gt;
+							&lt;node id="18"&gt;
+								&lt;attribute name="Is Enabled" value="true" /&gt;
+								&lt;attribute name="Name" value="l_shoulder" /&gt;
+								&lt;attribute name="Tags" /&gt;
+								&lt;attribute name="Position" value="0.207959 -0.029926 -0.012704" /&gt;
+								&lt;attribute name="Rotation" value="0.998255 -0.025097 -0.0123939 -0.0519856" /&gt;
+								&lt;attribute name="Scale" value="1 1 1" /&gt;
+								&lt;attribute name="Variables" /&gt;
+								&lt;node id="19"&gt;
+									&lt;attribute name="Is Enabled" value="true" /&gt;
+									&lt;attribute name="Name" value="l_elbow" /&gt;
+									&lt;attribute name="Tags" /&gt;
+									&lt;attribute name="Position" value="0.131096 -0.22705 -0.009158" /&gt;
+									&lt;attribute name="Rotation" value="0.998264 0.0218539 0.0196249 -0.0510582" /&gt;
+									&lt;attribute name="Scale" value="1 1 1" /&gt;
+									&lt;attribute name="Variables" /&gt;
+									&lt;node id="20"&gt;
+										&lt;attribute name="Is Enabled" value="true" /&gt;
+										&lt;attribute name="Name" value="l_wrist" /&gt;
+										&lt;attribute name="Tags" /&gt;
+										&lt;attribute name="Position" value="0.167438 -0.226738 -0.015483" /&gt;
+										&lt;attribute name="Rotation" value="0.998184 0.0328593 0.0485305 -0.0139181" /&gt;
+										&lt;attribute name="Scale" value="1 1 1" /&gt;
+										&lt;attribute name="Variables" /&gt;
+										&lt;node id="21"&gt;
+											&lt;attribute name="Is Enabled" value="true" /&gt;
+											&lt;attribute name="Name" value="l_hand" /&gt;
+											&lt;attribute name="Tags" /&gt;
+											&lt;attribute name="Position" value="0.029413 -0.037956 -0.062907" /&gt;
+											&lt;attribute name="Rotation" value="1 -0.00034527 0 0" /&gt;
+											&lt;attribute name="Scale" value="1 1 1" /&gt;
+											&lt;attribute name="Variables" /&gt;
+										&lt;/node&gt;
+									&lt;/node&gt;
+								&lt;/node&gt;
+							&lt;/node&gt;
+						&lt;/node&gt;
+					&lt;/node&gt;
+				&lt;/node&gt;
+				&lt;node id="22"&gt;
+					&lt;attribute name="Is Enabled" value="true" /&gt;
+					&lt;attribute name="Name" value="r_hip" /&gt;
+					&lt;attribute name="Tags" /&gt;
+					&lt;attribute name="Position" value="-0.094009 0.00271 1e-05" /&gt;
+					&lt;attribute name="Rotation" value="0.999917 -0.0125657 0.00120387 0.00274575" /&gt;
+					&lt;attribute name="Scale" value="1 1 1" /&gt;
+					&lt;attribute name="Variables" /&gt;
+					&lt;node id="23"&gt;
+						&lt;attribute name="Is Enabled" value="true" /&gt;
+						&lt;attribute name="Name" value="r_knee" /&gt;
+						&lt;attribute name="Tags" /&gt;
+						&lt;attribute name="Position" value="-0.026486 -0.404262 0.056034" /&gt;
+						&lt;attribute name="Rotation" value="0.999748 0.0218696 -0.00155574 0.00483476" /&gt;
+						&lt;attribute name="Scale" value="1 1 1" /&gt;
+						&lt;attribute name="Variables" /&gt;
+						&lt;node id="24"&gt;
+							&lt;attribute name="Is Enabled" value="true" /&gt;
+							&lt;attribute name="Name" value="r_ankle" /&gt;
+							&lt;attribute name="Tags" /&gt;
+							&lt;attribute name="Position" value="-0.029707 -0.43241 -0.004766" /&gt;
+							&lt;attribute name="Rotation" value="0.994716 -0.0682225 0.0767137 -0.000671012" /&gt;
+							&lt;attribute name="Scale" value="1 1 1" /&gt;
+							&lt;attribute name="Variables" /&gt;
+							&lt;node id="25"&gt;
+								&lt;attribute name="Is Enabled" value="true" /&gt;
+								&lt;attribute name="Name" value="r_forefoot" /&gt;
+								&lt;attribute name="Tags" /&gt;
+								&lt;attribute name="Position" value="-0.039961 -0.036539 -0.114447" /&gt;
+								&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+								&lt;attribute name="Scale" value="1 1 1" /&gt;
+								&lt;attribute name="Variables" /&gt;
+								&lt;node id="26"&gt;
+									&lt;attribute name="Is Enabled" value="true" /&gt;
+									&lt;attribute name="Name" value="r_toe" /&gt;
+									&lt;attribute name="Tags" /&gt;
+									&lt;attribute name="Position" value="-0.002013 3.9e-05 -0.059707" /&gt;
+									&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+									&lt;attribute name="Scale" value="1 1 1" /&gt;
+									&lt;attribute name="Variables" /&gt;
+								&lt;/node&gt;
+							&lt;/node&gt;
+						&lt;/node&gt;
+					&lt;/node&gt;
+				&lt;/node&gt;
+				&lt;node id="27"&gt;
+					&lt;attribute name="Is Enabled" value="true" /&gt;
+					&lt;attribute name="Name" value="l_hip" /&gt;
+					&lt;attribute name="Tags" /&gt;
+					&lt;attribute name="Position" value="0.094852 -0.010535 -0.00648" /&gt;
+					&lt;attribute name="Rotation" value="0.998716 -0.0150379 -0.00910026 -0.0475184" /&gt;
+					&lt;attribute name="Scale" value="1 1 1" /&gt;
+					&lt;attribute name="Variables" /&gt;
+					&lt;node id="28"&gt;
+						&lt;attribute name="Is Enabled" value="true" /&gt;
+						&lt;attribute name="Name" value="l_knee" /&gt;
+						&lt;attribute name="Tags" /&gt;
+						&lt;attribute name="Position" value="0.058439 -0.390751 0.056339" /&gt;
+						&lt;attribute name="Rotation" value="0.99998 -0.00315468 -0.000490237 0.0055404" /&gt;
+						&lt;attribute name="Scale" value="1 1 1" /&gt;
+						&lt;attribute name="Variables" /&gt;
+						&lt;node id="29"&gt;
+							&lt;attribute name="Is Enabled" value="true" /&gt;
+							&lt;attribute name="Name" value="l_ankle" /&gt;
+							&lt;attribute name="Tags" /&gt;
+							&lt;attribute name="Position" value="0.042653 -0.429339 -0.013703" /&gt;
+							&lt;attribute name="Rotation" value="0.992421 -0.0870902 -0.0855505 -0.0140242" /&gt;
+							&lt;attribute name="Scale" value="1 1 1" /&gt;
+							&lt;attribute name="Variables" /&gt;
+							&lt;node id="30"&gt;
+								&lt;attribute name="Is Enabled" value="true" /&gt;
+								&lt;attribute name="Name" value="l_forefoot" /&gt;
+								&lt;attribute name="Tags" /&gt;
+								&lt;attribute name="Position" value="0.050877 -0.031824 -0.121819" /&gt;
+								&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+								&lt;attribute name="Scale" value="1 1 1" /&gt;
+								&lt;attribute name="Variables" /&gt;
+								&lt;node id="31"&gt;
+									&lt;attribute name="Is Enabled" value="true" /&gt;
+									&lt;attribute name="Name" value="l_toe" /&gt;
+									&lt;attribute name="Tags" /&gt;
+									&lt;attribute name="Position" value="-0.000362 0.001208 -0.06159" /&gt;
+									&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+									&lt;attribute name="Scale" value="1 1 1" /&gt;
+									&lt;attribute name="Variables" /&gt;
+								&lt;/node&gt;
+							&lt;/node&gt;
+						&lt;/node&gt;
+					&lt;/node&gt;
+				&lt;/node&gt;
+			&lt;/node&gt;
+		&lt;/node&gt;
+		&lt;node id="32"&gt;
+			&lt;attribute name="Is Enabled" value="true" /&gt;
+			&lt;attribute name="Name" value="model" /&gt;
+			&lt;attribute name="Tags" /&gt;
+			&lt;attribute name="Position" value="0 0 -0" /&gt;
+			&lt;attribute name="Rotation" value="1 0 0 0" /&gt;
+			&lt;attribute name="Scale" value="1 1 1" /&gt;
+			&lt;attribute name="Variables" /&gt;
+			&lt;component type="AnimatedModel" id="6"&gt;
+				&lt;attribute name="Model" value="Model;Models/model.mdl" /&gt;
+				&lt;attribute name="Material" value="Material;Materials/noname.xml" /&gt;
+				&lt;attribute name="Animation States"&gt;
+					&lt;variant type="Int" value="0" /&gt;
+				&lt;/attribute&gt;
+			&lt;/component&gt;
+		&lt;/node&gt;
+</code></pre>
+<p>So how i can get the joint information of those nodes? I tried</p>
+<pre><code class="lang-auto">        Node *bufNode = scene_a_-&gt;GetChild("RootNode")-&gt;Clone();
+        bufNode-&gt;GetDerivedComponents&lt;StaticModel&gt;(modelComponents, true);
+        bufNode-&gt;GetComponent&lt;StaticModel&gt;()-&gt;GetModel()-&gt;GetSkeleton();
+</code></pre>
+<p>But the bones are empty and have no transformation information. My second approach was</p>
+<pre><code class="lang-auto">Vector&lt;SharedPtr&lt;Node&gt; &gt; bones = bufNode-&gt;GetChild("world_offset")-&gt;GetChildren(true);
+        skinningMatrices.resize(bones.Size());
+        skinningMatrices.push_back(bufNode-&gt;GetChild("world_offset")-&gt;GetWorldTransform());
+        for(int i = 0; i &lt; bones.Size(); i++){
+            Matrix3x4 skinMat = bones[i]-&gt;GetWorldTransform();
+            skinningMatrices.push_back(skinMat);
+        }
+</code></pre>
+<p>Which leads to weird model morphing.</p>
+<p>EDIT 2.0:<br/>
+Was wrong i just had the world transformation of my parent node in each bone. So the following code was not working.</p>
+<pre><code class="lang-auto">    Vector&lt;Bone&gt; sk = animatedModel-&gt;GetModel()-&gt;GetSkeleton().GetBones();
+        for(int i = 0; i &lt; sk.Size(); i++){
+            if(sk[i].node_)
+                Matrix3x4 skinMat = sk[i].node_-&gt;GetWorldTransform();
+            Matrix3x4 skinMat = bufNode-&gt;GetWorldTransform();
+            skinningMatrices.push_back(skinMat);
+        }
+</code></pre>
+<p>The checking if the node exists makes the code runnable but the Skeleton from the <code>AnimatedModel</code> seems not to refer to the scene nodes.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

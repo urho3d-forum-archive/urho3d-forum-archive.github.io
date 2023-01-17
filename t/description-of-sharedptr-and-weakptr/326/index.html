@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Description of SharedPtr and WeakPtr</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Description of SharedPtr and WeakPtr</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">winduptoy</div>
+          <div class="post_content">
+<p>Can someone please explain the usage of the <span class="bbcode-b">SharedPtr</span> and <span class="bbcode-b">WeakPtr</span> classes and when to use them? For someone who is new to pointers and memory management, an explanation in the documentation would be great.</p>
+<p>Sorry if this is already in the documentation, I couldn’t find it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<p>Usually if you don’t know how to use them, you probably don’t need them.<br/>
+I haven’t used them here, but I suppose they work with the usual meaning that you can find for example here:<br/>
+<a href="http://www.cplusplus.com/reference/memory/shared_ptr/" rel="nofollow noopener">cplusplus.com/reference/memory/shared_ptr/</a><br/>
+<a href="http://en.cppreference.com/w/cpp/memory/weak_ptr" rel="nofollow noopener">en.cppreference.com/w/cpp/memory/weak_ptr</a></p>
+<p>Basically a pointer is a small variable that directs you to another place, usually a bigger portion of memory. In object oriented programming, that may be an object.<br/>
+Shared and weak pointers are smart pointers that can free memory when an object is no longer referenced by anyone.<br/>
+If you have a shared pointer, you own an object that may be also owned and modified by someone else. If the last shared pointer to an object is removed, the object is deleted and the memory is freed.<br/>
+The weak pointer points to an object from someone else, and it does not prevent the object to be deleted without you knowing it. If you try to modify the pointed object, and it still exists, your weak pointer is temporally transformed into shared pointer, so you can work with your object, and then release it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<p>Take the concept of a regular pointer. It’s a variable that points to an object in the memory. Let’s look at the downsides:</p>
+<p>[ul]<br/>
+[li] If the variable is deleted before the object is deleted, then there is nothing to keep track of the object and it is forever lost in memory. This is called a <a data-bbcode="true" href="http://en.wikipedia.org/wiki/Memory_leak" rel="nofollow noopener">Memory Leak</a>.[/li]<br/>
+[li] Multiple objects can keep a pointer reference to a given object. This can cause an issue where one object modifies the object, and the other objects assume that it’s still valid. Say I have an object type Car. I have a class CarTracker that keeps a pointer to an instance of Car. I also have a class Highway that keeps a pointer to the same instance of car. Say we assume that CarTracker “owns” the Car object and deletes it because we got into a space-bending accident, then Highway tries to access Car without knowing it has been deleted.[/li]<br/>
+[li] Conversely let’s say that nobody owns Car, and neither tracker decides to delete it. Then we run into the aforementioned Memory Leak.[/li][/ul]</p>
+<p>SharedPtr and WeakPtr are two classes designed to handle the problem of ownership of a pointer. In fact, modern day programming practices highly recommend the use of SharedPtr and WeakPtr instead of holding raw pointers. Even outside of Urho3D, we now have std::SharedPtr and std::WeakPtr to accomplish this.</p>
+<p>SharedPtr keeps track of the object that it is pointing to globally. If my instance of Car is tracked by both Highway and CarTracker, then the SharedPtr will contain 2 references of it.<br/>
+[ul]<br/>
+[li]If CarTracker or Highway removes it, then instead of the object getting deleted, only CarTracker’s reference to the object is removed and the Reference Counter is decreased to 1.[/li]<br/>
+[li]If both CarTracker AND Highway remove their reference to the object, then the Reference Counter is decreased to 0. [/li]<br/>
+[li]Since nothing references the object anymore, the SharedPtr class will delete the object at that point.[/li][/ul]</p>
+<p>WeakPtr helps to solve the problem of ownership. For example, if the previously mentioned instance of Car were supposed to be deleted as soon as CarTracker removes it, then SharedPtr cannot solve this on its own.<br/>
+[ul]<br/>
+[li] In this case, CarTracker should continue to hold a SharedPtr since it “owns” the Car.[/li]<br/>
+[li] Highway should instead hold a WeakPtr. This way if CarTracker removes the Car, the Car should be gone.[/li]<br/>
+[li] If the Car is gone and Highway still references the Car, then Highway will simply get a NULL value when attempting to access the pointer. This way we safely know when we no longer have a Car to track and can take appropriate action.[/li][/ul]</p>
+<p>Let me know if you have any more questions and I will do my best to clear things up for you <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/827_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">friesencr</div>
+          <div class="post_content">
+<p>What is the purpose of a WeakPtr over a normal pointer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gunnar.kriik</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/70bcc47748c28f7bda94e891e8db727b.png" width="20"/> friesencr:</div>
+<blockquote>
+<p>What is the purpose of a WeakPtr over a normal pointer.</p>
+</blockquote>
+</aside>
+<p>For safety reasons. If a the data pointed to by a raw pointer is deleted somewhere else then you have no way of knowing if that data is no longer there if you don’t own the data. A weak pointer will allow you to test for this when you convert the weak pointer to the shared pointer (when you wish to access the data pointed to by the weak ptr). If the data isn’t there anymore, then you get an empty shared ptr or null reference, or something else which is consistent. This way you can avoid a lot of weird crashes and memory corruptions amongst other things. Hope that made sense.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lexx</div>
+          <div class="post_content">
+<p>[I’m coming from java/c# world so this is the area that I still doesnt understand really]</p>
+<p>I had very difficult to understand shared_ptr and weak_ptr but thanks to everyone, now I think I understand these (more or less). Still I wonder, should I use always SharedPtr myObj;  or ie void *myObj;  Do you C++ programmers use always shared/weak pointers and forgot these “raw” pointers?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gunnar.kriik</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="lexx">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/6e6242a6efbb971acb090e14faa5d4ca.png" width="20"/> lexx:</div>
+<blockquote>
+<p> Still I wonder, should I use always SharedPtr myObj;  or ie void *myObj;  Do you C++ programmers use always shared/weak pointers and forgot these “raw” pointers?</p>
+</blockquote>
+</aside>
+<p>There is a place for code which uses raw pointers, but generally when you find yourself writing delete statements, you should look at your code and reconsider what you are doing (e.g. not use raw pointers). It seems simple and easy at first, but using raw pointers WILL at some point get you into the realm of memory leaks, memory corruption and random segfaults. I recommend reading Scott Meyers “Effective C++” if you feel that you need advice on what to do and what not to do in C++. In fact, if there is one C++ book you should read then this is it. It’s rather short, and offers excellent advice, although you might not appreciate / understand all of it at first if you are rather new to C++, but worth the read nonetheless. Mind you that Effective C++ third edition isn’t updated with the latest C++11 spec, but I heard that will arrive soon.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Urho3D uses intrusive reference counting (refcount is in the object itself, the RefCounted class) so it’s always valid to create a shared pointer from a raw pointer, or vice versa.</p>
+<p>What you should watch out that creating a SharedPtr manipulates the refcount, and for performance reasons this is not made thread-safe. So at least when you work with threads, you should rather use raw pointers.</p>
+<p>Adding on what Gunnar said, generally you should be very careful if you find yourself writing delete statements for objects that derive from RefCounted. Because if there’s a SharedPtr somewhere referencing that object, it will also delete the object when the refcount goes to zero. A double delete will result in a crash.</p>
+<p>Also when you don’t need to hold on to the object (for example, when you need it only for a duration of a function), using a SharedPtr is unnecessary overhead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">thebluefish</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/17ea6233fe86521c2e3179bd3849d219.png" width="20"/> cadaver:</div>
+<blockquote>
+<p>What you should watch out that creating a SharedPtr manipulates the refcount, and for performance reasons this is not made thread-safe. So at least when you work with threads, you should rather use raw pointers.</p>
+</blockquote>
+</aside>
+<p>Why not make it thread-safe? So long as raw pointers and shared pointers are intermixed for a given object, it’s at that point guaranteed that the ref count doesn’t drop to 0 when there is still actually a reference to the object.</p>
+<p>Enforcing best code practices for the benefit of thread safety far outweighs compatibility for outdated and unnecessary code practices.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">jorbuedo</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="thebluefish">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/bf1ad5330f9831ec6d82214e91751e5d.png" width="20"/> thebluefish:</div>
+<blockquote>
+<p>[quote=“cadaver”]What you should watch out that creating a SharedPtr manipulates the refcount, and for performance reasons this is not made thread-safe. So at least when you work with threads, you should rather use raw pointers.</p>
+</blockquote>
+</aside>
+<p>Why not make it thread-safe? So long as raw pointers and shared pointers are intermixed for a given object, it’s at that point guaranteed that the ref count doesn’t drop to 0 when there is still actually a reference to the object.</p>
+<p>Enforcing best code practices for the benefit of thread safety far outweighs compatibility for outdated and unnecessary code practices.[/quote]</p>
+<p>As he said, it’s not about compatibility for outdated and unnecessary code practices, it’s about performance.<br/>
+Thread safety is avoiding race conditions, and ensuring that for everything is costly. In a game engine, even if you try to make it easy, sometimes you have to go for performance and leave the safety to the programmer.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

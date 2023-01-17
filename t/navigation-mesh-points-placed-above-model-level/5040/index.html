@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Navigation mesh points placed above model level</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Navigation mesh points placed above model level</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">NinjaPangolin</div>
+          <div class="post_content">
+<p>Let’s take a closer look at character in 15_Navigation demo. Initially it stays correctly on the ground:</p>
+<p><img alt="before" height="499" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/2/296b76f1ea9f76fd4745ef471a08f6684a0e5086.png" width="646"/></p>
+<p>After clicking and moving it ends up slightly above ground.</p>
+<p><img alt="after" height="500" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/1/1a9199b9b0a0467e949e1917cf2a3340f64d4158.png" width="639"/></p>
+<p>In fact, comparing <code>GetPosition()</code> values for these states gives a difference equal to 0.2 on Y asix:</p>
+<pre><code class="lang-auto">Initial position: -5 0 20
+Final position: -4.74867 0.198792 29.8848
+</code></pre>
+<p>In <code>Navigation::CreateScene</code> I’ve add following debug cout:</p>
+<pre><code class="lang-auto">    // Now build the navigation geometry. This will take some time. Note that the navigation mesh will prefer to use
+    // physics geometry from the scene nodes, as it often is simpler, but if it can not find any (like in this example)
+    // it will use renderable geometry instead
+    navMesh-&gt;Build();
+
+    std::cout &lt;&lt; "Random points: " &lt;&lt; std::endl;
+    for(auto i=0; i &lt;20; ++i) {
+        auto pt = navMesh-&gt;GetRandomPoint();
+        std::cout &lt;&lt; "\t" &lt;&lt; pt.x_ &lt;&lt; " " &lt;&lt; pt.y_ &lt;&lt; " " &lt;&lt; pt.z_ &lt;&lt; std::endl;
+    }
+</code></pre>
+<p>And it looks like all navigation mesh points are placed slightly above the model level:</p>
+<pre><code class="lang-auto">Random points: 
+	-34.8614 0.2 -19.435
+	46.8862 0.2 16.3022
+	-15.4682 0.34107 -1.71237
+	16.1699 0.243568 27.2042
+	-14.4599 0.2 17.6979
+	-8.4888 0.2 -20.1714
+	-9.43277 0.2 -22.4549
+	-40.1437 0.2 49.0701
+	-21.6182 0.2 45.9047
+	-18.2657 0.2 -47.5353
+	21.4526 0.2 -18.5636
+	32.3839 0.2 -35.4006
+	0.882734 0.2 -36.7485
+	35.3857 0.2 -44.7061
+	36.6319 0.208437 11.8984
+	-29.6036 0.2 46.878
+	48.0064 0.2 47.2164
+	-46.7391 0.2 46.3535
+	2.76679 0.379008 14.8697
+	-49.0324 0.2 47.8133
+</code></pre>
+<p>What’s the cause and how can I fix this?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/96_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">JTippetts1</div>
+          <div class="post_content">
+<p>The cause is due to the fact that Recast rasterizes navigable geometry into a volume of cells. I’m guessing your cell height is 0.2. When the ground plane is rasterized into the volume it fills the bottom layer of cells,  then when it peels off the navmesh its offset by the cell height. Some ways to get around it include using a fine-grained volume resolution to reduce the error, or applying an offset to agent y position. There are geometry hacks that you could attempt by using hidden geometry to pad out the navigable area so that ground planes sit near the tops of volume cells instead of the bottoms. It’s a drawback of the volume raster technique that Recast uses, I’m afraid.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

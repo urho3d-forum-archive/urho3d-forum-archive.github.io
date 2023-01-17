@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>GetChild() not finding a node located in root?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">GetChild() not finding a node located in root?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>In main.cpp i have<br/>
+<code>Node* ConeNode = GetScene()-&gt;CreateChild("ConeMan")</code><br/>
+And it creates a Node, correctly named node. But when I try to do <code>GetScene()-&gt;GetChild("ConeMan")</code> in the <code>Start()</code> of a component it instead returns null and crashed later when I try to access the nonexistent node.<br/>
+Instead of trying to search for it I simply passed a reference to the component and it didn’t crash, so the problem definitely isn’t with creation<br/>
+Why isn’t it finding my correctly named node?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Are you sure you’re looking at the same <code>Scene</code>?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>The component calling the <code>GetChild()</code> is attached to and controls the camera, and I can see the cone in the world, so I’m sure it’s the correct scene. I’m using the 1.7 release, so maybe it’s an old bug fixed in master?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="3" data-topic="5174" data-username="throwawayerino">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/3d8d87e5724712e6dd00d78c32febd6a.png" width="20"/> throwawayerino:</div>
+<blockquote>
+<p>I’m using the 1.7 release, so maybe it’s an old bug fixed in master?</p>
+</blockquote>
+</aside>
+<p>Unlikely, although it would be wiser to use the latest master branch.<br/>
+Could you share some more code?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Creating/Loading scene<br/>
+<code>MainScene = new Scene(GetContext()); MainScene-&gt;LoadXML(Cache-&gt;GetResource&lt;XMLFile&gt;("Scenes/Help.xml")-&gt;GetRoot());</code></p>
+<p>Start() of Component</p>
+<pre><code>void CameraComponent::Start() {
+SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(CameraComponent, HandleUpdate));
+
+MainNode = GetNode();
+MainCamera = MainNode-&gt;GetComponent&lt;Camera&gt;();
+//ConeMan = GetScene()-&gt;GetChild("ConeMan"); &lt;--- problem here
+}
+</code></pre>
+<p>Making the cone and component<br/>
+Functions in a static class:</p>
+<pre><code>Node* Creators::MakeCamera(Scene* MainScene, Node* ConeMan) {
+Node* CameraNode = MainScene-&gt;CreateChild("CameraNode");
+Camera* MainCamera = CameraNode-&gt;CreateComponent&lt;Camera&gt;();
+MainCamera-&gt;SetFarClip(2000.f);
+//CameraNode-&gt;CreateComponent&lt;CameraComponent&gt;();
+// Fix for GetChild()
+CameraComponent* CamComp = (CameraComponent*)CameraNode-&gt;CreateComponent(CameraComponent::GetTypeStatic());
+CamComp-&gt;ConeMan = ConeMan;
+CameraNode-&gt;AddComponent(CamComp, 0U, Urho3D::REPLICATED);
+
+return CameraNode;
+};
+</code></pre>
+<p>.</p>
+<pre><code>Node* Creators::MakeCone(Scene * MainScene, Vector3 Position, Quaternion Rotation) {
+ResourceCache* Cache = MainScene-&gt;GetSubsystem&lt;ResourceCache&gt;();
+
+Node* ConeNode = MainScene-&gt;CreateChild("ConeMan");
+ConeNode-&gt;SetPosition(Position);
+ConeNode-&gt;SetRotation(Rotation);
+
+StaticModel* ConeModel = ConeNode-&gt;CreateComponent&lt;StaticModel&gt;();
+ConeModel-&gt;SetModel(Cache-&gt;GetResource&lt;Model&gt;("Models/Cone.mdl"));
+ConeModel-&gt;SetMaterial(Cache-&gt;GetResource&lt;Material&gt;("Materials/StoneTiled.xml"));
+ConeModel-&gt;SetCastShadows(true);
+
+return ConeNode;
+}
+</code></pre>
+<p>Code called in main.cpp</p>
+<pre><code>ConeNode = Creators::MakeCone(MainScene, Vector3(0.f, 1.f, 0.f));
+CameraNode = Creators::MakeCamera(MainScene, ConeNode);
+</code></pre>
+<p>As you can see the scenes passed when making the nodes are the same, so I’m sure it’s a bug. I’ll move to master and see</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I think I located the problem: <code>Start</code> is called after creation of the component, but <em>before it is assigned to a node</em>. No node; no scene.<br/>
+Try changing <code>CameraComponent::Start()</code> to <code>CameraComponent::OnNodeSet(Node* node)</code>.</p>
+<p>Btw, if you have your <code>Creators</code> inherit from <code>Object</code> it can <code>GetSubsystem</code>s too and even be registered as a subsystem itself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Thanks for the reply!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>One last note: I instead chose <code>OnSceneSet(Scene* scene)</code>, because when it’s called it directly gives me the scene, removing the need for a <code>GetScene()</code> call. But if I simply override it, the program will crash when exiting/cleaning up, because it’s called during cleanup to set the scene as <code>nullptr</code>. Here’s the completely working code:</p>
+<pre><code>virtual void OnSceneSet(Scene* scene) override;
+</code></pre>
+<hr/>
+<pre><code>void CameraComponent::OnSceneSet(Scene* scene) {
+	if(scene != nullptr)
+		ConeMan = scene-&gt;GetChild("ConeMan");
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I use DelayedStart, this one fires after reloads are complete, after everything is essentially ready in the scene, to do late initializing</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="8" data-topic="5174" data-username="throwawayerino">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/3d8d87e5724712e6dd00d78c32febd6a.png" width="20"/> throwawayerino:</div>
+<blockquote>
+<p><code>if(scene != nullptr)</code></p>
+</blockquote>
+</aside>
+<p>I personally prefer <code>if (!scene) return;</code> but indeed safety nets like that are required.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

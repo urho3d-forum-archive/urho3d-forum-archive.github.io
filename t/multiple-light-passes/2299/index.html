@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Multiple light passes?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Multiple light passes?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>In an effort to understand Urho3D’s rendering, I’ve decided to try and write my own custom renderpath, technique and shader. My aim right now is to implement simple phong shading with parallax mapping using forward rendering.</p>
+<p>Everything works, except that it only works for one light. If my scene has 2 (or more) lights, how do I tell Urho to render the scene as many times as there are lights, use a different light every pass, then blend them together?</p>
+<p><span class="bbcode-b">Custom.xml</span></p>
+<p><code>&lt;renderpath&gt;
+    &lt;command type="clear" color="fog" depth="1.0" stencil="0" /&gt;
+    &lt;command type="scenepass" pass="base" /&gt;
+    &lt;command type="forwardlights" pass="light" /&gt;
+&lt;/renderpath&gt;</code></p>
+<p><span class="bbcode-b">Parallax.xml</span></p>
+<p><code>&lt;technique vs="Phong_VS" ps="Phong_PS"&gt;
+    &lt;pass name="light" /&gt;
+&lt;/technique&gt;</code></p>
+<p>I don’t think there’s any need to post Phong_VS.glsl and Phong_PS.glsl at this point, but I should note that I am using <span class="bbcode-b">cLightPosPS</span> and <span class="bbcode-b">cLightDirPS</span> for my lighting calculations, and I am <span class="bbcode-b">not</span> using <span class="bbcode-i">GetVertexLight()</span>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Your minimal technique for forward lighting with multi lights should look like this:</p>
+<pre><code class="lang-auto">&lt;technique vs="MyShader" ps="MyShader"&gt;
+    &lt;pass name="base" /&gt;
+    &lt;pass name="light" depthtest="equal" depthwrite="false" blend="add" /&gt;
+&lt;/technique&gt;</code></pre>
+<p>The light pass will be called for each light by the forwardlights command, and you need to manually configure additive blending for it. Otherwise each light overwrites the previous.<br/>
+You also need the base pass for the ambient light / absence of any light.</p>
+<p>The rendering will use the shader defines PERPIXEL and DIRLIGHT / SPOTLIGHT / POINTLIGHT for the light pass; you can use the absence of these to detect that it should render ambient instead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>Ok cool, got that to work.</p>
+<p>What about multiple passes of the same type in a single technique? For instance, a fur shader will typically render the same object 10-30 times and move each vertex along its normal further every pass. Something like this:</p>
+<p><code>&lt;technique vs="Fur_VS" ps="Fur_PS"&gt;
+    &lt;pass name="base" vsdefines="FUR_HEIGHT=0" /&gt;
+    &lt;pass name="litalpha" depthtest="lessequal" depthwrite="true" blend="addalpha" vsdefines="FUR_HEIGHT=1" /&gt;
+    &lt;pass name="litalpha" depthtest="lessequal" depthwrite="true" blend="addalpha" vsdefines="FUR_HEIGHT=2" /&gt;
+    &lt;pass name="litalpha" depthtest="lessequal" depthwrite="true" blend="addalpha" vsdefines="FUR_HEIGHT=3" /&gt;
+    &lt;pass name="litalpha" depthtest="lessequal" depthwrite="true" blend="addalpha" vsdefines="FUR_HEIGHT=4" /&gt;
+    &lt;pass name="litalpha" depthtest="lessequal" depthwrite="true" blend="addalpha" vsdefines="FUR_HEIGHT=5" /&gt;
+    &lt;pass name="litalpha" depthtest="lessequal" depthwrite="true" blend="addalpha" vsdefines="FUR_HEIGHT=6" /&gt;
+    &lt;pass name="litalpha" depthtest="lessequal" depthwrite="true" blend="addalpha" vsdefines="FUR_HEIGHT=7" /&gt;
+    &lt;pass name="litalpha" depthtest="lessequal" depthwrite="true" blend="addalpha" vsdefines="FUR_HEIGHT=8" /&gt;
+&lt;/technique&gt;</code></p>
+<p>As far as I can tell, only the last pass and the base pass is being executed and the 7 passes in between are overwritten.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>You can’t define a pass with the same name multiple times, as it’s going to get overwritten. Also, alpha rendering is kind of hardcoded to first render the base pass and then the litalpha pass immediately after, in the objects’ back-to-front order, so I’m afraid multiple alpha passes with an increasing parameter are not going to work satisfactorily. You could look into the rendering code (View / Batch classes) to see if you can make a tweak into the logic, but I’m not certain it will be feasible.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Compile-time string hashing</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Compile-time string hashing</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Had some fun tonight trying to implement a <a data-bbcode="true" href="https://godbolt.org/g/4hdnjz" rel="nofollow noopener">constexpr version of the StringHash</a> type (<span class="bbcode-i">not an actual implementation. just a proof of concept</span>). Anyway, I thought I’d share it hoping that it could be integrated into the engine since C++11 can now be optionally enabled. If necessary I’ll make a pull request myself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>That sounds quite interesting. However I cann’t access the link. Can you put it on github?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<p>Sure, here’s a <a data-bbcode="true" href="https://gist.github.com/iSLC/ef8cee39a16661b953fc0ef61fb10b54" rel="nofollow noopener">gist</a>. To actually see the difference in the generated assembly code I’d suggest something like <a href="http://gcc.godbolt.org/" rel="nofollow noopener">gcc.godbolt.org/</a> with “-O3 -std=c++11” as command line. Uncommenting each example individually.</p>
+<p>I’ve actually wen’t ahead and integrated it with the engine and I’m trying it right now to see if it compiles (MinGW) and works. MSVC sure made it annoying considering they’ve introduced constexpr in the November CTP for 2013 and user defined literals again in the CTP 14 which eventually became 2015. So right now it looks a bit weird with some macros.</p>
+<p>EDIT: Well, one thing it did so far is to shave  about +250kb from the dll size (<span class="bbcode-i">with some components disabled. like 2d, lua, database</span>) and even from the samples as well. Considering only the StringHash type was specialized to take advantage of that, I’d say it’s decent. I wonder how far I can take it. A huge opportunity is in the URHO3D_OBJECT macro. But I need to be sure not to affect exports.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>Can you post the code here? I cannot access gist</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1016_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">S.L.C</div>
+          <div class="post_content">
+<pre><code class="lang-cpp">#include &lt;cstdio&gt;
+#include &lt;cctype&gt;
+
+// ------------------------------------------------------------------------------------------------
+
+/// Retrieve the lowercase version of an ASCII character.
+constexpr int tolower_c(int c)
+{
+    return (c &gt; 64 &amp;&amp; c &lt; 91) ? (c + 32) : c;
+}
+
+/// Retrieve the uppercase version of an ASCII character.
+constexpr int toupper_c(int c)
+{
+    return (c &gt; 96 &amp;&amp; c &lt; 123) ? (c - 32) : c;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+//// Calculate the hash of the given ASCII string using the SDBM algorithm at compile time.
+constexpr unsigned SDBMHash_C(const char* s, unsigned i, unsigned n, unsigned h)
+{
+	return i &lt; n ? SDBMHash_C(s, i + 1, n, tolower_c(s[i]) + (h &lt;&lt; 6) + (h &lt;&lt; 16) - h) : h;
+}
+
+//// Update a hash with the given 8-bit value using the SDBM algorithm.
+inline unsigned SDBMHash(unsigned hash, unsigned char c)
+{
+    return c + (hash &lt;&lt; 6) + (hash &lt;&lt; 16) - hash;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+// used as a workaround for overloading string literals
+struct IsCharPtrDummy
+{
+};
+template&lt; typename T &gt; struct IsCharPtr
+{
+};
+template&lt;&gt; struct IsCharPtr&lt; const char * &gt;
+{
+    typedef IsCharPtrDummy* Type;
+};
+template&lt;&gt; struct IsCharPtr&lt; char * &gt;
+{
+    typedef IsCharPtrDummy* Type;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+// dummy hash class with optional compile time evaluation
+struct shash
+{
+  	unsigned value;
+
+  	// pre-compiled hash
+    explicit constexpr shash(unsigned hash)
+  		: value(hash)
+  	{
+  	}
+
+  	// compile time hash
+	template&lt; unsigned N &gt; constexpr shash(const char(&amp;a)[N])
+  		: value(SDBMHash_C(a, 0, N-1, 0))
+  	{
+  	}
+
+  	// run-time non-const buffer hash
+	template&lt; unsigned N &gt; shash(char(&amp;a)[N])
+  		: value(calculate(a))
+  	{
+  	}
+
+  	// regular hash
+  	template&lt; typename T &gt; shash(T str, typename IsCharPtr&lt;T&gt;::Type=0)
+      	: value(calculate(str))
+  	{
+  	}
+
+  	// compile time hash of explicit length string
+    constexpr shash(const char* str, size_t len)
+  		: value(SDBMHash_C(str, 0, len, 0))
+  	{
+  	}
+
+  	unsigned calculate(const char* str)
+	{
+    	unsigned hash = 0;
+
+    	if (!str)
+        	return hash;
+
+    	while (*str)
+    	{
+        	// Perform the actual hashing as case-insensitive
+        	char c = *str;
+        	hash = SDBMHash(hash, (unsigned char)tolower(c));
+        	++str;
+    	}
+
+    	return hash;
+	}
+};
+
+// ------------------------------------------------------------------------------------------------
+
+constexpr shash operator "" _hash(const char* str, size_t len)
+{
+    return shash(str, len);
+}
+
+constexpr unsigned operator "" _h(const char* str, size_t len)
+{
+    return SDBMHash_C(str, 0, len, 0);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void test(const shash hash)
+{
+	printf("%u\n", hash.value);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int main()
+{
+ 	const char * cstr = "abc";
+  	char sbuf[] = "abc";
+
+  	// compile time evaluation
+	test("abc");
+ 	//test(shash("abc")); // same thing
+  
+ 	// compile time evaluation with user defined literal
+	//test("abc"_hash);
+ 
+  	// compile time evaluation with user defined literal
+  	// ugly because that constructor is explicit :(
+	//test(shash("abc"_h));
+ 
+  	// run-time evaluation
+  	//test(cstr);
+ 
+  	// run-time evaluation on non-const buffers (preferably?)
+  	//test(sbuf);
+ 
+  	return 0;
+}
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">yushli</div>
+          <div class="post_content">
+<p>Thank you for sharing this! Hope this can be merged into main branch.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">smellymumbler</div>
+          <div class="post_content">
+<p>What’s the benefit of using this? Much faster? Sorry about the ignorance. <img alt=":frowning:" class="emoji" src="../../../images2/2506cac83464f3f86e257fa414340d4c.png" title=":frowning:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>It mostly about <code>switch</code> with string hash keys and templates and such compile-time places.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

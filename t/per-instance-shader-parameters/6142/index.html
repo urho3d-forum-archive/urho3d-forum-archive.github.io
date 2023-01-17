@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Per instance shader parameters?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Per instance shader parameters?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>My shader takes in a boolean and whenever I toggle the parameter using <code>SetShaderParameter()</code> all models with the same material also get changed. I could easily clone the material, but 1) I would lose instancing optimization and 2) isn’t easy to do in the editor</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<p>There is a hack that let you pass additional per-instance data.<br/>
+However, it can be done only if you make new drawable component and manually fill or edit batches (maybe inherited from existing one).</p>
+<p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/Drawable.h#L104</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="94" style="counter-reset: li-counter 93 ;">
+<li>    float distance_{};
+</li>
+<li>    /// Geometry.
+</li>
+<li>    Geometry* geometry_{};
+</li>
+<li>    /// Material.
+</li>
+<li>    SharedPtr&lt;Material&gt; material_;
+</li>
+<li>    /// World transform(s). For a skinned model, these are the bone transforms.
+</li>
+<li>    const Matrix3x4* worldTransform_{&amp;Matrix3x4::IDENTITY};
+</li>
+<li>    /// Number of world transforms.
+</li>
+<li>    unsigned numWorldTransforms_{1};
+</li>
+<li>    /// Per-instance data. If not null, must contain enough data to fill instancing buffer.
+</li>
+<li class="selected">    void* instancingData_{};
+</li>
+<li>    /// %Geometry type.
+</li>
+<li>    GeometryType geometryType_{GEOM_STATIC};
+</li>
+<li>};
+</li>
+<li>
+</li>
+<li>/// Base class for visible components.
+</li>
+<li>class URHO3D_API Drawable : public Component
+</li>
+<li>{
+</li>
+<li>    URHO3D_OBJECT(Drawable, Component);
+</li>
+<li>
+</li>
+<li>    friend class Octant;
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Graphics/Renderer.h#L230</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="220" style="counter-reset: li-counter 219 ;">
+<li>void SetVSMMultiSample(int multiSample);
+</li>
+<li>/// Set post processing filter to the shadow map.
+</li>
+<li>void SetShadowMapFilter(Object* instance, ShadowMapFilter functionPtr);
+</li>
+<li>/// Set reuse of shadow maps. Default is true. If disabled, also transparent geometry can be shadowed.
+</li>
+<li>void SetReuseShadowMaps(bool enable);
+</li>
+<li>/// Set maximum number of shadow maps created for one resolution. Only has effect if reuse of shadow maps is disabled.
+</li>
+<li>void SetMaxShadowMaps(int shadowMaps);
+</li>
+<li>/// Set dynamic instancing on/off. When on (default), drawables using the same static-type geometry and material will be automatically combined to an instanced draw call.
+</li>
+<li>void SetDynamicInstancing(bool enable);
+</li>
+<li>/// Set number of extra instancing buffer elements. Default is 0. Extra 4-vectors are available through TEXCOORD7 and further.
+</li>
+<li class="selected">void SetNumExtraInstancingBufferElements(int elements);
+</li>
+<li>/// Set minimum number of instances required in a batch group to render as instanced.
+</li>
+<li>void SetMinInstances(int instances);
+</li>
+<li>/// Set maximum number of sorted instances per batch group. If exceeded, instances are rendered unsorted.
+</li>
+<li>void SetMaxSortedInstances(int instances);
+</li>
+<li>/// Set maximum number of occluder triangles.
+</li>
+<li>void SetMaxOccluderTriangles(int triangles);
+</li>
+<li>/// Set occluder buffer width.
+</li>
+<li>void SetOcclusionBufferSize(int size);
+</li>
+<li>/// Set required screen size (1.0 = full screen) for occluders.
+</li>
+<li>void SetOccluderSizeThreshold(float screenSize);
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

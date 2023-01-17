@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>NavigationPathPoint : unexcepted areaID values?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">NavigationPathPoint : unexcepted areaID values?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>Hi there!<br/>
+I try to play with navmesh and got strange behavior with areaID values in path.<br/>
+So I have three planes on scene with some stuff on it.  And each plane have own navArea component with assigned in editor areaID value ~ 1,2,3 for planes<br/>
+<a data-bbcode="true" href="http://savepic.net/7946011.htm"><img alt="" height="" src="../../../images2/604fad069439e95a5f074f940aff232b.png" width=""/></a></p>
+<p>when I try to get navMesh-&gt;FindPath(…)</p>
+<p>PODVector currentPath2_;<br/>
+unsigned char areaID = currentPath2_[0].areaID_;</p>
+<p>the path store within - unusual/unexcepted values: for example my testBot starting from navArea with areaID = 1 but path return 205(‘H’) - value instead 1<br/>
+so that I forgot or doing wrong with setup areaID ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>I suppose I found a problem place, this is it --&gt; pt.areaID_ = pathData_-&gt;pathAreras_[i];<br/>
+because, pathAreras_ never filled with any values anywhere, so within it some kind of garbage I guess</p>
+<p>[code]void NavigationMesh::FindPath(PODVector&amp; dest, const Vector3&amp; start, const Vector3&amp; end,<br/>
+const Vector3&amp; extents,<br/>
+const dtQueryFilter* filter)<br/>
+{<br/>
+…<br/>
+// Transform path result back to world space<br/>
+for (int i = 0; i &lt; numPathPoints; ++i)<br/>
+{<br/>
+NavigationPathPoint pt;<br/>
+pt.position_ = transform * pathData_-&gt;pathPoints_[i];<br/>
+pt.flag_ = (NavigationPathPointFlag)pathData_-&gt;pathFlags_[i];<br/>
+pt.areaID_ = pathData_-&gt;pathAreras_[i];</p>
+<pre><code>    dest.Push(pt);
+}[/code]
+</code></pre>
+<p>EDIT:<br/>
+I fixed this Issue : see comment blocks - fix1 and fix2<br/>
+[pastebin]PqWPiLiE[/pastebin]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>Thanks. A pull request at the github project is the preferred way to get fixes in. Is there other places that are affected and need the same fix?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>finally I made some polishing and place code to:</p>
+<p>1: class NavigationMesh</p>
+<p><code>    /// NavAreas for this NavMesh
+    PODVector&lt;Node*&gt; areas_;</code></p>
+<p>2: To reduce performance penalty I placed getNodes into CollectGeometries(). So in this case we update areas_ array only when we doing navMesh-&gt;Build()</p>
+<pre><code class="lang-auto"></code></pre>
+<p>3: simplify NavigationMesh::FindPath</p>
+<p>[code]    // Transform path result back to world space<br/>
+for (int i = 0; i &lt; numPathPoints; ++i)<br/>
+{<br/>
+bool find = false;<br/>
+NavigationPathPoint pt;<br/>
+pt.position_ = transform * pathData_-&gt;pathPoints_[i];<br/>
+pt.flag_ = (NavigationPathPointFlag)pathData_-&gt;pathFlags_[i];<br/>
+pt.areaID_ = pathData_-&gt;pathAreras_[i];</p>
+<pre><code>    // Fix2-begin for NavArea components
+    for (unsigned j = 0; j &lt; areas_.Size(); j++)
+    {
+        NavArea* area = areas_[j]-&gt;GetComponent&lt;NavArea&gt;();
+        if (area &amp;&amp; area-&gt;IsEnabledEffective()) 
+        {
+            BoundingBox bb = area-&gt;GetWorldBoundingBox();
+            if (bb.IsInside(pt.position_) == INSIDE)
+            {
+                pt.areaID_ = (unsigned char)area-&gt;GetAreaID();
+                break;
+            }
+        }
+    }
+    // Fix2-end for NavArea components
+
+    dest.Push(pt);
+} 
+</code></pre>
+<p>[/code]<br/>
+so after this fixes it’s works fine for my using case, expect one moment when agent travelling though offMeshConnection, it not get areaID from this offMeshConnection.<br/>
+(actually as before they also return garbage values, but now my navAreas override garbage values then by new execution path)</p>
+<p>4: also I think if few navAreas have the same point within need doing some kind of sorting by distance to navArea origin for choose nearest navArea</p>
+<ol start="5">
+<li>so, since this feature works without Detour middleware(above it / over it) there is no need keep only 64 max navAreas i suppose.</li>
+</ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>I believe I’m not qualified enough to comment. By all means make a PR, then we’ll hopefully get more eyes (and comments) on this in a structured manner.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Blend Animation with Ragdoll?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Blend Animation with Ragdoll?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">xalinou</div>
+          <div class="post_content">
+<p>I’m trying to do something like this in Urho:</p>
+<p><img alt="" height="300" src="../../../images2/7542c997530a371c29bc9f6accd4c189.gif" width="480"/></p>
+<p>But, no matter what i do, after enabling the ragdoll on a model, it just “dies” and lays down. Can my animation be blended into the ragdoll itself?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<p>My guess is that you need to use the transformation from the animation as linear &amp; angular force on the rigid bodies (while taking time into account).<br/>
+Probably at the bone level.</p>
+<p>Though it kinda looks like it doesn’t get any resistance from collision, meaning it doesn’t use forces. So it might just be setting the rigid body / bone local positions while having active physical simulation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">xalinou</div>
+          <div class="post_content">
+<p>How can i convert a bone translation/rotation to a physic force in Bullet? Is that even possible? I’m lost.  <img alt=":smiley:" class="emoji" src="../../../images2/c16ddadcbd525aa6d219a1df596d362f.png" title=":smiley:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="xalinou">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/12f4bf38c48e802c11d3df1001c963f6.png" width="20"/> xalinou:</div>
+<blockquote>
+<p>How can i convert a bone translation/rotation to a physic force in Bullet? Is that even possible? I’m lost.  <img alt=":smiley:" class="emoji" src="../../../images2/7014497b1c97c810791a011290bda7f5.png" title=":smiley:"/></p>
+</blockquote>
+</aside>
+<p>You can do that by taking the derivative of each bone’s position and angle over time:</p>
+<p><img alt="" height="116" src="../../../images2/48b56dd1a76f973292bdbc8736a79598.png" width="529"/></p>
+<p>From that you can calculate the impulse (where m is the mass of the joint, p is the impulse).</p>
+<p><img alt="" height="25" src="../../../images2/4ad872dd9d23e0c6b0ff5e61ea47da01.png" width="93"/></p>
+<p>You can then pass the impulse to bullet</p>
+<pre><code class="lang-auto">body-&gt;applyCentralImpulse( btVector3( p ) );</code></pre>
+<p>(same for angles, this example was for translations)</p>
+<p>This whole procedure is fairly unstable though. You’ll definitely have to apply limits to the maximum force that is allowed. Your animation can quickly generate infinite forces or otherwise forces that shouldn’t be physically possible.</p>
+<p>In the end, bullet will reverse everything you did. That is, it will take the impulse, integrate it over the next time step, divide by mass, and it will arrive at where you began. Perhaps there’s a shortcut where you can simply set the position of the joint instead of applying an impulse to the joint.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">xalinou</div>
+          <div class="post_content">
+<p>Thanks a lot for the detailed information. But i’m curious about the impulses: won’t they affect the animation? Or they only will have an effect when i foreach the bones and set:</p>
+<pre><code class="lang-auto">GetBone(i)-&gt;animated_ = false;</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<p>[quote=“xalinou”]Thanks a lot for the detailed information. But i’m curious about the impulses: won’t they affect the animation? Or they only will have an effect when i foreach the bones and set:</p>
+<p><code>
+GetBone(i)-&gt;animated_ = false;
+</code>[/quote]</p>
+<p>You’ll have to have two copies of the skeleton and the model will only be attached to one of them (the physically simulated one). The other is invisible and serves for calculating the impulses.</p>
+<p>I just realised, calculating impulse is just one half of the problem. Once the model hits something, it will get out of sync with the animation pose. What you really need to do is compare the animation pose with the current state of the model and derive your forces from there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/81_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Enhex</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="TheComet">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/ba16b189a5c8898be0e4351de6c4b98b.png" width="20"/> TheComet:</div>
+<blockquote>
+<p>[quote=“xalinou”]How can i convert a bone translation/rotation to a physic force in Bullet? Is that even possible? I’m lost.  <img alt=":smiley:" class="emoji" src="../../../images2/94dd27e9c6c243335d29229e02e34e9d.png" title=":smiley:"/></p>
+</blockquote>
+</aside>
+<p>You can do that by taking the derivative of each bone’s position and angle over time:</p>
+<p><img alt="" height="116" src="../../../images2/48b56dd1a76f973292bdbc8736a79598.png" width="529"/></p>
+<p>From that you can calculate the impulse (where m is the mass of the joint, p is the impulse).</p>
+<p><img alt="" height="25" src="../../../images2/4ad872dd9d23e0c6b0ff5e61ea47da01.png" width="93"/></p>
+<p>You can then pass the impulse to bullet</p>
+<pre><code class="lang-auto">body-&gt;applyCentralImpulse( btVector3( p ) );</code></pre>
+<p>(same for angles, this example was for translations)[/quote]</p>
+<p>You can just get the change vector from the last position to the current one.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1493_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">TheComet</div>
+          <div class="post_content">
+<aside class="quote">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/2a544a080a692659db243ae9ac8c57ef.png" width="20"/> Enhex:</div>
+<blockquote>
+<p>You can just get the change vector from the last position to the current one.</p>
+</blockquote>
+</aside>
+<p>You’ll also have to divide by delta time. That’s what the derivative is.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">namic</div>
+          <div class="post_content">
+<p>in Unity, there’s a nice feature called animatePhysics: <a href="https://docs.unity3d.com/ScriptReference/Animation-animatePhysics.html" rel="nofollow noopener">docs.unity3d.com/ScriptReferenc … ysics.html</a></p>
+<p>What if you set a rigidbody for all bones, but SetKinematic(true), and when the character is killed, you disable it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I tried using kinematic rigidbodies initially, but later realized that A) Bullet won’t apply forces to them, so B) they won’t react plausibly when hit, and C) the handover from kinematic to dynamic mode is not clean - the dynamic bodies won’t automatically inherit momentum from the animated state.<br/>
+I’m currently experimenting with a dynamic rigidbody armature whose node transforms are overwritten with bone animation transforms at the end of the physics step. The idea is to let Bullet perform full dynamics on the bodyparts, but then overwrite whatever Bullet did in order to apply the animated skeletal rig to the rigidbody armature.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

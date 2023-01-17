@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Debugging Bullet physics issues - grr [Solved]</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Debugging Bullet physics issues - grr [Solved]</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>CollisionShape and RigidBody are just containers for bullet objects - but we don’t expose those object in c++, and we don’t set the userpointer member on the bullet objects?<br/>
+At least Erwin had the sense to make (most everything) be POD structs, so we always could access…<br/>
+Urho3D is limiting my runtime access to its underlying third party objects…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Aren’t <code>RigidBody::GetBody()</code> <code>CollisionShape::GetCollisionShape()</code> how we expose the underlying bullet structures in c++, or have those been changed/removed?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I didn’t see any CollisionShape::GetCollisionShape anywhere (I’ll doublecheck) but my point was really about debugging collision callbacks - where we are handed a bullet CollisionObject that we can cast back to a bullet CollisionShape - but from there, we’re screwed, we can’t cast back from there to an Urho CollisionShape or RigidBody given a bullet object of those types. Bullet objects have a “userpointer” which is often used for this purpose, but I don’t think we’re setting it - this means there is no way to, for example, obtain the Name of an object involved in a collision, because we can’t get hold of any Urho objects from within a collision callback - therefore we can’t get to the parent Node to query its name.</p>
+<p>[EDIT]</p>
+<ol>
+<li>
+<p>Urho’s RigidBody class has no GetCollisionShape method - given an urho rb, we have to query the parent node for the CollisionShape component (which we assume is attached to the same node as the body). But having done so, Urho’s CollisionShape class DOES have a GetCollisionShape method to expose the underlying bullet object - so accessing bullet objects from urho objects is definitely possible.</p>
+</li>
+<li>
+<p>Both Urho RigidBody and Urho CollisionShape ARE setting UserPointer on the underlying bullet objects. Therefore, it is also possible to cast back from a bullet object to an Urho object!</p>
+</li>
+</ol>
+<p>Sometimes it’s nice to be wrong <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+<p>[EDIT AGAIN]<br/>
+It is noteworthy that although Urho’s CollisionShape class provides a GetCollisionShape method, the same cannot be said of Urho’s RigidBody class - there’s no way to access the underlying bullet rb from an urho rb.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1929_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">guk_alex</div>
+          <div class="post_content">
+<blockquote>
+<p>there’s no way to access the underlying bullet rb from an urho rb</p>
+</blockquote>
+<p>Urho3D::RigidBody :</p>
+<p><code>/// Return Bullet rigid body.</code><br/>
+<code>btRigidBody* GetBody() const { return body_.Get(); }</code></p>
+<p>Is that what you asked for?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Yep! That is what I was looking for <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/><br/>
+As I’ve said, Urho is fairly mature - but lacking in documentation.<br/>
+Actually, it’s not going to help solve my current issues, but nice to know it exists !!<br/>
+Thank you <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>After a LOT of debugging, I was able to determine the exact source of my problem.<br/>
+There is a bug in XML deserialization of Urho3D RigidBody - or rather, a problem with the notion that RigidBodies are instantiated, and attached to the scene, PRIOR to attribute deserialization, so the attributes are never applied to the bullet objects…</p>
+<p>When I construct my scene in code, I call RigidBody SetLayerAndMask on every rigidbody that I create. I then save the scene, and note that these values are correctly serialized to xml.<br/>
+Then I load that same xml file back into my app.<br/>
+At this point, my rigidbodies are constructed and attached to the new scene with default layer and mask values (-1). But the attributes are never deserialized, or if they are, they are deserialized incorrectly : the default values are being used, and certainly, no attempt is made to call SetLayer, SetMask, or SetLayerAndMask during deserialization.<br/>
+If deserialization is correctly reading the values back in, well, the rigidbody was attached with default values, and we probably need to “re-add” rigidbodies just after we deserialize the layer and mask attributes, in order to have our deserialized values applied to the bullet objects.<br/>
+I’d say this issue is squarely in Urho’s court <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Part of the problem was RigidBody::reAddBody_ flag has a default value of false. When loading scene from XML, the value will also be false by default… this causes a failure in RigidBody::ApplyAttribute().<br/>
+So I made the following minor change to force attributes to be applied:</p>
+<pre><code class="lang-auto">    //if (readdBody_)
+        AddBodyToWorld();</code></pre>
+<p>Now I was able to see for certain that all my rigidbodies had the correct layer and mask values after deserialization. But a problem remained when I performed my raycast!<br/>
+In my character class, the following line of code is causing me problems:</p>
+<pre><code class="lang-auto">        phyWorld-&gt;RaycastSingle(result, ray, CollisionFilter::Static);</code></pre>
+<p>The value of the mask for the raytest (CollisionFilter::Static) is 2. But when I debugged this call to PhysicsWorld::RaycastSingle?</p>
+<pre><code class="lang-auto">void PhysicsWorld::RaycastSingle(PhysicsRaycastResult&amp; result, const Ray&amp; ray, float maxDistance, unsigned collisionMask)
+{
+    URHO3D_PROFILE(PhysicsRaycastSingle);
+
+    if (maxDistance &gt;= M_INFINITY)
+        URHO3D_LOGWARNING("Infinite maxDistance in physics raycast is not supported");
+
+    if(collisionMask==(unsigned)-1){
+        URHO3D_LOGWARNING("ERROR! RaycastSingle called with Mask=Everything!!!");
+        // Generate an interrupt
+        std::raise(SIGABRT);
+        }</code></pre>
+<p>This trap is triggered - what the hell? I passed in a constant integer value of 2, yet somehow that argument’s value has become -1!!!<br/>
+My callstack in this call is showing different values to what I expressly passed in!<br/>
+It is noteworthy that I perform some other raycasts in a different method of the same class, passing in the very same mask value, and they don’t trigger this trap.</p>
+<p>Could this be a compiler bug? Or even a bug in GDB debugger?<br/>
+Here’s what I get when I debug the call:</p>
+<aside class="quote no-group">
+<blockquote>
+<p>Calling RaycastSingle with mask=2<br/>
+[Fri Mar  1 15:07:14 2019] WARNING: ERROR! RaycastSingle called with Mask=4294967295</p>
+</blockquote>
+</aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Finally figured it out!</p>
+<p>Some of my raycast calls were missing a maxDistance argument!<br/>
+This meant that maxDistance was set to my input mask value, and the mask value used in the call was the default M_MAX_UNSIGNED value.<br/>
+I’ve just managed to crash codeblocks ide again, but I am feeling certain that I’ve solved this mystery <img alt=":slight_smile:" class="emoji" src="../../../images2/33cb8d9bf277cdb113680cf5564b6764.png" title=":slight_smile:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Are you counting how often you’re wrongfully claiming there’s a bug in not-your-code?</p>
+<aside class="quote" data-post="11" data-topic="4940">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/1452724d26bb99fb2e8f87d8c705c1c9.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/possible-bug-in-handling-of-e-physicscollisionend/4940/11">Possible bug in handling of E_PHYSICSCOLLISIONEND</a> <a class="badge-wrapper bullet" href="/c/discussions/support/10"><span class="badge-category-parent-bg" style="background-color: #25AAE2;"></span><span class="badge-category-bg" style="background-color: #92278F;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Someone can help you.">Support</span></a>
+</div>
+<blockquote>
+    If I had a dime for every time I wrongly blamed Urho in the beginning… <img alt="wink" class="emoji" height="20" src="../../../images2/58bcd684421190f24be1944e2a997a04.png" title="wink" width="20"/>
+</blockquote>
+</aside>
+<p>Sometimes things are simply not working as <em>expected</em>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>I don’t mind being wrong - but I did find an honest bug in this one. The issue is RigidBody::ApplyAttributes after reload - a flag is not being observed because its default value is false, and I didn’t change it in my code. The issue is that attributes dont get applied after a reload.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Good documentation goes a long way also.<br/>
+And also, pretty sure, there are no examples of foot-slipping mixed with foot-ik. Happy to share back!<br/>
+Notice how the snow ninjas slide around like they are skating on ice?<br/>
+Finally, after three days of whining and complaining, nobody pointed out my error, despite my posts. I had to work out for myself why my callstack was corrupted. And I did so. With no help <img alt=":wink:" class="emoji" src="../../../images2/54580715256ddb71bd695c5ac97f8802.png" title=":wink:"/><br/>
+If you don’t like how often I am posting, either ban me, or help me. I am at least offering feedback with positive results, despite my complaints.<br/>
+I’m embarrassed when I am totally wrong, but this time, I caught a deserialization bug you can reproduce.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="11" data-topic="4974" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>If you don’t like how often I am posting, either ban me, or help me. I am at least offering feedback with positive results, despite my complaints.</p>
+</blockquote>
+</aside>
+<p>I’m not asking you to post less. I’m just saying the more often you <em>wrongfully assume with seeming certainty</em> a bug to be outside your own code, the more your credibility (when it comes to identifying bugs) may be reduced.<br/>
+I think it saves <a href="https://en.wikipedia.org/wiki/Fear%2C_uncertainty_and_doubt" rel="noopener nofollow ugc">FUD</a> when simply speaking of “unexpected behavior” for instance, until you have more certainty about the root cause.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>im not worried about my street cred mate, this is not my first engine<br/>
+If i come off looking like a fool, at least at the end I post the answer, while nobody else did</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>I guess this thread is nice example of what <span class="mention">@Modanung</span> is saying. Your statement:</p>
+<aside class="quote no-group" data-post="10" data-topic="4974" data-username="Leith">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/344277caf39f87861709d8bd9d77ec6d.png" width="20"/> Leith:</div>
+<blockquote>
+<p>The issue is RigidBody::ApplyAttributes after reload - a flag is not being observed because its default value is false, and I didn’t change it in my code. The issue is that attributes dont get applied after a reload.</p>
+</blockquote>
+</aside>
+<p>doesn’t seem right. It’s enought to have a quick look at the rigidBody source to see that when attributes (collision mask and layer also) are loaded, ‘MarkBodyDirty’ is called and this method sets ‘readdBody_’ to true and therefore when attributes are applied AddBodyToWorld is called, so Your minor change (commenting out readdBody check) should make absolutely no difference.<br/>
+Right now I don’t have much time to check this closer, but i made quick efford to reproduce Your problem by simply loading ninja object (it’s serialized with rigid body) and it seems that everything is working as expected, readd flag is changed when loading, AddBodyToWorld is called on ApplyAttributes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>after reload, the relevant flag is still false, and so ApplyAttributes does nothing - check your facts, I do<br/>
+that modification to the engine allowed me to proceed to find the true cause, but it was part of the problem, and it was not my code doing it (or rather, not doing it). For your satisfaction sir, I shall issue a tiny PR tomorrow to cover this issue, which was just a sub-issue for me.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<p>When rigid body is created, before loading attributes:<br/>
+<img alt="before" height="169" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/5/55eb353699f601c917ae1440233507ba8a4afe6b.png" width="690"/><br/>
+After loading attributes, when ApplyAttributes is called:<br/>
+<img alt="after" height="168" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/0/02c879176dce967d53fd47fe7ad40012a5d1a072.png" width="690"/><br/>
+It’s this way because of this:</p>
+<blockquote>
+<p>URHO3D_ATTRIBUTE_EX(“Collision Layer”, int, collisionLayer_, <strong>MarkBodyDirty</strong>, DEFAULT_COLLISION_LAYER, AM_DEFAULT);</p>
+</blockquote>
+<p>And MarkBodyDirty is:</p>
+<blockquote>
+<p>void MarkBodyDirty() { readdBody_ = true; }</p>
+</blockquote>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>After loading, I do one more unusual thing… I disable the gamescene node hierarchy…  later, when I enable it again, readdBody is false… looks like the “enabled” flag does not get along well with the “readdBody” flag.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

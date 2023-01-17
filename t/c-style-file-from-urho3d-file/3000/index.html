@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>C style FILE* from Urho3D::File*?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">C style FILE* from Urho3D::File*?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cap</div>
+          <div class="post_content">
+<p>Suppose there’s a third party library function <code>CoolFunction(FILE* cfile)</code> taking a C style <code>FILE*</code>, and there’s a file in the <code>ResourceCache</code> that we can get at pretty easily in the form of an <code>Urho3D::File*</code>. Is there any direct way to get at an underlying C style <code>FILE</code> from the <code>Urho3D::File*</code>?</p>
+<p>I started to do it as below (which has bugs, but the approach is clear), then began to figure the approach I was using was probably pointless, since if I need to be copying array values like that, I would probably be better off to just create the <code>FILE</code> directly from the name of the resource … but that way we can’t take advantage of the fact that the resource is loaded in the cache already. Any tips?</p>
+<pre><code class="lang-auto">void CoolFunctionWrapper(Urho3D::File* ufile)
+{
+  PODVector&lt;unsigned char&gt; buffer = ufile-&gt;ReadBuffer();
+
+  size_t n = (size_t)buffer.Size();
+  unsigned char* array = new unsigned char[n];
+  for (size_t i = 0; i &lt; (size_t)buffer.Size(); ++i) {
+    array[i] = buffer[i];
+  }
+
+  FILE* cfile = fopen("tmp_name", "w");
+  fwrite(array, sizeof(unsigned char), n, cfile);
+  delete array;
+
+  CoolFunction(cfile);
+}
+</code></pre>
+<p>(Also there is this <a href="http://discourse.urho3d.io/t/file-as-an-std-istream/2197">File as an std::istream</a> which looks relevant, but I still have to digest it.)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Try <code>(FILE*)file-&gt;GetGandle()</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Note that the GetHandle() solution will only work for non-packaged files (I’m fairly certain, perhaps for uncompressed package files as well). If you need to use packaged files for it, I’m pretty sure you will have to write some platform-dependent code to create a memory-mapped file (I think that’s the right term for this), and it is not as easy to do as for file streams. If you can, I would suggest modifying the library to use either Urho’s File class or a stream or your own custom version of the functions like fread that use one of those as a back end. (See <a href="http://stackoverflow.com/questions/12249610/c-create-file-in-memory" rel="nofollow noopener">http://stackoverflow.com/questions/12249610/c-create-file-in-memory</a> for info about creating a file in memory)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cap</div>
+          <div class="post_content">
+<p>Doing <code>(FILE)*file-&gt;GetHandle()</code> indeed works! Though due to the likely issue with packaged files, I think I’ll try modifying the library function to use Urho’s File as suggested. Thanks for the responses.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cap</div>
+          <div class="post_content">
+<p>Small update, I guess some care needs to be taken when using <code>(FILE*)file-&gt;GetHandle()</code>. One of the third party library functions was a bit too daunting to modify for an <code>Urho3D::File*</code>, so I used the <code>GetHandle()</code> method. All’s well on Windows, but on Ubuntu the same code leads to a segmentation fault.</p>
+<p>If I can find out why, I’ll share the reason here.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Logging performance</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Logging performance</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>I recently started adding Urho3D logging to my projects, and noticed a significant overhead from log levels that weren’t even active (in a test case that was pounding away at something). [EDIT: I checked and there is a ton of overhead just calling <code>Urho3D::ToString()</code> to convert a formatted C-style log message to an <code>Urho3D::String</code>… which never gets used.]</p>
+<p>Basically the compiler isn’t getting rid of log lines that don’t do anything. I’m wondering if it would make more sense to define log levels in the build system and <code>#ifdef</code> away all the unneeded log lines in <code>Urho3D/IO/Log.h</code>. Or maybe I am misusing logging… Interested in anyone’s thoughts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>I’d certainly be fine with that approach, but I’d prefer it as a <code>#define MAX_LOG_LEVEL</code>, while still allowing runtime setting of the log level below that. That way apps can have a verbose/debug setting that the user can enable, but you could still achieve what you want (the compiler removing all the extra calls).</p>
+<p>Another approach might be too see about making String constexpr, but I’m no expert on that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/902_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Eugene</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="1" data-topic="6445" data-username="vmost">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/8efe34bc3f116c17ad714b1e1c948719.png" width="20"/> vmost:</div>
+<blockquote>
+<p>’m wondering if it would make more sense to define log levels in the build system and <code>#ifdef</code> away all the unneeded log lines</p>
+</blockquote>
+</aside>
+<p>Do you you mean that you want per-level defines instead of global?<br/>
+</p><aside class="onebox githubblob">
+<header class="source">
+<a  rel="noopener nofollow ugc" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="noopener nofollow ugc" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/IO/Log.h#L133-L159</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="133" style="counter-reset: li-counter 132 ;">
+<li>#ifdef URHO3D_LOGGING
+</li>
+<li>#define URHO3D_LOGTRACE(message) Urho3D::Log::Write(Urho3D::LOG_TRACE, message)
+</li>
+<li>#define URHO3D_LOGDEBUG(message) Urho3D::Log::Write(Urho3D::LOG_DEBUG, message)
+</li>
+<li>#define URHO3D_LOGINFO(message) Urho3D::Log::Write(Urho3D::LOG_INFO, message)
+</li>
+<li>#define URHO3D_LOGWARNING(message) Urho3D::Log::Write(Urho3D::LOG_WARNING, message)
+</li>
+<li>#define URHO3D_LOGERROR(message) Urho3D::Log::Write(Urho3D::LOG_ERROR, message)
+</li>
+<li>#define URHO3D_LOGRAW(message) Urho3D::Log::WriteRaw(message)
+</li>
+<li>#define URHO3D_LOGTRACEF(format, ...) Urho3D::Log::Write(Urho3D::LOG_TRACE, Urho3D::ToString(format, ##__VA_ARGS__))
+</li>
+<li>#define URHO3D_LOGDEBUGF(format, ...) Urho3D::Log::Write(Urho3D::LOG_DEBUG, Urho3D::ToString(format, ##__VA_ARGS__))
+</li>
+<li>#define URHO3D_LOGINFOF(format, ...) Urho3D::Log::Write(Urho3D::LOG_INFO, Urho3D::ToString(format, ##__VA_ARGS__))
+</li>
+<li>#define URHO3D_LOGWARNINGF(format, ...) Urho3D::Log::Write(Urho3D::LOG_WARNING, Urho3D::ToString(format, ##__VA_ARGS__))
+</li>
+<li>#define URHO3D_LOGERRORF(format, ...) Urho3D::Log::Write(Urho3D::LOG_ERROR, Urho3D::ToString(format, ##__VA_ARGS__))
+</li>
+<li>#define URHO3D_LOGRAWF(format, ...) Urho3D::Log::WriteRaw(Urho3D::ToString(format, ##__VA_ARGS__))
+</li>
+<li>#else
+</li>
+<li>#define URHO3D_LOGTRACE(message) ((void)0)
+</li>
+<li>#define URHO3D_LOGDEBUG(message) ((void)0)
+</li>
+<li>#define URHO3D_LOGINFO(message) ((void)0)
+</li>
+<li>#define URHO3D_LOGWARNING(message) ((void)0)
+</li>
+<li>#define URHO3D_LOGERROR(message) ((void)0)
+</li>
+<li>#define URHO3D_LOGRAW(message) ((void)0)
+</li>
+</ol></code></pre>
+
+  This file has been truncated. <a  rel="noopener nofollow ugc" target="_blank">show original</a>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p><span class="mention">@Eugene</span> they are only removed if logging is completely disabled. I am looking for a more fine-tuned approach that only executes log statements when they are actually used.</p>
+<p><span class="mention">@SirNate0</span> <code>ToString()</code> is only executed for formatted log messages, which are evaluated at run time.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>In Java/Kotlin with Log4J pattern, computationally expensive string construction for the logging should be guarded inside the <code>isXXXEnabled()</code>. e.g.:</p>
+<pre><code>if (isDebugEnabled()) {
+    // Construct the expensive string here
+    val expensiveString = .....
+    logger.debug(expensiveString)
+}
+</code></pre>
+<p>Although Urho3D API does not provide such guard methods, it does provide the <code>GetLevel()</code> method to do the equivalent.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>The problem with <code>GetLevel()</code> is you’d need to add a static <code>GetLevelStatic()</code> for accessing the logging singleton, which implies a mandatory indirection <code>logInstance-&gt;GetLevel()</code>, if you want to do something like</p>
+<pre><code class="lang-auto">#define URHO3D_LOGTRACEF(format, ...) GetLevelStatic() &lt;= LOG_TRACE ? Write(LOG_TRACE, ToString(...)) : (void)0
+</code></pre>
+<p><span class="mention">@weitjong</span> I am trying to add a <code>URHO3D_MIN_LOG_LEVEL</code> input to the build system for logging, but can’t quite get it to work. Here are relevant parts of the diff</p>
+<pre><code class="lang-auto">diff --git a/CMake/Modules/UrhoCommon.cmake b/CMake/Modules/UrhoCommon.cmake
+index 4c1ac5989..7ec1aa0df 100644
+--- a/CMake/Modules/UrhoCommon.cmake
++++ b/CMake/Modules/UrhoCommon.cmake
+@@ -250,6 +250,8 @@ cmake_dependent_option (URHO3D_PACKAGING "Enable resources packaging support" FA
+ option (URHO3D_PROFILING "Enable profiling support" TRUE)
+ # Enable logging by default. If disabled, LOGXXXX macros become no-ops and the Log subsystem is not instantiated.
+ option (URHO3D_LOGGING "Enable logging support" TRUE)
++# Enable all log levels by default. Log levels lower than the min log level are no-ops. Can be set to any log level in the range [-1, 5] where any level &gt;= 5 is no logging and any level &lt;= 0 is 'all logging'. Log level -1 forces all log messages to be 'raw'.
++option (URHO3D_MIN_LOG_LEVEL "Set minimum log level from [-1, 5]" -1)
+ # Enable threading by default, except for Emscripten because its thread support is yet experimental                                                                    
+ if (NOT WEB)                                                                                                                                                           
+     set (THREADING_DEFAULT TRUE)                                                                                                                                       
+@@ -391,6 +393,7 @@ if (URHO3D_CLANG_TOOLS)                                                                                                                             
+             URHO3D_IK                                                                                                                                                  
+             URHO3D_LOGGING                                                                                                                                             
+             URHO3D_LUA                                                                                                                                                 
++            URHO3D_MIN_LOG_LEVEL                                                                                                                                       
+             URHO3D_NAVIGATION                                                                                                                                          
+             URHO3D_NETWORK                                                                                                                                             
+             URHO3D_PHYSICS                                                                                                                                             
+@@ -440,6 +443,7 @@ foreach (OPT                                                                                                                                        
+         URHO3D_IK                                                                                                                                                      
+         URHO3D_LOGGING                                                                                                                                                 
+         URHO3D_LUA                                                                                                                                                     
++        URHO3D_MIN_LOG_LEVEL                                                                                                                                           
+         URHO3D_MINIDUMPS                                                                                                                                               
+         URHO3D_NAVIGATION                                                                                                                                              
+         URHO3D_NETWORK    
+diff --git a/script/.build-options b/script/.build-options                                                                                                              
+index 0b56fe363..b5059e962 100644                                                                                                                                       
+--- a/script/.build-options                                                                                                                                             
++++ b/script/.build-options                                                                                                                                             
+@@ -37,6 +37,7 @@ URHO3D_HASH_DEBUG                                                                                                                                     
+ URHO3D_PACKAGING                                                                                                                                                       
+ URHO3D_PROFILING                                                                                                                                                       
+ URHO3D_LOGGING                                                                                                                                                         
++URHO3D_MIN_LOG_LEVEL                                                                                                                                                   
+ URHO3D_THREADING                                                                                                                                                       
+ URHO3D_TESTING                                                                                                                                                         
+ URHO3D_TEST_TIMEOUT                                                                                                                                                    
+diff --git a/script/.env-file b/script/.env-file                                                                                                                        
+index b076050bb..1c6cf0fc3 100644                                                                                                                                       
+--- a/script/.env-file                                                                                                                                                  
++++ b/script/.env-file                                                                                                                                                  
+@@ -120,6 +120,7 @@ URHO3D_LUAJIT                                                                                                                                       
+ URHO3D_LUAJIT_AMALG                                                                                                                                                    
+ URHO3D_LUA_RAW_SCRIPT_LOADER                                                                                                                                           
+ URHO3D_MACOSX_BUNDLE                                                                                                                                                   
++URHO3D_MIN_LOG_LEVEL                                                                                                                                                   
+ URHO3D_MINIDUMPS                                                                                                                                                       
+ URHO3D_MMX                                                                                                                                                             
+ URHO3D_NAVIGATION  
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Not all strings are expensive to construct. Most are just constant which cost nothing during runtime. So usually I peppered the check in my code at the place where I need it where the logger object is already known.</p>
+<p>Back to your question. You basically wants to bake the level when building the engine itself. I don’t think that is the right direction. But i won’t stop you. You have to be more explicit on what was the errors you encountered if you need my help.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>I want to bake the level when building a project, not the engine. For example I have two build scripts with <code>-DURHO3D_PROFILING=ON/OFF</code> for debug/release builds of my project. Don’t need to rebuild the library. I could be misunderstanding things though. Yes, I probably am… hmm</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Made a <a  rel="noopener nofollow ugc">PR</a> for my solution</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

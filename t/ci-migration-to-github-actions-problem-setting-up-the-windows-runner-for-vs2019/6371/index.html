@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>CI migration to Github Actions - problem setting up the Windows runner for VS2019</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">CI migration to Github Actions - problem setting up the Windows runner for VS2019</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Anyone knows how to configure Github Actions workflow with the Windows runner to build Urho3D library with CMake and VS as generator? Basically I am looking for the equivalent of below from Appveyor.</p>
+<pre><code class="lang-auto">  - if "%PLATFORM%" == "x64" (
+      call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat" &amp;&amp;
+      set "URHO3D_64BIT=1"
+    ) else (
+      call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars32.bat"
+    )
+</code></pre>
+<p>I have tried setting up the PATH with this action before the build, but to no avail.</p>
+<pre><code class="lang-auto">name: Setup msvc
+uses: microsoft/setup-msbuild@v1.0.1
+</code></pre>
+<p>The CMake produced this error, which indicates to me the PATH is still not correct. I believe on Appveyor I would get the same error if one of the above *.bat file is not called first.</p>
+<pre><code class="lang-auto">CMake suite maintained and supported by Kitware (kitware.com/cmake).
+-- The C compiler identification is MSVC 19.27.29111.0
+-- The CXX compiler identification is MSVC 19.27.29111.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - failed
+-- Check for working C compiler: C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Tools/MSVC/14.27.29110/bin/Hostx64/x64/cl.exe
+-- Check for working C compiler: C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Tools/MSVC/14.27.29110/bin/Hostx64/x64/cl.exe - broken
+CMake Error at C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeTestCCompiler.cmake:66 (message):
+  The C compiler
+
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Tools/MSVC/14.27.29110/bin/Hostx64/x64/cl.exe"
+
+  is not able to compile a simple test program.
+
+  It fails with the following output:
+
+    Change Dir: D:/a/Urho3D/Urho3D/'build/ci'/CMakeFiles/CMakeTmp
+    
+    Run Build Command(s):C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/MSBuild/Current/Bin/MSBuild.exe cmTC_4c31c.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=16.0 /v:m &amp;&amp; Microsoft (R) Build Engine version 16.7.0+b89cb5fde for .NET Framework
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>Path <code>D:/a/Urho3D/Urho3D/'build/ci'/CMakeFiles/CMakeTmp</code> very strange. Maybe this is the problem?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>Indeed. Well spotted.</p>
+<p>It was late last night and my eyes were blurry. And, I also hope I could get it done faster by collaborating.</p>
+<p>I will check if changing the slash to backward one will solve the issue. Thanks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/768_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">1vanK</div>
+          <div class="post_content">
+<p>I mean ’ inside path. Windows should work correctly with /</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>I know what you meant. But I jump the conclusion a bit that why it ended up like that is due to wrong slash direction. Anyway, even this is not the root cause of my CMake configuration problem, the build tree path needs to be fixed.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/4_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">weitjong</div>
+          <div class="post_content">
+<p>The slash direction is fine. Both Ruby and CMake handle the forward slash correctly for all the platforms. The problem was caused by the single quote during parameter passing when invoking the *.bat file. What it needs is double quoting the path.</p>
+<pre><code class="lang-auto">-  system "#{script} '#{build_tree}' #{build_options}" or abort
++  system %Q{#{script} "#{build_tree}" #{build_options}} or abort
+</code></pre>
+<p>The good news is, it also the root cause of my CMake configuration problem.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

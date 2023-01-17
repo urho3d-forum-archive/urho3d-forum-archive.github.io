@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>A class that can access resource?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">A class that can access resource?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hello</p>
+<p>I would like to create a World class that I can use to create objects using various methods. I don’t want to make it a component but still possible to accesss Urho3D so It can place objects among other things. I am placing the code. Do anyone have any suggestions.</p>
+<p>Vivienne</p>
+<p><span class="bbcode-b">Usage</span></p>
+<p>[code]/// Build world<br/>
+WorldBuild World;</p>
+<pre><code>/// Plant rocks
+for(unsigned int i=0; i&lt;20; i++)
+{
+
+    /// Pick a random spot
+    Spotx=rand()%10000;
+    Spotz=rand()%10000;
+
+    randomSpotx=((float)Spotx/100)-50.0f;
+    randomSpotz=((float)Spotz/100)-50.0f;
+
+    World.CreateObjectAlongPath(randomSpotx,randomSpotz, 20, 100.0f);
+}
+</code></pre>
+<p>[/code]<br/>
+<span class="bbcode-b">WordBuild.h</span></p>
+<p>[code]<span class="hashtag">#ifndef</span> WORLDBUILD_H<br/>
+<span class="hashtag">#define</span> WORLDBUILD_H</p>
+<p>using namespace Urho3D;</p>
+<p><span class="hashtag">#define</span> WorldOjectCollisionMapLimit  1000</p>
+<p>/// Temporary structure<br/>
+struct WorldOjectCollisionMap<br/>
+{<br/>
+float size_x;<br/>
+float size_y;<br/>
+float size_z;<br/>
+float origin_x;<br/>
+float origin_y;<br/>
+float origin_z;<br/>
+int lod;<br/>
+};</p>
+<p>class WorldBuild : public Component<br/>
+{</p>
+<p>public:<br/>
+/// Construct.<br/>
+WorldBuild();<br/>
+virtual ~WorldBuild();</p>
+<pre><code>/// public
+int CreateObjectAlongPath(float x, float z, float length, float numberofobjects);
+</code></pre>
+<p>protected:</p>
+<p>private:<br/>
+float ComputeDistance(int x1, int y1, int x2, int y2);</p>
+<pre><code>/// Saved Collision Objects to 0
+int SaveCollisionObjects;
+
+/// Set world limit of objects to test for collision
+WorldOjectCollisionMap CollisionBounds[WorldOjectCollisionMapLimit];
+</code></pre>
+<p>};</p>
+<p><span class="hashtag">#endif</span> // WORLDBUILD_H<br/>
+[/code]</p>
+<p><span class="bbcode-b">WorldBuild.cpp</span></p>
+<p>[code]/// Headers and etc<br/>
+<span class="hashtag">#include</span> “CoreEvents.h”<br/>
+<span class="hashtag">#include</span> “Engine.h”<br/>
+<span class="hashtag">#include</span> “ProcessUtils.h”<br/>
+<span class="hashtag">#include</span> “Octree.h”<br/>
+<span class="hashtag">#include</span> “Model.h”<br/>
+<span class="hashtag">#include</span> “Material.h”<br/>
+<span class="hashtag">#include</span> “ResourceCache.h”<br/>
+<span class="hashtag">#include</span> “Graphics.h”</p>
+<p><span class="hashtag">#include</span> “AnimationController.h”<br/>
+<span class="hashtag">#include</span> “Character.h”<br/>
+<span class="hashtag">#include</span> “Context.h”<br/>
+<span class="hashtag">#include</span> “MemoryBuffer.h”<br/>
+<span class="hashtag">#include</span> “PhysicsEvents.h”<br/>
+<span class="hashtag">#include</span> “PhysicsWorld.h”<br/>
+<span class="hashtag">#include</span> “RigidBody.h”<br/>
+<span class="hashtag">#include</span> “Scene.h”<br/>
+<span class="hashtag">#include</span> “SceneEvents.h”<br/>
+<span class="hashtag">#include</span> “Player.h”<br/>
+<span class="hashtag">#include</span> “Renderer.h”<br/>
+<span class="hashtag">#include</span> “UI.h”<br/>
+<span class="hashtag">#include</span> “Node.h”<br/>
+<span class="hashtag">#include</span> “CollisionShape.h”<br/>
+<span class="hashtag">#include</span> “StaticModel.h”</p>
+<p>#include <br/>
+#include <br/>
+#include <br/>
+<span class="hashtag">#include</span> </p>
+<p>using namespace std;</p>
+<p>#define NORTH 1<br/>
+#define NORTHEAST 2<br/>
+#define EAST 3<br/>
+#define SOUTHEAST 4<br/>
+#define SOUTH  5<br/>
+#define SOUTHWEST 6<br/>
+#define WEST 7<br/>
+#define NORTHWEST 8</p>
+<p>using namespace std;</p>
+<p>#include “WorldBuild.h”</p>
+<p>WorldBuild::WorldBuild()<br/>
+{<br/>
+//ctor<br/>
+}</p>
+<p>WorldBuild::~WorldBuild()<br/>
+{<br/>
+//dtor<br/>
+}</p>
+<p>float  WorldBuild::ComputeDistance(int x1, int y1, int x2, int y2)<br/>
+{<br/>
+float  xrange= x1-x2;<br/>
+float  yrange= y1-y2;</p>
+<pre><code>return sqrt((xrange*xrange)+(yrange*yrange));
+</code></pre>
+<p>}</p>
+<p>int WorldBuild::CreateObjectAlongPath(float x, float z, float length, float numberofobjects)<br/>
+{<br/>
+/// Get Needed SubSystems<br/>
+ResourceCache* cache = GetSubsystem();<br/>
+Renderer* renderer = GetSubsystem();<br/>
+Graphics* graphics = GetSubsystem();<br/>
+UI* ui = GetSubsystem();</p>
+<pre><code>Scene * scene_;
+
+/// Need variables
+float lengthlimitdistance= length;
+
+
+float objectsalongpath=numberofobjects;
+float objectsdistance=lengthlimitdistance/objectsalongpath;
+float objectincrement=1;
+
+float origin_x=x;
+float origin_z=z;
+
+float difference_z=0.0f;
+float difference_x=0.0f;
+
+float position_x=0.0f;
+float position_z=0.0f;
+
+float newposition_x=0.0f;
+float newposition_z=0.0f;
+float olddistance=0.0f;
+
+srand (time(NULL));
+
+position_x=origin_x;
+position_z=origin_z;
+
+
+do
+{
+    /// Pick a random directoin
+    int direction=rand()%8+1;
+
+    /// Select coordinate change based on random direction
+    switch (direction)
+    {
+    case NORTH:
+        difference_x=0;
+        difference_z=1;
+        break;
+    case NORTHEAST:
+        difference_x=1;
+        difference_z=1;
+        break;
+    case EAST:
+        difference_x=+1;
+        difference_z=0;
+        break;
+    case SOUTHEAST:
+        difference_x=1;
+        difference_z=-1;
+        break;
+    case SOUTH:
+        difference_x=0;
+        difference_z=-1;
+        break;
+    case SOUTHWEST:
+        difference_x=-1;
+        difference_z=-1;
+        break;
+    case WEST:
+        difference_x=-1;
+        difference_z=0;
+        break;
+    case NORTHWEST:
+        difference_x=-1;
+        difference_z=1;
+        break;
+    }
+
+    /// If distance less then current distance then while continue loop
+    if(ComputeDistance(position_x+difference_x, origin_x, position_z+difference_z,origin_z)&lt;olddistance)
+    {
+        continue;
+    }
+    else
+    {
+        /// Create a new position
+        newposition_x=position_x+difference_x;
+        newposition_z=position_z+difference_z;
+
+        ///  Copy newposition to current positon
+        position_x=newposition_x;
+        position_z=newposition_z;
+
+        /// Get distance
+        olddistance=ComputeDistance(position_x, origin_x, position_z, origin_z);
+
+        /// Try this method to use percentange
+        if(olddistance/lengthlimitdistance&gt;(objectsdistance*objectincrement)/lengthlimitdistance)
+        {
+            objectincrement++;
+            cout &lt;&lt; "Spot Found\r\n";
+
+            /// Add a Rock to the seen - Rock Node
+            Node * RockNode = scene_ -&gt; CreateChild("RockNode");
+
+            StaticModel * RockStaticModel = RockNode-&gt;CreateComponent&lt;StaticModel&gt;();
+
+
+
+            RockStaticModel-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Resources/Models/Rock1.mdl"));
+            RockStaticModel-&gt;ApplyMaterialList("Resources/Models/Rock1.txt");
+
+            /// Create Nodes and COmponents
+            RockStaticModel-&gt;SetCastShadows(true);
+
+            BoundingBox  staticmodelbox = RockStaticModel-&gt;GetBoundingBox();
+            Vector3  staticmodelboxcenter= staticmodelbox.HalfSize();
+
+
+            /// Select a possible position to place a Rock
+            Vector3 selectPosition=Vector3(position_x,terrain-&gt;GetHeight(Vector3(position_x,0.0f,position_z))+staticmodelboxcenter.y_,position_z);
+
+            /// Save coordinates
+            CollisionBounds[SaveCollisionObjects].size_x=staticmodelboxcenter.x_;
+            CollisionBounds[SaveCollisionObjects].size_y=staticmodelboxcenter.y_;
+            CollisionBounds[SaveCollisionObjects].size_z=staticmodelboxcenter.z_;
+            CollisionBounds[SaveCollisionObjects].origin_x=position_x;
+            CollisionBounds[SaveCollisionObjects].origin_z=terrain-&gt;GetHeight(Vector3(position_x,0.0f,position_z))+staticmodelboxcenter.y_;
+            CollisionBounds[SaveCollisionObjects].origin_z=position_z;
+            CollisionBounds[SaveCollisionObjects].lod=0;
+
+            /// Save object
+            SaveCollisionObjects++;
+
+            /// Set Rock position
+            RockNode-&gt;SetPosition(selectPosition);
+            RockNode-&gt;SetRotation(Quaternion(Random(360),Vector3(0.0f,1.0f,0.0f)));
+        }
+
+        /// Output X, Y
+        cout &lt;&lt; position_x &lt;&lt; " " &lt;&lt; position_z &lt;&lt; "\r\n";
+    }
+}
+while(olddistance&lt;=lengthlimitdistance);
+
+
+return 1;
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>You can consider subclass from Object.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="att">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/7ae80e7e454f51b6f4845327f8f29d29.png" width="20"/> att:</div>
+<blockquote>
+<p>You can consider subclass from Object.</p>
+</blockquote>
+</aside>
+<p>I have to look in the morning. I’m not sure how (It’s late).</p>
+<p>If anything, I would think it would be a subclass of the Procedural class I made. Anyway,  right now I just want to access it then have it able to access Urho3D.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="att">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/7ae80e7e454f51b6f4845327f8f29d29.png" width="20"/> att:</div>
+<blockquote>
+<p>You can consider subclass from Object.</p>
+</blockquote>
+</aside>
+<p>I tried the following code but getting this error.</p>
+<p><code>WorldBuild.h||In member function ?virtual Urho3D::ShortStringHash WorldBuild::GetBaseType() const?:|
+WorldBuild.h|24|error: ?GetBaseTypeStatic? was not declared in this scope|
+ExistenceClient.cpp|3816|error: no matching function for call to ?WorldBuild::WorldBuild()?|
+ExistenceClient.cpp|3816|note: candidates are:|
+WorldBuild.h|29|note: WorldBuild::WorldBuild(Urho3D::Context*)|
+WorldBuild.h|29|note:   candidate expects 1 argument, 0 provided|
+WorldBuild.h|21|note: WorldBuild::WorldBuild(const WorldBuild&amp;)|
+WorldBuild.h|21|note:   candidate expects 1 argument, 0 provided|
+||=== Build finished: 7 errors, 3 warnings ===|
+</code></p>
+<p>WorldBuild.h</p>
+<p>[code]<span class="hashtag">#ifndef</span> WORLDBUILD_H<br/>
+<span class="hashtag">#define</span> WORLDBUILD_H</p>
+<p>using namespace Urho3D;</p>
+<p><span class="hashtag">#define</span> WorldOjectCollisionMapLimit  1000</p>
+<p>/// Temporary structure<br/>
+struct WorldOjectCollisionMap<br/>
+{<br/>
+float size_x;<br/>
+float size_y;<br/>
+float size_z;<br/>
+float origin_x;<br/>
+float origin_y;<br/>
+float origin_z;<br/>
+int lod;<br/>
+};</p>
+<p>class WorldBuild<br/>
+{<br/>
+/// Define subclass<br/>
+OBJECT(WorldBuild)</p>
+<p>public:</p>
+<pre><code>/// Construct.
+WorldBuild(Context* context);
+virtual ~WorldBuild();
+
+/// Register object factory and attributes.
+static void RegisterObject(Context* context);
+
+/// public
+int CreateObjectAlongPath(float x, float z, float length, float numberofobjects);
+</code></pre>
+<p>protected:</p>
+<p>private:<br/>
+float ComputeDistance(int x1, int y1, int x2, int y2);</p>
+<pre><code>/// Saved Collision Objects to 0
+int SaveCollisionObjects;
+
+/// Set world limit of objects to test for collision
+WorldOjectCollisionMap CollisionBounds[WorldOjectCollisionMapLimit];
+</code></pre>
+<p>};</p>
+<p><span class="hashtag">#endif</span> // WORLDBUILD_H<br/>
+[/code]</p>
+<p>WorldBuild.cpp</p>
+<p>[code]/// Headers and etc<br/>
+<span class="hashtag">#include</span> “CoreEvents.h”<br/>
+<span class="hashtag">#include</span> “Engine.h”<br/>
+<span class="hashtag">#include</span> “ProcessUtils.h”<br/>
+<span class="hashtag">#include</span> “Octree.h”<br/>
+<span class="hashtag">#include</span> “Model.h”<br/>
+<span class="hashtag">#include</span> “Material.h”<br/>
+<span class="hashtag">#include</span> “ResourceCache.h”<br/>
+<span class="hashtag">#include</span> “Graphics.h”</p>
+<p><span class="hashtag">#include</span> “AnimationController.h”<br/>
+<span class="hashtag">#include</span> “Character.h”<br/>
+<span class="hashtag">#include</span> “Context.h”<br/>
+<span class="hashtag">#include</span> “MemoryBuffer.h”<br/>
+<span class="hashtag">#include</span> “PhysicsEvents.h”<br/>
+<span class="hashtag">#include</span> “PhysicsWorld.h”<br/>
+<span class="hashtag">#include</span> “RigidBody.h”<br/>
+<span class="hashtag">#include</span> “Scene.h”<br/>
+<span class="hashtag">#include</span> “SceneEvents.h”<br/>
+<span class="hashtag">#include</span> “Player.h”<br/>
+<span class="hashtag">#include</span> “Renderer.h”<br/>
+<span class="hashtag">#include</span> “UI.h”<br/>
+<span class="hashtag">#include</span> “Node.h”<br/>
+<span class="hashtag">#include</span> “CollisionShape.h”<br/>
+<span class="hashtag">#include</span> “StaticModel.h”</p>
+<p><span class="hashtag">#include</span> <br/>
+<span class="hashtag">#include</span> <br/>
+<span class="hashtag">#include</span> <br/>
+<span class="hashtag">#include</span> <br/>
+<span class="hashtag">#include</span> “WorldBuild.h”</p>
+<p>using namespace std;</p>
+<p><span class="hashtag">#define</span> NORTH 1<br/>
+<span class="hashtag">#define</span> NORTHEAST 2<br/>
+<span class="hashtag">#define</span> EAST 3<br/>
+<span class="hashtag">#define</span> SOUTHEAST 4<br/>
+<span class="hashtag">#define</span> SOUTH  5<br/>
+<span class="hashtag">#define</span> SOUTHWEST 6<br/>
+<span class="hashtag">#define</span> WEST 7<br/>
+<span class="hashtag">#define</span> NORTHWEST 8</p>
+<p>WorldBuild::WorldBuild(Context* context)<br/>
+{<br/>
+//ctor<br/>
+}</p>
+<p>WorldBuild::~WorldBuild()<br/>
+{<br/>
+//dtor<br/>
+}</p>
+<p>void WorldBuild::RegisterObject(Context* context)<br/>
+{<br/>
+context-&gt;RegisterFactory();<br/>
+}</p>
+<p>float  WorldBuild::ComputeDistance(int x1, int y1, int x2, int y2)<br/>
+{<br/>
+float  xrange= x1-x2;<br/>
+float  yrange= y1-y2;</p>
+<pre><code>return sqrt((xrange*xrange)+(yrange*yrange));
+</code></pre>
+<p>}</p>
+<p>int WorldBuild::CreateObjectAlongPath(float x, float z, float length, float numberofobjects)<br/>
+{<br/>
+/// Get Needed SubSystems<br/>
+ResourceCache* cache = GetSubsystem();<br/>
+Renderer* renderer = GetSubsystem();<br/>
+Graphics* graphics = GetSubsystem();<br/>
+UI* ui = GetSubsystem();</p>
+<pre><code>Scene * scene_;
+
+/// Need variables
+float lengthlimitdistance= length;
+
+
+float objectsalongpath=numberofobjects;
+float objectsdistance=lengthlimitdistance/objectsalongpath;
+float objectincrement=1;
+
+float origin_x=x;
+float origin_z=z;
+
+float difference_z=0.0f;
+float difference_x=0.0f;
+
+float position_x=0.0f;
+float position_z=0.0f;
+
+float newposition_x=0.0f;
+float newposition_z=0.0f;
+float olddistance=0.0f;
+
+srand (time(NULL));
+
+position_x=origin_x;
+position_z=origin_z;
+
+
+do
+{
+    /// Pick a random directoin
+    int direction=rand()%8+1;
+
+    /// Select coordinate change based on random direction
+    switch (direction)
+    {
+    case NORTH:
+        difference_x=0;
+        difference_z=1;
+        break;
+    case NORTHEAST:
+        difference_x=1;
+        difference_z=1;
+        break;
+    case EAST:
+        difference_x=+1;
+        difference_z=0;
+        break;
+    case SOUTHEAST:
+        difference_x=1;
+        difference_z=-1;
+        break;
+    case SOUTH:
+        difference_x=0;
+        difference_z=-1;
+        break;
+    case SOUTHWEST:
+        difference_x=-1;
+        difference_z=-1;
+        break;
+    case WEST:
+        difference_x=-1;
+        difference_z=0;
+        break;
+    case NORTHWEST:
+        difference_x=-1;
+        difference_z=1;
+        break;
+    }
+
+    /// If distance less then current distance then while continue loop
+    if(ComputeDistance(position_x+difference_x, origin_x, position_z+difference_z,origin_z)&lt;olddistance)
+    {
+        continue;
+    }
+    else
+    {
+        /// Create a new position
+        newposition_x=position_x+difference_x;
+        newposition_z=position_z+difference_z;
+
+        ///  Copy newposition to current positon
+        position_x=newposition_x;
+        position_z=newposition_z;
+
+        /// Get distance
+        olddistance=ComputeDistance(position_x, origin_x, position_z, origin_z);
+
+        /// Try this method to use percentange
+        if(olddistance/lengthlimitdistance&gt;(objectsdistance*objectincrement)/lengthlimitdistance)
+        {
+            objectincrement++;
+            cout &lt;&lt; "Spot Found\r\n";
+
+            /// Add a Rock to the seen - Rock Node
+            Node * RockNode = scene_ -&gt; CreateChild("RockNode");
+
+            StaticModel * RockStaticModel = RockNode-&gt;CreateComponent&lt;StaticModel&gt;();
+
+
+
+            RockStaticModel-&gt;SetModel(cache-&gt;GetResource&lt;Model&gt;("Resources/Models/Rock1.mdl"));
+            RockStaticModel-&gt;ApplyMaterialList("Resources/Models/Rock1.txt");
+
+            /// Create Nodes and COmponents
+            RockStaticModel-&gt;SetCastShadows(true);
+
+            BoundingBox  staticmodelbox = RockStaticModel-&gt;GetBoundingBox();
+            Vector3  staticmodelboxcenter= staticmodelbox.HalfSize();
+
+
+            /// Select a possible position to place a Rock
+            Vector3 selectPosition=Vector3(position_x,terrain-&gt;GetHeight(Vector3(position_x,0.0f,position_z))+staticmodelboxcenter.y_,position_z);
+
+            /// Save coordinates
+            CollisionBounds[SaveCollisionObjects].size_x=staticmodelboxcenter.x_;
+            CollisionBounds[SaveCollisionObjects].size_y=staticmodelboxcenter.y_;
+            CollisionBounds[SaveCollisionObjects].size_z=staticmodelboxcenter.z_;
+            CollisionBounds[SaveCollisionObjects].origin_x=position_x;
+            CollisionBounds[SaveCollisionObjects].origin_z=terrain-&gt;GetHeight(Vector3(position_x,0.0f,position_z))+staticmodelboxcenter.y_;
+            CollisionBounds[SaveCollisionObjects].origin_z=position_z;
+            CollisionBounds[SaveCollisionObjects].lod=0;
+
+            /// Save object
+            SaveCollisionObjects++;
+
+            /// Set Rock position
+            RockNode-&gt;SetPosition(selectPosition);
+            RockNode-&gt;SetRotation(Quaternion(Random(360),Vector3(0.0f,1.0f,0.0f)));
+        }
+
+        /// Output X, Y
+        cout &lt;&lt; position_x &lt;&lt; " " &lt;&lt; position_z &lt;&lt; "\r\n";
+    }
+}
+while(olddistance&lt;=lengthlimitdistance);
+
+
+return 1;
+</code></pre>
+<p>}<br/>
+[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>I changed the follow and get this error.</p>
+<p><code>Error
+/media/home2/vivienne/Existence/Source/ExistenceApps/ExistenceClient/WorldBuild.cpp||In member function ?int WorldBuild::CreateObjectAlongPath(float, float, float, float)?:|
+/media/home2/vivienne/Existence/Source/ExistenceApps/ExistenceClient/WorldBuild.cpp|85|error: invalid use of incomplete type ?struct Urho3D::Terrain?|
+/media/home2/vivienne/Existence/Source/Engine/Physics/CollisionShape.h|45|error: forward declaration of ?struct Urho3D::Terrain?|
+/media/home2/vivienne/Existence/Source/ExistenceApps/ExistenceClient/WorldBuild.cpp|196|error: invalid use of incomplete type ?struct Urho3D::Terrain?|
+/media/home2/vivienne/Existence/Source/Engine/Physics/CollisionShape.h|45|error: forward declaration of ?struct Urho3D::Terrain?|
+/media/home2/vivienne/Existence/Source/ExistenceApps/ExistenceClient/WorldBuild.cpp|203|error: invalid use of incomplete type ?struct Urho3D::Terrain?|
+/media/home2/vivienne/Existence/Source/Engine/Physics/CollisionShape.h|45|error: forward declaration of ?struct Urho3D::Terrain?|
+/media/home2/vivienne/Existence/Source/Engine/Scene/Node.h||In member function ?T* Urho3D::Node::GetComponent() const [with T = Urho3D::Terrain]?:|
+/media/home2/vivienne/Existence/Source/ExistenceApps/ExistenceClient/WorldBuild.cpp:83|59|instantiated from here|
+/media/home2/vivienne/Existence/Source/Engine/Scene/Node.h|492|error: incomplete type ?Urho3D::Terrain? used in nested name specifier|
+||=== Build finished: 7 errors, 0 warnings ===|</code></p>
+<p>In WorldBuild.cpp</p>
+<p>[code]/// Try to get the node information;<br/>
+Scene * scene_;</p>
+<pre><code>Node* terrainNode = scene_-&gt;GetChild("Terrain",true);
+
+Terrain* terrain = terrainNode-&gt;GetComponent&lt;Terrain&gt;();
+
+Terrain-&gt;GetHeight(Vector3(0.0f,0.0f,0.0f));
+</code></pre>
+<p>[/code]</p>
+<p>WorldBuild.h[code]<br/>
+class WorldBuild :public Component<br/>
+{<br/>
+/// Define subclass<br/>
+OBJECT(WorldBuild)</p>
+<p>public:</p>
+<pre><code>/// Construct.
+WorldBuild(Context* context);
+virtual ~WorldBuild();
+
+/// Register object factory and attributes.
+static void RegisterObject(Context* context);[/code]
+</code></pre>
+<p>WorldBuild.cpp</p>
+<p>[code]<br/>
+WorldBuild::WorldBuild(Context* context):Component(context)<br/>
+{<br/>
+//ctor<br/>
+}</p>
+<p>WorldBuild::~WorldBuild()<br/>
+{<br/>
+//dtor<br/>
+}</p>
+<p>/// Register a object<br/>
+void WorldBuild::RegisterObject(Context* context)<br/>
+{<br/>
+context-&gt;RegisterFactory();<br/>
+}[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Worldbuild is a component subclass but looking for it to  juust be a object sublass not component based.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>The code was fixed. It’s a component.</p>
+<p>The problem I have is with one line like seriously. The last line specifically. It’s creating the latter debug segmentation fault. I used the same exact code to get the scene in a Character:LogicComponent basically</p>
+<p>[code]   /// Try to get the node information;<br/>
+Scene * scene_;</p>
+<pre><code>scene_ = this -&gt; GetScene();
+
+Node* terrainNode = scene_ -&gt;GetChild("Terrain",true);
+</code></pre>
+<p>[/code]</p>
+<p>Error Debug</p>
+<p><code>Debugger name and version: GNU gdb (Ubuntu/Linaro 7.4-2012.04-0ubuntu2.1) 7.4-2012.04
+Child process PID: 26395
+Program received signal SIGSEGV, Segmentation fault.
+In Urho3D::Node::GetChild(Urho3D::StringHash, bool) const [clone .constprop.86] () ()
+Debugger finished with status 0
+</code></p>
+<p>I also tried creating a component to the scene like.</p>
+<pre><code class="lang-auto"></code></pre>
+<p>That didn’t work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>Do you called WorldBuild::RegisterObject(context); somewhere ?<br/>
+And I think WorldBuild should subclass from Object like this,<br/>
+class WorldBuild : public Object<br/>
+{<br/>
+OBJECT(WorldBuild);</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“att”]Do you called WorldBuild::RegisterObject(context); somewhere ?<br/>
+And I think WorldBuild should subclass from Object like this,<br/>
+class WorldBuild : public Object<br/>
+{<br/>
+OBJECT(WorldBuild);[/quote]</p>
+<p>I do. I got it to work with someone help. They seen a “Da!” moment line of code I forgot to add.</p>
+<p>The way I got it to work is as a class as a logic component. It’s not what I intended. Basically I have to create a WorldBuild node in the scene then attach the logic component. I can use functions inside the class to populate the scene.  Afterward removing the WorldBuild node.</p>
+<p>Not exactly what I want but it works.</p>
+<p>[code]/// Build world<br/>
+Node * WorldObjectNode = scene_-&gt; CreateChild(“WorldBuildNode”);<br/>
+WorldBuild * WorldBuildObjects = WorldObjectNode  -&gt; CreateComponent();</p>
+<pre><code>/// Plant rocks
+for(unsigned int i=0; i&lt;40; i++)
+{
+
+    /// Pick a random spot
+    Spotx=rand()%10000;
+    Spotz=rand()%10000;
+
+    randomSpotx=((float)Spotx/100)-50.0f;
+    randomSpotz=((float)Spotz/100)-50.0f;
+
+    WorldBuildObjects -&gt; CreateObjectAlongPath(randomSpotx,randomSpotz, 50.0f,3);
+}
+</code></pre>
+<p>[/code]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">att</div>
+          <div class="post_content">
+<p>I see,<br/>
+You can subclass WorldBuild from Object,  like UI, Graphics etc…Then you can register WorldBuild as a Subsystem or just a variable . Not need to create a node to create a WorldBuild.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“att”]I see,<br/>
+You can subclass WorldBuild from Object,  like UI, Graphics etc…Then you can register WorldBuild as a Subsystem or just a variable . Not need to create a node to create a WorldBuild.[/quote]</p>
+<p>I have to look at the code again to see how. It doesn’t seem clear to me.  So, when I can take a deeper look I will.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

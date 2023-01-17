@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>A Mesh Generator</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">A Mesh Generator</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1207_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rbnpontes</div>
+          <div class="post_content">
+<p>Hello Guys, i have posted in this forum about CustomGeometry component, i have some headcache to export Mesh generated,<br/>
+So i think it best Create my own mesh Generator, i will Share with community.<br/>
+the i did not put texcoord parameters, if you place I’ll thank</p>
+<p><strong>Mesh.h</strong></p>
+<pre><code class="lang-auto">#pragma once
+#include &lt;Urho3D\Urho3DAll.h&gt;
+/// Created by Ruben Pontes
+/// If you like this code, please place my credits
+/// i'm stay happy if you share my work
+namespace REngine {
+	namespace Tools {
+		struct MeshFace {
+			Vector3 v0;
+			Vector3 v1;
+			Vector3 v2;
+			Vector3 normal;
+			Vector2 texcoord;
+		};
+		typedef unsigned short ushort;
+		typedef unsigned int uint;
+		class Mesh : public Object {
+			URHO3D_OBJECT(Mesh, Object);
+		public:
+			Mesh(Context* context);
+			void AddFace(Vector3 v0, Vector3 v1, Vector3 v2);
+			void AddFace(Vector3 v0, Vector3 v1, Vector3 v2,Vector3 normal);
+			void AddFace(MeshFace face);
+			void SetFace(uint i, MeshFace face);
+			MeshFace GetFace(uint i);
+			void Commit();
+			void CalculateNormals(bool check);
+			void Clear();
+			void Save(String path);
+			Geometry* GetGeometry();
+			Model* GetModel();
+			VertexBuffer* GetVertexBuffer();
+			IndexBuffer* GetIndexBuffer();
+		private:
+			bool _calcNormals;
+			Vector&lt;MeshFace&gt; _faces;
+			SharedPtr&lt;Geometry&gt; _geometry;
+			SharedPtr&lt;Model&gt; _model;
+			SharedPtr&lt;VertexBuffer&gt; _vertexBuffer;
+			SharedPtr&lt;IndexBuffer&gt; _indexBuffer;
+			Vector&lt;float&gt; _vertexData;
+			Vector&lt;ushort&gt; _indexData;
+		};
+	}
+}
+</code></pre>
+<p><strong>Mesh.cpp</strong></p>
+<pre><code class="lang-auto">#include "Mesh.h"
+namespace REngine {
+	namespace Tools {
+		Mesh::Mesh(Context * context) : Object(context)
+		{
+
+		}
+		void Mesh::AddFace(Vector3 v0, Vector3 v1, Vector3 v2)
+		{
+			MeshFace face;
+			face.v0 = v0;
+			face.v1 = v1;
+			face.v2 = v2;
+			AddFace(face);
+		}
+		void Mesh::AddFace(Vector3 v0, Vector3 v1, Vector3 v2, Vector3 normal)
+		{
+			MeshFace face;
+			face.v0 = v0;
+			face.v1 = v1;
+			face.v2 = v2;
+			face.normal = normal;
+			AddFace(face);
+		}
+		void Mesh::AddFace(MeshFace face)
+		{
+			_faces.Push(face);
+		}
+		void Mesh::SetFace(uint i, MeshFace face)
+		{
+			assert(i &gt;= _faces.Size());
+			_faces[i] = face;
+		}
+		MeshFace Mesh::GetFace(uint i)
+		{
+			return _faces[i];
+		}
+		void Mesh::Commit()
+		{
+			BoundingBox box;
+			uint lastFace = 0;
+			for (uint i = 0; i &lt; _faces.Size(); i++) {
+				MeshFace face = _faces[i];
+				//Calculate BoundingBox
+				box.Merge(face.v0);
+				box.Merge(face.v1);
+				box.Merge(face.v2);
+				//Assign Vertices
+				_vertexData.Push(face.v0.x_);
+				_vertexData.Push(face.v0.y_);
+				_vertexData.Push(face.v0.z_);
+				
+				_vertexData.Push(face.normal.x_);
+				_vertexData.Push(face.normal.y_);
+				_vertexData.Push(face.normal.z_);
+
+				_vertexData.Push(face.v1.x_);
+				_vertexData.Push(face.v1.y_);
+				_vertexData.Push(face.v1.z_);
+
+				_vertexData.Push(face.normal.x_);
+				_vertexData.Push(face.normal.y_);
+				_vertexData.Push(face.normal.z_);
+
+				_vertexData.Push(face.v2.x_);
+				_vertexData.Push(face.v2.y_);
+				_vertexData.Push(face.v2.z_);
+
+				_vertexData.Push(face.normal.x_);
+				_vertexData.Push(face.normal.y_);
+				_vertexData.Push(face.normal.z_);
+
+				_indexData.Push(lastFace);
+				_indexData.Push(lastFace + 1);
+				_indexData.Push(lastFace + 2);
+				lastFace += 3;
+			}
+			// Calculate face normals now
+			/*
+			for (unsigned i = 0; i &lt; _faces.Size() * 2; i += 3)
+			{
+				Vector3&amp; v1 = *(reinterpret_cast&lt;Vector3*&gt;(&amp;_vertexData[6 * i]));
+				Vector3&amp; v2 = *(reinterpret_cast&lt;Vector3*&gt;(&amp;_vertexData[6 * (i + 1)]));
+				Vector3&amp; v3 = *(reinterpret_cast&lt;Vector3*&gt;(&amp;_vertexData[6 * (i + 2)]));
+				Vector3&amp; n1 = *(reinterpret_cast&lt;Vector3*&gt;(&amp;_vertexData[6 * i + 3]));
+				Vector3&amp; n2 = *(reinterpret_cast&lt;Vector3*&gt;(&amp;_vertexData[6 * (i + 1) + 3]));
+				Vector3&amp; n3 = *(reinterpret_cast&lt;Vector3*&gt;(&amp;_vertexData[6 * (i + 2) + 3]));
+
+				Vector3 edge1 = v1 - v2;
+				Vector3 edge2 = v1 - v3;
+				n1 = n2 = n3 = edge1.CrossProduct(edge2).Normalized();
+			}
+			*/
+			if(_model == NULL)
+			_model = new Model(context_);
+			if (_vertexBuffer == NULL)
+			_vertexBuffer = new VertexBuffer(context_);
+			if (_indexBuffer == NULL)
+			_indexBuffer = new IndexBuffer(context_);
+			if (_geometry == NULL)
+			_geometry = new Geometry(context_);
+
+			_vertexBuffer-&gt;SetShadowed(true);
+			
+			PODVector&lt;VertexElement&gt; elements;
+			elements.Push(VertexElement(TYPE_VECTOR3, SEM_POSITION));
+			elements.Push(VertexElement(TYPE_VECTOR3, SEM_NORMAL));
+
+			_vertexBuffer-&gt;SetSize(_faces.Size() * 3, elements);
+			_vertexBuffer-&gt;SetData(_vertexData.Buffer());
+
+			_indexBuffer-&gt;SetShadowed(true);
+			_indexBuffer-&gt;SetSize(_faces.Size() * 3, false);
+			_indexBuffer-&gt;SetData(_indexData.Buffer());
+
+			_geometry-&gt;SetNumVertexBuffers(1);
+			_geometry-&gt;SetVertexBuffer(0, _vertexBuffer);
+			_geometry-&gt;SetIndexBuffer(_indexBuffer);
+			_geometry-&gt;SetDrawRange(TRIANGLE_LIST, 0, _faces.Size()*3);
+
+			_model-&gt;SetNumGeometries(1);
+			_model-&gt;SetGeometry(0, 0, _geometry);
+			_model-&gt;SetBoundingBox(box);
+			Vector&lt;SharedPtr&lt;VertexBuffer&gt; &gt; vertexBuffers;
+			Vector&lt;SharedPtr&lt;IndexBuffer&gt; &gt; indexBuffers;
+			vertexBuffers.Push(_vertexBuffer);
+			indexBuffers.Push(_indexBuffer);
+			PODVector&lt;unsigned&gt; morphRangeStarts;
+			PODVector&lt;unsigned&gt; morphRangeCounts;
+			morphRangeStarts.Push(0);
+			morphRangeCounts.Push(0);
+			_model-&gt;SetVertexBuffers(vertexBuffers, morphRangeStarts, morphRangeCounts);
+			_model-&gt;SetIndexBuffers(indexBuffers);
+		}
+		void Mesh::CalculateNormals(bool check)
+		{
+			_calcNormals = check;
+		}
+		void Mesh::Clear()
+		{
+			_faces.Clear();
+			_vertexData.Clear();
+			_indexData.Clear();
+		}
+		void Mesh::Save(String path)
+		{
+			if (_model == NULL)
+			{
+				URHO3D_LOGERROR("REngine::Mesh Mesh is not Build");
+				return;
+			}
+			File file(context_, path, FILE_WRITE);
+			if (file.IsOpen()) {
+				_model-&gt;Save(file);
+			}
+			file.Close();
+		}
+		Geometry * Mesh::GetGeometry()
+		{
+			return _geometry;
+		}
+		Model * Mesh::GetModel()
+		{
+			return _model;
+		}
+		VertexBuffer * Mesh::GetVertexBuffer()
+		{
+			return _vertexBuffer;
+		}
+		IndexBuffer * Mesh::GetIndexBuffer()
+		{
+			return _indexBuffer;
+		}
+	}
+}
+[/code]
+[b]How to use[/b]
+[code]
+Mesh mesh = new Mesh(context_);
+mesh-&gt;AddFace(Vertice0,Vertice1,Vertice2);
+mesh-&gt;Commit() // Use this for build geometry
+mesh-&gt;Save("c://MeshName") // If you save mesh
+StaticMesh* staticMesh = new StaticMesh(context_);
+staticMesh-&gt;SetModel(mesh-&gt;GetModel()); // For Display
+</code></pre>
+<p><strong>Some Screenshots using the Code</strong><br/>
+This is my tool for generate Roads</p>
+<p><a class="onebox" href="https://scontent-gru2-1.xx.fbcdn.net/t31.0-8/14615697_1161032567300574_6593746272698322565_o.jpg" rel="nofollow noopener" target="_blank">https://scontent-gru2-1.xx.fbcdn.net/t31.0-8/14615697_1161032567300574_6593746272698322565_o.jpg</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/994_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">magic.lixin</div>
+          <div class="post_content">
+<p>cool !</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">namic</div>
+          <div class="post_content">
+<p>How’s the performance of it? Thanks for the contribution. This should be available in the engine itself.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1207_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rbnpontes</div>
+          <div class="post_content">
+<p>I coudn’t test the performance, but i think is nearly value of CustomGeometry because i used CustomGeometry with reference</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>I stumbled upon this thread not to long ago and decided to update the code so I could utilize it in my project. This update includes calculating normals, tangents, and uvs (not perfect). Hopefully someone else can continue to improve on the code. Thanks for your contribution <span class="mention">@rbnpontes</span>!</p>
+<p>CustomMesh.h<br/>
+<a class="onebox" href="https://gist.github.com/victorholt/2dac4b295623afd66641e629c8b16dad" rel="nofollow noopener" target="_blank">https://gist.github.com/victorholt/2dac4b295623afd66641e629c8b16dad</a></p>
+<p>CustomMesh.cpp<br/>
+<a class="onebox" href="https://gist.github.com/victorholt/bf2f50584095a47da6f3ca3654e93168" rel="nofollow noopener" target="_blank">https://gist.github.com/victorholt/bf2f50584095a47da6f3ca3654e93168</a></p>
+<p><strong>Result</strong><br/>
+<img src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/1X/eeb1179ad939a670f761218608ebb6d98ef1a439.png"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Victor</div>
+          <div class="post_content">
+<p>Just a note, I did this update really quickly… so there are definitely some inefficiencies in it which should be resolved. I’m sure some of those are easy to spot as you traverse through the code. Although, for the most part it does work pretty well.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

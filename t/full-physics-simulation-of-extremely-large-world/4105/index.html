@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Full physics simulation of extremely large world</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Full physics simulation of extremely large world</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1362_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">feltech</div>
+          <div class="post_content">
+<p>Hey all,</p>
+<p>I want to create a simple space sim/trading game (yes, another one, but wait, there’s a catch!)…  I want to fully physically simulate all AI ships in the universe - even those far from the player.  The idea is to use extremely simple geometry, so that 1000s of bodies can be simulated at real-time rates.</p>
+<p>The problem I’m trying to wrap my head around is the floating point accuracy issue.  Even with double-precision at 1cm resolution you only get approx 0.01 light years (approx 16 sig figs in a double, with cm resolution, is 10^14 m = 0.01 light years).</p>
+<p>Reading around these, and other, forums, it seems the way to solve this is a hierarchical coordinate system, i.e. chunking or tiling the world.  Unfortunately, as far as I can tell Bullet is just not set up for this at all.</p>
+<p>I have a couple of ideas, e.g. an entirely separate physics world per tile; or re-centring entities relative to their local tile with a “broadphase” plugin to exclude all entities not on that tile.</p>
+<p>The main thing I’m struggling to wrap my head around is how to handle movement and collision detection across (i.e. on the edge between) world chunks/tiles.  I’m fairly sure this is a solved problem, but I can’t find any specific information about it on the web.</p>
+<p>Anyone got any ideas?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>How many light years will comply? <img alt=":slight_smile:" class="emoji" src="../../../images2/ab33f6c546ca85e7d84a4e3c32cd4034.png" title=":slight_smile:"/></p>
+<p>Start small, try to get maximum performance from single bullet physics world, like one tiny solar system or asteroid field. It will provide you good learning and you will be able to grow your universe from there.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1362_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">feltech</div>
+          <div class="post_content">
+<p>I think that the problem of tiling the world needs to be tackled from the start, since it affects the internals of the engine.</p>
+<p>I’ve had some more thoughts on this. I propose that all entities have a real-valued position relative to their current tile.  As far as Bullet is concerned, they would all inhabit the same small region of space.</p>
+<p>Then, we have a (pre-)broadphase that will filter down to entities in a single tile.  There is already similar functionality in Bullet via the collision object mask, but it has insufficient bits for this purpose.  Hopefully it will require limited modification to support tile coordinates, rather than a bitmask, though.  Or perhaps it will be more performant to roll something new.</p>
+<p>The real trick, as I mentioned in my previous post, is what to do at the edges between tiles.  I think in that case we need to get deeper into Bullet’s collision detection to re-centre the origin at the midpoint between two tiles, and compare pairs of entities across the tiles.</p>
+<p>That is, in a separate pass, use a list of pairs of inhabited tiles that neighbour one-another. Then, check pairs of entities (AABB overlap and the rest) across the divide, with the origin centred at the midpoint between the two tiles.</p>
+<p>I’ve only got passing familiarity with some of Bullet’s collision detection code, and very little familiarity with the collision response code, so I’m not sure how viable this is.</p>
+<p>Anyone got any comments/suggestions/alternatives on this idea?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Bananaft</div>
+          <div class="post_content">
+<p>Yeah, one more thing. Given, you have so enormously huge open spaces, spaceships will probably fly around on ridiculous speeds. And that means they will fly through everything and each other, as each frame they will move a great distance, even continuous collision detection won’t cover that. Sweep test may work alright but only for collision with static geometry.</p>
+<blockquote>
+<p>collision detection across (i.e. on the edge between) world chunks/tiles.</p>
+</blockquote>
+<p>proxy-collider that checks collisions in adjacent chunk and passes impulses to real object.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>Just a thought - The scene octree could be modified to be aligned more closely to Bullet’s spatial tree, this could mean regions of the octree could be considered as separate physics worlds, with well-defined volume boundaries. This could be an extension of the existing octree, rather than a whole new work, so it would not need to disrupt standard visibility testing etc.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">I3DB</div>
+          <div class="post_content">
+<p>You could maintain a physics world size of a reasonable space size, and translate each area of interest into that space, while maintaining it’s normal position outside your physics world space for viewing.</p>
+<p>So in effect you have two locations for each and every object. It’s translated location for physics world processing, and it’s visible location.</p>
+<p>But if you take a look at the Feature Sample ‘Physics Stress Test’ you’ll get an idea of the number of objects tracked before things go awry.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

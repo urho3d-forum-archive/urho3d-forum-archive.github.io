@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Collision detect problem</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Collision detect problem</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>I have set up a node as a  trigger to detect when the player reaches the area. I create a CollisionShape component, expand its size in X and Y to cover the desired area, then add a RigidBody, set its Collision Event Mode to Always and enable Trigger checkbox. Also added an StaticModel (the box), just in case, and make it invisible by unchecking all the View mask checkboxes.<br/>
+In the player creation code I have this:</p>
+<p><code>node = scn.CreateChild(id);
+		model = node.CreateComponent("AnimatedModel");
+		body = node.CreateComponent("RigidBody");
+		shape = node.CreateComponent("CollisionShape");
+		shape.model = model.model;</code></p>
+<p>In the gameplay code I subscribe collision event and set up a basic handler:</p>
+<pre><code class="lang-auto">SubscribeToEvent("NodeCollision", "HandleTriggers");
+***
+void HandleTriggers(StringHash eventType, VariantMap&amp; eventData)
+	{
+		Node@ n = eventData["OtherNode"].GetPtr();
+		Print("collided with "+n.name );
+	}</code></pre>
+<p>But when I make the player model walk to the area, nothing happens. Is there any missing step in the shape and body creation?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<blockquote>
+<p>Also added an StaticModel (the box), just in case, and make it invisible by unchecking all the View mask checkboxes.<br/>
+make your cube visible, and check is it on same place as before in editor. may be it’s gone somehow, no ?</p>
+</blockquote>
+<p>also read this <a href="http://urho3d.github.io/documentation/1.32/_physics.html">urho3d.github.io/documentation/1 … ysics.html</a><br/>
+"An example of reading collision event and contact point data in script, from NinjaSnowWar game object collision handling code:"</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>The cube is in the right place, I can make the character walk trhough it. Also tried enlarging the collisionShape, but doesnt works.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>may be you forgot node parameter ?</p>
+<p>SubscribeToEvent(node, “NodeCollision”, “HandleNodeCollision”);</p>
+<p>are you using like in ninga classes hierarchy?</p>
+<p>[spoiler][ul]class <span class="bbcode-b">GameObject</span> : ScriptObject ?<br/>
+{<br/>
+void HandleNodeCollision(StringHash eventType, VariantMap&amp; eventData)<br/>
+{<br/>
+…[b]WorldCollision<a>/b</a>;<br/>
+}</p>
+<p>void WorldCollision(VariantMap&amp; eventData){…}<br/>
+}</p>
+<p>class Ninja : <span class="bbcode-b">GameObject</span><br/>
+{<br/>
+void Start()<br/>
+{<br/>
+SubscribeToEvent(node, “NodeCollision”, “HandleNodeCollision”);<br/>
+}<br/>
+void <span class="bbcode-b">WorldCollision</span>(VariantMap&amp; eventData)<br/>
+{<br/>
+…<br/>
+}<br/>
+{<br/>
+…<br/>
+}<br/>
+}[/ul][/spoiler]</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>I looked at ninja as guide, but I skipped the node parameter because I thought it was optional and that the event handler would catch all collisions. Will try with that.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">rogerdv</div>
+          <div class="post_content">
+<p>Well, this is what I do:</p>
+<p><code> Array&lt;Node@&gt; snodes = gameScene.GetChildren();
+    Print(snodes.length);
+    for (int i=0;i&lt;snodes.length;i++) {
+			if (snodes[i].name=="emarker") {
+				//Found an entity marker
+				Variant val = snodes[i].vars["entity"];
+				snodes[i].name=val.ToString();
+				ent.CreateFromScene(gameScene, snodes[i],val.ToString());
+			} else if (snodes[i].name.Contains("trig")) {
+				//found a trigger
+				SubscribeToEvent(snodes[i], "NodeCollision", "HandleTriggers");
+			}//if
+    }//for
+</code></p>
+<p>It finds the trigger node, but no event is called.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

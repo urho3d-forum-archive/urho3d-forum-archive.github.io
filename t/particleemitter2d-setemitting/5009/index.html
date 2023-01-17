@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>ParticleEmitter2D::SetEmitting</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">ParticleEmitter2D::SetEmitting</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">patnav</div>
+          <div class="post_content">
+<p>When using ParticleEmitter2D in network/replication context</p>
+<p>It seems ParticleEmitter2D::SetEmitting doesn’t call MarkNetworkUpdate ?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>It shouldn’t need to.<br/>
+URHO3D_ACCESSOR_ATTRIBUTE(“Is Emitting”, IsEmitting, SetEmitting, bool, true, AM_DEFAULT);</p>
+<p>There is an attribute with default (disk +network) access mode. It should rightly be serialized automatically. The “setter” generated automatically contains the MarkNetworkUpdate, if I recall correctly.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">patnav</div>
+          <div class="post_content">
+<p>Thanks for your response</p>
+<p>But SetEmitting is not a setter</p>
+<p>I thnik MarkNetworkUpdate should be call like this:</p>
+<pre><code>void ParticleEmitter2D::SetEmitting(bool enable)
+{
+    if (enable != emitting_)
+    {
+        emitting_ = enable;
+        emitParticleTime_ = 0.0f;
+    
+        // ==&gt; Missing call ??
+        MarkNetworkUpdate();
+
+    }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/2384_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Leith</div>
+          <div class="post_content">
+<p>The macro “URHO3D_ACCESSOR_ATTRIBUTE” automatically generates a getter and a setter for the named attribute.<br/>
+Your class (which invokes this macro) derives from Serializable, which in turn contains a method called “Serializable::OnSetAttribute”.<br/>
+That method is called internally from the generated setter method, and the last thing OnSetAttribute does is call MarkNetworkUpdate (depending on the attribute mode flag, which is AM_DEFAULT = disk + networking).</p>
+<p>I know, it’s all hidden away and not as thoroughly documented as it might be, nonetheless it will just magically work, with one exception.<br/>
+If your attribute contains the default value (defined by your URHO3D_ACCESSOR_ATTRIBUTE invocation), then it will never be serialized (on disk, or network). You have to change its value to anything other than the default value in order for the attribute to be serialized. This is a deliberate attempt to reduce unnecessary network bandwidth, but sure confused me for a while when I started playing with serializing/deserializing using files on disk.<br/>
+It’s also worth mentioning that the macro does not actually initialize the attribute to its default value!<br/>
+It could, but it doesn’t. You still need to manually initialize your attributes or they may contain random values at runtime - particularly in Release builds.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p><span class="mention">@patnav</span> It seems like you may have found a bug. The ParticleEmitter2D was lacking the possibility to stop it from emitting without disabling or removing it <a  rel="nofollow noopener">until about two years ago</a>. But it seems <span class="mention">@kostik1337</span> forgot marking it for network updates.</p>
+<p>I think you could just add the line and issue a pull request.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1222_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">patnav</div>
+          <div class="post_content">
+<p>Thanks for your response</p>
+<p>Pull request:<br/>
+<a  rel="nofollow noopener">https://github.com/urho3d/Urho3D/pull/2430</a></p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

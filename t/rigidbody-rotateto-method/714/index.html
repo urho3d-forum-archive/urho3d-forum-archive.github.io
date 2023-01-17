@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>RigidBody RotateTo Method</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">RigidBody RotateTo Method</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">practicing01</div>
+          <div class="post_content">
+<p>Hello, I’m trying to implement a RotateTo method for RigidBody which will set its angular velocity so that it rotates towards and reaches a destination rotation.  I have no clue about the math aspects.  The following code gives interesting results but not correct:</p>
+<pre><code class="lang-auto">/*
+ * RigidBodyRotateTo.cpp
+ *
+ *  Created on: Jan 4, 2015
+ *      Author: practicing01
+ */
+
+#include "math.h"
+#include "ProcessUtils.h"
+#include "RigidBody.h"
+#include "Scene.h"
+#include "SceneEvents.h"
+#include "DebugNew.h"
+
+#include "RigidBodyRotateTo.h"
+
+
+RigidBodyRotateTo::RigidBodyRotateTo(Context* context) :
+LogicComponent(context)
+{
+	isRotating_ = false;
+	// Only the physics update event is needed: unsubscribe from the rest for optimization
+	SetUpdateEventMask(USE_FIXEDUPDATE);
+}
+
+void RigidBodyRotateTo::OnRotateToComplete()
+{
+	SendEvent(E_RIGIDBODYROTATETOCOMPLETE);
+}
+
+void RigidBodyRotateTo::RotateTo(Quaternion dest, float speed, bool stopOnCompletion)
+{
+	rotateToSpeed_ = speed;
+	rotateToDest_ = dest;
+	rotateToLoc_ = node_-&gt;GetRotation();
+	rotateToTravelTime_ = sqrt((rotateToDest_ - rotateToLoc_).LengthSquared()) / speed;
+	rotateToElapsedTime_ = 0.0f;
+	rotateToStopOnTime_ = stopOnCompletion;
+	isRotating_ = true;
+	//The following spins wildly.
+	//node_-&gt;GetComponent&lt;RigidBody&gt;()-&gt;SetAngularVelocity(dest.Normalized().EulerAngles() * speed);
+	//The following rotates but towards incorrect destination.
+	node_-&gt;GetComponent&lt;RigidBody&gt;()-&gt;SetAngularVelocity( rotateToLoc_.Slerp(dest, 1.0f).EulerAngles().Normalized() * speed );
+}
+
+void RigidBodyRotateTo::FixedUpdate(float timeStep)
+{
+	if (isRotating_ == true)
+	{
+		rotateToElapsedTime_ += timeStep;
+		if (rotateToElapsedTime_ &gt;= rotateToTravelTime_)
+		{
+			isRotating_ = false;
+			if (rotateToStopOnTime_ == true)
+			{
+				node_-&gt;GetComponent&lt;RigidBody&gt;()-&gt;SetAngularVelocity(Vector3::ZERO);
+			}
+			OnRotateToComplete();
+		}
+	}
+}
+</code></pre>
+<p>Any help with the line that sets the angular velocity will be greatly appreciated.  Thanks for your time.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Registering a LogicComponent above creating StaticModels makes them invisible</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Registering a LogicComponent above creating StaticModels makes them invisible</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>Hello!</p>
+<p>For seem reason when I use context’s “RegisterFactory” function on a LogicComponent above creating a scene it flat-out makes StaticModels disappear.</p>
+<p>Here’s what it looks like when I don’t register the component: <a href="http://prntscr.com/ggox61" rel="nofollow noopener">http://prntscr.com/ggox61</a> (This is what it’s supposed to look like)</p>
+<p>The result of putting RegisterFactory() above everything makes it a black screen.<br/>
+Here’s my CreateScene() function with where I’ve tried putting it</p>
+<pre><code>void PlayingState::CreateScene() {
+	//context_-&gt;RegisterFactory&lt;brk::PlayerCamera&gt;();
+
+	// &lt;-- Placing registerfactory here is black screen
+
+	ur::ResourceCache *cache = GetSubsystem&lt;ur::ResourceCache&gt;();
+
+	// &lt;-- Placing registerfactory here is black screen
+
+	ur::Node *boxNode = scene-&gt;CreateChild();
+	ur::StaticModel *model = boxNode-&gt;CreateComponent&lt;ur::StaticModel&gt;();
+	model-&gt;SetModel(cache-&gt;GetResource&lt;ur::Model&gt;("Models/Plane.mdl"));
+	boxNode-&gt;SetScale({ 100.0f, 1.0f, 100.0f });
+
+	// &lt;-- Placing registerfactory here is black screen
+
+	ur::Node *cameraNode = scene-&gt;CreateChild();
+	cameraNode-&gt;CreateComponent&lt;ur::Camera&gt;();
+	cameraNode-&gt;SetPosition({ 0.0f, 10.0f, 0.0f });
+
+	// &lt;-- Placing registerfactory here works fine
+
+	Renderer* renderer = GetSubsystem&lt;Renderer&gt;();
+	renderer-&gt;SetViewport(0, new Viewport(context_, scene, cameraNode-&gt;GetComponent&lt;ur::Camera&gt;()));
+	
+	// &lt;-- Placing registerfactory here works fine
+	
+}
+</code></pre>
+<p>Here’s the LogicComponent “PlayerCamera”, even with it blank it still gives a black screen.</p>
+<pre><code>constexpr float MOVE_SPEED = 20.0f;
+constexpr float MOUSE_SENSITIVITY = 0.1f;
+
+class PlayerCamera : public ur::LogicComponent {
+	URHO3D_OBJECT(Camera, LogicComponent)
+	public:
+		PlayerCamera(ur::Context *context);
+		virtual void Start();
+		virtual void Update(float deltaTime);
+		
+	private:
+		float yaw, pitch;
+};
+</code></pre>
+<p>Source:</p>
+<pre><code>PlayerCamera::PlayerCamera(ur::Context *context) : ur::LogicComponent(context) {
+
+}
+
+void PlayerCamera::Start() {
+	yaw = pitch = 0.0f;
+
+}
+
+void PlayerCamera::Update(float deltaTime) {
+	ur::Input *input = GetSubsystem&lt;ur::Input&gt;();
+
+	if (!input-&gt;HasFocus()) return;
+	
+	ur::IntVector2 mouseMove = input-&gt;GetMouseMove();
+	yaw += MOUSE_SENSITIVITY * mouseMove.x_;
+	pitch += MOUSE_SENSITIVITY * mouseMove.y_;
+	pitch = ur::Clamp(pitch, -85.0f, 85.0f);
+
+	node_-&gt;SetRotation(ur::Quaternion(pitch, yaw, 0.0f));
+
+	if (input-&gt;GetKeyDown(ur::KEY_W)) node_-&gt;Translate(ur::Vector3::FORWARD * MOVE_SPEED * deltaTime);
+	else if (input-&gt;GetKeyDown(ur::KEY_S)) node_-&gt;Translate(ur::Vector3::FORWARD * MOVE_SPEED * deltaTime);
+}
+</code></pre>
+<p>Any clues? <img alt=":confused:" class="emoji" src="../../../images2/5fc0af8f196734b5bf5c1aacdc718a17.png" title=":confused:"/> I don’t know how registering a factory is related to breaking a StaticModel</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/975_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ppsychrite</div>
+          <div class="post_content">
+<p>Holy cow I didn’t notice the</p>
+<pre><code>URHO3D_OBJECT(Camera, LogicComponent)
+</code></pre>
+<p>Mistake, I’m stupid. <img alt=":man_facepalming:" class="emoji" src="../../../images2/8b44a49c0d15855930c0a7f893e4cbea.png" title=":man_facepalming:"/></p>
+<p>Sorry for wasting anyone’s time</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

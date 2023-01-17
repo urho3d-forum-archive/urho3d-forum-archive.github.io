@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Unclean frame refresh on POV shift</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Unclean frame refresh on POV shift</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Hi, recently started getting Urho3D set up, and noticed a concerning behavior in one of the samples. It can be demonstrated with ‘20_HugeObjectCount’. Basically, if you zoom out and then wiggle the camera around some frames only partially refresh. I mean, I move the camera around and only some of the cubes’ positions are updated. The effect appears as a ‘jaggedness’ around the edges of the set of cubes, and ‘banding’ within the set. When the camera moves faster, the jaggedness is more pronounced.</p>
+<p>Is that intended behavior? Inevitable behavior? Fixable behavior? Unimportant behavior in a more realistic use of the engine? Why does this happen?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">SirNate0</div>
+          <div class="post_content">
+<p>Do you have vsync enabled? It sounds a lot like what you might get with vsync disabled.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>You can enable v-sync for the Urho3DPlayer by starting it with the <strong><code>-v</code></strong> flag (also try <strong><code>-h</code></strong>), and in your projects either with <code>engineParameters_[EP_VSYNC] = true;</code> in <code>YourApplication::Setup()</code> <em>or</em> with <code>GetSubsystem&lt;Graphics&gt;()-&gt;SetMode(...)</code> after that.</p>
+<p><span class="mention">@vmost</span> …and welcome to the forums! <img alt=":confetti_ball:" class="emoji" src="../../../images2/8cc1133d965c492d26cc2ba425a80ea1.png" title=":confetti_ball:"/> <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Worked like a charm, thanks! It seems enabling vsync reduces the frame rate, which makes sense cause now every frame has to fully refresh.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>V-sync is when a program waits for entire frames to render before they are submitted to the render buffer. <em>Without</em> v-sync, this submission interval is equal to that of the refresh rate… something like that. <img alt=":slightly_smiling_face:" class="emoji" src="../../../images2/083e71e9976093cddc504d689025b42c.png" title=":slightly_smiling_face:"/></p>
+<p>So when you’re frame rate is lower than your refresh rate it’s a choice  between <em>double</em> or <em>bisected</em> frames.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Is manually adjusting vsync at run-time very inefficient? I am reading up on it and apparently <a href="https://www.digitaltrends.com/computing/what-is-vsync/" rel="nofollow noopener">enhanced sync</a> performs better by switching vsync on and off depending if the frame rate is higher or lower than monitor refresh rate.</p>
+<p>EDIT: I just want to say, examining how the engine works, it’s really incredible. Everything is an object… you could have frames within frames or engines within engines. Crazy</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>Vsync is an interesting concept. Would it be worthwhile to implement a lightweight version of enhaned vsync? Like this</p>
+<pre><code class="lang-auto">//concept: turn vsync on/off manually based on frame rate
+	//if nominal frame rate &gt; monitor refresh rate + safety factor then
+		//vsync = on
+		//max frame rate = user-defined (or default) max frame rate
+	//else
+		//vsync = off
+		//max frame rate = monitor refresh rate
+
+	//nominal frame rate: the frame rate if no limit was in place
+	//safety factor: 95% or 99% confidence interval around nominal frame rate of last N frames
+	//note: store a simple bool that indicates the last vsync controller update's outcome, so we can skip the vsync on/off logic
+    //note2: have to add a FpsTracker derived class of Timer for keeping track of the nominal frame rate, since that info is lost by the system timer
+
+	//disable vsync controller if advanced vsync techniques are available (i.e. automatic switching vsync on/off)
+
+	//subscribe vsync controller update to Graphics::EndFrame() event (E_ENDRENDERING) so the frame rate limiter can be removed as soon as possible, and Timer::EndFrame() (E_ENDFRAME) so we know how much time was spent on the frame rate limiter
+</code></pre>
+<p>Of course, it would be even more efficient if integrated directly into the engine.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I’m not a vsyncologist. Maybe someone else could provide useful feedback.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vmost</div>
+          <div class="post_content">
+<p>If there are any vsyncologists out there… I am struggling to understand some very odd behavior. I made a simple class to insert a delay into each frame, in order to toggle the FPS up and down, have a switch for vsync on/off, and display the FPS and ‘nominal FPS’ on-screen. Nominal FPS is the FPS if ‘switch window buffer’ and ‘frame rate limiter’ are ignored. This way if vsync is on it’s easy to see what the FPS would be if vsync were off.</p>
+<p>When a basic program starts up I get some really nice FPS, on the order of 1k FPS for optimized release builds, or around 330 FPS for debug builds. As expected, when vsync turns on the real FPS drops to 60 Hz. Adding some delay reduces the nominal FPS without affecting real FPS.<br/>
+[Vsync off, no added delay]<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screen Shot 2020-08-16 at 2.45.58 PM"><img alt="Screen Shot 2020-08-16 at 2.45.58 PM" data-base62-sha1="kwO5A6G0xKbxmTJZtoFYIH8BndF"  height="392" src="../../../images2/a53b99f839a76573e117efdf5a9bf0fd.png"  width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2020-08-16 at 2.45.58 PM</span><span class="informations">1258×716 1.29 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+[Vsync on, no added delay]<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screen Shot 2020-08-16 at 2.46.20 PM"><img alt="Screen Shot 2020-08-16 at 2.46.20 PM" data-base62-sha1="wBUSyKJEaWjah5rY7iWLxCUgJFS"  height="395" src="../../../images2/03802939fe1e196a2645a41626ee258d.png"  width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2020-08-16 at 2.46.20 PM</span><span class="informations">1257×720 1.3 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div><br/>
+[Vsync on, 7ms added delay]<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screen Shot 2020-08-16 at 2.46.52 PM"><img alt="Screen Shot 2020-08-16 at 2.46.52 PM" data-base62-sha1="8AV8F0px7CDg9lMdNILxXC9S7rg"  height="396" src="../../../images2/b765d10a111b36623124756de5c4143a.png"  width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2020-08-16 at 2.46.52 PM</span><span class="informations">1258×722 1.29 MB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>Now, the strange behavior appears when I drive the nominal FPS below 60Hz while vsync is on… The real FPS doesn’t drop to 30Hz, it stays the same! As far as I can tell, vsync is working normally at 50Hz, since with vsync off the FPS stays at 50Hz and screen tearing is evident. What is going on here? My graphics card is an old Intel HD Graphics 4000, and as far as I can tell triple buffering is off. I can’t believe my monitor refresh rate is changing… and <code>GetSubsystem&lt;Graphics&gt;()-&gt;GetRefreshRate()</code> is returning 60Hz constantly (I checked).<br/>
+[Vsync on, added delay pushes nominal FPS to 50Hz]<br/>
+<div class="lightbox-wrapper"><a class="lightbox"   rel="nofollow noopener" title="Screen Shot 2020-08-16 at 2.47.47 PM"><img alt="Screen Shot 2020-08-16 at 2.47.47 PM" data-base62-sha1="iNScoUitC0A7GamLlUVwLqlfAS"  height="394" src="../../../images2/cb4060cbb816a912196c605d9d2b4cf2.jpeg"  width="690"/><div class="meta"><svg aria-hidden="true" class="fa d-icon d-icon-far-image svg-icon"><use xlink:href="#far-image"></use></svg><span class="filename">Screen Shot 2020-08-16 at 2.47.47 PM</span><span class="informations">1258×720 557 KB</span><svg aria-hidden="true" class="fa d-icon d-icon-discourse-expand svg-icon"><use xlink:href="#discourse-expand"></use></svg></div></a></div></p>
+<p>Possible hint… I went to windowed mode and wiggled the window around, which caused ‘Present’ to spike dramatically and FPS to drop a bunch.</p>
+<p>Note: I inserted the delay into ‘RenderViews’ as part of a failed experiment, its placement has no impact.</p>
+<p>P.S. The <a  rel="nofollow noopener">Urho3D profiler</a> is incredibly easy to use.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

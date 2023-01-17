@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>[SOLVED] StaticSprite2D Clipping</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">[SOLVED] StaticSprite2D Clipping</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Denthor</div>
+          <div class="post_content">
+<p>Hi there…</p>
+<p>I was wondering if it is possible to clip a StaticSprite2D? In my case I want a sprite to appear out of a portal, but the entire sprite is visible as it moves out to the right (even to the left of the portal it is coming through). How would I have only the section that has moved out of the portal be visible?</p>
+<p>Regards</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<p>I don’t know if there is a better solution but StaticSprite2D’s are also using the normal material system and you could use a shader parameter to draw only a part of the texture: <a href="http://urho3d.wikia.com/wiki/Custom_shader_parameters" rel="nofollow noopener">urho3d.wikia.com/wiki/Custom_shader_parameters</a><br/>
+You could pass the value for one axis where to fade the material out.</p>
+<p>I just tested making all pixel colors above a certain world position transparent:<br/>
+In the shader (HLSL in this case but GLSL is practically identical):</p>
+<pre><code class="lang-auto">...
+void PS(...)
+{
+...
+// at the end:
+if(iWorldPos.y&gt;1)
+    oColor.a=0;
+}</code></pre>
+<p>Normal scene: <a href="http://i.imgur.com/I2xIh4n.jpg" rel="nofollow noopener">i.imgur.com/I2xIh4n.jpg</a> (don’t mind the black stripes on the terrain, some weird unrelated issue)<br/>
+Cut model: <a href="http://i.imgur.com/hmMkYtt.jpg" rel="nofollow noopener">i.imgur.com/hmMkYtt.jpg</a><br/>
+The material has to support transparency for this to work. Also the shadow is here still completely there, that could be fixed though but shouldn’t matter for your case.</p>
+<p>One can also fade the color out:</p>
+<pre><code class="lang-auto">oColor.a=oColor.a*clamp(1.0-(iWorldPos.y-1)/0.5,0.0,1.0);  // fades out from Y world pos 1.0 (visible) to 1.5 (completely transparent)</code></pre>
+<p>This results in this: <a href="http://i.imgur.com/ExY7yWh.jpg" rel="nofollow noopener">i.imgur.com/ExY7yWh.jpg</a></p>
+<p>Also an interesting thing I had by having the clamp parameter in the wrong order: <a href="http://i.imgur.com/Slhct4r.jpg" rel="nofollow noopener">i.imgur.com/Slhct4r.jpg</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Denthor</div>
+          <div class="post_content">
+<p>Hi there, thankfully this works, but presents another problem. For some reason all 2D objects using a custom shader (instead of the default Urho2D shader) are rendered behind standard 2D objects, even if SetLayer is called.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/68_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">gawag</div>
+          <div class="post_content">
+<aside class="quote no-group" data-username="Denthor">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/9aee9a9d6af4db38198c6b9a1639b83f.png" width="20"/> Denthor:</div>
+<blockquote>
+<p>Hi there, thankfully this works, but presents another problem. For some reason all 2D objects using a custom shader (instead of the default Urho2D shader) are rendered behind standard 2D objects, even if SetLayer is called.</p>
+</blockquote>
+</aside>
+<p>Sounds the default shader is doing something different. Maybe the layer is set as the Z (depth) value?<br/>
+Try to copy the default material and shader and use that as a base for your custom material and shader.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Denthor</div>
+          <div class="post_content">
+<p>Hi there, I’ve done that. SetCustomMaterial on a StaticSprite2D (even if that material’s shader is a direct copy of Urho2D.glsl) starts ignoring the Z order.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Denthor</div>
+          <div class="post_content">
+<p>I finally resolved it by extending the base Urho2D.glsl to have a HaveClip parameter and two vectors defining the clip region, then setting per object material parameters to set it just for those objects I want clipped. That way the loss of ordering in the UpdateViewBatchInfo in Render2D.cpp on a material switch is not an issue.</p>
+<p>Thanks for the help, it set me on the right path.</p>
+<p>Regards,</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

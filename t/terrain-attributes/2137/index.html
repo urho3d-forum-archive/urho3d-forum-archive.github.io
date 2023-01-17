@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>Terrain attributes</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">Terrain attributes</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">horvatha4</div>
+          <div class="post_content">
+<p>Hi!<br/>
+I generate Node and Terrain from code and then save it as XML, I get this:</p>
+<pre><code class="lang-auto">...
+	&lt;component type="Terrain" id="2"&gt;
+		&lt;attribute name="Is Enabled" value="false" /&gt;
+		&lt;attribute name="Vertex Spacing" value="90 256 90" /&gt;
+		&lt;attribute name="Patch Size" value="8" /&gt;
+		&lt;attribute name="Is Occluder" value="true" /&gt;
+	&lt;/component&gt;
+&lt;/node&gt;</code></pre>
+<p>But if I reproduce a terrain in the Urho Editor I get this:</p>
+<pre><code class="lang-auto">...
+	&lt;component type="Terrain" id="4"&gt;
+		&lt;attribute name="Height Map" value="Image;Terrain/N489E0210_geo.png" /&gt;
+		&lt;attribute name="Material" value="Material;Materials/Terrain.xml" /&gt;
+		&lt;attribute name="Vertex Spacing" value="90 256 90" /&gt;
+		&lt;attribute name="Patch Size" value="8" /&gt;
+	&lt;/component&gt;
+&lt;/node&gt;</code></pre>
+<p>“Height Map” and “Material” attributes is not saved from C++ or they are not valid attributes?<br/>
+Naturally, what I saved from C++, is appear as an empty Node in the Editor.</p>
+<p>Arpi</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">cadaver</div>
+          <div class="post_content">
+<p>How are you setting the height map &amp; material resources in C++ code? Are they valid (and named) resources in the resource cache at the time of saving?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">horvatha4</div>
+          <div class="post_content">
+<p>They are unnamed.<br/>
+Here is my code:</p>
+<pre><code class="lang-auto">			Node* terrainNode_ = scene_-&gt;CreateChild();
+			Terrain *terrain_ = terrainNode_-&gt;CreateComponent&lt;Terrain&gt;();
+			terrain_-&gt;SetOccluder(true);
+			terrain_-&gt;SetSmoothing(false);
+			terrain_-&gt;SetSpacing(Vector3(ONE_MAPCELL_LENGHT, 256.0f, ONE_MAPCELL_LENGHT));
+			terrain_-&gt;SetPatchSize(TERRAIN_PATCH_SIZE);
+			for (...
+			{
+				for (...
+				{
+					SharedPtr&lt;Image&gt; terrainGeoSubImg = context_-&gt;CreateObject&lt;Image&gt;(), 
+						terrainTexSubImg = context_-&gt;CreateObject&lt;Image&gt;();
+					terrainGeoSubImg-&gt;SetSize(121, 121, 3);
+					terrainTexSubImg-&gt;SetSize(121, 121, 3);
+					for (int j = 0; j &lt;= 120; j++)
+					{
+						for (int i = 0; i &lt;= 120; i++)
+						{
+							int16_t r = origSRTM3[k * 120 + i][l * 120 + j], g = r;
+							r = r &amp; 0x00ff; g = g &gt;&gt; 8 &amp; 0x00ff;// STRM3 BigEndian
+							terrainGeoSubImg-&gt;SetPixel(i, j, Color(r / 255.0f, g / 255.0f, 0));
+...
+									terrainTexSubImg-&gt;SetPixel(i, j, landTopographicColors_[z]);
+...
+									terrainTexSubImg-&gt;SetPixel(i, j, seaTopographicColors_[z]);
+								}
+							}
+						}
+					}
+					terrain_-&gt;SetHeightMap(terrainGeoSubImg);
+					SharedPtr&lt;Material&gt; mat = context_-&gt;CreateObject&lt;Material&gt;();
+					mat-&gt;SetTechnique(0, cache-&gt;GetTempResource&lt;Technique&gt;("Techniques/Diff.xml"));
+					SharedPtr&lt;Texture2D&gt; tex2d = context_-&gt;CreateObject&lt;Texture2D&gt;();
+					tex2d-&gt;SetData(terrainTexSubImg);
+					mat-&gt;SetTexture(TU_DIFFUSE, tex2d);
+					terrain_-&gt;SetMaterial(mat);
+...
+					File *file = new File(context_, tmp_filename + ".xml", FILE_WRITE);
+					terrainNode_-&gt;SaveXML(*file);
+					file-&gt;Flush();
+					file-&gt;Close();
+					terrainGeoSubImg-&gt;SavePNG(tmp_filename + "_geo.png");
+					terrainTexSubImg-&gt;SavePNG(tmp_filename + "_tex.png");
+...</code></pre>
+<p>What is wrong?</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

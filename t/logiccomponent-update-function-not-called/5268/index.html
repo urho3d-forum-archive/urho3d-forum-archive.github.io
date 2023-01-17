@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>LogicComponent update function not called</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">LogicComponent update function not called</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>With or without setting the update mask, no matter what I try the update function is never called. I made sure it’s the same signature, I made it public and private, but it just won’t run. Subscribing to my own custom HandleUpdate method works, but the inherited virtual function doesn’t. Am I missing something?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Be sure to set the correct bitmask. There are four types:<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Urho3D/Scene/LogicComponent.h#L31</a></h4>
+<pre class="onebox"><code class="lang-h"><ol class="start lines" start="21" style="counter-reset: li-counter 20 ;">
+<li>//</li>
+<li>
+</li>
+<li>#pragma once</li>
+<li>
+</li>
+<li>#include "../Container/FlagSet.h"</li>
+<li>#include "../Scene/Component.h"</li>
+<li>
+</li>
+<li>namespace Urho3D</li>
+<li>{</li>
+<li>
+</li>
+<li class="selected">enum UpdateEvent : unsigned</li>
+<li>{</li>
+<li>    /// Bitmask for not using any events.</li>
+<li>    USE_NO_EVENT = 0x0,</li>
+<li>    /// Bitmask for using the scene update event.</li>
+<li>    USE_UPDATE = 0x1,</li>
+<li>    /// Bitmask for using the scene post-update event.</li>
+<li>    USE_POSTUPDATE = 0x2,</li>
+<li>    /// Bitmask for using the physics update event.</li>
+<li>    USE_FIXEDUPDATE = 0x4,</li>
+<li>    /// Bitmask for using the physics post-update event.</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+<p>And each corresponds to specific virtual fn.</p>
+<p>Take a look at some samples that make use of LogicComponents:<br/>
+<aside class="onebox githubblob">
+<header class="source">
+<a  rel="nofollow noopener" target="_blank">github.com</a>
+</header>
+<article class="onebox-body">
+<h4><a  rel="nofollow noopener" target="_blank">urho3d/Urho3D/blob/master/Source/Samples/18_CharacterDemo/Character.cpp#L41</a></h4>
+<pre class="onebox"><code class="lang-cpp"><ol class="start lines" start="31" style="counter-reset: li-counter 30 ;">
+<li>
+</li>
+<li>#include "Character.h"
+</li>
+<li>
+</li>
+<li>Character::Character(Context* context) :
+</li>
+<li>    LogicComponent(context),
+</li>
+<li>    onGround_(false),
+</li>
+<li>    okToJump_(true),
+</li>
+<li>    inAirTimer_(0.0f)
+</li>
+<li>{
+</li>
+<li>    // Only the physics update event is needed: unsubscribe from the rest for optimization
+</li>
+<li class="selected">    SetUpdateEventMask(USE_FIXEDUPDATE);
+</li>
+<li>}
+</li>
+<li>
+</li>
+<li>void Character::RegisterObject(Context* context)
+</li>
+<li>{
+</li>
+<li>    context-&gt;RegisterFactory&lt;Character&gt;();
+</li>
+<li>
+</li>
+<li>    // These macros register the class attributes to the Context for automatic load / save handling.
+</li>
+<li>    // We specify the Default attribute mode which means it will be used both for saving into file, and network replication
+</li>
+<li>    URHO3D_ATTRIBUTE("Controls Yaw", float, controls_.yaw_, 0.0f, AM_DEFAULT);
+</li>
+<li>    URHO3D_ATTRIBUTE("Controls Pitch", float, controls_.pitch_, 0.0f, AM_DEFAULT);
+</li>
+</ol></code></pre>
+</article>
+<div class="onebox-metadata">
+</div>
+<div style="clear: both"></div>
+</aside>
+</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Since C++11 you can make sure you’re not creating a new base virtual function by appending the <code>override</code> keyword instead of prepending <code>virtual</code> to a function declaration. This will cause a compiler error when no superclass has a virtual function with a matching signature.<br/>
+The default update event mask of a <strong><code>Logic</code></strong><code>Component</code> <em>should</em> do.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>I set the bitmask to <code>USE_UPDATE</code>  and made sure I was overriding a function. No compiler errors, and the debugger shows that the function is never called</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>What’s even more annoying is that other components have their virtual functions called normally</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Is there an <code>URHO3D_OBJECT(SubClass, SuperClass)</code> inside your class declaration?<br/>
+`</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Yes<br/>
+20 character limit</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I think I’m out of guesses; could you share some code?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>I can’t guess what could be wrong too<br/>
+Header:</p>
+<pre><code class="lang-auto">class GameManager : public LogicComponent
+{
+	URHO3D_OBJECT(GameManager, LogicComponent)
+
+public:
+	explicit GameManager(Context* context);
+	~GameManager() = default;
+
+	static void RegisterObject(Context* context);
+
+	virtual void OnSceneSet(Scene* scene) override;
+
+	virtual void Update(float Timestep) override;
+}
+</code></pre>
+<p>Cpp file:</p>
+<pre><code class="lang-auto">GameManager::GameManager(Context* context)
+	: LogicComponent(context)
+{
+	// Unsubscribe from all but update
+	// For some reason no functions are called
+	//SetUpdateEventMask(USE_UPDATE);
+	URHO3D_LOGDEBUG("Game manager constructor called");
+}
+
+void GameManager::Update(float Timestep)
+{
+	if (timer-&gt;GetMSec(false) &gt;= 500 &amp;&amp; CurrentControl != nullptr) {
+		URHO3D_LOGINFO(String("500ms have passed!");
+		timer-&gt;Reset();
+	}
+}
+</code></pre>
+<p>How it’s made in main.cpp:</p>
+<pre><code class="lang-auto">GameManage = MainScene-&gt;CreateComponent&lt;GameManager&gt;();	
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Prepending <code>virtual</code> nullifies the <code>override</code> keyword. They should not be used on the same declaration.</p>
+<p>Could you try logging the update outside of the timer check? Just to make sure the <code>if</code> isn’t to blame.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>The <code>if</code> is correct, because I’ve put it in a seperate <code>HandleUpdate</code> I made before and it worked. Still, I put it out of the <code>if</code> and yet it didn’t work<br/>
+Either way, it’s just a little inconvenience. Manually subscribing to Update events works and I can live with it.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>Also no errors or warnings being logged? Maybe something about a failed instantiation of an unknown component. Though I guess the “Game manager constructor called” should exclude that possibility, does it show up? It just seems strange for a simple setup like this to not work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>Nothing related to it is logged. Logging from constructor works and I used the component successfuly for other things. Actually, I don’t think I need it to be a logic component either way. Thanks for the help</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/1929_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">guk_alex</div>
+          <div class="post_content">
+<p>Do you have RegisterObject defined in your cpp code?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">lezak</div>
+          <div class="post_content">
+<aside class="quote no-group" data-post="9" data-topic="5268" data-username="throwawayerino">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" src="../../../images2/3d8d87e5724712e6dd00d78c32febd6a.png" width="20"/> throwawayerino:</div>
+<blockquote>
+<p>virtual void OnSceneSet(Scene* scene) override;</p>
+</blockquote>
+</aside>
+<p>Do You call LogicComponent::OnSceneSet here? Events subscriptions are set in this method, so if You override it, this may be the reason of Your problem.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Need to uncomment the line in your ctor:</p>
+<pre><code class="lang-auto">//SetUpdateEventMask(USE_UPDATE);
+</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">throwawayerino</div>
+          <div class="post_content">
+<p>I can’t believe I forgot this. Thanks!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>That should not be required…</p><aside class="quote" data-post="6" data-topic="121">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar" height="20" loading="lazy" src="../../../images2/b36d360b4fce73300b0e56f725288d21.png" width="20"/>
+<a href="https://discourse.urho3d.io/t/positioning-nodes-in-screen-space/121/6">Positioning nodes in screen space</a> <a class="badge-wrapper bullet" href="/c/discussions/support/10"><span class="badge-category-parent-bg" style="background-color: #25AAE2;"></span><span class="badge-category-bg" style="background-color: #92278F;"></span><span class="badge-category clear-badge" data-drop-close="true" style="" title="Someone can help you.">Support</span></a>
+</div>
+<blockquote>
+    In the head revision (it didn’t make it to V1.31) there is now a component called LogicComponent which can be used as a base for updating C++ components. It has Start() / DelayedStart() / Stop() / Update() / PostUpdate() / FixedUpdate() / FixedPostUpdate() virtual functions. By default all update events are subscribed to (perhaps unnecessarily) but there’s a function, SetUpdateEventMask(), which can be used to optimize the subscription.
+  </blockquote>
+</aside>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Lumak</div>
+          <div class="post_content">
+<p>Ha, I forgot that’s how it works. I wonder why it’s defaulted to calling all four empty functions?<br/>
+But thx Modanung!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/3290_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Modanung</div>
+          <div class="post_content">
+<p>I guess it’s the more convenient default that makes sure you don’t forget setting the right update event mask, instead of leaving you guessing why things don’t work as expected? <img alt=":wink:" class="emoji" src="../../../images2/537e3e653d641df5b9858e75faf3862a.png" title=":wink:"/></p>
+<blockquote>
+<p><em>“97% of the time premature optimization is the root of all evil.”</em> – Donald Knuth</p>
+</blockquote>
+<p>Alternatively one can use the <code>Component</code> class to inherit from. The main difference is that it lacks this update event mask and the associated virtual functions.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

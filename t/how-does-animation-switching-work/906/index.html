@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>How does animation switching work?</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">How does animation switching work?</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>Hello,</p>
+<p>I am able to do animation but the problem I have is switching. If I use PlayExclusive. It tends to lose the animation and if I use Play the animation doesn’t repeat I thought maybe it is the weight but it’s not the case. I seems maybe I have the animations on the same layer and Urho3D might be getting confused.</p>
+<p>I’m not sure.</p>
+<p>Vivienne</p>
+<p>[code]<br/>
+AnimatedModel* objectNodemodel=objectNode-&gt;CreateComponent();</p>
+<pre><code>/// Add Animation Controller
+objectNode-&gt;CreateComponent&lt;AnimationController&gt;();
+
+/// Setup mesh and mesh details nodes and stactic models
+if(gender&lt;51)
+{
+       ///       Code for character 
+
+
+    /// Add animation state
+    Animation * IdleAnimation = new Animation(context_);
+    IdleAnimation = cache-&gt;GetResource&lt;Animation&gt;("Resources/Models/standardbipedolianfemaleIdleAction.ani");
+
+    objectNodemodel -&gt; AddAnimationState(IdleAnimation);
+    IdleAnimation -&gt; SetAnimationName ("IdleAnimation");
+
+    /// Add Walking Animation
+    Animation * AddAnimation = new Animation(context_);
+    AddAnimation = cache-&gt;GetResource&lt;Animation&gt;("Resources/Models/standardbipedolianFemaleWalkAction.ani");
+
+    objectNodemodel -&gt; AddAnimationState(AddAnimation);
+    AddAnimation -&gt; SetAnimationName ("WalkAnimation");
+
+    /// Get Controller
+    AnimationController * playermeshAnimationController1 = objectNode -&gt; GetComponent&lt;AnimationController&gt;();
+
+    /// Set Morph Weight
+    playermeshAnimationController1-&gt; SetWeight("IdleAnimation",1);
+    playermeshAnimationController1-&gt; SetTime("IdleAnimation",1.89753);
+
+    playermeshAnimationController1-&gt; SetWeight("WalkAnimation",1);
+    playermeshAnimationController1-&gt; SetTime("WalkAnimation",2.45833);
+
+    playermeshAnimationController1-&gt;Play("IdleAnimation",0,1,0);[/code]
+</code></pre>
+<p>Code in FixedUpdate</p>
+<p>[code]    // Movement in four directions<br/>
+if (controls_.IsDown(CTRL_FORWARD|CTRL_BACK|CTRL_LEFT|CTRL_RIGHT))<br/>
+{</p>
+<pre><code>  /// code for controls
+
+    /// If in air, allow control, but slower than when on ground
+    body-&gt;ApplyImpulse(rot * moveDir * (softGrounded ? MOVE_FORCE : INAIR_MOVE_FORCE));
+
+    animCtrl -&gt; StopAll();
+
+    animCtrl -&gt; PlayExclusive("WalkAnimation", 0, true, 0);
+}
+else
+{
+
+    if(softGrounded)
+    {
+        if(!animCtrl-&gt;IsPlaying("IdleAnimation"))
+        {
+            animCtrl -&gt; PlayExclusive("IdleAnimation", 0, true, 0);
+        }
+    }
+}[/code]</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/119_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">codingmonkey</div>
+          <div class="post_content">
+<p>i’m do not use the AnimationController yet<br/>
+but i guess that the play function need full path to ani file <a href="http://urho3d.github.io/documentation/1.32/class_urho3_d_1_1_animation_controller.html">urho3d.github.io/documentation/1 … oller.html</a></p>
+<p>PlayExclusive</p>
+<aside class="quote">
+<blockquote>
+<p>Play an animation, set full target weight and fade out all other animations on the same layer. Name must be the full resource name. Return true on success. </p>
+</blockquote>
+</aside>
+<p>for anim states (i usually use they with own FSM construction):<br/>
+set to IdleAnimation state lower priority layer (0). SetWeight(1.0f) - always. prevState = CharacterState and now CharacterState = IDLE<br/>
+set to walkAnimation state high priority layer(1)  0+1. SetWeight(1.0f) - only then you press WASD buttons(or you also may add fadeWeight for few sec).  prevState =  CharacterState and now CharacterState  = WALK</p>
+<p>in update (timeStep)<br/>
+{<br/>
+//STAGE1. clear prev states<br/>
+if (preState == WALK)<br/>
+{<br/>
+walkAnimation. SetWeight(0);<br/>
+walkAnimation.SetTime(0.0f);<br/>
+}<br/>
+else if (preState == IDLE)<br/>
+{<br/>
+// do not needed to reset anything this state are default for play<br/>
+}<br/>
+else if (…)<br/>
+{</p>
+<p>}<br/>
+…</p>
+<p>//STAGE2. anim current selected state<br/>
+if ( CharacterState == IDLE)<br/>
+{<br/>
+IdleAnimation. SetWeight(1.0f);<br/>
+IdleAnimation.AddTime(timeStep);<br/>
+}<br/>
+else if (CharacterState == WALK)<br/>
+{<br/>
+walkAnimation. SetWeight(1.0f);<br/>
+walkAnimation.AddTime(timeStep);<br/>
+}<br/>
+…<br/>
+more complex example how i switch animStates<br/>
+<a href="https://github.com/MonkeyFirst/FH/blob/master/Featheredhat/BigBot.cpp">github.com/MonkeyFirst/FH/blob/ … BigBot.cpp</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">Mike</div>
+          <div class="post_content">
+<p>Maybe you should use a fadeTime different than zero and not use weights.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/942_2.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">vivienneanthony</div>
+          <div class="post_content">
+<p>[quote=“codingmonkey”]i’m do not use the AnimationController yet<br/>
+but i guess that the play function need full path to ani file <a href="http://urho3d.github.io/documentation/1.32/class_urho3_d_1_1_animation_controller.html" rel="nofollow noopener">urho3d.github.io/documentation/1 … oller.html</a><br/>
+[/quote]</p>
+<p>I went to the state changing method directly. I tried AnimationController but once that I read that it deletes animations. It couldn’t be used because I preload the animations with the character.</p>
+<p>Unless there was a flag or function to tell AnimationController not to delete I’ll do the animation switching directly. Maybe copy AnimationController and modify so it was it doesn’t delete preloaded animations to make life easier.</p>
+<p>I updated Git with the rough animations added.</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>

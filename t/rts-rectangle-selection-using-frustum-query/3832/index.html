@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>RTS rectangle selection using Frustum query</title>
+    <link rel="stylesheet" href="../../../archived.css" />
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}});
+    </script>
+    <script type="text/javascript" async
+      src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML">
+    </script>
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="title-span">
+        <a href="../../../">
+          <img src="../../../images/site-logo.png" height="40" alt="Urho3D" id="site-logo" />
+        </a>
+      </div>
+    </header>
+
+    <div class="main">
+    <div class="archive-span">Archive 17/01/2023.</div>
+    <h1 class="topic-title">RTS rectangle selection using Frustum query</h1>
+            <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>Hi,<br/>
+I am trying doing typical RTS unit selection by dragging a rectangle on screen.<br/>
+<img alt="screen" height="438" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/2/24944f5d250e7fa4b3c2c115b27a0322d249398e.png" width="690"/></p>
+<p>I saw the Frustum.c and thought I can manipulate vertices of camera frustum to be the frustum of the rectangle part.<br/>
+<img alt="frustum" height="414" src="//cdck-file-uploads-global.s3.dualstack.us-west-2.amazonaws.com/standard17/uploads/urho3d/original/2X/3/387e0de0637045d0f80a0fc6315aa8fc18857a47.png" width="374"/><br/>
+The code is projecting the 4 points of the rectangle to near plane and far plane of camera frustum, then using projected points to form a new frustum for query.</p>
+<p>It doesn’t work.<br/>
+Could I know what’s wrong with it?<br/>
+Thanks</p>
+<pre>
+<code>
+IntVector2 rectPos;
+IntVector2 rectEnd;
+rectPos.x_ = Min(drag_start.x_, pos.x_);
+rectPos.y_ = Max(drag_start.y_, pos.y_);
+rectEnd.x_ = Max(drag_start.x_, pos.x_);
+rectEnd.y_ = Min(drag_start.y_, pos.y_);
+if (rectEnd.x_ &gt; rectPos.x_ &amp;&amp; rectPos.y_ &gt; rectEnd.y_)
+{
+	Graphics* graphics = GetSubsystem&lt;Graphics&gt;();
+	Camera* camera = cameraNode_-&gt;GetComponent&lt;Camera&gt;();
+	Frustum fr = camera-&gt;GetFrustum();
+	Ray lefttopRectRay = camera-&gt;GetScreenRay((float)rectPos.x_ / graphics-&gt;GetWidth(), (float)rectPos.y_ / graphics-&gt;GetHeight());
+	float dNear = lefttopRectRay.HitDistance(fr.planes_[PLANE_NEAR]);
+	float dFar = lefttopRectRay.HitDistance(fr.planes_[PLANE_FAR]);
+	fr.vertices_[3] = lefttopRectRay.origin_ + dNear * lefttopRectRay.direction_;
+	fr.vertices_[7] = lefttopRectRay.origin_ + dFar * lefttopRectRay.direction_;
+
+	Ray leftbottomRectRay = camera-&gt;GetScreenRay((float)rectPos.x_ / graphics-&gt;GetWidth(), (float)rectEnd.y_ / graphics-&gt;GetHeight());
+	dNear = leftbottomRectRay.HitDistance(fr.planes_[PLANE_NEAR]);
+	dFar = leftbottomRectRay.HitDistance(fr.planes_[PLANE_FAR]);
+	fr.vertices_[2] = leftbottomRectRay.origin_ + dNear * leftbottomRectRay.direction_;
+	fr.vertices_[6] = leftbottomRectRay.origin_ + dFar * leftbottomRectRay.direction_;
+
+	Ray righttopRectRay = camera-&gt;GetScreenRay((float)rectEnd.x_ / graphics-&gt;GetWidth(), (float)rectPos.y_ / graphics-&gt;GetHeight());
+	dNear = righttopRectRay.HitDistance(fr.planes_[PLANE_NEAR]);
+	dFar = righttopRectRay.HitDistance(fr.planes_[PLANE_FAR]);
+	fr.vertices_[0] = righttopRectRay.origin_ + dNear * righttopRectRay.direction_;
+	fr.vertices_[4] = righttopRectRay.origin_ + dFar * righttopRectRay.direction_;
+
+	Ray rightbottomRectRay = camera-&gt;GetScreenRay((float)rectEnd.x_ / graphics-&gt;GetWidth(), (float)rectEnd.y_ / graphics-&gt;GetHeight());
+	dNear = rightbottomRectRay.HitDistance(fr.planes_[PLANE_NEAR]);
+	dFar = rightbottomRectRay.HitDistance(fr.planes_[PLANE_FAR]);
+	fr.vertices_[1] = rightbottomRectRay.origin_ + dNear * rightbottomRectRay.direction_;
+	fr.vertices_[5] = rightbottomRectRay.origin_ + dFar * rightbottomRectRay.direction_;
+
+	fr.UpdatePlanes();
+
+	PODVector&lt;Drawable *&gt; results;
+	FrustumOctreeQuery query(results, fr);
+	scene_-&gt;GetComponent&lt;Octree&gt;()-&gt;GetDrawables(query);
+	URHO3D_LOGINFO(Urho3D::String("select ") + Urho3D::String(results.Size()) + Urho3D::String(" things"));
+	for (unsigned int ii = 0; ii &lt; results.Size(); ii++)
+	{
+		URHO3D_LOGINFO(Urho3D::String("select ") + Urho3D::String(results[ii]-&gt;GetNode()-&gt;GetName()));
+	}
+}
+</code>
+</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>The rect should be</p>
+<pre><code>IntVector2 rectPos;
+IntVector2 rectEnd;
+rectPos.x_ = Min(drag_start.x_, pos.x_);
+rectPos.y_ = Min(drag_start.y_, pos.y_);
+rectEnd.x_ = Max(drag_start.x_, pos.x_);
+rectEnd.y_ = Max(drag_start.y_, pos.y_);
+if (rectEnd.x_ &gt; rectPos.x_ &amp;&amp; rectEnd.y_ &gt; rectPos.y_)
+</code></pre>
+<p>It still doesn’t work always.<br/>
+Sometimes hitdistance on near plane will return infinite, how does it happen?<br/>
+The near plane should be always in front of camera, isn’t it?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Just curious<br/>
+How long have you tried it?</p>
+<pre><code>Rect r = Rect((float)minX/w, (float)minY/ h, (float)maxX/ w, (float)maxY/ h);
+for (int i = 0; i &lt; lstEnt.Size(); ++i)
+			{
+Vector2 pos = cameraNode_-&gt;GetComponent&lt;Camera&gt;()-&gt;WorldToScreenPoint(lstEnt[i]-&gt;GetNode()-&gt;GetWorldPosition());
+				
+				if (r.IsInside(pos))
+				{
+					AddSelectedNode(lstEnt[i]-&gt;GetNode());
+				}
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">ab4daa</div>
+          <div class="post_content">
+<p>Hi George1<br/>
+Because there will be a lot of objects(at least 10,000~20,000), I want to take advantage of octree.</p>
+<p>By adding a nearclip using GetSplitFrustum, it seems OK now.</p>
+<pre><code>Frustum fr = camera-&gt;GetSplitFrustum(1.0f, 1000.0f);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="post_container">
+        <div class="avatar_container">
+          <img src="../../../images/{size}.png" class="avatar" />
+        </div>
+        <div class="post">
+          <div class="user_name">George1</div>
+          <div class="post_content">
+<p>Great<br/>
+Thanks for the detail.</p>
+<p>Best regards</p>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </body>
+</html>
